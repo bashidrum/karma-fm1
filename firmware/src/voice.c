@@ -131,6 +131,10 @@ static uint32_t voice_kills;                            /* voices given up (budg
 #define KILL_BLOCKS 2u                                  /* 1.5 ms: no click on a bass, little extra load */
 #define SHED_BLOCKS 10u                                 /* (3.0.5) the overload's: ~7 ms (2026-11-08, Ariel: notes the
                                                          * safety net took ended as if cut; 1.5 ms is a click on a pad) */
+#define SHED_SLOW 80u                                   /* (3.1.3) a tail still loud (over 1/8, -18 dB): ~58 ms, a quick
+                                                         * release, not a cut (Ariel, OMEN BELL with three tracks: its long
+                                                         * bell tails, the quietest sound sounding, were cut each time) */
+#define SHED_DEEP (1 << 21)                             /* (env Q24: 1/8) */
 static void voice_kill_n(voice_t *v, uint32_t blocks)   /* fade out over the next blocks (env_tick stage 4) */
 {
     v->gate = 0;
@@ -170,7 +174,7 @@ static void shed_voice(void)
                 best = v;
         }
     if (best) {
-        voice_kill_n(best, SHED_BLOCKS);
+        voice_kill_n(best, best->env < SHED_DEEP ? SHED_BLOCKS : SHED_SLOW);
         shed_count++;
         return;
     }

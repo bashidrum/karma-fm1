@@ -203,6 +203,22 @@ int main(void)
         snprintf(t, sizeof t, "calm for ~5 s: all 24 modes again (%u)", (unsigned)modal_cap);
         check(modal_cap == 24u, t);
     }
+    {                                                /* (3.1.3) a muted synth track: not computed, its notes end */
+        static int32_t o[2 * CTL];
+        track_t *tt = &trk[0];
+        uint32_t act = 0, bb;
+        for (bb = 0; bb < G_COUNT; bb++) song.g[bb] = GP[bb].def;   /* (a song as at power-on: a tempo) */
+        host_tracks_init();
+        trk_note_on(tt, 48, 100);
+        trk_note_on(tt, 55, 100);
+        for (bb = 0; bb < 20; bb++) mix_block(o, CTL);
+        tt->p[P_MUTE] = 1;
+        for (bb = 0; bb < 200; bb++) mix_block(o, CTL);
+        for (bb = 0; bb < NVOICE; bb++) act += tt->v[bb].active;
+        snprintf(t, sizeof t, "a muted synth track: its voices end, nothing computed (%u still on)", act);
+        check(act == 0, t);
+        tt->p[P_MUTE] = 0;
+    }
     dsu_defaults();
     printf(fails ? "HEX fixes: %d FAILED\n" : "HEX fixes: all ok\n", fails);
     return fails != 0;

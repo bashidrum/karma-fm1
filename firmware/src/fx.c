@@ -793,7 +793,24 @@ static void mix_part_run(track_t *t, uint32_t n, const mixbus_t *o)
 {
     int32_t *b = o->b;
     uint32_t i;
-    int32_t g0 = 32767 - t->att, g1 = gain_next(t);
+    int32_t g0 = 32767 - t->att, g1;
+    if (t->att >= 32767 && trk_silent(t)) {             /* (3.1.3) muted (or another track soloed) all through: nothing
+                                                         * heard, nothing computed (measured on an FM-1: muted tracks
+                                                         * cost as much as playing ones). Its notes end, silently */
+        for (i = 0; i < NVOICE; i++) {
+            voice_t *v = &t->v[i];
+            v->gate = 0;
+            v->env = 0;
+            v->stage = 0;
+            v->kill = 0;
+            v->active = 0;
+        }
+        t->nmono = 0;
+        t->mono_note = 0;
+        slicer_track(t, 0, n);                          /* (its step clock runs on) */
+        return;
+    }
+    g1 = gain_next(t);
     if (track_render(t, b, n))
         t->tail = t->p[P_ITYPE] ? 64 : 16, t->ins_xt = 0;              /* blocks of DIST / INSERT state to run out after the last
                                                          * voice (the INSERT's: 46 ms, a flanger's feedback) */

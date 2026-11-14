@@ -560,10 +560,13 @@ static void t_shed(void)
         run_block();
         run_block();
         half_ok = sv && sv->active && sv->env > e0 / 2;
-        for (blocks = 2; sv && sv->active && blocks < 40u; blocks++)
+        for (blocks = 2; sv && sv->active && blocks < 200u; blocks++)
             run_block();
-        check(half_ok && blocks >= SHED_BLOCKS - 1u && blocks <= SHED_BLOCKS + 1u,
-              "overload: a shed voice fades over ~7 ms (SHED_BLOCKS), not cut");
+        {   /* (3.1.3) a tail still loud (env over 1/8): SHED_SLOW (~58 ms), a quick release; a deep one: SHED_BLOCKS */
+            uint32_t want = e0 < SHED_DEEP ? SHED_BLOCKS : SHED_SLOW;
+            check(half_ok && blocks >= want - 1u && blocks <= want + 1u,
+                  "overload: a shed voice fades out (a loud tail ~58 ms, a deep one ~7 ms), not cut");
+        }
     }
     for (k = 0; k < 6u; k++)
         shed_voice();
