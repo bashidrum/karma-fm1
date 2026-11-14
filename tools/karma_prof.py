@@ -12,7 +12,7 @@ PARTS = ["events", "t1", "t2", "t3", "drums", "buses", "cloud", "out"]
 STAGES = ["setup", "bank", "bowloop", "bownoise", "blow", "upsample", "out", "omin", "plaits", "plaits_out", "prism",
           "om_osc", "om_iir", "om_fir", "om_rest", "plx_init", "init_max",
           "hx_set", "hx_drum", "hx_snare", "hx_cym", "hx_dec", "cl_rec", "cl_play"]
-SHOW = ["hx_set", "hx_drum", "hx_snare", "hx_cym", "hx_dec", "cl_rec", "cl_play"]
+SHOW = ["setup", "bank", "upsample", "plaits", "hx_drum", "hx_cym", "cl_play"]
 
 
 def port(names):
@@ -55,12 +55,22 @@ def main():
         blocks = max(1, v[0])
         avg = " ".join(f"{p}={v[1 + 2 * k] // blocks}/{v[2 + 2 * k]}" for k, p in enumerate(PARTS))
         line = f"{now - t0:5.1f}s blocks={v[0]} us avg/worst: {avg}"
+        x = 1 + 2 * len(PARTS)
+        if len(v) >= x + 5 + 1 + len(PARTS):          # (3.1.3) each one's longest block; the longest block's parts
+            cm = v[x:x + 5]
+            line += f" | longest: trk1={cm[0]} trk2={cm[1]} trk3={cm[2]} drums={cm[3]} cpu1own={cm[4]}"
+            wb = v[x + 5]
+            parts = " ".join(f"{p}={v[x + 6 + k]}" for k, p in enumerate(PARTS) if v[x + 6 + k])
+            line += f" | worst block {wb}: {parts}"
         if measuring:
             c = ask(i, o, 91)
             if c and len(c) >= 2 * len(STAGES):
                 dt = now - last
                 line += " | % of a core: " + " ".join(
                     f"{s}={c[2 * STAGES.index(s)] / (dt * 10000.0):.1f}" for s in SHOW)
+                mx = c[2 * len(STAGES) + 2:]
+                if len(mx) >= len(STAGES):              # (3.1.3) each stage's longest call
+                    line += " | longest us: " + " ".join(f"{s}={mx[k]}" for k, s in enumerate(STAGES) if mx[k])
         last = now
         print(line, flush=True)
 

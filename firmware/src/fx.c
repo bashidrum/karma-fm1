@@ -695,8 +695,11 @@ static uint32_t core_cost[NPART + 2];           /* ticks x 8: the three parts, t
  * sound's cost, not one block's set-up), a split stays ~0.75 s, and a new one must be better by a quarter */
 static uint32_t core_peak[NPART + 2];           /* ticks x 16: the parts, the drums on CPU0, (3.1.3) the HEX voices on CPU1 */
 #define CORE_DWELL 1024u                        /* blocks (~0.75 s) */
+static uint32_t core_max[NPART + 2];            /* (3.1.3) each one's longest block since the last read (editor command 94) */
 static inline void cost_put(uint32_t k, uint32_t ticks)
 {
+    if (ticks > core_max[k])
+        core_max[k] = ticks;
     uint32_t c = ticks << 4, p = core_peak[k];
     core_cost[k] += ticks - (core_cost[k] >> 3);
     core_peak[k] = c >= p ? p + ((c - p) >> 2) : p - ((p - c) >> 9);

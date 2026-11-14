@@ -978,6 +978,19 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             prof_ticks[i] = prof_max[i] = 0;
         }
         prof_blocks = 0;
+#if KARMA_DUAL_CORE
+        for (i = 0; i < NPART + 2u; i++) {                  /* each part's, the drums', CPU1's own longest block */
+            ed_bk_u32(core_max[i] / FM1_TICKS_PER_US);
+            core_max[i] = 0;
+        }
+#else
+        for (i = 0; i < NPART + 2u; i++)
+            ed_bk_u32(0);
+#endif
+        ed_bk_u32(prof_blk_max / FM1_TICKS_PER_US);         /* the longest block, and its parts */
+        for (i = 0; i < PF_N; i++)
+            ed_bk_u32(prof_worst[i] / FM1_TICKS_PER_US);
+        prof_blk_max = 0;
         break;
     case ED_CRASH:                                         /* (3.0.5) the last crash's record (hal fm1_crash, kept over resets and
                                                             * updates until power-off), any USB mode: every word of it */
@@ -999,6 +1012,10 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         }
         ed_bk_u32(felucca_dbg.late);
         ed_bk_u32(song.cpu_q8);
+        for (i = 0; i < PC_N; i++) {                       /* (3.1.3) each stage's longest call, us */
+            ed_bk_u32(pc_max[i] / FM1_TICKS_PER_US);
+            pc_max[i] = 0;
+        }
         break;
     case ED_PVAR:                                          /* [v]: which variant of a stage runs (dsp.c pc_var); -> v */
         if (na >= 1u)

@@ -19,15 +19,16 @@ enum { PC_SETUP, PC_BANK, PC_BOWLOOP, PC_BOWNOISE, PC_BLOW, PC_UP, PC_OUT_E, PC_
        PC_CL_REC, PC_CL_PLAY,                           /* (3.1.3) the CLOUD (cloud.c): the recording, the grains */
        PC_N };
 #if KARMA_PCOST
-static volatile uint32_t pc_ticks[PC_N], pc_calls[PC_N];
+static volatile uint32_t pc_ticks[PC_N], pc_calls[PC_N], pc_max[PC_N];   /* (3.1.3: pc_max, the longest call) */
 static volatile uint32_t pc_var;                         /* (a stage's variant under test: editor command 92) */
 #define PC_T0() uint32_t pc_t_ = fm1_ticks()
 #define PC_SYNC() (pc_t_ = fm1_ticks())
-#define PC_MARK(k) do { uint32_t pc_n_ = fm1_ticks(); pc_ticks[k] += pc_n_ - pc_t_; pc_calls[k]++; pc_t_ = pc_n_; } while (0)
+#define PC_MARK(k) do { uint32_t pc_n_ = fm1_ticks(), pc_d_ = pc_n_ - pc_t_; pc_ticks[k] += pc_d_; pc_calls[k]++; \
+                         if (pc_d_ > pc_max[k]) pc_max[k] = pc_d_; pc_t_ = pc_n_; } while (0)
 /* (the C++ voices' way in) */
 uint32_t karma_pc_now(void) { return fm1_ticks(); }
 uint32_t karma_pc_var(void) { return pc_var; }
-void karma_pc_add(uint32_t k, uint32_t t0) { if (k < PC_N) { pc_ticks[k] += fm1_ticks() - t0; pc_calls[k]++; } }
+void karma_pc_add(uint32_t k, uint32_t t0) { if (k < PC_N) { uint32_t d = fm1_ticks() - t0; pc_ticks[k] += d; pc_calls[k]++; if (d > pc_max[k]) pc_max[k] = d; } }
 #else
 #define PC_T0() do { } while (0)
 #define PC_SYNC() ((void)0)
