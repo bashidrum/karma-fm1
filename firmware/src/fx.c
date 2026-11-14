@@ -670,8 +670,13 @@ static void mix_part(track_t *t, uint32_t n) { mix_part_to(t, n, &BUS0); }
  * own while CPU0 renders track 1 and the drums; CPU0 joins before the effects and adds them. What the two share is read
  * only, or the random numbers (a race there only changes which random number comes) */
 static int32_t w_l[CTL], w_r[CTL], w_c[CTL], w_d[CTL], w_v[CTL], w_cl[CTL], w_b[CTL];
+#define FXP_C w_c                               /* (3.1.3: the last block's sends, between the blocks: fx_prev) */
+#define FXP_D w_d
+#define FXP_R w_v
+#define FXP_CL w_cl
 static int16_t pnew1[P_COUNT];
 static const mixbus_t BUS1 = {w_l, w_r, w_c, w_d, w_v, w_cl, w_b, pnew1};
+static uint8_t w_fx;                           /* (3.1.3) CPU1 runs the effects this block (fx_prev) */
 static uint8_t w_hex;                          /* (3.1.3) CPU1 renders the HEX voices this block (drums.c drums_hex_pre) */
 static uint32_t w_n, w_job;                     /* the block's length, the tracks CPU1 renders in it (bit k: track k + 1) */
 /* the cores balanced (2026-10-28, Ariel): each part's render time (and the drums') is measured as it runs, a running
@@ -699,15 +704,44 @@ static inline void cost_put(uint32_t k, uint32_t ticks)
 static int32_t stem_buf[NTRK][CTL];            /* (below: USB STEMS) */
 static uint8_t fx_stems;
 static int32_t stem_pre1[CTL];                  /* CPU1's own (stem_take's is CPU0's) */
+#endif
+#if !KARMA_DUAL_CORE
+static int32_t fxp_c[CTL], fxp_d[CTL], fxp_r[CTL], fxp_cl[CTL];
+#define FXP_C fxp_c
+#define FXP_D fxp_d
+#define FXP_R fxp_r
+#define FXP_CL fxp_cl
+#endif
+/* (3.1.3) the effects a block behind: the reverb, the delay, the chorus and the CLOUD run on the last block's sends
+ * (held in FXP_*) into wet_l / wet_r, which this block adds. Measured on an FM-1, they were 0.08 .. 0.16 ms of CPU0's
+ * 0.73 ms block, after the join, with nothing beside them; now CPU1 runs them first in its job (one core: CPU0, the
+ * same; the output does not depend on the split). Their return is 32 samples (0.73 ms) later than before */
+static uint32_t fxp_n;                          /* the held sends' length (0: none yet) */
+static void fx_prev(void)
+{
+    uint32_t i, n = fxp_n;
+    if (!n) {
+        for (i = 0; i < CTL; i++)
+            wet_l[i] = wet_r[i] = 0;
+        return;
+    }
+    fx_buses(FXP_C, FXP_D, FXP_R, wet_l, wet_r, n);
+    cloud_process(FXP_CL, wet_l, wet_r, n);           /* (adds into wet, takes FXP_CL to 0) */
+    for (i = n; i < CTL; i++)
+        wet_l[i] = wet_r[i] = 0;
+}
+#if KARMA_DUAL_CORE
 static void core1_parts(void *ctx)
 {
     uint32_t i, k, n = w_n, m = w_job, t0;
     (void)ctx;
-    if (w_hex) {                                /* (3.1.3) the drums' HEX voices first (CPU0 mixes them after the join) */
-        t0 = fm1_ticks();
+    t0 = fm1_ticks();
+    if (w_fx)                                   /* (3.1.3) the effects on the last block's sends (fx_prev), */
+        fx_prev();
+    if (w_hex)                                  /* .. the drums' HEX voices (CPU0 mixes them after the join) */
         drums_hex_pre(n);
-        cost_put(NPART + 1u, fm1_ticks() - t0);
-    }
+    if (w_fx | w_hex)
+        cost_put(NPART + 1u, fm1_ticks() - t0);   /* (CPU1's own work, for the balance) */
     for (i = 0; i < n; i++)
         w_l[i] = w_r[i] = w_c[i] = w_d[i] = w_v[i] = w_cl[i] = 0;
     for (k = 0; k < NPART; k++)
@@ -1187,6 +1221,7 @@ static void mix_block(int32_t *out, uint32_t n)
 {
     uint32_t i, prof_t0 = PROF_NOW();
     int32_t m0, m1;
+    int fx_done = 0;                                    /* (3.1.3) CPU1 ran this block's effects (fx_prev) */
     for (i = 0; i < n; i++)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
     {   /* REV / ECHO THROW (2.6): the sends glide to full and back over ~12 ms (17 blocks) */
@@ -1205,6 +1240,7 @@ static void mix_block(int32_t *out, uint32_t n)
         w_n = n;
         w_job = w_mask;
         w_hex = (uint8_t)!(TDRUM->att >= 32767 && trk_silent(TDRUM));   /* (3.1.3: muted all through: nothing to render) */
+        w_fx = 1;                                       /* (3.1.3: the effects on the last block's sends, fx_prev) */
         w_on = audio_worker_submit(core1_parts, 0);
     }
     if (w_on) {
@@ -1231,9 +1267,15 @@ static void mix_block(int32_t *out, uint32_t n)
     }
 #if KARMA_DUAL_CORE
     if (w_on) {                                         /* CPU1's tracks: wait, then into the mix and the sends */
-        if (!audio_worker_join())
-            hx_pre_mask = 0;                            /* (3.1.3: CPU1 gave up mid-job: the drums render here) */
-        else
+        if (!audio_worker_join()) {
+            hx_pre_mask = 0;                            /* (3.1.3: CPU1 gave up mid-job: the drums render here, */
+            for (i = 0; i < CTL; i++)                   /*  its effects' block is lost: silence for one block) */
+                wet_l[i] = wet_r[i] = 0;
+            fx_done = 1;
+        } else {
+            fx_done = 1;
+        }
+        if (fx_done && audio_worker_online)
             for (i = 0; i < n; i++) {
                 mix_l[i] += w_l[i], mix_r[i] += w_r[i];
                 send_c[i] += w_c[i], send_d[i] += w_d[i], send_r[i] += w_v[i], cloud_bus[i] += w_cl[i];
@@ -1293,13 +1335,21 @@ static void mix_block(int32_t *out, uint32_t n)
             stem_fx[0][i] = mix_l[i], stem_fx[1][i] = mix_r[i];
     texture_mix(mix_l, mix_r, n);                       /* GLO > TEXTURE (2.6): the bed, dry */
     punch_freeze_feed(send_r, mix_l, mix_r, n);         /* punch-in FREEZE: the dry mix into the held reverb */
-    fx_buses(send_c, send_d, send_r, wet_l, wet_r, n);
-    for (i = 0; i < n; i++) {
+    if (!fx_done)                                       /* (3.1.3) one core, or no CPU1 this block: the effects here */
+        fx_prev();
+    for (i = 0; i < n; i++) {                           /* the effects' return (the last block's sends: fx_prev) */
         mix_l[i] += wet_l[i];
         mix_r[i] += wet_r[i];
     }
     PROF(PF_BUSES);
-    cloud_process(cloud_bus, mix_l, mix_r, n);          /* the CLOUD: grains of what the tracks sent it (cloud.c) */
+    for (i = 0; i < n; i++) {                           /* this block's sends, for the next block's effects */
+        FXP_C[i] = send_c[i];
+        FXP_D[i] = send_d[i];
+        FXP_R[i] = send_r[i];
+        FXP_CL[i] = cloud_bus[i];
+        cloud_bus[i] = 0;
+    }
+    fxp_n = n;
     PROF(PF_CLOUD);
     if (fx_stems)                                       /* ... what the buses, the CLOUD and TEXTURE added */
         for (i = 0; i < n; i++)
