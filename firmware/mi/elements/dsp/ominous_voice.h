@@ -43,8 +43,16 @@
 
 namespace elements {
 
-const float kOversamplingDownMidi = -36.0f;
-const size_t kOversamplingUp = 8;
+// KARMA 3.1.3: the oscillators 4x oversampled on the FM-1 (Elements: 8x). Measured on an FM-1: OMIN's oscillators
+// and their two downsamplers were ~0.3 ms of a 0.73 ms block (OMEN BELL with two more tracks and the drums: late
+// blocks). 4x halves them; the FIR is a new one (61 taps, stopband -49 dB from 0.495 of the output rate, as hers
+// -46 dB with 101 taps at 8x: KARMA_OMIN_OS 8 builds hers).
+#ifndef KARMA_OMIN_OS
+#define KARMA_OMIN_OS 4
+#endif
+const size_t kOversamplingUp = KARMA_OMIN_OS;
+const float kOversamplingDownMidi = KARMA_OMIN_OS == 4 ? -24.0f : -36.0f;
+const float kOversamplingBrightness = -36.0f - kOversamplingDownMidi;   // (the FM's anti-aliasing as at 8x)
 
 const size_t kNumOscillators = 2;
 
@@ -267,7 +275,7 @@ class OminousVoice {
   FmOscillator oscillator_[kNumOscillators];
   
   stmlib::NaiveSvf iir_downsampler_[kNumOscillators];
-  FIRDownsampler<101, 128, kOversamplingUp> fir_downsampler_[kNumOscillators];
+  FIRDownsampler<KARMA_OMIN_OS == 4 ? 61 : 101, KARMA_OMIN_OS == 4 ? 64 : 128, kOversamplingUp> fir_downsampler_[kNumOscillators];
 
   stmlib::Svf filter_[kNumOscillators];
   

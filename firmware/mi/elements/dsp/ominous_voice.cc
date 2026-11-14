@@ -46,6 +46,28 @@ namespace elements {
 using namespace std;
 using namespace stmlib;
 
+#if KARMA_OMIN_OS == 4
+// KARMA 3.1.3: 4x: a Kaiser window (beta 4.5) on a sinc at (0.3 + 0.495) / 2 / 4, 61 taps, unity at DC: the passband
+// to 0.3 of the output rate within 0.04 dB, stopband from 0.495 under -49 dB
+const float kDownsamplingFilter[] = {
+  -7.144473861962e-05f, -5.782146719328e-04f, -1.126860887305e-03f, -1.368585350858e-03f,
+  -9.571419208131e-04f, 2.329659678707e-04f, 1.930316020192e-03f, 3.450909981728e-03f,
+  3.909534973884e-03f, 2.620148972773e-03f, -4.671260587946e-04f, -4.510731619813e-03f,
+  -7.892810319333e-03f, -8.759468031744e-03f, -5.844630858183e-03f, 7.402562620704e-04f,
+  9.134733335464e-03f, 1.606105704678e-02f, 1.789173741284e-02f, 1.216481073530e-02f,
+  -9.988072972618e-04f, -1.819141603590e-02f, -3.316459025941e-02f, -3.847187144027e-02f,
+  -2.788725652239e-02f, 1.184349919544e-03f, 4.618810792276e-02f, 9.944423553286e-02f,
+  1.498691848556e-01f, 1.859480054194e-01f, 1.990412033072e-01f, 1.859480054194e-01f,
+  1.498691848556e-01f, 9.944423553286e-02f, 4.618810792276e-02f, 1.184349919544e-03f,
+  -2.788725652239e-02f, -3.847187144027e-02f, -3.316459025941e-02f, -1.819141603590e-02f,
+  -9.988072972618e-04f, 1.216481073530e-02f, 1.789173741284e-02f, 1.606105704678e-02f,
+  9.134733335464e-03f, 7.402562620704e-04f, -5.844630858183e-03f, -8.759468031744e-03f,
+  -7.892810319333e-03f, -4.510731619813e-03f, -4.671260587946e-04f, 2.620148972773e-03f,
+  3.909534973884e-03f, 3.450909981728e-03f, 1.930316020192e-03f, 2.329659678707e-04f,
+  -9.571419208131e-04f, -1.368585350858e-03f, -1.126860887305e-03f, -5.782146719328e-04f,
+  -7.144473861962e-05f
+};
+#else
 // scipy.signal.remez(101, [0, 0.3 / 8, 0.495 / 8, 0.5], [1, 0]);
 const float kDownsamplingFilter[] = {
   -0.001859272945f,  0.001184937535f,  0.001212413444f,  0.001369688661f,
@@ -75,6 +97,7 @@ const float kDownsamplingFilter[] = {
    0.001555406705f,  0.001369688661f,  0.001212413444f,  0.001184937535f,
   -0.001859272945f,
 };
+#endif
 
 void Spatializer::Init(float fixed_position) {
   angle_ = 0.0f;
@@ -147,7 +170,7 @@ void FmOscillator::Process(
   
   // To prevent aliasing, reduce FM amount when frequency or feedback are
   // too high.
-  float brightness = frequency + ratio * 0.75f - 60.0f + \
+  float brightness = frequency + kOversamplingBrightness + ratio * 0.75f - 60.0f + \
       feedback_amount * 24.0f;
   float amount_attenuation = brightness <= 0.0f
       ? 1.0f
@@ -291,11 +314,14 @@ void OminousVoice::Process(
         size * kOversamplingUp);
     OM_MARK(OM_OSC);
     
+#if KARMA_OMIN_OS != 4   // (KARMA 3.1.3: at 4x her IIR's cutoff, 0.8 / 4, is past where a naive SVF is stable; the
+                         // 4x FIR alone stops more than her FIR and IIR did)
     iir_downsampler_[i].Process<FILTER_MODE_LOW_PASS>(
         osc_oversampled_,
         osc_oversampled_,
         size * kOversamplingUp,
         1);
+#endif
     OM_MARK(OM_IIR);
     fir_downsampler_[i].Process(osc_oversampled_, osc_, size * kOversamplingUp);
     OM_MARK(OM_FIR);
