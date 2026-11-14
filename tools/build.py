@@ -177,6 +177,8 @@ def build_loader():
 
 CXXFLAGS = ["-Os", "-ffunction-sections", "-fdata-sections", "-fno-exceptions", "-fno-rtti", "-fno-threadsafe-statics",
             "-fno-use-cxa-atexit", "-std=c++11", "-DTEST", "-DPLX_TARGET", "-w", "-Ifirmware/mi", "-Ifirmware/cxx"]
+if os.environ.get("KARMA_OMIN_OS"):                  # (3.1.3: an A/B build, ELEMENTS' OMIN oversampled 8x as Elements)
+    CXXFLAGS.append("-DKARMA_OMIN_OS=" + os.environ["KARMA_OMIN_OS"])
 
 # (3.0.5) the hot voices, built for speed (-O2 after -Os: the last wins), the rest stays small
 # (measured on the FM-1, one core: these gain at -O2; 6OP, PHDIS, GRAIN, VCF, FM, NOISE, SPEECH, PARTICLES lose: small)
