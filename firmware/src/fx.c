@@ -732,7 +732,9 @@ static void core_balance(void)                  /* CPU0, after the join: the nex
         return;
     }
     for (m = 1; m < (1u << NPART); m++) {               /* (CPU1 always has one: else nothing would measure it) */
-        uint32_t l0 = core_peak[NPART], l1 = w_hex ? core_peak[NPART + 1u] : 0u, l;   /* (3.1.3: the HEX voices, CPU1's) */
+        /* (3.1.3) the HEX voices are CPU1's; the drums' mix and the effects run after the join on CPU0 whatever the
+         * split, so they weigh on neither side: the split only evens CPU0's parts against CPU1's job */
+        uint32_t l0 = w_hex ? 0u : core_peak[NPART], l1 = w_hex ? core_peak[NPART + 1u] : 0u, l;
         for (k = 0; k < NPART; k++)
             if ((m >> k) & 1u)
                 l1 += core_peak[k];
