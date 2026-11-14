@@ -11,8 +11,8 @@ import mido
 PARTS = ["events", "t1", "t2", "t3", "drums", "buses", "cloud", "out"]
 STAGES = ["setup", "bank", "bowloop", "bownoise", "blow", "upsample", "out", "omin", "plaits", "plaits_out", "prism",
           "om_osc", "om_iir", "om_fir", "om_rest", "plx_init", "init_max",
-          "hx_set", "hx_drum", "hx_snare", "hx_cym", "hx_dec", "cl_rec", "cl_play"]
-SHOW = ["setup", "bank", "upsample", "plaits", "hx_drum", "hx_cym", "cl_play"]
+          "hx_set", "hx_drum", "hx_snare", "hx_cym", "hx_dec", "cl_rec", "cl_play", "ev_drum", "ev_note"]
+SHOW = ["omin", "plaits", "hx_drum", "plx_init", "ev_drum", "ev_note"]
 
 
 def port(names):

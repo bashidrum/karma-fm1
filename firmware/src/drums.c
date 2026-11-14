@@ -344,7 +344,14 @@ static void drum_audition_poll(void)
     }
 }
 
-static void drum_on(uint32_t note, uint32_t vel)
+static void drum_on_(uint32_t note, uint32_t vel);
+static void drum_on(uint32_t note, uint32_t vel)   /* (3.1.3: timed in the measuring build) */
+{
+    PC_T0();
+    drum_on_(note, vel);
+    PC_MARK(PC_EV_DRUM);
+}
+static void drum_on_(uint32_t note, uint32_t vel)
 {
     int32_t si = drum_set();
     const smp_set_t *set;

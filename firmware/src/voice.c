@@ -390,7 +390,14 @@ static volatile uint32_t note_hits[NPART][4];
 /* the visualiser (ui_vis.c): the tracks a note started on (bit per track), each one's last note, a kick */
 static volatile uint8_t vis_hit, vis_kick_hit, vis_note[NTRK];
 
-static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
+static void trk_note_on_(track_t *t, uint32_t note, uint32_t vel);
+static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)   /* (3.1.3: timed in the measuring build) */
+{
+    PC_T0();
+    trk_note_on_(t, note, vel);
+    PC_MARK(PC_EV_NOTE);
+}
+static void trk_note_on_(track_t *t, uint32_t note, uint32_t vel)
 {
     uint32_t any = 0, i, mode = (uint32_t)t->p[P_VOICE];
     if (trk_silent(t))

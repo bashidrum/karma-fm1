@@ -307,7 +307,7 @@ void OminousVoice::Process(
     oscillator_[i].Process(
         frequency + detune,
         ratio,
-        feedback_ * (0.25f + 0.15f * patch.exciter_signature),
+        feedback_ * (0.25f + 0.15f * patch.exciter_signature) * kOversamplingFeedback,
         (2.0f - patch.exciter_signature * feedback_) * amount,
         external_fm_oversampled_,
         osc_oversampled_,

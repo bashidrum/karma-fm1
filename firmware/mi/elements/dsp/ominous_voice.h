@@ -52,7 +52,14 @@ namespace elements {
 #endif
 const size_t kOversamplingUp = KARMA_OMIN_OS;
 const float kOversamplingDownMidi = KARMA_OMIN_OS == 4 ? -24.0f : -36.0f;
-const float kOversamplingBrightness = -36.0f - kOversamplingDownMidi;   // (the FM's anti-aliasing as at 8x)
+#ifndef KARMA_OMIN_BRIGHT
+#define KARMA_OMIN_BRIGHT (KARMA_OMIN_OS == 4 ? -3.0f : 0.0f)   // (3.1.3: measured, OMEN BELL's bands within 0.5 dB of 8x)
+#endif
+const float kOversamplingBrightness = KARMA_OMIN_BRIGHT;   // (the FM's anti-aliasing: as at 8x, -12; 0: as 4x would)
+#ifndef KARMA_OMIN_FB
+#define KARMA_OMIN_FB 0.85f                // (3.1.3: measured, OMINOUS's bands within 0.2 dB of 8x)
+#endif
+const float kOversamplingFeedback = KARMA_OMIN_OS == 4 ? KARMA_OMIN_FB : 1.0f;   // (the self-FM's one-sample loop twice as long)
 
 const size_t kNumOscillators = 2;
 
