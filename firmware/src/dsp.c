@@ -14,6 +14,9 @@ static inline int32_t mulq15(int32_t a, int32_t b) { return (a * b) >> 15; }
 enum { PC_SETUP, PC_BANK, PC_BOWLOOP, PC_BOWNOISE, PC_BLOW, PC_UP, PC_OUT_E, PC_OMIN, PC_PLX, PC_PLX_OUT, PC_PRISM,
        PC_OM_OSC, PC_OM_IIR, PC_OM_FIR, PC_OM_REST,     /* (inside OMIN: mi/elements/dsp/ominous_voice.cc, the same numbers) */
        PC_PLX_INIT, PC_INIT_MAX,                        /* (a Plaits model set up for a voice; the longest, us) */
+       PC_HX_SET, PC_HX_DRUM, PC_HX_SNARE, PC_HX_CYM, PC_HX_DEC,   /* (3.1.3) a HEX voice (lxr_dsp.c lx_render): its block's
+                                                         * set-up (envelopes, filter), each kind's samples, the decimator */
+       PC_CL_REC, PC_CL_PLAY,                           /* (3.1.3) the CLOUD (cloud.c): the recording, the grains */
        PC_N };
 #if KARMA_PCOST
 static volatile uint32_t pc_ticks[PC_N], pc_calls[PC_N];

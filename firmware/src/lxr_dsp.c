@@ -38,6 +38,10 @@
 
 enum { LW_SINE, LW_TRI, LW_SAW, LW_REC, LW_NOISE, LW_PWM, LW_COUNT };                       /* OscWaveforms */
 enum { LF_LP = 1, LF_HP, LF_BP, LF_UBP, LF_NOTCH, LF_PEAK, LF_LP2, LF_OFF };                 /* filterTypeEnum */
+#ifndef PC_T0                                         /* (3.1.3: the measuring build's marks, dsp.c; alone, as in tests/lxr_test.c: none) */
+#define PC_T0() do { } while (0)
+#define PC_MARK(k) do { } while (0)
+#endif
 enum { LV_DRUM, LV_SNARE, LV_CYM, LV_HAT };                                                 /* the voices */
 enum { LE_STOPPED, LE_A, LE_D, LE_REPEAT };                                                  /* SlopeEg2 states */
 
@@ -349,10 +353,35 @@ static void lx_svf_set(lx_svf_t *c, const lx_par_t *p)
     c->fl2 = c->f * 2.21f;
     c->ql2 = (1 - c->q) * 1.4f + (1 - c->q) / (1.0f - c->fl2);   /* (theirs in double) */
 }
+/* (3.1.3) the FM-1's FPU divides slowly: a sample of a DRUM voice divided four times (the soft clips, LP's tanh, the
+ * distortion). lx_rcp: 1 / y by multiplies (a first guess from the float's bits, then Newton three times: ~1e-7, a
+ * float's own precision). LX_FAST 1: used for those; the measuring build (KARMA_PCOST) switches it live, pc_var bit 0 */
+static inline float lx_rcp(float y)
+{
+    union { float f; uint32_t i; } u;
+    float r;
+    u.f = y;
+    u.i = 0x7EF311C7u - u.i;
+    r = u.f;
+    r = r * (2.0f - y * r);
+    r = r * (2.0f - y * r);
+    return r * (2.0f - y * r);
+}
+#ifndef LX_FAST
+#define LX_FAST 1
+#endif
+#if KARMA_PCOST
+#define LX_FAST_ON (pc_var & 1u)
+#define LX_SKIP_ON (pc_var & 2u)
+#else
+#define LX_FAST_ON LX_FAST
+#define LX_SKIP_ON 1
+#endif
+#define LX_DIV(a, b) (LX_FAST_ON ? (a) * lx_rcp(b) : (a) / (b))
 static inline float lx_tanh_xdx(float x)
 {
     const float a = x * x;
-    return ((a + 105) * a + 945) / ((15 * a + 420) * a + 945);
+    return LX_DIV((a + 105) * a + 945, (15 * a + 420) * a + 945);
 }
 static inline float lx_soft_clip2(float in) { return in * lx_tanh_xdx(0.5f * in); }
 static inline float lx_fast_tanh(float var)
@@ -361,7 +390,7 @@ static inline float lx_fast_tanh(float var)
         return -1.0f;
     if (var > 1.95f)
         return 1.0f;
-    return 4.15f * var / (4.29f + var * var);
+    return LX_DIV(4.15f * var, 4.29f + var * var);
 }
 /* one sample of SVF_calcBlockZDF (ENABLE_NONLINEAR_INTEGRATORS 0) */
 static inline int16_t lx_svf(lx_voice_t *v, const lx_svf_t *c, int16_t in)
@@ -525,6 +554,7 @@ static int lx_render(lx_voice_t *v, const lx_par_t *p, int16_t *out, uint32_t n,
     const float shape = lx_dist_shape(p->dist), drate = lx_shape(p->decim / 127.f, -0.7f), pwm = p->pwm / 127.f;
     const uint32_t tw = p->twave;
     uint32_t i = 0;
+    PC_T0();
     lx_svf_set(&c, p);
     if (!(v->s1 == v->s1) || !(v->s2 == v->s2))      /* removeMaliciousSample */
         v->s1 = v->s2 = 0;
@@ -533,6 +563,7 @@ static int lx_render(lx_voice_t *v, const lx_par_t *p, int16_t *out, uint32_t n,
         float dt0, idt0, dt1, idt1, dt2, idt2;
         if (!v->pos)
             lx_async(v, p, note);
+        PC_MARK(PC_HX_SET);
         m = LX_BLOCK - v->pos < n - i ? LX_BLOCK - v->pos : n - i;
         dt0 = lx_dt(&v->osc), idt0 = dt0 > 0.0f ? 1.0f / dt0 : 0.0f;
         dt1 = lx_dt(&v->mod), idt1 = dt1 > 0.0f ? 1.0f / dt1 : 0.0f;
@@ -540,8 +571,15 @@ static int lx_render(lx_voice_t *v, const lx_par_t *p, int16_t *out, uint32_t n,
         switch (v->kind) {
         case LV_DRUM: {
             const float fma = p->mamt / 127.f, dg = (v->gain - v->lastGain) * (1.0f / (LX_BLOCK - 1u));
+            const int idle = LX_SKIP_ON && fma == 0.0f && v->mod.wave != LW_NOISE;   /* (3.1.3: its output would be 0) */
             for (k = 0; k < m; k++) {
-                int16_t mb = lx_osc(&v->mod, fma, 0, -1.0f, dt1, idt1, pwm), b;
+                int16_t mb, b;
+                if (idle) {
+                    mb = 0;
+                    v->mod.phase += v->mod.inc;
+                } else {
+                    mb = lx_osc(&v->mod, fma, 0, -1.0f, dt1, idt1, pwm);
+                }
                 float x;
                 if (p->mix) {                         /* the two oscillators mixed */
                     b = lx_osc(&v->osc, 1.f - fma, 0, -1.0f, dt0, idt0, pwm);
@@ -554,7 +592,7 @@ static int lx_render(lx_voice_t *v, const lx_par_t *p, int16_t *out, uint32_t n,
                 b = lx_i16(b * (v->lastGain + (float)(v->pos + k) * dg));        /* bufferTool_addGainInterpolated */
                 b = lx_i16(b * v->velo);
                 x = b * (1.0f / 32767.f);             /* calcDistBlockFiltered */
-                x = (1 + shape) * x / (1 + shape * lx_fabsf(x));
+                x = LX_DIV((1 + shape) * x, 1 + shape * lx_fabsf(x));
                 b = lx_i16(x * 32767);
                 out[i + k] = lx_i16(b * vol);
             }
@@ -570,7 +608,7 @@ static int lx_render(lx_voice_t *v, const lx_par_t *p, int16_t *out, uint32_t n,
                 tmp += lx_transient(v, tw, tvol, tpitch);
                 b = lx_i16(cv * tmp);
                 x = b * (1.0f / 32767.f);             /* calcDistBlock */
-                x = (1 + shape) * x / (1 + shape * lx_fabsf(x));
+                x = LX_DIV((1 + shape) * x, 1 + shape * lx_fabsf(x));
                 out[i + k] = lx_i16(x * 32767);
             }
             break;
@@ -578,21 +616,35 @@ static int lx_render(lx_voice_t *v, const lx_par_t *p, int16_t *out, uint32_t n,
         default: {                                    /* CYM, HAT */
             const float a1 = p->mamt / 127.f, a2 = p->m2amt / 127.f, cv = vol * v->velo * v->gain;
             const float og = v->kind == LV_HAT ? 0.5f : 1.f;
+            const int idle1 = LX_SKIP_ON && a1 == 0.0f && v->mod.wave != LW_NOISE;    /* (3.1.3: their output would be 0) */
+            const int idle2 = LX_SKIP_ON && a2 == 0.0f && v->mod2.wave != LW_NOISE;
             for (k = 0; k < m; k++) {
-                const int16_t m1 = lx_osc(&v->mod, a1, 0, -1.0f, dt1, idt1, pwm);
-                const int16_t m2 = lx_osc(&v->mod2, a2, 0, -1.0f, dt2, idt2, pwm);
+                int16_t m1, m2;
+                if (idle1) {
+                    m1 = 0;
+                    v->mod.phase += v->mod.inc;
+                } else {
+                    m1 = lx_osc(&v->mod, a1, 0, -1.0f, dt1, idt1, pwm);
+                }
+                if (idle2) {
+                    m2 = 0;
+                    v->mod2.phase += v->mod2.inc;
+                } else {
+                    m2 = lx_osc(&v->mod2, a2, 0, -1.0f, dt2, idt2, pwm);
+                }
                 int16_t b = lx_osc(&v->osc, og, lx_sat16(m1 + m2), 1.0f, dt0, idt0, pwm);
                 float x;
                 b = lx_svf(v, &c, b);
                 b = lx_sat16(b + lx_transient(v, tw, tvol, tpitch));
                 b = lx_i16(b * cv);
                 x = b * (1.0f / 32767.f);
-                x = (1 + shape) * x / (1 + shape * lx_fabsf(x));
+                x = LX_DIV((1 + shape) * x, 1 + shape * lx_fabsf(x));
                 out[i + k] = lx_i16(x * 32767);
             }
             break;
         }
         }
+        PC_MARK(v->kind == LV_DRUM ? PC_HX_DRUM : v->kind == LV_SNARE ? PC_HX_SNARE : PC_HX_CYM);
         if (drate >= 1.0f) {                          /* (no decimation: every sample held as it is) */
             v->dheld = out[i + m - 1u];
             v->dcnt = 0.0f;
@@ -606,6 +658,7 @@ static int lx_render(lx_voice_t *v, const lx_par_t *p, int16_t *out, uint32_t n,
         }
         v->pos = (uint8_t)((v->pos + m) & (LX_BLOCK - 1u));
         i += m;
+        PC_MARK(PC_HX_DEC);
     }
     v->s1 = v->s1 > -1e-20f && v->s1 < 1e-20f ? 0.0f : v->s1;   /* (no denormals) */
     v->s2 = v->s2 > -1e-20f && v->s2 < 1e-20f ? 0.0f : v->s2;

@@ -156,6 +156,12 @@ $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/regress" tests/regress.c $PLX -lm
 # SKIP_CPU_VALGRIND=1 to time instead, which is only a rough check)
 if [ -z "$SKIP_CPU_VALGRIND" ] && command -v valgrind >/dev/null 2>&1; then export CPU_VALGRIND=1; fi
 run "regression: golden renders, health, voices, CPU budget" "$OUT/regress" tests/golden.txt tests/cpu_baseline.txt
+# (3.1.3) two cores (CPU1's job run at the join, tests/dualcore_host.h): every golden render the same, and the HEX voices
+# on CPU1 give the one-core output bit for bit
+$CC -O2 -w -DKARMA_DUAL_CORE=1 -include tests/dualcore_host.h -Ibuild/gen -Ifirmware/src -o "$OUT/regress_dual" tests/regress.c $PLX -lm
+run "regression in two-core mode: the same golden renders" "$OUT/regress_dual" tests/golden.txt tests/cpu_baseline.txt
+$CC -O2 -w -DKARMA_DUAL_CORE=1 -include tests/dualcore_host.h -Ibuild/gen -Ifirmware/src -o "$OUT/dualcore_test" tests/dualcore_test.c $PLX -lm
+run "two cores: the HEX voices on CPU1, the same output as one core" sh -c '"$0" 2 | grep -q "blocks with the HEX voices on CPU1 [1-9]" && [ "$("$0" 1 | cut -c1-16)" = "$("$0" 2 | cut -c1-16)" ]' "$OUT/dualcore_test"
 # SLICE (tests/slice_test.c) needs a FELUCCA_SLICE=1 build; the engine is not built by default
 
 run "regression: target cost of the render loops" python3 tests/target_budget.py \

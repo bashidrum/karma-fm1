@@ -137,6 +137,7 @@ static void cloud_process(int32_t *in, int32_t *l, int32_t *r, uint32_t n)
         cld.wet = 32767;
     }
     /* the recording: a third of the rate (three samples as one), her feedback, mu-law; FRZ: left as it is */
+    PC_T0();
     for (i = 0; i < n; i++) {
         cld.acc += in[i];
         in[i] = 0;
@@ -162,6 +163,7 @@ static void cloud_process(int32_t *in, int32_t *l, int32_t *r, uint32_t n)
         }
         cld.acc = 0;
     }
+    PC_MARK(PC_CL_REC);
     /* her mapping of the knobs (GranularProcessor::ProcessGranular) */
     p.position = g[G_CLPOS] * 516;
     p.size = (int32_t)((cl_ratio(g[G_CLSIZE] * 48 / 127) * 1024u) >> 16);   /* 1024 .. 16384 samples */
@@ -178,6 +180,7 @@ static void cloud_process(int32_t *in, int32_t *l, int32_t *r, uint32_t n)
     for (i = 0; i < n; i++)
         wl[i] = wr[i] = 0;
     cl_play(&cloud_cl, &p, punch_ring, CLD_N - 1u, cld.w, wl, wr, n);
+    PC_MARK(PC_CL_PLAY);
     for (i = 0; i < n; i++) {                         /* back to the mix's level (x 2), her 1.2 on top */
         int32_t a = (wl[i] * 77) >> 5, b = (wr[i] * 77) >> 5, m = (wl[i] + wr[i]) >> 1;
         l[i] += a;

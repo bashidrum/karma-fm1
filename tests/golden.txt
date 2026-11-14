@@ -89,7 +89,7 @@ preset/JUNO/07_JUNO_LEAD 18b5e00854951900
 preset/JUNO/08_JUNO_SWEEP a8b6211d5ee61c04
 preset/JUNO/09_JUNO_ORGAN 32ec4b046799a48d
 preset/JUNO/10_JUNO_HOOVER 5c0a0e6f86eee1f3
-drums/gm_kit 4a87d9b0c24791ac
+drums/gm_kit 6c336a93e52161b4
 mode/JUNO/POLY 8b04ddd00d66a92f
 mode/JUNO/MONO 4eb213a0e4da2d61
 mode/JUNO/LEGATO d53627bdea016113
@@ -114,7 +114,7 @@ sends/PLAITS/delay 06c60b83907f39cc
 sends/PLAITS/reverb d0940a5c67393943
 sends/PLAITS/all 1d756098f0a5a986
 sends/PLAITS/dist 345e47564e32d3da
-song/4track_mix 099c49050f3e09f2
+song/4track_mix 6f40c68a0e7e0f5a
 slicer/gate/ANALOG_DARK_STR dc49c6acd930b52a
 slicer/stut/DIGITAL_RHODES 8c00d18c58f70952
-slicer/song_gate_stut 8ef34edbb585e67b
+slicer/song_gate_stut 68a39d11108467f1

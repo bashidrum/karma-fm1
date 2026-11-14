@@ -29,7 +29,8 @@ enum { ED_INFO = 1, ED_GET, ED_SET, ED_DUMP, ED_DESC, ED_STEP_GET, ED_STEP_SET, 
        ED_FILL_GET, ED_FILL_SET,                                                /* v8: fill conditions */
        ED_FM6_GET = 68, ED_FM6_PUT, ED_FM6_LIST, ED_FM6_ERASE,                  /* v9: FM6 patches (Felucca's numbers) */
        ED_STAT = 90,                                                            /* (3.0.4) the load and the USB, read only */
-       ED_PCOST = 91, ED_PVAR = 92, ED_CRASH = 93 };                                                         /* (3.0.5) KARMA_PCOST builds: the stages' time */
+       ED_PCOST = 91, ED_PVAR = 92, ED_CRASH = 93,
+       ED_PROF = 94 };                                                          /* (3.1.3) where mix_block's time goes, read only */                                                         /* (3.0.5) KARMA_PCOST builds: the stages' time */
 /* v10 (SLOOP 2.5): DSYN_LIST .. DSYN_PLAY = 72..76, editor_dsyn.c; backup object 9 = the SYN kits */
 #define ED_PROTO 11u                                   /* the protocol version INFO ends with */
 
@@ -966,6 +967,17 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         ed_bk_u32(t5_nested_ticks / FM1_TICKS_PER_US);
         ed_bk_u32(prof_blk_max / FM1_TICKS_PER_US);
         ed_bk_u32(usb.rx_pkts);
+        break;
+    case ED_PROF:                                          /* (3.1.3) mix_block's parts (fx.c PF_*): the blocks, then each part's
+                                                            * us summed and its worst block's, since the last read (then 0),
+                                                            * any build; console `prof` without the console (tools/karma_prof.py) */
+        ed_bk_u32(prof_blocks);
+        for (i = 0; i < PF_N; i++) {
+            ed_bk_u32(prof_ticks[i] / FM1_TICKS_PER_US);
+            ed_bk_u32(prof_max[i] / FM1_TICKS_PER_US);
+            prof_ticks[i] = prof_max[i] = 0;
+        }
+        prof_blocks = 0;
         break;
     case ED_CRASH:                                         /* (3.0.5) the last crash's record (hal fm1_crash, kept over resets and
                                                             * updates until power-off), any USB mode: every word of it */

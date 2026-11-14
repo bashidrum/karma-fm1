@@ -61,6 +61,28 @@ static struct {
 
 static int32_t ds_buf[CTL];
 
+/* (3.1.3) the HEX voices on CPU1. Measured on an FM-1: they were ~0.3 ms of CPU0's 0.73 ms block, beside the effects,
+ * while CPU1 (the synth tracks) idled. With two cores, CPU1 renders each sounding HEX voice's block first (fx.c
+ * core1_parts: the notes of the block are already in, CPU0 leaves the drums alone until the join), and drums_mix takes
+ * it from here instead of rendering it. One core, or a block without it: as before */
+static int16_t hx_pre_buf[NDRUM][CTL];          /* (384 B of main RAM: the pool keeps its 8 KiB spare) */
+static uint8_t hx_pre_alive[NDRUM];
+static uint8_t hx_pre_mask;                    /* bit k: voice k's block is in hx_pre_buf (set by CPU1, used once) */
+static void drums_hex_pre(uint32_t n)          /* CPU1 */
+{
+    uint32_t k, m = 0;
+    if (n > CTL)
+        n = CTL;
+    for (k = 0; k < NDRUM; k++)
+        if (drums.v[k].active && drums.synth[k] == 2) {
+            lx_par_t p;
+            hex_par(drums.hx[k].d, &p);
+            hx_pre_alive[k] = (uint8_t)lx_render(&drums.hx[k].lx, &p, hx_pre_buf[k], n, drums.hx[k].note);
+            m |= 1u << k;
+        }
+    hx_pre_mask = (uint8_t)m;
+}
+
 /* voice k stops (stolen, choked, ended): what it was playing fades out, its sends too (drums_mix) */
 static void drum_cut(uint32_t k)
 {
@@ -445,6 +467,17 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dl
         kt = dsu.k[(kt - DRUM_SYN) % DSU_N].src % DSU_NSRC;
     kboost = (int32_t)((DRUM_BOOST_Q8 * (kt < 7u ? DRUM_KIT_TRIM[kt] : 256u)) >> 8);
     int32_t pan = trk[TRK_DRUM].p[P_PAN], gl = 4096 - (pan > 0 ? pan * 64 : 0), gr = 4096 + (pan < 0 ? pan * 64 : 0);
+    if (drums.a0 >= 32767 && drums.a1 >= 32767) {    /* (3.1.3) muted (or another track soloed) all this block: nothing
+                                                       * is heard, so nothing is computed (measured on an FM-1: a muted
+                                                       * drum track still cost ~0.38 ms of a 0.73 ms block). Its sounds end
+                                                       * (unmuted, the next hits play) */
+        for (k = 0; k < NDRUM; k++)
+            drums.v[k].active = 0;
+        drums.tail = drums.trev = drums.tdly = drums.tcld = 0;
+        drums.peak = 0;
+        hx_pre_mask = 0;
+        return;
+    }
 #define DRUM_FADE(x) ((x) -= (x) / 16 + ((x) > 0 ? 1 : (x) < 0 ? -1 : 0))
     for (i = 0; i < n && (drums.tail | drums.trev | drums.tdly | drums.tcld); i++) {   /* declick tails, ~0.4 ms */
         if (mono) {
@@ -472,8 +505,14 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dl
         drums.gs[k][0] = send;                      /* (3.1.2: for drum_cut) */
         drums.gs[k][1] = dsend;
         drums.gs[k][2] = csend;
-        if (!(drums.synth[k] == 2 ? hex_render(&drums.hx[k], ds_buf, m) : ds_render(&drums.ds[k], ds_buf, m)))
+        if (drums.synth[k] == 2 && ((hx_pre_mask >> k) & 1u)) {   /* (3.1.3: CPU1 rendered it) */
+            for (i = 0; i < m; i++)
+                ds_buf[i] = hx_pre_buf[k][i];
+            if (!hx_pre_alive[k])
+                v->active = 0;
+        } else if (!(drums.synth[k] == 2 ? hex_render(&drums.hx[k], ds_buf, m) : ds_render(&drums.ds[k], ds_buf, m))) {
             v->active = 0;
+        }
         for (i = 0; i < m; i++) {
             int32_t s = mulq15(ds_buf[i], mulq15(lvl, 32767 - drums.a0 - (((drums.a1 - drums.a0) * (int32_t)i) >> CTL_LOG2)));
             s = soft_knee((s * kboost) >> 8, DRUM_KNEE);   /* louder, the hits' tips rounded (2026-10-20) */
@@ -567,6 +606,7 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dl
         v->ph[1] = frac;
     }
     drums.peak = pk;
+    hx_pre_mask = 0;                                /* (3.1.3: used: the next block is CPU1's again, or rendered here) */
 }
 static void drums_render(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dly, uint32_t n) { drums_mix(ml, mr, rev, dly, 0, n); }
 static void drums_render_mono(int32_t *rev, int32_t *dly, int32_t *mono, uint32_t n) { drums_mix(0, 0, rev, dly, mono, n); }

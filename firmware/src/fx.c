@@ -672,12 +672,13 @@ static void mix_part(track_t *t, uint32_t n) { mix_part_to(t, n, &BUS0); }
 static int32_t w_l[CTL], w_r[CTL], w_c[CTL], w_d[CTL], w_v[CTL], w_cl[CTL], w_b[CTL];
 static int16_t pnew1[P_COUNT];
 static const mixbus_t BUS1 = {w_l, w_r, w_c, w_d, w_v, w_cl, w_b, pnew1};
+static uint8_t w_hex;                          /* (3.1.3) CPU1 renders the HEX voices this block (drums.c drums_hex_pre) */
 static uint32_t w_n, w_job;                     /* the block's length, the tracks CPU1 renders in it (bit k: track k + 1) */
 /* the cores balanced (2026-10-28, Ariel): each part's render time (and the drums') is measured as it runs, a running
  * mean of ticks; after each block CPU0 picks the tracks CPU1 renders next so that the two finish together (the larger
  * of the two loads the least), a change only when it is clearly better (by 1/16: no back and forth) */
 static uint32_t w_mask = 6u;                    /* tracks 2 and 3 to start */
-static uint32_t core_cost[NPART + 1];           /* ticks x 8: the three parts, the drums (a running mean: the console's) */
+static uint32_t core_cost[NPART + 2];           /* ticks x 8: the three parts, the drums (a running mean: the console's) */
 /* (3.0.4, 2026-11-06: Ariel's FM-1 moved its tracks between the cores every second or so: the 8-block mean swung from a
  * held note's cost to nothing between notes, and the split chased it.) The balance now takes each part's PEAK: up at
  * once to a block that cost more, down slowly (~0.4 s, 2^9 blocks), so a part is weighed by what it costs when it
@@ -687,7 +688,7 @@ static uint32_t core_cost[NPART + 1];           /* ticks x 8: the three parts, t
  * core (its code not in that core's cache). A preset's set-up made one block cost far more, the split followed it,
  * then came back as the peak fell.) Now the peak rises by a quarter of the gap a block (~90 % in 8 blocks: a held
  * sound's cost, not one block's set-up), a split stays ~0.75 s, and a new one must be better by a quarter */
-static uint32_t core_peak[NPART + 1];           /* ticks x 16 */
+static uint32_t core_peak[NPART + 2];           /* ticks x 16: the parts, the drums on CPU0, (3.1.3) the HEX voices on CPU1 */
 #define CORE_DWELL 1024u                        /* blocks (~0.75 s) */
 static inline void cost_put(uint32_t k, uint32_t ticks)
 {
@@ -702,6 +703,11 @@ static void core1_parts(void *ctx)
 {
     uint32_t i, k, n = w_n, m = w_job, t0;
     (void)ctx;
+    if (w_hex) {                                /* (3.1.3) the drums' HEX voices first (CPU0 mixes them after the join) */
+        t0 = fm1_ticks();
+        drums_hex_pre(n);
+        cost_put(NPART + 1u, fm1_ticks() - t0);
+    }
     for (i = 0; i < n; i++)
         w_l[i] = w_r[i] = w_c[i] = w_d[i] = w_v[i] = w_cl[i] = 0;
     for (k = 0; k < NPART; k++)
@@ -726,7 +732,7 @@ static void core_balance(void)                  /* CPU0, after the join: the nex
         return;
     }
     for (m = 1; m < (1u << NPART); m++) {               /* (CPU1 always has one: else nothing would measure it) */
-        uint32_t l0 = core_peak[NPART], l1 = 0, l;
+        uint32_t l0 = core_peak[NPART], l1 = w_hex ? core_peak[NPART + 1u] : 0u, l;   /* (3.1.3: the HEX voices, CPU1's) */
         for (k = 0; k < NPART; k++)
             if ((m >> k) & 1u)
                 l1 += core_peak[k];
@@ -1196,6 +1202,7 @@ static void mix_block(int32_t *out, uint32_t n)
     if (n <= CTL && w_mask) {                           /* (USB STEMS too: each core takes its parts' stems) */
         w_n = n;
         w_job = w_mask;
+        w_hex = (uint8_t)!(TDRUM->att >= 32767 && trk_silent(TDRUM));   /* (3.1.3: muted all through: nothing to render) */
         w_on = audio_worker_submit(core1_parts, 0);
     }
     if (w_on) {
@@ -1220,6 +1227,20 @@ static void mix_block(int32_t *out, uint32_t n)
             stem_take(i, n, 1);
         PROF(PF_T1 + i);
     }
+#if KARMA_DUAL_CORE
+    if (w_on) {                                         /* CPU1's tracks: wait, then into the mix and the sends */
+        if (!audio_worker_join())
+            hx_pre_mask = 0;                            /* (3.1.3: CPU1 gave up mid-job: the drums render here) */
+        else
+            for (i = 0; i < n; i++) {
+                mix_l[i] += w_l[i], mix_r[i] += w_r[i];
+                send_c[i] += w_c[i], send_d[i] += w_d[i], send_r[i] += w_v[i], cloud_bus[i] += w_cl[i];
+            }
+        PROF(PF_T2);                                    /* (CPU0's wait and the sum; track3: 0) */
+        core_balance();
+    }
+#endif
+    /* (3.1.3) the drums after the join: their HEX voices may be CPU1's block (drums.c hx_pre_buf) */
     if (fx_stems)
         stem_take(TRK_DRUM, n, 0);
     drums.a0 = TDRUM->att;                              /* the drum track's mute / solo fade */
@@ -1264,17 +1285,6 @@ static void mix_block(int32_t *out, uint32_t n)
     cost_put(NPART, PROF_NOW() - prof_t0);              /* (the drums' time, for the balance) */
 #endif
     PROF(PF_DRUMS);
-#if KARMA_DUAL_CORE
-    if (w_on) {                                         /* CPU1's tracks: wait, then into the mix and the sends */
-        if (audio_worker_join())
-            for (i = 0; i < n; i++) {
-                mix_l[i] += w_l[i], mix_r[i] += w_r[i];
-                send_c[i] += w_c[i], send_d[i] += w_d[i], send_r[i] += w_v[i], cloud_bus[i] += w_cl[i];
-            }
-        PROF(PF_T2);                                    /* (CPU0's wait and the sum; track3: 0) */
-        core_balance();
-    }
-#endif
     click_render(mix_l, mix_r, n);                      /* the metronome: its own voice (drums.c), any kit, any mute */
     if (fx_stems)                                       /* the FX return: what is added from here (not the metronome) */
         for (i = 0; i < n; i++)
