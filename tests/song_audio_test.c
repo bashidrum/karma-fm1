@@ -82,7 +82,7 @@ int main(int argc, char **argv)
     assert(at_change >= FS*4u && at_change < FS*4u + CTL);
     assert(at_stop >= FS*8u && at_stop < FS*8u + CTL);
     assert(trk[0].step[0].note[0] == 41);
-    assert(trk[2].engine == 0 && song.g[G_DRLVL] == 80);
+    assert(trk[2].engine == trk[2].eng_req && song.g[G_DRLVL] == 80);   /* (the lead switched; engine 0 is gone: host_preset_req picks another) */
     assert(drum_kit() == 4);
     for (i = 0; i < NPART; i++) {
         assert(trk[i].seq_n == 0);

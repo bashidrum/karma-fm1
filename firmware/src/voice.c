@@ -151,7 +151,7 @@ static uint32_t shed_count;
 
 static int cloud_shed(void);                    /* (cloud.c, after) */
 static int modal_shed(void);
-static void shed_voice(void)
+static void shed_voice(int hard)
 {
     uint32_t p, i;
     voice_t *best = 0;
@@ -182,6 +182,8 @@ static void shed_voice(void)
         shed_count++;
         return;
     }
+    if (!hard)                                  /* (3.1.3) light (85 %): notes stay until 95 % or a late half */
+        return;
     for (p = 0; p < NPART; p++) {               /* 2. a held note, not a part's lowest POLY note nor its lead */
         const track_t *t = &trk[p];
         uint32_t mode = (uint32_t)t->p[P_VOICE], low = mode == V_POLY ? lowest_held(t) : 0u;

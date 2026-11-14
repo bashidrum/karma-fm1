@@ -63,6 +63,7 @@ static uint8_t audio_last_half = 0xFF;
 /* overload: shed_voice (voice.c) */
 static volatile uint8_t shed_req;
 static uint8_t shed_over;                      /* bit k: the half k halves ago was over 85 % */
+static uint8_t shed_hot;                       /* (3.1.3) bit k: ... over 95 % */
 
 void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) */
 {
@@ -84,8 +85,8 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
             audio_lost++;
         audio_last_half = (uint8_t)half;
         if (shed_req) {
+            shed_voice(shed_req > 1u);                  /* (3.1.3) 1 = light (effects, quiet tails), 2 = notes too */
             shed_req = 0;
-            shed_voice();
         }
 #if FELUCCA_UAC
         uac_render_start();
@@ -99,12 +100,17 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
              * figures the render alone (after Felucca 1.0) */
             uint32_t all = fm1_ticks() - t0;
             us = (all - t5_nested_ticks) / FM1_TICKS_PER_US;
-            shed_over = (uint8_t)(shed_over << 1 | (all / FM1_TICKS_PER_US * 100u > (HALF_FRAMES * 1000000u / FS) * 85u));
+            uint32_t pct = all / FM1_TICKS_PER_US * 100u;   /* (no divide more in the ISR) */
+            shed_over = (uint8_t)(shed_over << 1 | (pct > (HALF_FRAMES * 1000000u / FS) * 85u));
+            shed_hot = (uint8_t)(shed_hot << 1 | (pct > (HALF_FRAMES * 1000000u / FS) * 95u));
         }
         if (us > audio_max_us)
             audio_max_us = us;
-        if ((shed_over & 3u) == 3u)
-            shed_req = 1;                               /* two in a row */
+        if ((shed_hot & 3u) == 3u || fm1_audio_free_half() != half)
+            shed_req = 2;                               /* (3.1.3) two in a row over 95 %, or this one late: a note */
+        else if ((shed_over & 3u) == 3u)
+            shed_req = 1;                               /* two in a row over 85 %: effects and quiet tails only
+                                                         * (Ariel 2026-11-14: OMEN BELL + drums lost notes at ~85 %) */
         drum_calm_half(shed_over & 1u);                 /* (3.1.2: the drums' voices come back after ~2 s calm, */
         cloud_calm_half(shed_over & 1u);                /*  the CLOUD's grains after ~1 s, */
         modal_calm_half(shed_over & 1u);                /*  MODAL's modes after ~1 s) */

@@ -547,7 +547,7 @@ static void t_shed(void)
     run_block();
     {   /* (3.1.3) a tail still loud is the last resort: a held upper note goes before it */
         uint32_t loud_kept = 0, upper = 0;
-        shed_voice();
+        shed_voice(1);
         for (i = 0; i < NVOICE; i++) {
             loud_kept += t->v[i].note == 76 && t->v[i].active && t->v[i].stage == 3u;
             upper += (t->v[i].note == 64 || t->v[i].note == 67 || t->v[i].note == 72) && t->v[i].stage == 4u;
@@ -561,7 +561,7 @@ static void t_shed(void)
             if (deep)
                 break;
         }
-        shed_voice();
+        shed_voice(1);
     }
     for (k = 0, i = 0; i < NVOICE; i++)
         k += t->v[i].note == 76 && t->v[i].stage == 4u;
@@ -583,7 +583,7 @@ static void t_shed(void)
               "overload: a shed voice fades over ~7 ms (SHED_BLOCKS), not cut");
     }
     for (k = 0; k < 6u; k++)
-        shed_voice();
+        shed_voice(1);
     for (i = 0; i < NVOICE; i++) {
         if (t->v[i].note == 48 && t->v[i].active && t->v[i].stage == 4u)
             low_ok = 0;
