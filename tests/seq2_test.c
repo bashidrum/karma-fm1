@@ -545,10 +545,27 @@ static void t_shed(void)
         run_block();
     trk_note_off(t, 76);                              /* releasing */
     run_block();
-    shed_voice();
+    {   /* (3.1.3) a tail still loud is the last resort: a held upper note goes before it */
+        uint32_t loud_kept = 0, upper = 0;
+        shed_voice();
+        for (i = 0; i < NVOICE; i++) {
+            loud_kept += t->v[i].note == 76 && t->v[i].active && t->v[i].stage == 3u;
+            upper += (t->v[i].note == 64 || t->v[i].note == 67 || t->v[i].note == 72) && t->v[i].stage == 4u;
+        }
+        check(loud_kept == 1u && upper == 1u, "overload: a loud tail is kept while a held upper note can go");
+        for (k = 0; k < 40000u; k++) {               /* the tail decays under 1/8 (-18 dB) */
+            uint32_t deep = 0;
+            run_block();
+            for (i = 0; i < NVOICE; i++)
+                deep += t->v[i].note == 76 && t->v[i].active && t->v[i].stage == 3u && t->v[i].env < SHED_DEEP;
+            if (deep)
+                break;
+        }
+        shed_voice();
+    }
     for (k = 0, i = 0; i < NVOICE; i++)
         k += t->v[i].note == 76 && t->v[i].stage == 4u;
-    check(k == 1u, "overload: the releasing voice goes first, faded (stage 4)");
+    check(k == 1u, "overload: a quiet tail (under -18 dB) goes first, faded (stage 4)");
     {   /* (3.0.5) over SHED_BLOCKS (~7 ms), not 1.5 ms: no click on a pad; still half there two blocks in */
         voice_t *sv = 0;
         int32_t e0;
@@ -562,11 +579,8 @@ static void t_shed(void)
         half_ok = sv && sv->active && sv->env > e0 / 2;
         for (blocks = 2; sv && sv->active && blocks < 200u; blocks++)
             run_block();
-        {   /* (3.1.3) a tail still loud (env over 1/8): SHED_SLOW (~58 ms), a quick release; a deep one: SHED_BLOCKS */
-            uint32_t want = e0 < SHED_DEEP ? SHED_BLOCKS : SHED_SLOW;
-            check(half_ok && blocks >= want - 1u && blocks <= want + 1u,
-                  "overload: a shed voice fades out (a loud tail ~58 ms, a deep one ~7 ms), not cut");
-        }
+        check(half_ok && blocks >= SHED_BLOCKS - 1u && blocks <= SHED_BLOCKS + 1u,
+              "overload: a shed voice fades over ~7 ms (SHED_BLOCKS), not cut");
     }
     for (k = 0; k < 6u; k++)
         shed_voice();

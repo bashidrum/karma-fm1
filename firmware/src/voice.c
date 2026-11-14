@@ -131,10 +131,7 @@ static uint32_t voice_kills;                            /* voices given up (budg
 #define KILL_BLOCKS 2u                                  /* 1.5 ms: no click on a bass, little extra load */
 #define SHED_BLOCKS 10u                                 /* (3.0.5) the overload's: ~7 ms (2026-11-08, Ariel: notes the
                                                          * safety net took ended as if cut; 1.5 ms is a click on a pad) */
-#define SHED_SLOW 80u                                   /* (3.1.3) a tail still loud (over 1/8, -18 dB): ~58 ms, a quick
-                                                         * release, not a cut (Ariel, OMEN BELL with three tracks: its long
-                                                         * bell tails, the quietest sound sounding, were cut each time) */
-#define SHED_DEEP (1 << 21)                             /* (env Q24: 1/8) */
+#define SHED_DEEP (1 << 21)                             /* (3.1.3) a tail under 1/8 (env Q24, -18 dB): quiet already */
 static void voice_kill_n(voice_t *v, uint32_t blocks)   /* fade out over the next blocks (env_tick stage 4) */
 {
     v->gate = 0;
@@ -167,18 +164,25 @@ static void shed_voice(void)
         shed_count++;
         return;
     }
+    voice_t *loud = 0;                          /* (3.1.3) a releasing voice still loud: the last resort */
     for (p = 0; p < NPART; p++)
         for (i = 0; i < NVOICE; i++) {
             voice_t *v = &trk[p].v[i];
-            if (v->active && !v->gate && v->stage != 4u && (!best || v->env < best->env))
-                best = v;
+            if (!v->active || v->gate || v->stage == 4u)
+                continue;
+            if (v->env < SHED_DEEP) {
+                if (!best || v->env < best->env)
+                    best = v;
+            } else if (!loud || v->env < loud->env) {
+                loud = v;
+            }
         }
-    if (best) {
-        voice_kill_n(best, best->env < SHED_DEEP ? SHED_BLOCKS : SHED_SLOW);
+    if (best) {                                 /* 1. a tail already quiet (under 1/8, -18 dB) */
+        voice_kill_n(best, SHED_BLOCKS);
         shed_count++;
         return;
     }
-    for (p = 0; p < NPART; p++) {
+    for (p = 0; p < NPART; p++) {               /* 2. a held note, not a part's lowest POLY note nor its lead */
         const track_t *t = &trk[p];
         uint32_t mode = (uint32_t)t->p[P_VOICE], low = mode == V_POLY ? lowest_held(t) : 0u;
         for (i = 0; i < NVOICE; i++) {
@@ -188,6 +192,9 @@ static void shed_voice(void)
                 best = v;
         }
     }
+    if (!best)                                  /* 3. (3.1.3) only then a tail still loud (Ariel: OMEN BELL's bell
+                                                 * tails, the quietest sound sounding, went first each time) */
+        best = loud;
     if (best) {
         voice_kill_n(best, SHED_BLOCKS);
         shed_count++;
