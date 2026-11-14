@@ -188,6 +188,21 @@ int main(void)
         check(cl_cap == CL_NG, t);
         song.g[G_CLDENS] = dens;
     }
+    {                                                /* (3.1.3) MODAL under overload: 4 modes fewer a shed, never under 8 */
+        uint32_t h;
+        modal_cap = 24u;
+        modal_seen = 0;
+        check(!modal_shed() && modal_cap == 24u, "MODAL: no MODAL voice sounding, nothing to shed");
+        for (h = 0; h < 10; h++) {
+            karma_modal_modes();                       /* (a MODAL voice renders) */
+            modal_shed();
+        }
+        snprintf(t, sizeof t, "MODAL under overload: %u modes, never under %u", (unsigned)modal_cap, MODAL_MIN);
+        check(modal_cap == MODAL_MIN, t);
+        for (h = 0; h < 172u * 5u; h++) modal_calm_half(0);
+        snprintf(t, sizeof t, "calm for ~5 s: all 24 modes again (%u)", (unsigned)modal_cap);
+        check(modal_cap == 24u, t);
+    }
     dsu_defaults();
     printf(fails ? "HEX fixes: %d FAILED\n" : "HEX fixes: all ok\n", fails);
     return fails != 0;

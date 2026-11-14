@@ -111,6 +111,17 @@ class Resonator {
   ~Resonator() { }
   
   void Init(float position, int resolution);
+  // KARMA 3.1.3: the modes played, a multiple of 4 (the FM-1's overload: fewer, the highest first; KARMA's
+  // karma_modal_modes). Modes coming back start from rest.
+  void set_resolution(int r) {
+    if (r > kMaxNumModes) r = kMaxNumModes;
+    if (r < kModeBatchSize) r = kModeBatchSize;
+    r -= r % kModeBatchSize;
+    for (int b = resolution_ / kModeBatchSize; b < r / kModeBatchSize; ++b) {
+      mode_filters_[b].Init();
+    }
+    resolution_ = r;
+  }
   void Process(
       float f0,
       float structure,

@@ -92,6 +92,35 @@ static void cloud_init(void)
 }
 
 /* in[]: what the tracks sent, this block (cleared here for the next); the grains are added to l[] and r[] */
+/* (3.1.3) PLAITS' MODAL (Plaits' modal_voice.cc) plays 24 resonator modes a voice; measured on an FM-1: about twice
+ * FOLD's cost, a MODAL sound with two more tracks and the drums ~60 late halves a second. When audio.c sheds, MODAL
+ * plays 4 fewer (its highest, the quietest), down to 8; ~1 s without an overload gives 4 back. Asked by each MODAL
+ * voice as it renders (on either core) */
+#define MODAL_MIN 8u
+static volatile uint8_t modal_cap = 24u, modal_seen;
+uint32_t karma_modal_modes(void)
+{
+    modal_seen = 1;
+    return modal_cap;
+}
+static int modal_shed(void)                           /* 1 = 4 modes fewer */
+{
+    if (!modal_seen || modal_cap <= MODAL_MIN)
+        return 0;
+    modal_seen = 0;
+    modal_cap = (uint8_t)(modal_cap - 4u);
+    return 1;
+}
+static void modal_calm_half(int over)
+{
+    static uint16_t calm;
+    if (over) {
+        calm = 0;
+    } else if (modal_cap < 24u && ++calm >= 172u) {
+        modal_cap = (uint8_t)(modal_cap + 4u);
+        calm = 0;
+    }
+}
 static int cloud_shed(void)                           /* audio.c's overload (voice.c shed_voice): 1 = fewer grains */
 {
     uint32_t i, on = 0;

@@ -149,11 +149,13 @@ static void voice_kill(voice_t *v) { voice_kill_n(v, KILL_BLOCKS); }
 static uint32_t shed_count;
 
 static int cloud_shed(void);                    /* (cloud.c, after) */
+static int modal_shed(void);
 static void shed_voice(void)
 {
     uint32_t p, i;
     voice_t *best = 0;
-    if (cloud_shed()) {                         /* (3.1.2) the CLOUD's grains first (they fade by themselves), */
+    if (cloud_shed() || modal_shed()) {         /* (3.1.2) the CLOUD's grains first (they fade by themselves), (3.1.3)
+                                                 * then MODAL's highest modes, */
         shed_count++;
         return;
     }

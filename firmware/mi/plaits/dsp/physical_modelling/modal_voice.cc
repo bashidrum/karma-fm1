@@ -39,6 +39,10 @@
 
 #include "plaits/dsp/noise/dust.h"
 
+// KARMA 3.1.3: how many of the resonator's modes to play (24, fewer while the FM-1 is overloaded: the C side's
+// karma_modal_modes, dsp.c). Alone (a test, the reference): all of them
+extern "C" __attribute__((weak)) uint32_t karma_modal_modes(void) { return 24u; }
+
 namespace plaits {
 
 using namespace std;
@@ -61,6 +65,7 @@ void ModalVoice::Render(
     float* out,
     float* aux,
     size_t size) {
+  resonator_.set_resolution(static_cast<int>(karma_modal_modes()));   // (KARMA 3.1.3)
   const float density = brightness * brightness;
   
   brightness += 0.25f * accent * (1.0f - brightness);
