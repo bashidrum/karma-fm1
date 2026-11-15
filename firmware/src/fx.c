@@ -669,11 +669,24 @@ static void mix_part(track_t *t, uint32_t n) { mix_part_to(t, n, &BUS0); }
 /* CPU1's job (2026-10-28, Ariel: a busy section overloaded one core): tracks 2 and 3 (ELEMENTS, PLAITS) into buses of its
  * own while CPU0 renders track 1 and the drums; CPU0 joins before the effects and adds them. What the two share is read
  * only, or the random numbers (a race there only changes which random number comes) */
+#ifndef KARMA_CPU1_HEX                                  /* (3.1.4) the HEX voices and the effects on CPU0 again, as 3.1.2: on CPU1
+                                                         * (3.1.3) an FM-1 distorted after a while even at 33 % with no late half
+                                                         * (Ariel, 2026-11-15: ELEMENTS and a kick; 3.1.2 and this build clean). A
+                                                         * clash between the cores the host tests cannot see (they run CPU1's job at
+                                                         * the join): found before either goes back. 1 = on CPU1 (a test build) */
+#define KARMA_CPU1_HEX 0
+#endif
+#ifndef KARMA_CPU1_FX
+#define KARMA_CPU1_FX 0
+#endif
 static int32_t w_l[CTL], w_r[CTL], w_c[CTL], w_d[CTL], w_v[CTL], w_cl[CTL], w_b[CTL];
-#define FXP_C w_c                               /* (3.1.3: the last block's sends, between the blocks: fx_prev) */
+#if KARMA_CPU1_FX
+#define FXP_C w_c                               /* (3.1.3: the last block's sends, between the blocks: fx_prev on CPU1, which
+                                                 * reads them before its parts write this block's) */
 #define FXP_D w_d
 #define FXP_R w_v
 #define FXP_CL w_cl
+#endif
 static int16_t pnew1[P_COUNT];
 static const mixbus_t BUS1 = {w_l, w_r, w_c, w_d, w_v, w_cl, w_b, pnew1};
 static uint8_t w_fx;                           /* (3.1.3) CPU1 runs the effects this block (fx_prev) */
@@ -708,7 +721,9 @@ static int32_t stem_buf[NTRK][CTL];            /* (below: USB STEMS) */
 static uint8_t fx_stems;
 static int32_t stem_pre1[CTL];                  /* CPU1's own (stem_take's is CPU0's) */
 #endif
-#if !KARMA_DUAL_CORE
+#if !KARMA_DUAL_CORE || !KARMA_CPU1_FX                /* (3.1.4: the effects on CPU0 keep their own: CPU1's parts write w_c ..
+                                                 * before the join, after which CPU0 ran them on those: the sends of half
+                                                 * the tracks lost) */
 static int32_t fxp_c[CTL], fxp_d[CTL], fxp_r[CTL], fxp_cl[CTL];
 #define FXP_C fxp_c
 #define FXP_D fxp_d
@@ -1259,8 +1274,9 @@ static void mix_block(int32_t *out, uint32_t n)
     if (n <= CTL && w_mask) {                           /* (USB STEMS too: each core takes its parts' stems) */
         w_n = n;
         w_job = w_mask;
-        w_hex = (uint8_t)!(TDRUM->att >= 32767 && trk_silent(TDRUM));   /* (3.1.3: muted all through: nothing to render) */
-        w_fx = 1;                                       /* (3.1.3: the effects on the last block's sends, fx_prev) */
+        w_hex = (uint8_t)(KARMA_CPU1_HEX && !(TDRUM->att >= 32767 && trk_silent(TDRUM)));   /* (3.1.3: muted all through:
+                                                         * nothing to render) */
+        w_fx = KARMA_CPU1_FX;                           /* (3.1.3: the effects on the last block's sends, fx_prev) */
         w_on = audio_worker_submit(core1_parts, 0);
     }
     if (w_on) {
@@ -1289,13 +1305,15 @@ static void mix_block(int32_t *out, uint32_t n)
     if (w_on) {                                         /* CPU1's tracks: wait, then into the mix and the sends */
         if (!audio_worker_join()) {
             hx_pre_mask = 0;                            /* (3.1.3: CPU1 gave up mid-job: the drums render here, */
-            for (i = 0; i < CTL; i++)                   /*  its effects' block is lost: silence for one block) */
-                wet_l[i] = wet_r[i] = 0;
-            fx_done = 1;
+            if (w_fx) {                                 /*  its effects' block is lost: silence for one block) */
+                for (i = 0; i < CTL; i++)
+                    wet_l[i] = wet_r[i] = 0;
+                fx_done = 1;
+            }
         } else {
-            fx_done = 1;
+            fx_done = w_fx;                             /* (3.1.4: only when CPU1 ran them; else CPU0 runs them below) */
         }
-        if (fx_done && audio_worker_online)
+        if (audio_worker_online)
             for (i = 0; i < n; i++) {
                 mix_l[i] += w_l[i], mix_r[i] += w_r[i];
                 send_c[i] += w_c[i], send_d[i] += w_d[i], send_r[i] += w_v[i], cloud_bus[i] += w_cl[i];

@@ -160,8 +160,8 @@ run "regression: golden renders, health, voices, CPU budget" "$OUT/regress" test
 # on CPU1 give the one-core output bit for bit
 $CC -O2 -w -DKARMA_DUAL_CORE=1 -include tests/dualcore_host.h -Ibuild/gen -Ifirmware/src -o "$OUT/regress_dual" tests/regress.c $PLX -lm
 run "regression in two-core mode: the same golden renders" "$OUT/regress_dual" tests/golden.txt tests/cpu_baseline.txt
-$CC -O2 -w -DKARMA_DUAL_CORE=1 -include tests/dualcore_host.h -Ibuild/gen -Ifirmware/src -o "$OUT/dualcore_test" tests/dualcore_test.c $PLX -lm
-run "two cores: the HEX voices on CPU1, the same output as one core" sh -c '"$0" 2 | grep -q "blocks with the HEX voices on CPU1 [1-9]" && [ "$("$0" 1 | cut -c1-16)" = "$("$0" 2 | cut -c1-16)" ]' "$OUT/dualcore_test"
+$CC -O2 -w -DKARMA_DUAL_CORE=1 -DKARMA_CPU1_HEX=1 -DKARMA_CPU1_FX=1 -include tests/dualcore_host.h -Ibuild/gen -Ifirmware/src -o "$OUT/dualcore_test" tests/dualcore_test.c $PLX -lm
+run "two cores (the 3.1.3 path, off in 3.1.4: KARMA_CPU1_HEX / FX=1): the HEX voices on CPU1, the same output as one core" sh -c '"$0" 2 | grep -q "blocks with the HEX voices on CPU1 [1-9]" && [ "$("$0" 1 | cut -c1-16)" = "$("$0" 2 | cut -c1-16)" ]' "$OUT/dualcore_test"
 # SLICE (tests/slice_test.c) needs a FELUCCA_SLICE=1 build; the engine is not built by default
 
 run "regression: target cost of the render loops" python3 tests/target_budget.py \
