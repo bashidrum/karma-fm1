@@ -73,7 +73,7 @@
   <div id="help" hidden><p id="help-head"></p><ol id="help-list"></ol></div>
   <pre id="log"></pre>
   <a class="ed" href="../editor/" data-t="editor"></a>
-  <p class="small"><a href="../editor/karma-editor.html" download="karma-editor-3.1.2.html" data-t="edOffline"></a></p>
+  <p class="small"><a href="../editor/karma-editor.html" download="karma-editor-3.1.3.html" data-t="edOffline"></a></p>
   <hr>
   <p class="small" data-t="direct"></p>
   <p class="small" data-t="beta"></p>
@@ -168,8 +168,17 @@ const IS_OTA = (id) => /^ota-/i.test(id.model);
 const OUR_LOADER = (id) => /^ota-FM-1_9\d\d$/i.test(id.text);
 // the MIDI ports the installer may probe (never other gear): the FM-1 under SLOOP / Felucca ("Felucca"), under
 // CLIPPER ("Clipper", its sister firmware), under a firmware named after itself ("SLOOP"), the update loaders, and
-// the names Windows / macOS give the stock firmware
-const FM1_PORT = /fm-1|felucca|karma|sloop|clipper|ota|composite|sinco|usb-midi/i;
+// the names Windows / macOS give the stock firmware; (3.1.3) "FM1": M-VAVE's FM1 Open firmware names its port
+// "FM1 Community" (6 failed installs in two days, 2026-11-14..15, all "not found" with that port there)
+const FM1_PORT = /fm-?1|felucca|karma|sloop|clipper|ota|composite|sinco|usb-midi/i;
+// (3.1.3) M-VAVE's FM1 Open firmware: its identity ("FM1_OFFICIAL_OPEN", "FM1_COMMUNITY_3"; V14 on: "FM-1_80000" and two
+// digits) and its update loader's ("ota-FM1C_" and a build id in hex). Its updater takes only M-VAVE's own firmware, and
+// only after being told the package's length and SHA-256 (as documented by Charles Vestal's fm1-base and Chris Farrell's
+// fm-static), so KARMA is never written over it: the page sends the player to M-VAVE's FM1 Workbench to put the
+// official V15 back first, and nothing is written here
+const OPEN_RE = /^FM1_(OFFICIAL_OPEN|COMMUNITY_\d+)$/;
+const MVAVE_OPEN_RE = /^FM-1_80000\d\d$/;
+const OPEN_LOADER_RE = /^ota-FM1C_[0-9a-f]+$/i;
 
 // (2026-11-08) the MIDI port names a failed search met, for the anonymous counts: is a new FM-1 (M-VAVE's V16) under a
 // name FM1_PORT does not know? At most three, 20 characters each; a name that may be a person's ("Ariel's iPhone",
@@ -226,9 +235,11 @@ function parseRequest(pkt) {
 function parseIdentity(pkt) {
   const d = unpack7(pkt.slice(1, -1));
   if (d.length !== 34 || d[0] !== 0 || d[1] !== 0x59 || d[2] !== 0x11) return null;
-  const txt = String.fromCharCode(...d.slice(6, 33)).replace(/\0+$/, "");
+  const txt = String.fromCharCode(...d.slice(6, 33)).replace(/\0[\s\S]*$/, "");
+  if (OPEN_RE.test(txt)) return { text: txt, model: "FM-1", version: 0, open: true };
+  if (OPEN_LOADER_RE.test(txt)) return { text: txt, model: "ota-FM1C", version: 0, open: true };
   const m = /^([^_]+)_(\d+)$/.exec(txt);
-  return m ? { text: txt, model: m[1], version: parseInt(m[2], 10) } : null;
+  return m ? { text: txt, model: m[1], version: parseInt(m[2], 10), ...(MVAVE_OPEN_RE.test(txt) ? { open: true } : {}) } : null;
 }
 
 // one MIDI in/out pair with a SysEx queue
@@ -374,6 +385,10 @@ class Updater {
     }
     const [model] = product.split("_");
     if (dev.id.model !== model) { dev.link.close(); throw fail("model", `the device is ${dev.id.text}, the package is for ${product}`); }
+    if (dev.id.open) {                             /* (3.1.3) M-VAVE's FM1 Open: never written over (see OPEN_RE) */
+      dev.link.close();
+      throw fail("open", `the FM-1 runs M-VAVE's FM1 Open (${dev.id.text}): put the official firmware back first, nothing was written`, dev.id.text);
+    }
     step("start", dev.id.text);
     dev.link.send(UPGRADE);
     await sleep(2000);
@@ -412,6 +427,10 @@ class Updater {
   async resume(image, onStep, opts = {}) {
     const ota = await this.find(IS_OTA);
     if (!ota) return false;
+    if (ota.id.open) {                             /* (3.1.3) FM1 Open's own update mode: its Workbench finishes it */
+      ota.link.close();
+      throw fail("openota", `the FM-1 is in the update mode of M-VAVE's FM1 Open (${ota.id.text}): nothing was written`, ota.id.text);
+    }
     if (!OUR_LOADER(ota.id) && !opts.product) {
       ota.link.close();
       throw fail("foreign", `the FM-1 is in the update mode of another firmware (${ota.id.text}): finish that update with its own updater`, ota.id.text);
@@ -456,6 +475,12 @@ const TEXT = {
     nf_nofm1: "ほかの MIDI 機器は見えていますが、FM-1 が見えていません:",
     nf_busy: "FM-1 はつながっていますが、ほかのアプリが使っています:",
     nf_silent: "FM-1 はつながっていますが、応答しませんでした:",
+    open: "この FM-1 には M-VAVE の FM1 Open ファームウェアが入っています。KARMA はその上に直接インストールできません。先に公式ファームウェアに戻してから KARMA をインストールしてください。何も書き込んでいません。識別名: ",
+    openota: "FM-1 は M-VAVE の FM1 Open の書き込みモードになっています。何も書き込んでいません。下の手順で M-VAVE の FM1 Workbench から完了してください: ",
+    nf_open: "FM1 Open の FM-1 に KARMA を入れるには:",
+    o_backup: "残したいものを M-VAVE の FM1 Workbench（Projects & sounds）でバックアップしてください。KARMA は FM1 Open のプロジェクトやサンプルを開けません。",
+    o_wb: "Chrome で M-VAVE の FM1 Workbench（open.m-vave.com/fm1-workbench）を開き、Update firmware → Restore original V15。接続し、バックアップを確認して Install original V15 を押し、警告を承認してください。メインの更新ボタンではありません（そちらは FM1 Open をもう一度入れます）。",
+    o_close: "FM-1 が V15 になったら Workbench のタブを閉じてください（FM-1 を使えるのは一度にひとつのページだけです）。",
     h_cable: "データ通信用のケーブルを使ってください。USB-C ケーブルには充電専用のものが多くあります。別のケーブル（できれば FM-1 付属のもの）を試してください。",
     h_direct: "ハブ・ドック・モニター経由ではなく、パソコンに直接つないでください。",
     h_on: "FM-1 の電源を入れ、ホーム画面が出るまで待ってください。",
@@ -525,6 +550,12 @@ const TEXT = {
     noreturn: "The FM-1 did not come back. Power-cycle it.",
     mismatch: "Written, but the FM-1 reports another version: ",
     foreign: "The FM-1 is in the update mode of another firmware. Finish that update with its own updater (M-UPGRADE), then press Install again: ",
+    open: "This FM-1 runs M-VAVE's FM1 Open firmware. KARMA cannot be installed over it directly: put the official firmware back first, then install KARMA. Nothing was written. Its identity: ",
+    openota: "The FM-1 is in the update mode of M-VAVE's FM1 Open firmware. Nothing was written. Finish with M-VAVE's FM1 Workbench as below: ",
+    nf_open: "To install KARMA on an FM-1 with FM1 Open:",
+    o_backup: "Back up what you want to keep with M-VAVE's FM1 Workbench (Projects & sounds): KARMA cannot open FM1 Open's projects or samples.",
+    o_wb: "In Chrome, open M-VAVE's FM1 Workbench (open.m-vave.com/fm1-workbench) → Update firmware → Restore original V15. Connect, confirm your backup, click Install original V15 and accept the warning. Not the main update button: that one installs FM1 Open again.",
+    o_close: "When the FM-1 runs V15, close the Workbench tab: only one page at a time can use the FM-1.",
     badpkg: "The file to install is damaged. Reload the page.",
     leave: "Writing. Do not close the page.",
     license: "GPL-3.0, no warranty. Source:",
@@ -545,7 +576,8 @@ const DEV = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform 
 /* (3.0.4, 2026-11-07: 4 in 10 installs ended "not found") what to try, by why the FM-1 was not found (fm1ota.js why()),
    shown as a list under the status; it turns green when an FM-1 is plugged in meanwhile */
 const HELP = { noports: ["h_cable", "h_direct", "h_on", "h_mac", "h_again"], nofm1: ["h_cable", "h_direct", "h_on", "h_mac", "h_again"],
-               busy: ["h_close", "h_replug", "h_again"], silent: ["h_replug", "h_power", "h_close", "h_again"] };
+               busy: ["h_close", "h_replug", "h_again"], silent: ["h_replug", "h_power", "h_close", "h_again"],
+               open: ["o_backup", "o_wb", "o_close", "h_again"] };   /* (3.1.3) M-VAVE's FM1 Open (fm1ota.js OPEN_RE) */
 /* (2026-11-11) Android: every failure 11-09..11 was "noports" on Android (no MIDI device at all): a charging-only
    cable, or the phone's OTG switch off (some phones turn it off by themselves); a computer is the way out */
 const ANDROID = /Android/.test(navigator.userAgent);
@@ -580,7 +612,7 @@ const sayK = (k, arg = "") => { lastKey = k; lastArg = arg; $("status").textCont
 const say = (txt) => { lastKey = null; $("status").textContent = txt; };
 const log = (t) => { $("log").textContent += t + "\n"; };
 let image = null;
-const meta = {"version": "3.1.2", "product": "FM-1_926", "pkg": "../../firmware/karma-3.1.2.fwsc", "sha256": "904851f85589e06e8787b90bdaffa6d0525f1e2e2bd648d397d3bcd4c1b20148"};
+const meta = {"version": "3.1.3", "product": "FM-1_926", "pkg": "../../firmware/karma-3.1.3.fwsc", "sha256": "c7eed3361ef3fcbf8c4954b8ec1bfb86b6292b1ab05a345be3199d7f75a16b3a"};
 
 let writing = false;
 const lockAll = (on) => {
@@ -646,6 +678,10 @@ const failed = (e, midi) => {
           showHelp(helpReason);
         }
       };
+  }
+  if (e && (e.code === "open" || e.code === "openota")) {   /* (3.1.3) FM1 Open: the way back to V15, then KARMA */
+    helpFound = false;
+    showHelp("open");
   }
   if (e && e.code && TEXT[lang][e.code]) sayK(e.code, e.detail || "");
   else sayK("error", e && e.message);
