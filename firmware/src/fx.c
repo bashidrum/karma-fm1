@@ -706,7 +706,7 @@ static uint32_t core_cost[NPART + 2];           /* ticks x 8: the three parts, t
  * seconds, each move a burst of late blocks and USB dropouts: a part that moves runs slowly a while on the other
  * core (its code not in that core's cache). A preset's set-up made one block cost far more, the split followed it,
  * then came back as the peak fell.) Now the peak rises by a quarter of the gap a block (~90 % in 8 blocks: a held
- * sound's cost, not one block's set-up), a split stays ~0.75 s, and a new one must be better by a quarter */
+ * sound's cost, not one block's set-up), a split stays ~0.75 s, and a new one must be better by an eighth (3.1.5) */
 static uint32_t core_peak[NPART + 2];           /* ticks x 16: the parts, the drums on CPU0, (3.1.3) the HEX voices on CPU1 */
 #define CORE_DWELL 1024u                        /* blocks (~0.75 s) */
 static uint32_t core_max[NPART + 2];            /* (3.1.3) each one's longest block since the last read (editor command 94) */
@@ -812,7 +812,9 @@ static void core_balance(void)                  /* CPU0, after the join: the nex
         if (l < bl)
             bl = l, best = m;
     }
-    if (best != w_mask && bl + (cur >> 2) < cur) {     /* clearly better (by 1/4) */
+    if (best != w_mask && bl + (cur >> 3) < cur) {     /* clearly better (by 1/8; 3.1.5: 1/4 kept JUNO SUB 106 on CPU0
+                                                         * at 15-20 % more than a split that moved it: the peaks and
+                                                         * the 0.75 s dwell keep it from going back and forth) */
         w_mask = best;
         since = 0;
     }
