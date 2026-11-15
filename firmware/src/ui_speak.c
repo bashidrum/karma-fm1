@@ -14,6 +14,10 @@ static struct {
     uint8_t started, playing, cols;
     int8_t oct;
     int16_t bpm;
+    uint8_t mix[NTRK];                                 /* (3.1.3) GLO's MIX: each track's mute | solo << 1, and its level */
+    uint8_t mixlv[NTRK];
+    uint8_t fbar;
+    uint32_t sng;                                      /* the SONG screen's entry, the saved song selected */
 } sp;
 
 static void sp_cat(const char *s)
@@ -100,7 +104,7 @@ static const char *sp_title(void)                      /* the screen's name, as 
         return LAYER_NAME[ui.layer % LY_COUNT];
 #if FELUCCA_ARRANGER
     if (on_song_page())
-        return "song";
+        return song_bank ? "songs" : "song";
 #endif
     if (ui.home)
         return "home";
@@ -121,20 +125,142 @@ static void sp_kit(void)                               /* the drum track's kit: 
     sp_cat(v);
 }
 
+/* (3.1.3, issue #2) GLO's MIX layer: "track 2, muted, level 63" ("drums" for track 4; the level as its dial, %) */
+static uint32_t sp_mix_state(uint32_t i) { return (uint32_t)(trk[i].p[P_MUTE] != 0) | ((song.solo >> i) & 1u) << 1; }
+static uint32_t sp_mix_level(uint32_t i) { return trk_level(i) * 100u / 127u; }
+static void sp_mix_name(uint32_t i)
+{
+    char n[4];
+    if (i == TRK_DRUM) {
+        sp_cat("drums");
+        return;
+    }
+    sp_cat("track ");
+    fmt_int(n, (int32_t)i + 1);
+    sp_cat(n);
+}
+static void sp_mix_trk(uint32_t i)
+{
+    char n[8];
+    uint32_t st = sp_mix_state(i);
+    sp_mix_name(i);
+    if (st & 1u)
+        sp_cat(", muted");
+    if (st & 2u)
+        sp_cat(", solo");
+    sp_cat(", level ");
+    fmt_int(n, (int32_t)sp_mix_level(i));
+    sp_cat(n);
+}
+
+#if FELUCCA_ARRANGER
+/* (3.1.3, issue #2) the SONG screen's entry at the cursor: "entry 2 of 4, part B, 4 bars" */
+static void sp_entry(void)
+{
+    char n[8];
+    const arr_entry_t *e = &arrangement.entry[song_cursor % ARR_STEPS];
+    sp_cat("entry ");
+    fmt_int(n, (int32_t)song_cursor + 1);
+    sp_cat(n);
+    sp_cat(" of ");
+    fmt_int(n, (int32_t)arrangement.count);
+    sp_cat(n);
+    sp_cat(", part ");
+    n[0] = (char)('A' + (e->scene & 3u));
+    n[1] = 0;
+    sp_cat(n);
+    if (!project_used(e->scene)) {
+        sp_cat(", empty");
+        return;
+    }
+    if (e->bars) {
+        sp_cat(", ");
+        fmt_int(n, e->bars);
+        sp_cat(n);
+        sp_cat(e->bars == 1u ? " bar" : " bars");
+    } else {
+        sp_cat(", loop");
+    }
+}
+/* a saved song: "song 2, parts A, B, D" / "song 2, empty" */
+static void sp_song_slot(uint32_t k)
+{
+    char n[4];
+    uint32_t inf = song_info_of(k), j, first = 1;
+    sp_cat("song ");
+    fmt_int(n, (int32_t)k + 1);
+    sp_cat(n);
+    if (!inf) {
+        sp_cat(", empty");
+        return;
+    }
+    sp_cat(", parts ");
+    for (j = 0; j < 4u; j++)
+        if ((inf >> j) & 1u) {
+            char p[2] = {(char)('A' + j), 0};
+            if (!first)
+                sp_cat(", ");
+            sp_cat(p);
+            first = 0;
+        }
+}
+static uint32_t sp_song_sig(void)                      /* what the SONG / SONGS screen's knobs change */
+{
+    const arr_entry_t *e = &arrangement.entry[song_cursor % ARR_STEPS];
+    if (song_bank)
+        return 0x80000000u | ui.sslot | song_info_of(ui.sslot) << 4;
+    return song_cursor | (uint32_t)e->scene << 8 | (uint32_t)e->bars << 10 | arrangement.count << 18 |
+           (uint32_t)arrangement_enabled << 26 | (uint32_t)project_used(e->scene) << 27;
+}
+#endif
+
 /* the screens that are not a page of four knobs: what a glance at them tells */
 static int sp_special(void)
 {
     uint32_t i;
     char n[8];
+    if (!ui.menu && ui.layer == LY_MIX) {              /* (3.1.3, issue #2) GLO's mixer: the four, then its keys */
+        sp_cat(". ");
+        for (i = 0; i < NTRK; i++) {
+            sp_mix_trk(i);
+            sp_cat(". ");
+        }
+        sp_cat("keys 1 to 4: mute, 5 to 8: solo, 9: fill, 10: fill bar, 16: tap tempo. knobs: the levels");
+        return 1;
+    }
+#if FELUCCA_ARRANGER
+    if (!ui.menu && ui.layer == LY_SONG) {             /* (3.1.3, issue #2) SAVE held: the parts, the mode, its keys */
+        uint32_t ready = arrangement_ready();
+        sp_cat(arrangement_enabled ? ". song mode. " : ". loop mode. ");
+        for (i = 0; i < 4u; i++) {
+            char p[2] = {(char)('A' + i), 0};
+            if (i)
+                sp_cat(", ");
+            sp_cat("part ");
+            sp_cat(p);
+            if (!((ready >> i) & 1u))
+                sp_cat(" empty");
+            else if (live_sec == (int8_t)i && !arrangement_clock.running)
+                sp_cat(" playing");
+        }
+        sp_cat(". keys 1 to 4: play a part, 5 to 8: save to a part, 13: song or loop, 14: song rec, 16: the song screen");
+        return 1;
+    }
+#endif
     if (ui.menu || ui.layer != LY_PLAY)
         return 0;
 #if FELUCCA_ARRANGER
     if (on_song_page()) {
         if (song_bank) {                                /* (3.0.5) the saved songs */
-            sp_cat(". saved songs. song ");
+            sp_cat(". song ");                          /* (3.1.3, issue #2) "songs. song 1 selected. song 1, parts .." */
             fmt_int(n, (int32_t)ui.sslot + 1);
             sp_cat(n);
-            sp_cat(song_info_of(ui.sslot) ? ", used" : ", empty");
+            sp_cat(" selected. ");
+            for (i = 0; i < NSONG; i++) {
+                sp_song_slot(i);
+                sp_cat(". ");
+            }
+            sp_cat("knob 1: song, 2: erase, 3: load, 4: save, twice. SAVE: back");
             return 1;
         }
         sp_cat(arrangement_enabled ? ". song mode. " : ". loop mode. ");
@@ -152,9 +278,11 @@ static int sp_special(void)
             } else {
                 sp_cat(" loop");
             }
-            if (str_len(sp_buf) > ANN_MAX - 24u)
+            if (str_len(sp_buf) > ANN_MAX - 64u)
                 break;
         }
+        sp_cat(". ");                                   /* (3.1.3) where the cursor is */
+        sp_entry();
         return 1;
     }
 #endif
@@ -266,7 +394,7 @@ static void speak(uint32_t now)
     ctx = (uint32_t)vis_shown() * 50021u + (uint32_t)ui.page * 31u + ui.home * 7u + (uint32_t)ui.layer * 131u + ui.menu * 977u + song.sel * 3u +
           (uint32_t)sp.cols * 15485863u;
 #if FELUCCA_ARRANGER
-    ctx += (uint32_t)on_song_page() * 7919u;
+    ctx += (uint32_t)on_song_page() * 7919u + (uint32_t)song_bank * 104729u;   /* (3.1.3: SAVE there: the songs) */
 #endif
     snd = sp_sound_sig();
     if (!sp.started || all) {                          /* a new reader, or it asked: everything */
@@ -298,6 +426,45 @@ static void speak(uint32_t now)
             }
         }
     }
+    if (sp.started && ctx == sp.ctx && !ui.menu && ui.layer == LY_MIX) {   /* (3.1.3, issue #2) a mute, a solo, a level */
+        for (c = 0; c < NTRK; c++) {
+            uint32_t st = sp_mix_state(c), lv = sp_mix_level(c);
+            if (st != sp.mix[c]) {
+                sp_buf[0] = 0;
+                sp_mix_name(c);
+                if ((st ^ sp.mix[c]) & 1u)
+                    sp_cat(st & 1u ? " muted" : " on");
+                if ((st ^ sp.mix[c]) & 2u)
+                    sp_cat(st & 2u ? " solo" : " solo off");
+                ann_later(sp_buf, ANN_NOW, 120u, now);
+                break;
+            }
+            if (lv != sp.mixlv[c]) {
+                char n[8];
+                sp_buf[0] = 0;
+                sp_mix_name(c);
+                sp_cat(" level ");
+                fmt_int(n, (int32_t)lv);
+                sp_cat(n);
+                ann_later(sp_buf, ANN_NOW, 120u, now);
+                break;
+            }
+        }
+        if (c == NTRK && (fill_bar_on != 0) != sp.fbar)
+            ann_say(fill_bar_on ? "fill bar on" : "fill bar off", 0, ANN_NOW);
+    }
+#if FELUCCA_ARRANGER
+    if (sp.started && ctx == sp.ctx && !ui.menu && ui.layer == LY_PLAY && on_song_page() && sp_song_sig() != sp.sng) {
+        sp_buf[0] = 0;                                 /* (3.1.3, issue #2) KNOB 1-4 on SONG / SONGS */
+        if (song_bank)
+            sp_song_slot(ui.sslot);
+        else if (((sp_song_sig() ^ sp.sng) >> 26) & 1u)
+            sp_cat(arrangement_enabled ? "song mode" : "loop mode");
+        else
+            sp_entry();
+        ann_later(sp_buf, ANN_NOW, 120u, now);
+    }
+#endif
     if (sp.started && song.g[G_BPM] != sp.bpm && !mclk_on()) {   /* SELECT, tap tempo: the tempo (not while a
                                                                     * clock from outside sets it) */
         char n[8];
@@ -327,6 +494,14 @@ static void speak(uint32_t now)
     sp.playing = song.playing;
     sp.oct = song.octave;
     sp.bpm = song.g[G_BPM];
+    for (c = 0; c < NTRK; c++) {
+        sp.mix[c] = (uint8_t)sp_mix_state(c);
+        sp.mixlv[c] = (uint8_t)sp_mix_level(c);
+    }
+    sp.fbar = fill_bar_on != 0;
+#if FELUCCA_ARRANGER
+    sp.sng = sp_song_sig();
+#endif
     if (sp.cols)
         for (c = 0; c < 4u; c++)
             sp_knob(c, sp.kv[c], sizeof sp.kv[c]);

@@ -1140,10 +1140,13 @@ KARMA speaks its screen through Charles Vestal's **FM-1 Screen Reader** (<https:
 | **HOME** | the selected track, its SWING, LEVEL, STEPS and PAN, then all four tracks and their sounds (3.1.1) |
 | A knob on HOME, **SELECT** | "swing 2", "steps 17"; SELECT: the tempo, "126 B P M" (not while a clock from outside sets it) (3.1.1) |
 | HOME on HOME | "visualiser" (3.1.1) |
-| The **SONG** screen | loop or song mode and its parts ("part A 4 bars"); the saved songs, used or empty |
+| The **SONG** screen (SAVE on HOME) | loop or song mode and its parts ("part A 4 bars"), then the entry at the cursor: "entry 2 of 4, part B, 4 bars"; KNOB 1–4 say the entry as it changes (3.1.3) |
+| **SAVE** on the SONG screen: the saved songs | "songs. song 1 selected", then each song and its parts ("song 2, parts A, B") or "empty", and the knobs; KNOB 1 says the song you pick (3.1.3) |
+| **GLO** held: the mixer | each track, muted or soloed, and its level ("track 2, muted, level 63"), then what the keys do; a key or knob says what it changed: "track 1 muted", "track 2 solo", "track 3 level 70", "fill bar on" (3.1.3) |
+| **SAVE** held: the song layer | loop or song mode, the four parts (empty, playing), then what the keys do (3.1.3) |
 | The drum kit screen | the kit; its knobs as they turn (3.1.1) |
 
-The screen's short names (such as "CUT") are read as words with KARMA's words file, which the reader fetches from KARMA's site. Not spoken yet: the layers' contents (the steps, the mixer) and the HOME menu. Knob values are said while a knob turns, so playing the keys stays quiet.
+The screen's short names (such as "CUT") are read as words with KARMA's words file, which the reader fetches from KARMA's site. Not spoken yet: the other layers' contents (the steps, the punch-in effects) and the HOME menu. Knob values are said while a knob turns, so playing the keys stays quiet.
 
 ## 25. Backup, rescue, going back, troubleshooting
 

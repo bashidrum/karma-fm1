@@ -2,14 +2,14 @@
 /* The screen reader (ui_speak.c + announce.c, fm1-reader's protocol): a reader says HELLO, then the UI is used
  * as on the FM-1 (ui_pages_test.c's harness) and what KARMA sends is checked: the whole screen first, a sound
  * picked with PRESETS and its place in the list, a page and its knobs, a knob turning, play / stop, the octave,
- * a message; nothing at all before a HELLO. SPEAK_LOG=1 prints every SAY. */
+ * a message, GLO's MIX layer, SAVE's song layer, the SONG and SONGS screens (3.1.3); nothing at all before a HELLO. SPEAK_LOG=1 prints every SAY. */
 #define KARMA_ANN 1
 #define UI_PAGES_HARNESS_ONLY 1
 #include "ui_pages_test.c"
 #define FELUCCA_VERSION_ANN "KARMA TEST"
 #define ANN_NAME FELUCCA_VERSION_ANN
 #define ANN_WORDS_URL "https://example.invalid/words/test.json"
-#define ANN_MAX 160u
+#define ANN_MAX 240u                                    /* (as the firmware's) */
 #include "../firmware/src/announce.c"
 #include "../firmware/src/ui_speak.c"
 #include <stdlib.h>
@@ -120,6 +120,44 @@ int main(void)
     clear();
     ui_message("SAVED"); sframes(4);
     check(heard("SAVED"), "a message on the screen is said (\"SAVED\")");
+    /* (3.1.3, issue #2: Joao's NVDA tests) GLO's MIX layer, SAVE's song layer, the SONG and SONGS screens */
+    go_home(); sframes(20); clear();
+    press(B_GLO); sframes(80);
+    check(heard("mix. track 1, level ") && heard("drums, level ") && heard("16: tap tempo"), "GLO held: the mixer, each track and its keys");
+    clear();
+    key(key_of_white(0)); sframes(10);
+    check(heard("track 1 muted"), "GLO + key 1: \"track 1 muted\"");
+    clear();
+    key(key_of_white(0)); sframes(10);
+    check(heard("track 1 on"), "again: \"track 1 on\"");
+    clear();
+    key(key_of_white(5)); sframes(10);
+    check(heard("track 2 solo"), "GLO + key 6: \"track 2 solo\"");
+    key(key_of_white(5)); sframes(10);
+    clear();
+    encs[panel.enc[EN_K3]] = -3; frame(); sframes(10);
+    check(heard("track 3 level "), "GLO + KNOB 3: \"track 3 level ..\"");
+    if (getenv("SPEAK_LOG")) printf("    (mix: %s)\n", said[0]);
+    release(B_GLO); sframes(20);
+    clear();
+    press(B_SAVE); sframes(80);
+    check(heard("song. loop mode. part A") && heard("16: the song screen"), "SAVE held: the song layer, its parts and keys");
+    release(B_SAVE); sframes(20);
+    go_home(); sframes(20); clear();
+    tap(B_SAVE); sframes(20);
+    check(on_song_page() && heard("song. ") && heard("entry 1 of "), "SAVE on HOME: the SONG screen, with the entry at the cursor");
+    clear();
+    encs[panel.enc[EN_K2]] = 1; frame(); sframes(20);
+    check(heard("entry 1 of ") && heard("part B"), "SONG + KNOB 2: the entry's new part");
+    encs[panel.enc[EN_K2]] = -1; frame(); sframes(20);
+    clear();
+    tap(B_SAVE); sframes(20);
+    check(heard("songs. song 1 selected") && heard("song 2, ") && heard("SAVE: back"), "SAVE on SONG: the saved songs, each one");
+    clear();
+    encs[panel.enc[EN_K1]] = 1; frame(); sframes(20);
+    check(heard("song 2, "), "SONGS + KNOB 1: the song selected");
+    if (getenv("SPEAK_LOG")) printf("    (songs: %s)\n", said[0]);
+    tap(B_SAVE); sframes(20);
     go_home(); sframes(20);
     boot_t = 0; sp.started = 0; clear();                 /* a reader there while the FM-1 starts */
     sframes(40);
