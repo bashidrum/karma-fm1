@@ -987,6 +987,8 @@ With **KNOBS = GM** (GLO → MIDI 3), the knobs of a MIDI controller set the sou
 
 **Sustain and pitch bend (2.6).** The **sustain pedal** (CC 64, on the track its channel plays): while it is down, a note you let go keeps sounding until the pedal comes up (the arp keeps it, a recording holds it as you hear it; a note played again meanwhile ends with its key). **Pitch bend** bends the track its channel plays, smoothly, by up to **BEND** semitones (GLO → MIDI 2: 1–12, default 2); the drum track ignores it. Other CCs are ignored, unless you map them with MIDI LEARN (with KNOBS = PANEL, the mod wheel, CC 1, turns PRESETS).
 
+**All notes off (3.1.3).** **ALL NOTES OFF** (CC 123) and **ALL SOUND OFF** (CC 120), as a DAW sends them when it stops or on a panic, end every note of the track that channel plays, the ones the sustain pedal holds too, each with its release. **RESET ALL CONTROLLERS** (CC 121) puts its pitch bend back to the middle and lifts the pedal.
+
 **Program Change (2.6, after Felucca 1.5.1 and @renebohne's PR #179).** A Program Change on a track's channel loads its sound: on a synth track, number *n* is the *n*-th sound of that track's PRESETS list (0 the first: TB ACID on track 1, BOW STRING on track 2, FOLD LEAD on track 3; its user presets after the factory sounds), on the drum channel kit *n*. A number past the end is ignored. The screen says *T2 PROG 5*. IN = CLOCK ignores it; IN = CH n sends it to the selected track.
 
 ### MIDI LEARN (2.6)

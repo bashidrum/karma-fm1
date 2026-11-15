@@ -219,6 +219,34 @@ int main(void)
         check(act == 0, t);
         tt->p[P_MUTE] = 0;
     }
+    {                                                /* (3.1.3) ALL NOTES OFF (CC 123) / ALL SOUND OFF (120), as a DAW sends
+                                                      * them on stop: the channel's track lets go, the pedal's notes too */
+        static int32_t o[2 * CTL];
+        track_t *tt = midi_track(0);
+        uint32_t gates, bb, k, cc;
+        for (cc = 0; cc < 2u; cc++) {
+            uint32_t q[4][3] = {{0xB0, 64, 127}, {0x90, 48, 100}, {0x90, 55, 100}, {0x80, 55, 0}};   /* pedal down, 2 notes, 1 off */
+            for (k = 0; k < 4u; k++) {
+                midi_in_q[mi_w % MQ] = (q[k][0] >> 4 & 15u) | q[k][0] << 8 | q[k][1] << 16 | q[k][2] << 24;
+                mi_w++;
+            }
+            for (bb = 0; bb < 20; bb++) mix_block(o, CTL);
+            for (gates = 0, bb = 0; bb < NVOICE; bb++) gates += tt->v[bb].active && tt->v[bb].stage != 3u && tt->v[bb].stage != 4u;
+            snprintf(t, sizeof t, "MIDI in: two notes held (one by the pedal) on the channel's track (%u)", gates);
+            check(tt && gates == 2u, t);
+            midi_in_q[mi_w % MQ] = 0xBu | 0xB0u << 8 | (cc ? 120u : 123u) << 16;
+            mi_w++;
+            for (bb = 0; bb < 4; bb++) mix_block(o, CTL);
+            for (gates = 0, bb = 0; bb < NVOICE; bb++) gates += tt->v[bb].active && tt->v[bb].gate;
+            snprintf(t, sizeof t, "CC %u (%s): every note let go, the pedal's too (%u held)", cc ? 120u : 123u,
+                     cc ? "ALL SOUND OFF" : "ALL NOTES OFF", gates);
+            check(gates == 0u, t);
+            for (bb = 0; bb < 4000; bb++) mix_block(o, CTL);
+            for (gates = 0, bb = 0; bb < NVOICE; bb++) gates += tt->v[bb].active;
+            snprintf(t, sizeof t, "... and they end after their release (%u still sounding)", gates);
+            check(gates == 0u, t);
+        }
+    }
     dsu_defaults();
     printf(fails ? "HEX fixes: %d FAILED\n" : "HEX fixes: all ok\n", fails);
     return fails != 0;

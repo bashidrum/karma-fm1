@@ -2350,6 +2350,19 @@ static void __attribute__((noinline)) midi_cc(track_t *t, uint32_t cc, uint32_t 
     const param_desc_t *d = 0;
     int16_t *slot = 0;
     uint32_t i, id = 0xFFFFu;
+    if (cc >= 120u) {                                  /* (3.1.3) the channel mode messages (never learned, never mapped):
+                                                        * ALL SOUND OFF (120) and ALL NOTES OFF (123), as a DAW sends them
+                                                        * on stop or panic: the track's notes end (with their release) and
+                                                        * the pedal lets go; RESET ALL CONTROLLERS (121): the wheel and the
+                                                        * pedal back. A track's notes from the FM-1's own keys end too */
+        if (cc == 120u || cc == 123u)
+            panic_req = (uint8_t)(panic_req | 1u << (trk_index(t) % NTRK));
+        else if (cc == 121u) {
+            sus_set(t, 0);
+            t->bend = 0;
+        }
+        return;
+    }
     if (midi_learned(cc, value))                       /* (a learned CC is the user's: not the map's) */
         return;
     if (midi_panel_knob(cc, value))                    /* KNOBS PANEL: the FM-1's rotaries */

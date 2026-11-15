@@ -140,7 +140,7 @@ run "update loader: other app -> this build" "$OUT/ldr_test" "$OUT/old.fwsc" bui
 
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/hostsim" tests/hostsim.c $PLX -lm
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/hex_fix_test" tests/hex_fix_test.c $PLX -lm
-run "HEX drums (3.1.2): sends fade with a cut hit, MY HEX as loud as its kit, ATK 127 ends, WAVE SIN" "$OUT/hex_fix_test"
+run "HEX drums (3.1.2), overload guards, muted tracks, ALL NOTES OFF (3.1.3)" "$OUT/hex_fix_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/scale_test" tests/scale_test.c $PLX -lm
 run "scales: white-key mapping and note lifecycle" "$OUT/scale_test"
 run "DSP render (JUNO, the host default)" "$OUT/hostsim" 0 0 1 "$OUT/render.wav"
