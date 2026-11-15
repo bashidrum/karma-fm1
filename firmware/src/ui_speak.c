@@ -148,9 +148,10 @@ static void sp_mix_trk(uint32_t i)
         sp_cat(", muted");
     if (st & 2u)
         sp_cat(", solo");
-    sp_cat(", level ");
+    sp_cat(", ");                                      /* (short: the four and the keys fit one message, ANN_MAX) */
     fmt_int(n, (int32_t)sp_mix_level(i));
     sp_cat(n);
+    sp_cat("%");
 }
 
 #if FELUCCA_ARRANGER
@@ -183,7 +184,7 @@ static void sp_entry(void)
     }
 }
 /* a saved song: "song 2, parts A, B, D" / "song 2, empty" */
-static void sp_song_slot(uint32_t k)
+static void sp_song_slot(uint32_t k, int brief)       /* brief (the list): "song 2: A, B" (one message: ANN_MAX) */
 {
     char n[4];
     uint32_t inf = song_info_of(k), j, first = 1;
@@ -191,10 +192,10 @@ static void sp_song_slot(uint32_t k)
     fmt_int(n, (int32_t)k + 1);
     sp_cat(n);
     if (!inf) {
-        sp_cat(", empty");
+        sp_cat(brief ? ": empty" : ", empty");
         return;
     }
-    sp_cat(", parts ");
+    sp_cat(brief ? ": " : ", parts ");
     for (j = 0; j < 4u; j++)
         if ((inf >> j) & 1u) {
             char p[2] = {(char)('A' + j), 0};
@@ -225,7 +226,7 @@ static int sp_special(void)
             sp_mix_trk(i);
             sp_cat(". ");
         }
-        sp_cat("keys 1 to 4: mute, 5 to 8: solo, 9: fill, 10: fill bar, 16: tap tempo. knobs: the levels");
+        sp_cat("keys 1 to 4: mute, 5 to 8: solo, 9: fill, 10: fill bar, 16: tap tempo. knobs: levels");
         return 1;
     }
 #if FELUCCA_ARRANGER
@@ -257,7 +258,7 @@ static int sp_special(void)
             sp_cat(n);
             sp_cat(" selected. ");
             for (i = 0; i < NSONG; i++) {
-                sp_song_slot(i);
+                sp_song_slot(i, 1);
                 sp_cat(". ");
             }
             sp_cat("knob 1: song, 2: erase, 3: load, 4: save, twice. SAVE: back");
@@ -457,7 +458,7 @@ static void speak(uint32_t now)
     if (sp.started && ctx == sp.ctx && !ui.menu && ui.layer == LY_PLAY && on_song_page() && sp_song_sig() != sp.sng) {
         sp_buf[0] = 0;                                 /* (3.1.3, issue #2) KNOB 1-4 on SONG / SONGS */
         if (song_bank)
-            sp_song_slot(ui.sslot);
+            sp_song_slot(ui.sslot, 0);
         else if (((sp_song_sig() ^ sp.sng) >> 26) & 1u)
             sp_cat(arrangement_enabled ? "song mode" : "loop mode");
         else

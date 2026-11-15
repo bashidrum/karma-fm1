@@ -123,7 +123,7 @@ int main(void)
     /* (3.1.3, issue #2: Joao's NVDA tests) GLO's MIX layer, SAVE's song layer, the SONG and SONGS screens */
     go_home(); sframes(20); clear();
     press(B_GLO); sframes(80);
-    check(heard("mix. track 1, level ") && heard("drums, level ") && heard("16: tap tempo"), "GLO held: the mixer, each track and its keys");
+    check(heard("mix. track 1, ") && heard("drums, ") && heard("knobs: levels."), "GLO held: the mixer, each track and its keys, in one message (not cut)");
     clear();
     key(key_of_white(0)); sframes(10);
     check(heard("track 1 muted"), "GLO + key 1: \"track 1 muted\"");
@@ -141,7 +141,7 @@ int main(void)
     release(B_GLO); sframes(20);
     clear();
     press(B_SAVE); sframes(80);
-    check(heard("song. loop mode. part A") && heard("16: the song screen"), "SAVE held: the song layer, its parts and keys");
+    check(heard("song. loop mode. part A") && heard("16: the song screen."), "SAVE held: the song layer, its parts and keys (not cut)");
     release(B_SAVE); sframes(20);
     go_home(); sframes(20); clear();
     tap(B_SAVE); sframes(20);
@@ -152,12 +152,30 @@ int main(void)
     encs[panel.enc[EN_K2]] = -1; frame(); sframes(20);
     clear();
     tap(B_SAVE); sframes(20);
-    check(heard("songs. song 1 selected") && heard("song 2, ") && heard("SAVE: back"), "SAVE on SONG: the saved songs, each one");
+    check(heard("songs. song 1 selected") && heard("song 2: ") && heard("SAVE: back."), "SAVE on SONG: the saved songs, each one, in one message (not cut)");
     clear();
     encs[panel.enc[EN_K1]] = 1; frame(); sframes(20);
     check(heard("song 2, "), "SONGS + KNOB 1: the song selected");
     if (getenv("SPEAK_LOG")) printf("    (songs: %s)\n", said[0]);
-    tap(B_SAVE); sframes(20);
+    {   /* (3.1.3, found on the FM-1: "knobs: t", "SAVE: bac") the longest cases fit one message: three full songs; four
+         * tracks muted, soloed, at 100 % */
+        uint32_t k2, n1, n2;
+        sp.cols = 0; sp_screen(0); n1 = str_len(sp_buf);     /* (the harness has no flash: no saved song; three full ones add
+                                                         * 3 x "A, B, C, D" = 30 characters to this) */
+        check(n1 + 30u < ANN_MAX - 4u && sp_buf[n1 - 1u] == '.', "the saved songs, all three full: one message, not cut");
+        if (getenv("SPEAK_LOG")) printf("    (%u + 30: %s)\n", n1, sp_buf);
+        tap(B_SAVE); sframes(20);
+        go_home(); sframes(20);
+        for (k2 = 0; k2 < NTRK; k2++) trk[k2].p[P_MUTE] = 1, trk[k2].p[P_LEVEL] = 127;
+        song.g[G_DRLVL] = 127; song.solo = 15u;
+        press(B_GLO); sframes(20);
+        sp_screen(0); n2 = str_len(sp_buf);
+        check(ui.layer == LY_MIX && n2 < ANN_MAX - 4u && sp_buf[n2 - 1u] == '.', "the mixer, every track muted, soloed, 100 %: one message, not cut");
+        if (getenv("SPEAK_LOG")) printf("    (%u: %s)\n", n2, sp_buf);
+        release(B_GLO); sframes(20);
+        for (k2 = 0; k2 < NTRK; k2++) trk[k2].p[P_MUTE] = 0;
+        song.solo = 0;
+    }
     go_home(); sframes(20);
     boot_t = 0; sp.started = 0; clear();                 /* a reader there while the FM-1 starts */
     sframes(40);
