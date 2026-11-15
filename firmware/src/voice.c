@@ -151,7 +151,7 @@ static uint32_t shed_count;
 
 static int cloud_shed(void);                    /* (cloud.c, after) */
 static int modal_shed(void);
-static void shed_voice(int hard)
+__attribute__((noinline)) static void shed_voice(int hard)   /* (3.1.3: out of the audio ISR's code; once a half at most) */
 {
     uint32_t p, i;
     voice_t *best = 0;

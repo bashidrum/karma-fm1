@@ -107,7 +107,8 @@ static const preset_t ELEM_PRESETS[] = {
     /* OMIN: {MODEL, RATIO, FM, FDBK, DTUNE, BRIT, SHAPE, SPACE} (her Ominous Voice; one note) */
     {"OMINOUS", {EM_OMIN, 64, 70, 50, 30, 60, 40, 60}, {60, 90, 127, 90}, 0, 1, FX(0, 20, 20, 60), XP(P_TRANS + 1, 12)},
     {"DARK DRONE", {EM_OMIN, 30, 90, 80, 50, 40, 20, 90}, {90, 90, 127, 110}, 0, 1, FX(0, 30, 24, 70)},
-    {"OMEN BELL", {EM_OMIN, 100, 60, 20, 10, 90, 70, 30}, {0, 90, 60, 90}, 0, 1, FX(0, 10, 26, 56), XP(P_TRANS + 1, 12)},
+    /* (3.1.3) OMEN BELL removed (Ariel 2026-11-15): ~600 us of a 725 us block for its one note on an FM-1, too heavy
+     * beside two other tracks; a project with it keeps its sound (its values are saved), named as the last one here */
 };
 
 static const engine_t ENG_ELEM = {

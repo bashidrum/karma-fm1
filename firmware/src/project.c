@@ -563,7 +563,8 @@ static void proj_apply(const project_t *p, int all)
                                     i >= P_E0 && i <= P_E7 ? &ENGINES[e]->edit[i - P_E0] : &TP[i];
             t->p[i] = (int16_t)clamp(pt_get(s, i), d->min, d->max);
         }
-        t->preset = (uint8_t)(ENGINES[e]->npresets ? (s->preset == 0xFFu ? 0u : s->preset) % ENGINES[e]->npresets : 0u);
+        t->preset = (uint8_t)(ENGINES[e]->npresets ? (s->preset == 0xFFu ? 0u : s->preset >= ENGINES[e]->npresets ? ENGINES[e]->npresets - 1u : s->preset) : 0u);   /* (3.1.3: a removed
+                                                         * sound, OMEN BELL: the engine's last, not its first) */
         memcpy(t->step, s->step, sizeof t->step);
         memset(t->fill, 0, sizeof t->fill);
         for (i = 0; i < NSTEP; i++) {                   /* the nudges and conditions (3 means normal: 0) */
