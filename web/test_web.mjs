@@ -1556,6 +1556,22 @@ async function updater() {
   stock.boot("ota-FM-1_015", "FM-1 Update");
   const e3 = await new Updater(stock.access).resume(image).then(() => null, (x) => x);
   ok(e3 && e3.code === "foreign" && e3.detail === "ota-FM-1_015" && stock.served === 0, "fm1ota.js: another firmware's loader is never resumed ('foreign')");
+  {   /* (3.1.3) M-VAVE's FM1 Open ("FM1 Community"): found, never written over; its own update mode never resumed */
+    ok(FM1_PORT.test("FM1 Community"), "fm1ota.js: FM1_PORT finds M-VAVE's FM1 Open (port 'FM1 Community')");
+    for (const ident of ["FM-1_8000014", "FM1_COMMUNITY_3", "FM1_OFFICIAL_OPEN"]) {
+      const op = new FakeFM1(image, { name: "FM1 Community", identity: ident });
+      const eo = await new Updater(op.access).install(image, "FM-1_926").then(() => null, (x) => x);
+      ok(eo && eo.code === "open" && eo.detail === ident && op.served === 0, `fm1ota.js: FM1 Open (${ident}): 'open', nothing written`);
+    }
+    const ol = new FakeFM1(image);
+    ol.boot("ota-FM1C_426b7fa5", "FM1 Community");
+    const eol = await new Updater(ol.access).resume(image).then(() => null, (x) => x);
+    ok(eol && eol.code === "openota" && ol.served === 0, "fm1ota.js: FM1 Open's update mode is never resumed ('openota')");
+    const page = readFileSync(new URL("./index_pkg.html", import.meta.url), "utf8");
+    ok(["open", "openota", "nf_open", "o_backup", "o_wb", "o_close"].every((k) => (page.match(new RegExp(`(^|[^A-Za-z_])${k}: "`, "gm")) || []).length === 2) &&
+       /open: \["o_backup", "o_wb", "o_close", "h_again"\]/.test(page) && /fm1-workbench/.test(page),
+       "installer: FM1 Open: the way back to V15 with M-VAVE's FM1 Workbench, in English and Japanese");
+  }
   const back = new FakeFM1(image, { finalIdentity: "FM-1_015" });   /* the return to the official V15, interrupted */
   back.boot("ota-FM-1_015", "FM-1 Update");
   const st = [];

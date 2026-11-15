@@ -16,8 +16,17 @@ const IS_OTA = (id) => /^ota-/i.test(id.model);
 export const OUR_LOADER = (id) => /^ota-FM-1_9\d\d$/i.test(id.text);
 // the MIDI ports the installer may probe (never other gear): the FM-1 under SLOOP / Felucca ("Felucca"), under
 // CLIPPER ("Clipper", its sister firmware), under a firmware named after itself ("SLOOP"), the update loaders, and
-// the names Windows / macOS give the stock firmware
-export const FM1_PORT = /fm-1|felucca|karma|sloop|clipper|ota|composite|sinco|usb-midi/i;
+// the names Windows / macOS give the stock firmware; (3.1.3) "FM1": M-VAVE's FM1 Open firmware names its port
+// "FM1 Community" (6 failed installs in two days, 2026-11-14..15, all "not found" with that port there)
+export const FM1_PORT = /fm-?1|felucca|karma|sloop|clipper|ota|composite|sinco|usb-midi/i;
+// (3.1.3) M-VAVE's FM1 Open firmware: its identity ("FM1_OFFICIAL_OPEN", "FM1_COMMUNITY_3"; V14 on: "FM-1_80000" and two
+// digits) and its update loader's ("ota-FM1C_" and a build id in hex). Its updater takes only M-VAVE's own firmware, and
+// only after being told the package's length and SHA-256 (as documented by Charles Vestal's fm1-base and Chris Farrell's
+// fm-static), so KARMA is never written over it: the page sends the player to M-VAVE's FM1 Workbench to put the
+// official V15 back first, and nothing is written here
+const OPEN_RE = /^FM1_(OFFICIAL_OPEN|COMMUNITY_\d+)$/;
+const MVAVE_OPEN_RE = /^FM-1_80000\d\d$/;
+const OPEN_LOADER_RE = /^ota-FM1C_[0-9a-f]+$/i;
 
 // (2026-11-08) the MIDI port names a failed search met, for the anonymous counts: is a new FM-1 (M-VAVE's V16) under a
 // name FM1_PORT does not know? At most three, 20 characters each; a name that may be a person's ("Ariel's iPhone",
@@ -74,9 +83,11 @@ function parseRequest(pkt) {
 function parseIdentity(pkt) {
   const d = unpack7(pkt.slice(1, -1));
   if (d.length !== 34 || d[0] !== 0 || d[1] !== 0x59 || d[2] !== 0x11) return null;
-  const txt = String.fromCharCode(...d.slice(6, 33)).replace(/\0+$/, "");
+  const txt = String.fromCharCode(...d.slice(6, 33)).replace(/\0[\s\S]*$/, "");
+  if (OPEN_RE.test(txt)) return { text: txt, model: "FM-1", version: 0, open: true };
+  if (OPEN_LOADER_RE.test(txt)) return { text: txt, model: "ota-FM1C", version: 0, open: true };
   const m = /^([^_]+)_(\d+)$/.exec(txt);
-  return m ? { text: txt, model: m[1], version: parseInt(m[2], 10) } : null;
+  return m ? { text: txt, model: m[1], version: parseInt(m[2], 10), ...(MVAVE_OPEN_RE.test(txt) ? { open: true } : {}) } : null;
 }
 
 // one MIDI in/out pair with a SysEx queue
@@ -222,6 +233,10 @@ export class Updater {
     }
     const [model] = product.split("_");
     if (dev.id.model !== model) { dev.link.close(); throw fail("model", `the device is ${dev.id.text}, the package is for ${product}`); }
+    if (dev.id.open) {                             /* (3.1.3) M-VAVE's FM1 Open: never written over (see OPEN_RE) */
+      dev.link.close();
+      throw fail("open", `the FM-1 runs M-VAVE's FM1 Open (${dev.id.text}): put the official firmware back first, nothing was written`, dev.id.text);
+    }
     step("start", dev.id.text);
     dev.link.send(UPGRADE);
     await sleep(2000);
@@ -260,6 +275,10 @@ export class Updater {
   async resume(image, onStep, opts = {}) {
     const ota = await this.find(IS_OTA);
     if (!ota) return false;
+    if (ota.id.open) {                             /* (3.1.3) FM1 Open's own update mode: its Workbench finishes it */
+      ota.link.close();
+      throw fail("openota", `the FM-1 is in the update mode of M-VAVE's FM1 Open (${ota.id.text}): nothing was written`, ota.id.text);
+    }
     if (!OUR_LOADER(ota.id) && !opts.product) {
       ota.link.close();
       throw fail("foreign", `the FM-1 is in the update mode of another firmware (${ota.id.text}): finish that update with its own updater`, ota.id.text);

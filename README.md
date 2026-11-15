@@ -41,8 +41,11 @@ Open the [installer](https://eatyourgreensstudio-dotcom.github.io/karma-fm1/weba
 projects saved by SLOOP up to 2.6 (where it grew from), not those of newer SLOOP releases; every FM-1 firmware keeps its
 work in the same flash in its own way, so another firmware may not read KARMA's projects, presets and samples, and may
 overwrite them (tested: after SLOOP 2.8, KARMA starts with an empty project). Restore your backup from the editor when you
-come back. The installer page puts M-VAVE's official V15 back; holding **OCT−** while switching on starts the USB
-rescue if an install was interrupted. KARMA's identity is **FM-1_926**.
+come back. The installer page shows how to put M-VAVE's official firmware back (M-UPGRADE); holding **OCT−** while
+switching on starts the USB rescue if an install was interrupted. KARMA's identity is **FM-1_926**.
+
+**An FM-1 with M-VAVE's FM1 Open** (its USB name is "FM1 Community"): KARMA cannot be installed over it directly. Put the
+official V15 back first with M-VAVE's [FM1 Workbench](https://open.m-vave.com/fm1-workbench) in Chrome: **Update firmware → Restore original V15**, connect, confirm the backup, **Install original V15** (not the main update button: that one installs FM1 Open again), then install KARMA. The installer recognises FM1 Open and shows these steps (3.1.3).
 
 ## Build
 

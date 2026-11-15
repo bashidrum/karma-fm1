@@ -69,6 +69,8 @@ The 11 black keys are F#3, G#3, A#3, C#4, D#4, F#4, G#4, A#4, C#5, D#5, F#5. The
 
 **Updating** keeps your projects, presets, samples, kits and settings. The installer checks the package (SHA-256), KARMA's update loader checks it again (CRC) before it starts the new firmware, and a damaged package is refused before anything is written.
 
+**An FM-1 with M-VAVE's FM1 Open** (its USB name is "FM1 Community"): KARMA cannot be installed over it directly, and the installer writes nothing to it. Back up what you want to keep, put the official V15 back with M-VAVE's [FM1 Workbench](https://open.m-vave.com/fm1-workbench) in Chrome: **Update firmware → Restore original V15**, connect, confirm the backup, **Install original V15** (not the main update button: that one installs FM1 Open again), close that tab, then press **INSTALL** here. The installer recognises FM1 Open and shows these steps (3.1.3).
+
 **Before you go back to SLOOP** (which KARMA grew from), save a backup in the editor: SLOOP cannot read KARMA's projects, and KARMA's sounds do not exist there.
 
 ---
