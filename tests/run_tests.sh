@@ -85,6 +85,8 @@ run "after Felucca 1.4 / 1.5: INSERT, filter TYPE, ENV SYNC, LFO 2, drum mutes, 
 
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o "$OUT/ui_pages_test" tests/ui_pages_test.c $PLX -lm
 run "live UI: pages, layers (punch, steps, erase, roll, key, mix), holds, drums, REC, fuzz" "$OUT/ui_pages_test" "$OUT"
+$CC -O1 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/acid_mem_test" tests/acid_mem_test.c $PLX -lm
+run "ACID GEN: each synth track its own settings (3.1.5)" "$OUT/acid_mem_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o "$OUT/speak_test" tests/speak_test.c $PLX -lm
 run "screen reader (fm1-reader): silent until HELLO, the screen, a sound, a page, a knob, play, octave, messages" "$OUT/speak_test"
 # no divide by 0 (the FM-1 runs with the div0 trap off, hal/fm1_irq.h: a real one would give a wrong value

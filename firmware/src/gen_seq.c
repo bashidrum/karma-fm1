@@ -377,6 +377,7 @@ static void gen_new(track_t *t)                      /* NEW, ON, a key: the trac
     }
     t->seq_active = 1;
 }
+static void ag_key_all(uint32_t root, uint32_t scale);   /* (acid_gen.c, after) */
 static void gen_key_set(uint32_t root, uint32_t mode)   /* one key: the synth tracks' ROOT and SCL, ACID GEN's */
 {
     uint32_t i;
@@ -386,6 +387,7 @@ static void gen_key_set(uint32_t root, uint32_t mode)   /* one key: the synth tr
     }
     song.g[G_AGROOT] = (int16_t)(root % 12u);
     song.g[G_AGSCALE] = GK_AG[mode % GK_NMODE];
+    ag_key_all(root % 12u, GK_AG[mode % GK_NMODE]);   /* (3.1.5: each track's ACID GEN) */
 }
 static void gen_again(void)                          /* the plan changed: every GEN track's part on it */
 {

@@ -643,7 +643,10 @@ static void engine_block(track_t *t)
  * below a block) takes the tables' 0, as with SYNC OFF. OFF: the tables' values, as before (looked up once a block here
  * instead of once a voice in env_tick: the same numbers) */
 _Static_assert(CTL == 32, "esync_one: 4.6 CTL in Q16 is 9646899");
-static uint32_t esync_k[3];      /* ATK's step, DEC's and REL's coefficient (Q16): the part's, this block (env_tick) */
+static uint32_t esync_k[NTRK][3];   /* ATK's step, DEC's and REL's coefficient (Q16): each track's, this block (env_tick).
+                                     * (3.1.5) one set a track: one shared set, two tracks rendering at once on the two
+                                     * cores took each other's (ThreadSanitizer, 2026-11-15): a release or an attack at
+                                     * another track's rate now and then */
 static uint32_t esync_one(uint32_t quarter, int32_t v, uint32_t i)
 {
     uint32_t u = ESYNC_UNITS[esync_idx(v)], T = quarter * u / 96u, x, x2, x3, x4;   /* T: samples */
@@ -664,15 +667,16 @@ static __attribute__((noinline)) void esync_coef(const track_t *t)   /* (not inl
                                                                     * audio ISR's loop over the voices) */
 {
     const int16_t *p = t->p;
+    uint32_t *k = esync_k[(uint32_t)(t - trk) % NTRK];
     if (p[P_ESYNC]) {
         uint32_t q = (uint32_t)FS * 60u / (uint32_t)clamp(song.g[G_BPM], 20, 300);   /* a beat (a quarter), samples */
-        esync_k[0] = esync_one(q, p[P_ATK], 0);
-        esync_k[1] = esync_one(q, p[P_DEC], 1);
-        esync_k[2] = esync_one(q, p[P_REL], 2);
+        k[0] = esync_one(q, p[P_ATK], 0);
+        k[1] = esync_one(q, p[P_DEC], 1);
+        k[2] = esync_one(q, p[P_REL], 2);
     } else {                                            /* OFF: the tables, as always */
-        esync_k[0] = ENV_LIN[p[P_ATK] & 127];
-        esync_k[1] = ENV_EXP[p[P_DEC] & 127];
-        esync_k[2] = ENV_EXP[p[P_REL] & 127];
+        k[0] = ENV_LIN[p[P_ATK] & 127];
+        k[1] = ENV_EXP[p[P_DEC] & 127];
+        k[2] = ENV_EXP[p[P_REL] & 127];
     }
 }
 
@@ -681,19 +685,20 @@ static int32_t env_tick(track_t *t, voice_t *v)
 {
     const int16_t *p = t->p;
     int32_t sus = (int32_t)p[P_SUS] << 17;              /* Q24 */
+    const uint32_t *ek = esync_k[(uint32_t)(t - trk) % NTRK];
     switch (v->stage) {
     case 1:
-        v->env += (int32_t)esync_k[0];                  /* ATK's step (esync_coef: the table's, or ENV SYNC's) */
+        v->env += (int32_t)ek[0];                  /* ATK's step (esync_coef: the table's, or ENV SYNC's) */
         if (v->env >= (1 << 24)) {
             v->env = 1 << 24;
             v->stage = 2;
         }
         break;
     case 2:
-        v->env += mulq16(sus - v->env, esync_k[1]);
+        v->env += mulq16(sus - v->env, ek[1]);
         break;
     case 3:
-        v->env -= mulq16(v->env, esync_k[2]);
+        v->env -= mulq16(v->env, ek[2]);
         if (v->env < (1 << 12)) {
             v->env = 0;
             v->stage = 0;

@@ -669,12 +669,13 @@ static void mix_part(track_t *t, uint32_t n) { mix_part_to(t, n, &BUS0); }
 /* CPU1's job (2026-10-28, Ariel: a busy section overloaded one core): tracks 2 and 3 (ELEMENTS, PLAITS) into buses of its
  * own while CPU0 renders track 1 and the drums; CPU0 joins before the effects and adds them. What the two share is read
  * only, or the random numbers (a race there only changes which random number comes) */
-#ifndef KARMA_CPU1_HEX                                  /* (3.1.4) the HEX voices and the effects on CPU0 again, as 3.1.2: on CPU1
-                                                         * (3.1.3) an FM-1 distorted after a while even at 33 % with no late half
-                                                         * (Ariel, 2026-11-15: ELEMENTS and a kick; 3.1.2 and this build clean). A
-                                                         * clash between the cores the host tests cannot see (they run CPU1's job at
-                                                         * the join): found before either goes back. 1 = on CPU1 (a test build) */
-#define KARMA_CPU1_HEX 0
+#ifndef KARMA_CPU1_HEX                                  /* (3.1.5) the HEX voices on CPU1 again (3.1.3's, off in 3.1.4: tested on
+                                                         * Ariel's FM-1, 2026-11-15, alone they are clean: KARMA_CPU1_HEX=1 FX=0
+                                                         * played without the distortion, and the drums cost CPU0 65 us, not 200).
+                                                         * The effects stay on CPU0: on CPU1 (3.1.3, KARMA_CPU1_FX=1) an FM-1
+                                                         * distorted after a while, a clash the host cannot show (ThreadSanitizer
+                                                         * finds none): to be found before they go back */
+#define KARMA_CPU1_HEX 1
 #endif
 #ifndef KARMA_CPU1_FX
 #define KARMA_CPU1_FX 0
@@ -709,6 +710,12 @@ static uint32_t core_cost[NPART + 2];           /* ticks x 8: the three parts, t
 static uint32_t core_peak[NPART + 2];           /* ticks x 16: the parts, the drums on CPU0, (3.1.3) the HEX voices on CPU1 */
 #define CORE_DWELL 1024u                        /* blocks (~0.75 s) */
 static uint32_t core_max[NPART + 2];            /* (3.1.3) each one's longest block since the last read (editor command 94) */
+/* (3.1.5) a part's peak is kept in CPU1's time: the same engine took CPU0 ~1.8 x as long, measured on an FM-1 (2026-11-15:
+ * JUNO SUB 106 ~150 us a block on CPU1, 270 .. 330 on CPU0; ELEMENTS alike), CPU0 running far more code between (the
+ * effects, the notes' starts, the mix, USB) and its interrupts. Weighed as one, the split left the heaviest part on
+ * CPU0 at its CPU0 price: now a part on CPU0 counts CPU0_NUM / CPU0_DEN of its time, and CPU0's load the inverse */
+#define CPU0_NUM 9u
+#define CPU0_DEN 16u
 static inline void cost_put(uint32_t k, uint32_t ticks)
 {
     if (ticks > core_max[k])
@@ -717,18 +724,24 @@ static inline void cost_put(uint32_t k, uint32_t ticks)
     core_cost[k] += ticks - (core_cost[k] >> 3);
     core_peak[k] = c >= p ? p + ((c - p) >> 2) : p - ((p - c) >> 9);
 }
+static inline void cost_put0(uint32_t k, uint32_t ticks)   /* (3.1.5) a part on CPU0: its longest as it ran (editor 94),
+                                                            * its peak in CPU1's time */
+{
+    uint32_t m = core_max[k];
+    cost_put(k, ticks * CPU0_NUM / CPU0_DEN);
+    core_max[k] = ticks > m ? ticks : m;
+}
 static int32_t stem_buf[NTRK][CTL];            /* (below: USB STEMS) */
 static uint8_t fx_stems;
 static int32_t stem_pre1[CTL];                  /* CPU1's own (stem_take's is CPU0's) */
 #endif
-#if !KARMA_DUAL_CORE || !KARMA_CPU1_FX                /* (3.1.4: the effects on CPU0 keep their own: CPU1's parts write w_c ..
-                                                 * before the join, after which CPU0 ran them on those: the sends of half
-                                                 * the tracks lost) */
-static int32_t fxp_c[CTL], fxp_d[CTL], fxp_r[CTL], fxp_cl[CTL];
-#define FXP_C fxp_c
-#define FXP_D fxp_d
-#define FXP_R fxp_r
-#define FXP_CL fxp_cl
+#if !KARMA_DUAL_CORE || !KARMA_CPU1_FX                /* (3.1.5) the effects on CPU0 (one core, or KARMA_CPU1_FX 0): on this
+                                                 * block's sends, as 3.1.2, no block behind and no copy (3.1.4 held them in
+                                                 * fxp_*: 512 B of RAM, now each track's ACID GEN and envelope steps) */
+#define FXP_C send_c
+#define FXP_D send_d
+#define FXP_R send_r
+#define FXP_CL cloud_bus
 #endif
 /* (3.1.3) the effects a block behind: the reverb, the delay, the chorus and the CLOUD run on the last block's sends
  * (held in FXP_*) into wet_l / wet_r, which this block adds. Measured on an FM-1, they were 0.08 .. 0.16 ms of CPU0's
@@ -786,12 +799,13 @@ static void core_balance(void)                  /* CPU0, after the join: the nex
     for (m = 1; m < (1u << NPART); m++) {               /* (CPU1 always has one: else nothing would measure it) */
         /* (3.1.3) the HEX voices are CPU1's; the drums' mix and the effects run after the join on CPU0 whatever the
          * split, so they weigh on neither side: the split only evens CPU0's parts against CPU1's job */
-        uint32_t l0 = w_hex ? 0u : core_peak[NPART], l1 = w_hex ? core_peak[NPART + 1u] : 0u, l;
+        uint32_t l0 = 0u, l1 = w_hex ? core_peak[NPART + 1u] : 0u, l;
         for (k = 0; k < NPART; k++)
             if ((m >> k) & 1u)
                 l1 += core_peak[k];
             else
                 l0 += core_peak[k];
+        l0 = l0 * CPU0_DEN / CPU0_NUM + (w_hex ? 0u : core_peak[NPART]);   /* (3.1.5: CPU0's parts at CPU0's price) */
         l = l0 > l1 ? l0 : l1;
         if (m == w_mask)
             cur = l;
@@ -1288,7 +1302,7 @@ static void mix_block(int32_t *out, uint32_t n)
                 mix_part(&trk[i], n);
                 if (fx_stems)
                     stem_take(i, n, 1);
-                cost_put(i, PROF_NOW() - t0);
+                cost_put0(i, PROF_NOW() - t0);              /* (3.1.5: the balance in CPU1's time) */
             }
         PROF(PF_T1);
     } else
@@ -1373,14 +1387,18 @@ static void mix_block(int32_t *out, uint32_t n)
             stem_fx[0][i] = mix_l[i], stem_fx[1][i] = mix_r[i];
     texture_mix(mix_l, mix_r, n);                       /* GLO > TEXTURE (2.6): the bed, dry */
     punch_freeze_feed(send_r, mix_l, mix_r, n);         /* punch-in FREEZE: the dry mix into the held reverb */
-    if (!fx_done)                                       /* (3.1.3) one core, or no CPU1 this block: the effects here */
+#if !KARMA_DUAL_CORE || !KARMA_CPU1_FX
+    fxp_n = n;                                          /* (3.1.5) the effects on this block's sends, here */
+#endif
+    if (!fx_done)                                       /* (3.1.3) one core, CPU0's effects, or no CPU1 this block */
         fx_prev();
-    for (i = 0; i < n; i++) {                           /* the effects' return (the last block's sends: fx_prev) */
+    for (i = 0; i < n; i++) {                           /* the effects' return */
         mix_l[i] += wet_l[i];
         mix_r[i] += wet_r[i];
     }
     PROF(PF_BUSES);
-    for (i = 0; i < n; i++) {                           /* this block's sends, for the next block's effects */
+#if KARMA_DUAL_CORE && KARMA_CPU1_FX
+    for (i = 0; i < n; i++) {                           /* this block's sends, for the next block's effects (CPU1) */
         FXP_C[i] = send_c[i];
         FXP_D[i] = send_d[i];
         FXP_R[i] = send_r[i];
@@ -1388,6 +1406,7 @@ static void mix_block(int32_t *out, uint32_t n)
         cloud_bus[i] = 0;
     }
     fxp_n = n;
+#endif
     PROF(PF_CLOUD);
     if (fx_stems)                                       /* ... what the buses, the CLOUD and TEXTURE added */
         for (i = 0; i < n; i++)

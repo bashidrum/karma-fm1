@@ -65,7 +65,8 @@ static int32_t ds_buf[CTL];
  * while CPU1 (the synth tracks) idled. With two cores, CPU1 renders each sounding HEX voice's block first (fx.c
  * core1_parts: the notes of the block are already in, CPU0 leaves the drums alone until the join), and drums_mix takes
  * it from here instead of rendering it. One core, or a block without it: as before */
-static int16_t hx_pre_buf[NDRUM][CTL];          /* (384 B of main RAM: the pool keeps its 8 KiB spare) */
+#define HX_PRE_N NDRUM                         /* (3.1.4's test build rendered 5 here: no RAM; 3.1.5 freed it) */
+static int16_t hx_pre_buf[HX_PRE_N][CTL];       /* (main RAM: the pool keeps its 8 KiB spare) */
 static uint8_t hx_pre_alive[NDRUM];
 static uint8_t hx_pre_mask;                    /* bit k: voice k's block is in hx_pre_buf (set by CPU1, used once) */
 static void drums_hex_pre(uint32_t n)          /* CPU1 */
@@ -73,7 +74,7 @@ static void drums_hex_pre(uint32_t n)          /* CPU1 */
     uint32_t k, m = 0;
     if (n > CTL)
         n = CTL;
-    for (k = 0; k < NDRUM; k++)
+    for (k = 0; k < HX_PRE_N; k++)
         if (drums.v[k].active && drums.synth[k] == 2) {
             lx_par_t p;
             hex_par(drums.hx[k].d, &p);

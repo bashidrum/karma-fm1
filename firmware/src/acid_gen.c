@@ -8,7 +8,10 @@
  * many slide into the next), SEED (each value a line of its own); ACID GEN 2: SCALE, OCT (the octaves it spans),
  * ROOT, MUTATE (GO: a quarter of the steps rolled again). A knob turned writes the line at once, over the track's
  * PATTERN length; the first one after the page opens keeps the pattern that was there for UNDO. The settings
- * belong to the FM-1, not to a project: the line they made is the track's pattern, and that is kept. */
+ * belong to the FM-1, not to a project: the line they made is the track's pattern, and that is kept. (3.1.5) Each synth
+ * track has its own (Ariel: "it should remember each parameter for each track always"; they were one set, at its
+ * defaults after every power-on): the pages show the selected track's, kept across power-off in the settings object
+ * (project.c ag_part). */
 #define AG_NSCALES 6
 typedef struct { int8_t deg[7]; uint8_t len; } ag_scale_t;
 static const ag_scale_t AG_SCALES[AG_NSCALES] = {    /* schwung-tb3po's SCALES, same order */
@@ -26,6 +29,45 @@ typedef struct {
     uint32_t seed;
 } ag_cfg_t;
 enum { AG_REST, AG_NOTE, AG_ACC, AG_SLIDE };
+
+/* (3.1.5) each synth track's settings: song.g[G_AGDENS ..] is the selected one's (the pages' proxies) */
+typedef struct { uint8_t v[6]; uint16_t seed; } ag_trk_t;   /* DENS ACC SLIDE SCALE OCT ROOT, SEED */
+static const uint8_t AG_ID[6] = {G_AGDENS, G_AGACC, G_AGSLD, G_AGSCALE, G_AGOCT, G_AGROOT};
+static ag_trk_t ag_trk[NPART];
+static uint8_t ag_dirty;                             /* changed since the settings object was written (project.c) */
+static uint8_t ag_ready;                             /* ag_trk set: the defaults, then the settings object's (dsu_boot) */
+static void ag_defaults(void)
+{
+    uint32_t k, i;
+    ag_ready = 1;
+    for (k = 0; k < NPART; k++) {
+        for (i = 0; i < 6u; i++)
+            ag_trk[k].v[i] = (uint8_t)GP[AG_ID[i]].def;
+        ag_trk[k].seed = (uint16_t)GP[G_AGSEED].def;
+    }
+}
+static void ag_to_g(uint32_t k)                      /* track k's into the pages */
+{
+    uint32_t i;
+    for (i = 0; i < 6u; i++)
+        song.g[AG_ID[i]] = ag_trk[k % NPART].v[i];
+    song.g[G_AGSEED] = (int16_t)ag_trk[k % NPART].seed;
+}
+static void ag_from_g(uint32_t k)                    /* the pages into track k's */
+{
+    uint32_t i;
+    for (i = 0; i < 6u; i++)
+        ag_trk[k % NPART].v[i] = (uint8_t)clamp(song.g[AG_ID[i]], GP[AG_ID[i]].min, GP[AG_ID[i]].max);
+    ag_trk[k % NPART].seed = (uint16_t)clamp(song.g[G_AGSEED], GP[G_AGSEED].min, GP[G_AGSEED].max);
+    ag_dirty = 1;
+}
+static void ag_key_all(uint32_t root, uint32_t scale)   /* SEQ > HARMONY's key: every track's (gen_seq.c gen_key_set) */
+{
+    uint32_t k;
+    for (k = 0; k < NPART; k++)
+        ag_trk[k].v[5] = (uint8_t)root, ag_trk[k].v[3] = (uint8_t)scale;
+    ag_dirty = 1;
+}
 
 static uint32_t ag_rng_u32(uint32_t *r)              /* xorshift32, as schwung-tb3po */
 {
@@ -147,13 +189,21 @@ static void ag_mutate(track_t *t, const ag_cfg_t *g, int len, uint32_t *rng)
 static void acid_gen_sync(void)
 {
     static int16_t was[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
-    static uint8_t open_was;
+    static uint8_t open_was, sel_was = 0xFFu;
     static uint32_t mut_rng;
     const int16_t *g = song.g;
     const char *ti = cur_page()->title, *pre = "ACID GEN";
     uint32_t i, open = !ui.home && song.sel < NPART, changed = 0, mut = 0;
     for (i = 0; pre[i] && open; i++)                 /* (its two pages: the titles start so) */
         open = ti[i] == pre[i];
+    if (!ag_ready)                                   /* (a build without flash: the defaults) */
+        ag_defaults();
+    if (song.sel < NPART && song.sel != sel_was) {   /* (3.1.5) another track: its settings on the pages, no line written */
+        sel_was = song.sel;
+        ag_to_g(sel_was);
+        for (i = 0; i < 7u; i++)
+            was[i] = g[G_AGDENS + i];
+    }
     for (i = 0; i < 8u; i++) {
         if (g[G_AGDENS + i] != was[i]) {
             if (i == 7u)
@@ -163,6 +213,8 @@ static void acid_gen_sync(void)
             was[i] = g[G_AGDENS + i];
         }
     }
+    if (changed && sel_was < NPART)
+        ag_from_g(sel_was);                          /* (3.1.5: the track's own, kept) */
     if (open && !open_was)
         undo_sess++;                                 /* (the first line written here keeps the old pattern for UNDO) */
     open_was = (uint8_t)open;
