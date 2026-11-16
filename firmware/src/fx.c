@@ -762,10 +762,40 @@ static void fx_prev(void)
         wet_l[i] = wet_r[i] = 0;
 }
 #if KARMA_DUAL_CORE
+/* (3.1.5 test 4) melodee#17: on some FM-1s CPU1 reads SRAM wrong under load (a clean flip of bit 20 or 21, 0 read as
+ * 0x00200000). A track shrugs one bad sample off; the reverb, delay and CLOUD feed it back (3.1.3's "distortion after
+ * a while"?). Each core re-reads 4 KB that holds zeros once a block and counts what is not (editor ED_STAT) */
+#ifndef KARMA_FLIPS
+#define KARMA_FLIPS 1
+#endif
+#if KARMA_FLIPS
+#define FLIP_N 1024u
+#ifdef FM1_TICKS_PER_US                                /* (the FM-1: in RAM's spare code space; the host: anywhere) */
+static volatile uint32_t flip_zero[FLIP_N] __attribute__((section(".ram_text.flipz"), aligned(32)));
+#else
+static volatile uint32_t flip_zero[FLIP_N];
+#endif
+static volatile uint32_t flip_bad[2], flip_last[2], flip_reads[2];
+static __attribute__((noinline)) void flip_probe(uint32_t c)
+{
+    uint32_t i, v, bad = 0, last = 0;
+    for (i = 0; i < FLIP_N; i++)
+        if ((v = flip_zero[i]) != 0u)
+            bad++, last = v;
+    if (bad) {
+        flip_bad[c] += bad;
+        flip_last[c] = last;
+    }
+    flip_reads[c] += FLIP_N;
+}
+#endif
 static void core1_parts(void *ctx)
 {
     uint32_t i, k, n = w_n, m = w_job, t0;
     (void)ctx;
+#if KARMA_FLIPS
+    flip_probe(1);
+#endif
     t0 = fm1_ticks();
     if (w_fx)                                   /* (3.1.3) the effects on the last block's sends (fx_prev), */
         fx_prev();
@@ -1294,6 +1324,9 @@ static void mix_block(int32_t *out, uint32_t n)
         w_on = audio_worker_submit(core1_parts, 0);
     }
     if (w_on) {
+#if KARMA_FLIPS
+        flip_probe(0);                                  /* (test 4: the same reads on CPU0, at the same time) */
+#endif
         for (i = 0; i < NPART; i++)                     /* CPU0's parts, measured as CPU1's are */
             if (!((w_job >> i) & 1u)) {
                 uint32_t t0 = PROF_NOW();

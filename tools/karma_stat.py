@@ -10,7 +10,7 @@ import mido
 
 FIELDS = ["ms", "halves", "late", "max_us", "last_us", "cpu_q8", "shed", "kills", "playing", "bpm",
           "core1", "c1_faults", "c1_timeouts", "c1_mask", "pk1", "pk2", "pk3", "pkd",
-          "stems", "underruns", "overruns", "missed", "stalls", "nested", "t5_us", "worst_blk", "midi_rx", "t5_irqs", "t5_all"]
+          "stems", "underruns", "overruns", "missed", "stalls", "nested", "t5_us", "worst_blk", "midi_rx", "t5_irqs", "t5_all", "flips0", "flips1", "flip_last1", "flip_reads1", "aw_rejected"]
 
 
 def port(names):
@@ -31,6 +31,14 @@ def stat(i, o):
                 return dict(zip(FIELDS, vals))
         time.sleep(0.005)
     return None
+
+
+def flips(s):
+    """(3.1.5 test 4) wrong reads of memory that holds zeros (melodee#17), each core, since the start"""
+    if "aw_rejected" not in s:
+        return ""
+    return (f" flips cpu0={s['flips0']} cpu1={s['flips1']} (of {s['flip_reads1']} reads, last {s['flip_last1']:#x})"
+            f" mailbox_misreads={s['aw_rejected']}")
 
 
 def t5(s, prev):
@@ -59,7 +67,7 @@ def main():
                   f"late+={d('late')} cut+={d('shed')} last_us={s['last_us']} max_us={s['max_us']} worst_blk={s['worst_blk']} "
                   f"core1={'on' if s['core1'] & 1 else 'OFF'}{' BARRED' if s['core1'] & 2 else ''} mask={s['c1_mask']} "
                   f"pk={s['pk1']},{s['pk2']},{s['pk3']},{s['pkd']} stems={s['stems']} usb_under+={d('underruns')} "
-                  f"usb_over+={d('overruns')} usb_missed+={d('missed')} t5_nested_us={s['t5_us']}{t5(s, prev)}", flush=True)
+                  f"usb_over+={d('overruns')} usb_missed+={d('missed')} t5_nested_us={s['t5_us']}{t5(s, prev)}{flips(s)}", flush=True)
         prev = s or prev
         time.sleep(max(0.0, 1.0 - 0.05))
 

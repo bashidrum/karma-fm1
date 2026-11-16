@@ -969,6 +969,13 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         ed_bk_u32(usb.rx_pkts);
         ed_bk_u32(felucca_dbg.timer_irqs);                  /* (3.1.5) TIMER5: its ticks, the TIMER4 ticks spent in it */
         ed_bk_u32(t5_all_ticks);
+#if KARMA_DUAL_CORE && KARMA_FLIPS
+        ed_bk_u32(flip_bad[0]);                             /* (3.1.5 test 4) wrong reads of zeros: CPU0, CPU1, CPU1's last */
+        ed_bk_u32(flip_bad[1]);
+        ed_bk_u32(flip_last[1]);
+        ed_bk_u32(flip_reads[1]);
+        ed_bk_u32(audio_worker.rejected);
+#endif
         break;
     case ED_PROF:                                          /* (3.1.3) mix_block's parts (fx.c PF_*): the blocks, then each part's
                                                             * us summed and its worst block's, since the last read (then 0),
