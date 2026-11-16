@@ -33,6 +33,7 @@ struct felucca_dbg {
 } felucca_dbg __attribute__((section(".noinit")));
 static volatile uint32_t audio_halves, audio_max_us;
 static volatile uint32_t t5_nested_ticks;              /* TIMER4 ticks TIMER5 spent nested in this ISR (main.c) */
+static uint32_t t5_all_ticks;                          /* (3.1.5) TIMER4 ticks spent in TIMER5, all of it (editor ED_STAT) */
 #define SCOPE_N 512u
 static int16_t scope_buf[SCOPE_N], scope_bufr[SCOPE_N];   /* left, right (the visualiser): the mix at full level */
 static uint32_t scope_w;

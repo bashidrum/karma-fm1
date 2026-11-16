@@ -8,6 +8,17 @@
                                   * 2026-10-28: clean where one core overloaded. KARMA_DUAL_CORE=0 build.sh -> one core,
                                   * build/karma-single.fwsc (an FM-1 whose CPU1 misbehaves; it also retires itself) */
 #endif
+/* (3.1.5) FM1_HOT: code TIMER5 runs every tick (10 kHz on CPU0: the key and LED scan, the USB audio packets) in RAM
+ * (.ram_text), not in XIP through the cache: each tick fetched ~2 KB from the flash and pushed the engines' code out of
+ * CPU0's cache. TIMER5 never runs while the flash is written (fm1_flash.h: interrupts off) */
+#ifndef KARMA_T5_RAM
+#define KARMA_T5_RAM 1
+#endif
+#if KARMA_T5_RAM
+#define FM1_HOT __attribute__((section(".ram_text.hot")))
+#else
+#define FM1_HOT
+#endif
 #include "fm1_time.h"
 #include "fm1_sys.h"
 #include "fm1_irq.h"

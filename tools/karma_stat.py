@@ -10,7 +10,7 @@ import mido
 
 FIELDS = ["ms", "halves", "late", "max_us", "last_us", "cpu_q8", "shed", "kills", "playing", "bpm",
           "core1", "c1_faults", "c1_timeouts", "c1_mask", "pk1", "pk2", "pk3", "pkd",
-          "stems", "underruns", "overruns", "missed", "stalls", "nested", "t5_us", "worst_blk", "midi_rx"]
+          "stems", "underruns", "overruns", "missed", "stalls", "nested", "t5_us", "worst_blk", "midi_rx", "t5_irqs", "t5_all"]
 
 
 def port(names):
@@ -33,6 +33,16 @@ def stat(i, o):
     return None
 
 
+def t5(s, prev):
+    """(3.1.5 builds) TIMER5's own time: us a tick and % of CPU0"""
+    if "t5_all" not in s or "t5_all" not in prev:
+        return ""
+    n = (s["t5_irqs"] - prev["t5_irqs"]) & 0xFFFFFFFF
+    us = ((s["t5_all"] - prev["t5_all"]) & 0xFFFFFFFF) / 24.0
+    ms = s["ms"] - prev["ms"]
+    return f" t5_tick_us={us / n:.1f} t5_cpu0={us / (ms * 10.0):.1f}%" if n and ms > 0 else ""
+
+
 def main():
     secs = float(sys.argv[1]) if len(sys.argv) > 1 else 60.0
     i = mido.open_input(port(mido.get_input_names()))
@@ -49,7 +59,7 @@ def main():
                   f"late+={d('late')} cut+={d('shed')} last_us={s['last_us']} max_us={s['max_us']} worst_blk={s['worst_blk']} "
                   f"core1={'on' if s['core1'] & 1 else 'OFF'}{' BARRED' if s['core1'] & 2 else ''} mask={s['c1_mask']} "
                   f"pk={s['pk1']},{s['pk2']},{s['pk3']},{s['pkd']} stems={s['stems']} usb_under+={d('underruns')} "
-                  f"usb_over+={d('overruns')} usb_missed+={d('missed')} t5_nested_us={s['t5_us']}", flush=True)
+                  f"usb_over+={d('overruns')} usb_missed+={d('missed')} t5_nested_us={s['t5_us']}{t5(s, prev)}", flush=True)
         prev = s or prev
         time.sleep(max(0.0, 1.0 - 0.05))
 

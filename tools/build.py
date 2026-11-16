@@ -38,7 +38,7 @@ LOADER_LOAD = 0x01C0A800
 LOADER_NAME = b"usb_hid_ota.bin"    # the file name the SPL looks for
 DOCKER_IMAGE = os.environ.get("JIELI_DOCKER_IMAGE", "debian:bookworm-slim")
 CFLAGS = ["-Os", "-ffunction-sections", "-fno-builtin", "-Wall", "-Wno-unused-function"]
-for _k in ("KARMA_CPU1_HEX", "KARMA_CPU1_FX"):              # (3.1.3 test builds: 0 = that work on CPU0, as 3.1.2)
+for _k in ("KARMA_CPU1_HEX", "KARMA_CPU1_FX", "KARMA_T5_RAM"):              # (3.1.3 test builds: 0 = that work on CPU0, as 3.1.2)
     if os.environ.get(_k):
         CFLAGS.append("-D%s=%s" % (_k, os.environ[_k]))
 # the AC79's single-precision FPU (the SDK's own flags, as X0X builds): ACID (eng_acid.c) and ACID GEN compute in
@@ -293,6 +293,14 @@ def check(img, syms, dis, rt):
         if mf:
             fn = mf.group(1)
         elif re.search(r"\bcall\b", ln) and fn not in ("audio_worker_loop", "fm1_core1_main"):
+            mt = re.search(r"call -?\d+ <([A-Za-z_][\w.]*)[^:>]*: ([0-9a-f]+) >", ln)
+            if fn == "fm1_timer5_irq" and re.search(r"\bcall r\d+\s*$", ln):
+                continue            # (its two 2 kHz polls in XIP, through pointers: main.c t5_usb_poll)
+            if mt and int(mt.group(2), 16) < 0x02000000:
+                continue            # (3.1.5) RAM code calling RAM code (TIMER5's hot path, FM1_HOT)
+            if mt and (fn, mt.group(1)) in (("fm1_timer5_irq", "usb_poll"), ("fm1_timer5_irq", "uart_midi_poll"),
+                                           ("isr_timer5", "fm1_timer5_irq")):
+                continue            # (TIMER5 never runs while the flash is written: fm1_flash.h turns the interrupts off)
             rt_calls.append(ln)
     if rt_calls:                    # RAM code runs with the flash off: no calls into XIP
         errors.append(f".ram_text contains calls: {rt_calls[:3]}")

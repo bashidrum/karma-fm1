@@ -26,6 +26,9 @@
  * + 0x40, no console); its ring 3 words a frame, sharing the console's buffer (no console with it). Packets are
  * queued at every TIMER5 tick (10 kHz), not only at 2 kHz: a stems packet is on the wire ~0.4 ms. */
 #include "../hal/fm1_usb.h"   /* registers; relative, so the loader and the host tests find it too */
+#ifndef FM1_HOT
+#define FM1_HOT                  /* (3.1.5: the app puts TIMER5's path in RAM, felucca.c; the loader runs from RAM) */
+#endif
 #ifndef FELUCCA_CDC
 #define FELUCCA_CDC 0
 #endif
@@ -127,7 +130,7 @@ static uint8_t usb_stems;        /* this start presents the stems (main.c, from 
 #define USB_STEMS_NOW usb_stems
 #define UA_FW (usb_stems ? UA_WS : 1u)                  /* words a frame */
 #define UA_NF (usb_stems ? UA_NFS : UA_N)               /* frames in the ring */
-static inline uint32_t ua_slot(uint32_t f) { return usb_stems ? f % UA_NFS : f & (UA_N - 1u); }
+static inline __attribute__((always_inline)) uint32_t ua_slot(uint32_t f) { return usb_stems ? f % UA_NFS : f & (UA_N - 1u); }
 static volatile uint32_t ua_w, ua_r;
 static uint32_t ep4tx[UA_TXW] __attribute__((aligned(4)));
 static struct {
@@ -408,7 +411,7 @@ static int get_desc(uint32_t wvalue, const uint8_t **d, uint16_t *l)
 }
 
 /* ---------------------------------------------------------- the SIE --- */
-static void sie_wr(uint32_t r, uint32_t v)
+static inline __attribute__((always_inline)) void sie_wr_(uint32_t r, uint32_t v)
 {
     uint32_t n = 20000;
     if (!fm1_usb_sie_on())
@@ -422,7 +425,7 @@ static void sie_wr(uint32_t r, uint32_t v)
         usb.up = 0;                                     /* SIE dead (no clock?): stop polling it */
 }
 
-static uint32_t sie_rd(uint32_t r)
+static inline __attribute__((always_inline)) uint32_t sie_rd_(uint32_t r)
 {
     uint32_t n = 20000;
     if (!fm1_usb_sie_on())
@@ -437,6 +440,11 @@ static uint32_t sie_rd(uint32_t r)
     usb.timeouts = 0;
     return fm1_usb_sie_data();
 }
+static void sie_wr(uint32_t r, uint32_t v) { sie_wr_(r, v); }
+static uint32_t sie_rd(uint32_t r) { return sie_rd_(r); }
+/* (3.1.5) TIMER5's copies in RAM (FM1_HOT): EP4, the audio stream, every tick */
+FM1_HOT static void sie_wr_h(uint32_t r, uint32_t v) { sie_wr_(r, v); }
+FM1_HOT static uint32_t sie_rd_h(uint32_t r) { return sie_rd_(r); }
 
 #if FELUCCA_UAC
 static void uac_ep4_reset(void)                         /* drop a queued packet; isochronous mode */
@@ -1206,7 +1214,7 @@ static __attribute__((noinline)) void uac_tap6(uint32_t n)
 /* (JIANT FM 0.9.8) a frame made up after an underrun (uac_packet): the ring's n + 1 frames from r read into the
  * packet's n, each channel linearly between its two neighbours, so the frame left out is spread over the millisecond
  * instead of skipped (a skip is a step in a soloed stem: a click). Each 16-bit channel of each word */
-static __attribute__((noinline)) void uac_squeeze(uint32_t *d, uint32_t r, uint32_t n)
+FM1_HOT static __attribute__((noinline)) void uac_squeeze(uint32_t *d, uint32_t r, uint32_t n)
 {
     uint32_t i, j, fw = UA_FW, st = (16384u << 8) / (n + 1u), q = st;
     for (i = 0; i < n; i++, q += st) {
@@ -1224,7 +1232,7 @@ static __attribute__((noinline)) void uac_squeeze(uint32_t *d, uint32_t r, uint3
 /* the next packet into d: 44 / 45 frames (+-1 to hold the ring's fill), from the ring or, until it is
  * primed, silence. An empty ring repeats the last frame (and owes it: a later packet takes one frame more of the
  * ring, squeezed, JIANT 0.8.9). Returns the frame count. */
-static uint32_t uac_packet(uint32_t *d)
+FM1_HOT static uint32_t uac_packet(uint32_t *d)
 {
     uint32_t n = 44u, r, fill, k, i, j, fw = UA_FW, lo = UA_LO, hi = UA_HI;
 #if FELUCCA_UAC_48K
@@ -1300,7 +1308,7 @@ static uint32_t uac_packet(uint32_t *d)
  * and a recorder may stop reading without going back to alt 0 (a packet waiting > 20 ms). */
 #define UAC_POLL_HZ 10000u
 #define UAC_SKIP 6u
-static __attribute__((noinline)) void ep4_fill(uint32_t csr)
+FM1_HOT static __attribute__((noinline)) void ep4_fill(uint32_t csr)
 {
     uint32_t n;
     if (uac.queued) {
@@ -1312,13 +1320,13 @@ static __attribute__((noinline)) void ep4_fill(uint32_t csr)
     uac.wait = 0;
     n = uac_packet(ep4tx);
     fm1_usb_ep4_send(ep4tx, n * 4u * UA_FW);
-    sie_wr(S_TXCSR1, 0x01);                             /* TxPktRdy (and UnderRun cleared) */
+    sie_wr_h(S_TXCSR1, 0x01);                             /* TxPktRdy (and UnderRun cleared) */
 }
-static __attribute__((noinline)) void ep4_tx(void)
+FM1_HOT static __attribute__((noinline)) void ep4_tx(void)
 {
     uint32_t csr;
-    sie_wr(S_INDEX, 4);
-    csr = sie_rd(S_TXCSR1);
+    sie_wr_h(S_INDEX, 4);
+    csr = sie_rd_h(S_TXCSR1);
     if (!(csr & 0x01u)) {
         ep4_fill(csr);
         return;
@@ -1328,7 +1336,7 @@ static __attribute__((noinline)) void ep4_tx(void)
         uac.stalls++;
     }
 }
-static inline void uac_service(void)
+static inline __attribute__((always_inline)) void uac_service(void)   /* (3.1.5: TIMER5 only, main.c) */
 {
     if (usb.up && usb.config && uac.alt) {
         if (uac.queued && uac.wait < UAC_SKIP)
@@ -1427,9 +1435,6 @@ static void usb_poll(void)                              /* TIMER5 ISR, 2 kHz */
         if (cdc.dtr)
             ep3_tx();
     }
-#endif
-#if FELUCCA_UAC
-    uac_service();
 #endif
 }
 

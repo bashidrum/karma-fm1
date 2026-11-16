@@ -967,6 +967,8 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         ed_bk_u32(t5_nested_ticks / FM1_TICKS_PER_US);
         ed_bk_u32(prof_blk_max / FM1_TICKS_PER_US);
         ed_bk_u32(usb.rx_pkts);
+        ed_bk_u32(felucca_dbg.timer_irqs);                  /* (3.1.5) TIMER5: its ticks, the TIMER4 ticks spent in it */
+        ed_bk_u32(t5_all_ticks);
         break;
     case ED_PROF:                                          /* (3.1.3) mix_block's parts (fx.c PF_*): the blocks, then each part's
                                                             * us summed and its worst block's, since the last read (then 0),

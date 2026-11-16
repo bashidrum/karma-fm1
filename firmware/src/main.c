@@ -13,7 +13,17 @@ extern uint32_t _pool_start[], _pool_end[], _rt_start[], _rt_end[], _rt_load[];
  * access) and the consumer side of the audio ring, and usb_poll never runs nested, so the two never
  * interleave. The time spent nested is handed to the audio ISR: its load figures stay render-only.
  * (After Felucca 1.0.) */
-void fm1_timer5_irq(void)
+#if KARMA_T5_RAM                                /* (3.1.5) RAM code reaches XIP only through a pointer (a direct call
+                                                 * spans too far): the two 2 kHz polls stay in XIP */
+static void (*volatile const t5_usb_poll)(void) = usb_poll;
+#if FELUCCA_UART
+static void (*volatile const t5_uart_poll)(void) = uart_midi_poll;
+#endif
+#else
+#define t5_usb_poll usb_poll
+#define t5_uart_poll uart_midi_poll
+#endif
+FM1_HOT void fm1_timer5_irq(void)
 {
     static uint32_t sub, owed;
     uint32_t t0 = fm1_ticks(), usb_due = sub % 5u == 0u;
@@ -43,19 +53,20 @@ void fm1_timer5_irq(void)
         uac_service();                          /* (every tick: KARMA 3.0 after JIANT FM 0.9.10, the stems' packets) */
 #endif
         t5_nested_ticks += fm1_ticks() - t0;
+        t5_all_ticks += fm1_ticks() - t0;
         return;
     }
     if (owed & 1u)
-        usb_poll();                             /* (uac_service at its end) */
+        t5_usb_poll();
 #if FELUCCA_UAC
-    else
-        uac_service();
+    uac_service();                              /* (3.1.5: here, not at usb_poll's end: it runs from RAM) */
 #endif
 #if FELUCCA_UART
     if (owed & 2u)
-        uart_midi_poll();
+        t5_uart_poll();
 #endif
     owed = 0;
+    t5_all_ticks += fm1_ticks() - t0;
 }
 extern void isr_timer5(void);
 

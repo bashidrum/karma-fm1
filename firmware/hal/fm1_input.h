@@ -48,6 +48,10 @@
 #include "fm1_gpio.h"
 #include "fm1_cc.h"
 
+#ifndef FM1_HOT
+#define FM1_HOT                  /* (the app may place the per-tick scan in RAM) */
+#endif
+#define FM1__AI inline __attribute__((always_inline))   /* (3.1.5) the scan's helpers: in each caller, RAM or XIP */
 #ifndef FM1_INPUT_IDLE
 #define FM1_INPUT_IDLE() ((void)0)
 #endif
@@ -104,7 +108,7 @@ static uint8_t fm1_led_dim[FM1_NCOL];   /* same layout as fm1_led: the glow */
 static uint8_t fm1_led_bg[FM1_NCOL];    /* same layout: the backlight (labels readable in the dark) */
 static volatile uint16_t fm1_led_bg_ns; /* the backlight pulse a frame (ns), 0 = off (menu LIGHTS) */
 
-static void fm1__led_lines(uint32_t rowmask)
+static FM1__AI void fm1__led_lines(uint32_t rowmask)
 {
     uint32_t r;
     for (r = 1; r < 5u; r++) {
@@ -115,7 +119,7 @@ static void fm1__led_lines(uint32_t rowmask)
     }
 }
 
-static void fm1__sr_bit(uint32_t w, uint32_t i)  /* bit i of w (msb first) into the 595 */
+static FM1__AI void fm1__sr_bit(uint32_t w, uint32_t i)  /* bit i of w (msb first) into the 595 */
 {
     if (w & (0x8000u >> i))
         FM1_PR(FM1_PA, FM1_OUT) |= 1u << 4;
@@ -124,12 +128,12 @@ static void fm1__sr_bit(uint32_t w, uint32_t i)  /* bit i of w (msb first) into 
     FM1_PR(FM1_PA, FM1_OUT) |= 1u << 3;         /* read-modify-write per edge: each SFR write is */
     FM1_PR(FM1_PA, FM1_OUT) &= ~(1u << 3);      /* far slower than the 595 needs */
 }
-static void fm1__sr_latch(void)                 /* the outputs change here only */
+static FM1__AI void fm1__sr_latch(void)                 /* the outputs change here only */
 {
     FM1_PR(FM1_PA, FM1_OUT) |= 1u << 1;
     FM1_PR(FM1_PA, FM1_OUT) &= ~(1u << 1);
 }
-static void fm1__sr_word(uint32_t w)
+static FM1__AI void fm1__sr_word(uint32_t w)
 {
     uint32_t i;
     for (i = 0; i < 16u; i++)
@@ -137,7 +141,7 @@ static void fm1__sr_word(uint32_t w)
     fm1__sr_latch();
 }
 
-static uint32_t fm1__rows(void)
+static FM1__AI uint32_t fm1__rows(void)
 {
     uint32_t a = FM1_PR(FM1_PA, FM1_IN), b = FM1_PR(FM1_PB, FM1_IN);
     return (~((a & 1u) | ((a >> 4) & 0x1Eu) | ((b >> 2) & 0x20u))) & 0x3Fu;
@@ -182,7 +186,7 @@ static void fm1_input_init(void)
         fm1_in.enc_prev[i] = fm1_in.enc_last[i] = 0xFF;   /* seeded by the first frame */
 }
 
-static void fm1__key(uint32_t id, uint32_t closed)
+static FM1__AI void fm1__key(uint32_t id, uint32_t closed)
 {
     volatile uint8_t *c = &fm1_in.cnt[id];
     uint32_t note = id >= 14u, bit = note ? 1u << (id - 14u) : 1u << id;
@@ -207,7 +211,7 @@ static void fm1__key(uint32_t id, uint32_t closed)
     }
 }
 
-static void fm1__keys(uint32_t p)                  /* the keys of column p, just read */
+static FM1__AI void fm1__keys(uint32_t p)                  /* the keys of column p, just read */
 {
     uint32_t r, raw = fm1_in.raw[p];
     for (r = 1; r < 5u; r++)
@@ -215,7 +219,7 @@ static void fm1__keys(uint32_t p)                  /* the keys of column p, just
             fm1__key((uint32_t)FM1_KEYMAP[r][p], (raw >> r) & 1u);
 }
 
-static void fm1__frame(void);
+static FM1__AI void fm1__frame(void);
 
 static void fm1_input_scan(void)
 {
@@ -233,7 +237,7 @@ static void fm1_input_scan(void)
     fm1__frame();
 }
 
-static void fm1__frame(void)
+static FM1__AI void fm1__frame(void)
 {
     uint32_t e;                                    /* (the keys: fm1__keys, as each column is read) */
     for (e = 0; e < FM1_NENC; e++) {               /* quadrature decoder + detents */
@@ -283,7 +287,7 @@ static void fm1__frame(void)
  * column n: the lines go lit | glow | backlight of p, each layer ends when its time is up (TIMER4,
  * checked after every bit), and the latch comes with the lines dark. */
 static uint8_t fm1__tick_col;
-static void fm1_input_tick(void)
+FM1_HOT static void fm1_input_tick(void)
 {
     uint32_t p = fm1__tick_col, n = p + 1u == FM1_NCOL ? 0u : p + 1u, i;
     uint32_t w = 0xFFFFu ^ (1u << n) ^ (n < 2u ? 1u << (11u + n) : 0u);
