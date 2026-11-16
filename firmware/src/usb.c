@@ -103,10 +103,18 @@ _Static_assert(UA_HI48 + UA_REND48 + UA_MAXF < UA_N, "the ring holds the band, a
 _Static_assert(UA_HI + HALF_FRAMES + UA_MAXF < UA_N, "the ring holds the band, a render and a packet");
 /* STEMS: 6 channels of 16 bit, 3 words a frame; 46 frames a packet at most (44.1's 45 + 1: 552 bytes, JIANT 0.9.8) */
 #define UA_WS 3u
-#define UA_NFS 440u              /* the stems ring's frames (a modulo by a constant: a multiply) */
+/* (3.1.5) STEMS keeps 1.8 ms more in hand: its band is 160..208 frames (FULL / MASTER: 80..128). Measured on an FM-1
+ * (2026-11-16, HEX drums, three synth tracks): a busy loop's late halves (15 a second) emptied the stems ring 28 times a
+ * second, while the stereo stream rode out the same late halves. The ring is in RAM's spare code space (FM1_RAMBSS) */
+#ifndef UA_LOS
+#define UA_LOS 160u
+#endif
+#define UA_HIS (UA_LOS + 48u)
+#define UA_PRIMES (UA_LOS + 24u)
+#define UA_NFS 600u              /* the stems ring's frames (a modulo by a constant: a multiply) */
 #define UA_MAXFS 46u
 #define UAC_MAXPS (UA_MAXFS * 12u)
-_Static_assert(UA_HI + HALF_FRAMES + UA_MAXFS < UA_NFS, "the stems ring holds the band, a render and a packet");
+_Static_assert(UA_HIS + HALF_FRAMES + UA_MAXFS < UA_NFS, "the stems ring holds the band, a render and a packet");
 #if FELUCCA_CDC
 #define UA_CDCW (CO_N / 4u)      /* the console's output after the stereo ring: the stems ring takes both */
 #else
@@ -122,7 +130,16 @@ _Static_assert(UA_HI + HALF_FRAMES + UA_MAXFS < UA_NFS, "the stems ring holds th
 #define UA_MEMW (UA_N + UA_CDCW)
 #define UA_TXW UA_MAXF
 #endif
-static uint32_t ua_ring[UA_MEMW];
+#ifndef FM1_RAMBSS
+#define FM1_RAMBSS
+#endif
+static uint32_t ua_ring[UA_MEMW] FM1_RAMBSS __attribute__((aligned(32)));   /* (3.1.5: not zeroed at boot there: usb_ring_clear) */
+static void usb_ring_clear(void)
+{
+    uint32_t i;
+    for (i = 0; i < UA_MEMW; i++)
+        ua_ring[i] = 0;
+}
 #if FELUCCA_CDC
 #define cdc_out ((uint8_t *)&ua_ring[UA_N])
 #endif
@@ -1066,7 +1083,7 @@ static __attribute__((noinline)) void uac_render_start(void)   /* audio ISR, bef
         return;
     }
     if (!uac.go || uac.ring48 != uac.r48) {             /* (re)start: silence ahead, then this render */
-        uint32_t r = ua_r, i, prime = UA_PRIME;
+        uint32_t r = ua_r, i, prime = usb_stems ? UA_PRIMES : UA_PRIME;
         uac.go = 0;
 #if FELUCCA_UAC_48K
         uac.ring48 = uac.r48;
@@ -1234,7 +1251,7 @@ FM1_HOT static __attribute__((noinline)) void uac_squeeze(uint32_t *d, uint32_t 
  * ring, squeezed, JIANT 0.8.9). Returns the frame count. */
 FM1_HOT static uint32_t uac_packet(uint32_t *d)
 {
-    uint32_t n = 44u, r, fill, k, i, j, fw = UA_FW, lo = UA_LO, hi = UA_HI;
+    uint32_t n = 44u, r, fill, k, i, j, fw = UA_FW, lo = usb_stems ? UA_LOS : UA_LO, hi = usb_stems ? UA_HIS : UA_HI;
 #if FELUCCA_UAC_48K
     if (uac.r48) {                                      /* 48 frames a ms, no pattern */
         n = 48u;

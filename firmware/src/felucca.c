@@ -19,6 +19,7 @@
 #else
 #define FM1_HOT
 #endif
+#define FM1_RAMBSS __attribute__((section(".ram_bss")))   /* (3.1.5) big buffers in RAM's spare code space (app.ld) */
 #include "fm1_time.h"
 #include "fm1_sys.h"
 #include "fm1_irq.h"

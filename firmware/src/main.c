@@ -192,6 +192,9 @@ static void fm1_main(void)
         usb_cdc_on = 0;
 #endif
 #endif
+#if FELUCCA_UAC
+    usb_ring_clear();                                   /* (3.1.5: the ring is in RAM's code space, FM1_RAMBSS) */
+#endif
     usb_start();
 #if FELUCCA_UART
     uart_midi_init();
