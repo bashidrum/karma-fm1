@@ -10,7 +10,8 @@ import mido
 
 FIELDS = ["ms", "halves", "late", "max_us", "last_us", "cpu_q8", "shed", "kills", "playing", "bpm",
           "core1", "c1_faults", "c1_timeouts", "c1_mask", "pk1", "pk2", "pk3", "pkd",
-          "stems", "underruns", "overruns", "missed", "stalls", "nested", "t5_us", "worst_blk", "midi_rx", "t5_irqs", "t5_all", "flips0", "flips1", "flip_last1", "flip_reads1", "aw_rejected"]
+          "stems", "underruns", "overruns", "missed", "stalls", "nested", "t5_us", "worst_blk", "midi_rx", "t5_irqs", "t5_all", "flips0", "flips1", "flip_last1", "flip_reads1", "aw_rejected",
+          "rs_lo", "pk_lo", "adj_up", "adj_down", "repaid", "owe", "lost"]
 
 
 def port(names):
@@ -35,10 +36,21 @@ def stat(i, o):
 
 def flips(s):
     """(3.1.5 test 4) wrong reads of memory that holds zeros (melodee#17), each core, since the start"""
-    if "aw_rejected" not in s:
+    if "aw_rejected" not in s or not s["flip_reads1"]:
         return ""
     return (f" flips cpu0={s['flips0']} cpu1={s['flips1']} (of {s['flip_reads1']} reads, last {s['flip_last1']:#x})"
             f" mailbox_misreads={s['aw_rejected']}")
+
+
+def ring(s, prev):
+    """(3.1.5 test 6) the USB ring this second: lowest fill (frames) at a render start / at a packet, speed
+    corrections (+1 / -1 frame packets), underrun frames made up, still owed, audio halves lost (a late render)"""
+    if "lost" not in s or "lost" not in prev:
+        return ""
+    lo = lambda v: "-" if v == 0xFFFFFFFF else str(v)
+    d = lambda k: (s[k] - prev[k]) & 0xFFFFFFFF
+    return (f" ring_lo={lo(s['rs_lo'])}/{lo(s['pk_lo'])} adj+={d('adj_up')} adj-={d('adj_down')}"
+            f" repaid+={d('repaid')} owe={s['owe']} lost+={d('lost')}")
 
 
 def t5(s, prev):
@@ -67,7 +79,7 @@ def main():
                   f"late+={d('late')} cut+={d('shed')} last_us={s['last_us']} max_us={s['max_us']} worst_blk={s['worst_blk']} "
                   f"core1={'on' if s['core1'] & 1 else 'OFF'}{' BARRED' if s['core1'] & 2 else ''} mask={s['c1_mask']} "
                   f"pk={s['pk1']},{s['pk2']},{s['pk3']},{s['pkd']} stems={s['stems']} usb_under+={d('underruns')} "
-                  f"usb_over+={d('overruns')} usb_missed+={d('missed')} t5_nested_us={s['t5_us']}{t5(s, prev)}{flips(s)}", flush=True)
+                  f"usb_over+={d('overruns')} usb_missed+={d('missed')} t5_nested_us={s['t5_us']}{t5(s, prev)}{ring(s, prev)}{flips(s)}", flush=True)
         prev = s or prev
         time.sleep(max(0.0, 1.0 - 0.05))
 

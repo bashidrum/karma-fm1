@@ -975,7 +975,23 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         ed_bk_u32(flip_last[1]);
         ed_bk_u32(flip_reads[1]);
         ed_bk_u32(audio_worker.rejected);
+#else
+        for (i = 0; i < 5u; i++)
+            ed_bk_u32(0);
 #endif
+#if FELUCCA_UAC
+        ed_bk_u32(uac.win_rs_lo);                           /* (3.1.5 test 6) the USB ring since the last read: lowest fill */
+        ed_bk_u32(uac.win_pk_lo);                           /* at a render start, at a packet (then reset) */
+        uac.win_rs_lo = uac.win_pk_lo = 0xFFFFFFFFu;
+        ed_bk_u32(uac.adj_up);
+        ed_bk_u32(uac.adj_down);
+        ed_bk_u32(uac.repaid);
+        ed_bk_u32(uac.owe);
+#else
+        for (i = 0; i < 6u; i++)
+            ed_bk_u32(0);
+#endif
+        ed_bk_u32(audio_lost);
         break;
     case ED_PROF:                                          /* (3.1.3) mix_block's parts (fx.c PF_*): the blocks, then each part's
                                                             * us summed and its worst block's, since the last read (then 0),

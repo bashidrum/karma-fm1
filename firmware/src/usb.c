@@ -169,6 +169,7 @@ static struct {
     uint32_t stalls;                             /* the host stopped reading for > 20 ms (alt still 1) */
     uint32_t adj_up, adj_down;                   /* packets one frame longer / shorter than the pattern */
     uint32_t fill_lo, fill_hi;                   /* range of fill_min since the stream started */
+    uint32_t win_rs_lo, win_pk_lo;               /* (3.1.5 test 6) since the last ED_STAT: lowest fill at a render start, at a packet */
     uint32_t rate_sets;                          /* SET_CUR sampling frequency requests */
 } uac;
 #if FELUCCA_UAC_48K
@@ -488,6 +489,7 @@ static void uac_stream(uint32_t alt)                    /* SET_INTERFACE, config
         uac.starts++;
         uac.fill_lo = 0xFFFFFFFFu;
         uac.fill_hi = 0;
+        uac.win_rs_lo = uac.win_pk_lo = 0xFFFFFFFFu;
     }
 }
 #endif
@@ -1108,6 +1110,8 @@ static __attribute__((noinline)) void uac_render_start(void)   /* audio ISR, bef
     }
     fill = ua_w - ua_r;
     uac.fill_min = fill;
+    if (fill < uac.win_rs_lo)
+        uac.win_rs_lo = fill;
     if (fill < uac.fill_lo)
         uac.fill_lo = fill;
     if (fill > uac.fill_hi)
@@ -1281,6 +1285,8 @@ FM1_HOT static uint32_t uac_packet(uint32_t *d)
     r = ua_r;
     fill = ua_w - r;
     RING_PUBLISH();                                     /* the slots after the index */
+    if (fill < uac.win_pk_lo)
+        uac.win_pk_lo = fill;
     if (uac.owe && uac.fill_min >= lo && fill > n) {    /* a frame an underrun repeated, made up */
         uac.owe--;
         uac.repaid++;

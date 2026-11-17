@@ -766,7 +766,7 @@ static void fx_prev(void)
  * 0x00200000). A track shrugs one bad sample off; the reverb, delay and CLOUD feed it back (3.1.3's "distortion after
  * a while"?). Each core re-reads 4 KB that holds zeros once a block and counts what is not (editor ED_STAT) */
 #ifndef KARMA_FLIPS
-#define KARMA_FLIPS 1
+#define KARMA_FLIPS 0   /* (test 4: 0 flips in 3.1e9 reads on Ariel's FM-1; off: it cost ~1 % a core) */
 #endif
 #if KARMA_FLIPS
 #define FLIP_N 1024u
