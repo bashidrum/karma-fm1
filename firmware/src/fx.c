@@ -707,7 +707,7 @@ static uint32_t w_n, w_job;                     /* the block's length, the track
  * mean of ticks; after each block CPU0 picks the tracks CPU1 renders next so that the two finish together (the larger
  * of the two loads the least), a change only when it is clearly better (by 1/16: no back and forth) */
 static uint32_t w_mask = 6u;                    /* tracks 2 and 3 to start */
-static uint32_t core_cost[NPART + 2];           /* ticks x 8: the three parts, the drums (a running mean: the console's) */
+static uint32_t core_cost[NPART + 3];           /* ticks x 8: the three parts, the drums (a running mean: the console's) */
 /* (3.0.4, 2026-11-06: Ariel's FM-1 moved its tracks between the cores every second or so: the 8-block mean swung from a
  * held note's cost to nothing between notes, and the split chased it.) The balance now takes each part's PEAK: up at
  * once to a block that cost more, down slowly (~0.4 s, 2^9 blocks), so a part is weighed by what it costs when it
@@ -717,9 +717,9 @@ static uint32_t core_cost[NPART + 2];           /* ticks x 8: the three parts, t
  * core (its code not in that core's cache). A preset's set-up made one block cost far more, the split followed it,
  * then came back as the peak fell.) Now the peak rises by a quarter of the gap a block (~90 % in 8 blocks: a held
  * sound's cost, not one block's set-up), a split stays ~0.75 s, and a new one must be better by a quarter */
-static uint32_t core_peak[NPART + 2];           /* ticks x 16: the parts, the drums on CPU0, (3.1.3) the HEX voices on CPU1 */
+static uint32_t core_peak[NPART + 3];           /* ticks x 16: the parts, the drums on CPU0, (3.1.3) the HEX voices on CPU1 */
 #define CORE_DWELL 1024u                        /* blocks (~0.75 s) */
-static uint32_t core_max[NPART + 2];            /* (3.1.3) each one's longest block since the last read (editor command 94) */
+static uint32_t core_max[NPART + 3];            /* (3.1.3) each one's longest block since the last read (editor command 94) */
 /* (3.1.5) a part's peak is kept in CPU1's time: the same engine took CPU0 ~1.8 x as long, measured on an FM-1 (2026-11-15:
  * JUNO SUB 106 ~150 us a block on CPU1, 270 .. 330 on CPU0; ELEMENTS alike), CPU0 running far more code between (the
  * effects, the notes' starts, the mix, USB) and its interrupts. Weighed as one, the split left the heaviest part on
@@ -852,6 +852,9 @@ static void core_balance(void)                  /* CPU0, after the join: the nex
             else
                 l0 += core_peak[k];
         l0 = l0 * CPU0_DEN / CPU0_NUM + (w_hex ? 0u : core_peak[NPART]);   /* (3.1.5: CPU0's parts at CPU0's price) */
+#if KARMA_FX_WAIT
+        l0 += core_peak[NPART + 2u];                    /* (test 9) the effects run in CPU0's wait: CPU0's load too */
+#endif
         l = l0 > l1 ? l0 : l1;
         if (m == w_mask)
             cur = l;
@@ -1356,7 +1359,11 @@ static void mix_block(int32_t *out, uint32_t n)
             }
         PROF(PF_T1);
 #if KARMA_FX_WAIT
-        fx_prev();                                      /* (test 8) the effects while CPU1 still renders */
+        {
+            uint32_t t0 = PROF_NOW();
+            fx_prev();                                  /* (test 8) the effects while CPU1 still renders */
+            cost_put(NPART + 2u, PROF_NOW() - t0);      /* (test 9: CPU0's ticks, for the balance) */
+        }
         fx_wait = 1;
         PROF(PF_CLOUD);                                 /* (karma_prof "cloud": the effects in the wait) */
 #endif
