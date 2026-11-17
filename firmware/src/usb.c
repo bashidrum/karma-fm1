@@ -107,7 +107,7 @@ _Static_assert(UA_HI + HALF_FRAMES + UA_MAXF < UA_N, "the ring holds the band, a
  * (2026-11-16, HEX drums, three synth tracks): a busy loop's late halves (15 a second) emptied the stems ring 28 times a
  * second, while the stereo stream rode out the same late halves. The ring is in RAM's spare code space (FM1_RAMBSS) */
 #ifndef UA_LOS
-#define UA_LOS 160u
+#define UA_LOS 240u                /* (3.1.5 test 7: 160 dipped to ~40 under late renders) */
 #endif
 #define UA_HIS (UA_LOS + 48u)
 #define UA_PRIMES (UA_LOS + 24u)
