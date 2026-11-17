@@ -143,6 +143,30 @@ static void cloud_calm_half(int over)                 /* each half: ~1 s without
         calm = 0;
     }
 }
+/* (3.1.5 test 11) the overload guard across STOP and PLAY. Measured on Ariel's FM-1 (2026-11-17), each PLAY was the
+ * heaviest moment of the loop: 16 .. 29 late halves and ~20 cuts in its first 1 .. 2 s, a STOP 0 .. 4. While stopped
+ * the guard gave everything back (the CLOUD's grains, MODAL's modes, the drums' voices), so PLAY started at full cost
+ * and the guard cut it all again, in the first bars. Now PLAY starts where STOP left the guard (what was given back
+ * since is taken back), and it gives back as it does while playing, after a calm second or two */
+static uint8_t gs_cl, gs_modal, gs_drum, gs_saved;
+static void guard_stop(void)                          /* seq.c seq_stop (the audio ISR) */
+{
+    gs_cl = cl_cap;
+    gs_modal = modal_cap;
+    gs_drum = drum_cap;
+    gs_saved = 1;
+}
+static void guard_start(void)                         /* seq.c seq_start, from stopped */
+{
+    if (!gs_saved)
+        return;
+    if (cl_cap > gs_cl)
+        cl_cap = gs_cl;
+    if (modal_cap > gs_modal)
+        modal_cap = gs_modal;
+    if (drum_cap > gs_drum)
+        drum_cap = gs_drum;
+}
 static void cloud_process(int32_t *in, int32_t *l, int32_t *r, uint32_t n)
 {
     static int32_t wl[CTL], wr[CTL];

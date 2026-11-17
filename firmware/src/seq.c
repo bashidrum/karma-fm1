@@ -1883,6 +1883,8 @@ static void song_restore(void);
 
 static void seq_start(void)
 {
+    if (!song.playing)
+        guard_start();                             /* (3.1.5 test 11) the overload guard as STOP left it */
 #if FELUCCA_ARRANGER
     if (arrangement_enabled && !song.playing) {
         rec_wait = 0;                              /* song mode plays, it does not record */
@@ -1917,6 +1919,8 @@ static void seq_stop(void)
     live_req = -1;
     chain_n = 0;
 #endif
+    if (song.playing)
+        guard_stop();                               /* (3.1.5 test 11) how far the overload guard had trimmed */
     fill_held = 0;                                  /* STOP ends a fill, held or armed */
     fill_arm = 0;
     fill_bar_on = 0;
