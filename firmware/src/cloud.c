@@ -149,8 +149,21 @@ static void cloud_calm_half(int over)                 /* each half: ~1 s without
  * and the guard cut it all again, in the first bars. Now PLAY starts where STOP left the guard (what was given back
  * since is taken back), and it gives back as it does while playing, after a calm second or two */
 static uint8_t gs_cl, gs_modal, gs_drum, gs_saved;
+/* (test 12) test 11 alone did not help: a grain already playing runs to its end, and while stopped the CLOUD took two
+ * grains back a second (CPU0 38 -> 49 % in 5 s). Now nothing is given back for the first ~10 s of a stop (a quick
+ * STOP / PLAY plays on at the load it had); a longer stop (keys played live) gives back as before */
+#define GS_HOLD_HALVES 1720u                          /* ~10 s */
+static uint16_t gs_hold;
+static int guard_hold_half(void)                      /* audio.c, each half: 1 = give nothing back this half */
+{
+    if (song.playing || !gs_hold)
+        return 0;
+    gs_hold--;
+    return 1;
+}
 static void guard_stop(void)                          /* seq.c seq_stop (the audio ISR) */
 {
+    gs_hold = GS_HOLD_HALVES;
     gs_cl = cl_cap;
     gs_modal = modal_cap;
     gs_drum = drum_cap;
@@ -158,6 +171,7 @@ static void guard_stop(void)                          /* seq.c seq_stop (the aud
 }
 static void guard_start(void)                         /* seq.c seq_start, from stopped */
 {
+    gs_hold = 0;
     if (!gs_saved)
         return;
     if (cl_cap > gs_cl)
