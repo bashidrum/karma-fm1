@@ -11,7 +11,7 @@ import mido
 FIELDS = ["ms", "halves", "late", "max_us", "last_us", "cpu_q8", "shed", "kills", "playing", "bpm",
           "core1", "c1_faults", "c1_timeouts", "c1_mask", "pk1", "pk2", "pk3", "pkd",
           "stems", "underruns", "overruns", "missed", "stalls", "nested", "t5_us", "worst_blk", "midi_rx", "t5_irqs", "t5_all", "flips0", "flips1", "flip_last1", "flip_reads1", "aw_rejected",
-          "rs_lo", "pk_lo", "adj_up", "adj_down", "repaid", "owe", "lost"]
+          "rs_lo", "pk_lo", "adj_up", "adj_down", "repaid", "owe", "lost", "gap"]
 
 
 def port(names):
@@ -50,7 +50,8 @@ def ring(s, prev):
     lo = lambda v: "-" if v == 0xFFFFFFFF else str(v)
     d = lambda k: (s[k] - prev[k]) & 0xFFFFFFFF
     return (f" ring_lo={lo(s['rs_lo'])}/{lo(s['pk_lo'])} adj+={d('adj_up')} adj-={d('adj_down')}"
-            f" repaid+={d('repaid')} owe={s['owe']} lost+={d('lost')}")
+            f" repaid+={d('repaid')} owe={s['owe']} lost+={d('lost')}"
+            + (f" gap={s['gap'] - 100000}us" if "gap" in s else ""))
 
 
 def t5(s, prev):

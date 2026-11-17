@@ -38,7 +38,7 @@ LOADER_LOAD = 0x01C0A800
 LOADER_NAME = b"usb_hid_ota.bin"    # the file name the SPL looks for
 DOCKER_IMAGE = os.environ.get("JIELI_DOCKER_IMAGE", "debian:bookworm-slim")
 CFLAGS = ["-Os", "-ffunction-sections", "-fno-builtin", "-Wall", "-Wno-unused-function"]
-for _k in ("KARMA_CPU1_HEX", "KARMA_CPU1_FX", "KARMA_T5_RAM", "KARMA_FX_WAIT"):              # (3.1.3 test builds: 0 = that work on CPU0, as 3.1.2)
+for _k in ("KARMA_CPU1_HEX", "KARMA_CPU1_FX", "KARMA_T5_RAM", "KARMA_FX_WAIT", "KARMA_BAL_MEAS"):              # (3.1.3 test builds: 0 = that work on CPU0, as 3.1.2)
     if os.environ.get(_k):
         CFLAGS.append("-D%s=%s" % (_k, os.environ[_k]))
 # the AC79's single-precision FPU (the SDK's own flags, as X0X builds): ACID (eng_acid.c) and ACID GEN compute in

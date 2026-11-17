@@ -707,6 +707,12 @@ static uint32_t w_n, w_job;                     /* the block's length, the track
  * mean of ticks; after each block CPU0 picks the tracks CPU1 renders next so that the two finish together (the larger
  * of the two loads the least), a change only when it is clearly better (by 1/16: no back and forth) */
 static uint32_t w_mask = 6u;                    /* tracks 2 and 3 to start */
+#ifndef KARMA_BAL_MEAS
+#define KARMA_BAL_MEAS 1                        /* (3.1.5 test 10) the split from the cores' measured finish times */
+#endif
+#if KARMA_BAL_MEAS
+static volatile uint32_t w_end;                 /* (test 10) the tick CPU1's job ended */
+#endif
 static uint32_t core_cost[NPART + 2];           /* ticks x 8: the three parts, the drums (a running mean: the console's) */
 /* (3.0.4, 2026-11-06: Ariel's FM-1 moved its tracks between the cores every second or so: the 8-block mean swung from a
  * held note's cost to nothing between notes, and the split chased it.) The balance now takes each part's PEAK: up at
@@ -833,7 +839,56 @@ static void core1_parts(void *ctx)
                     stem_buf[k][i] = STEM_OF(w_l[i] + w_r[i] - stem_pre1[i]);
             cost_put(k, fm1_ticks() - t0);
         }
+#if KARMA_BAL_MEAS
+    w_end = fm1_ticks();                        /* (test 10) when CPU1's job ended: CPU0 compares it with its own */
+#endif
 }
+#if KARMA_BAL_MEAS
+/* (3.1.5 test 10) the split from what the two cores did, not from adding up estimates (test 9 put all three tracks on
+ * CPU1: one core running three engines is slower than their costs added). Each block CPU0 notes how much later than
+ * itself CPU1 finished (+: CPU0 waited, -: CPU1 sat idle); every CORE_DWELL blocks, if the mean is off by more than
+ * BAL_THR, one track moves to the core that finished first, only when its cost (both cores' prices) brings the gap to
+ * under 3/4 of what it was, and CPU1 never gets all of them */
+static int32_t bal_sum;
+static uint32_t bal_n;
+static int32_t bal_last;                        /* the last window's mean gap, ticks (editor ED_STAT) */
+#ifdef FM1_TICKS_PER_US
+#define BAL_THR (40 * FM1_TICKS_PER_US)
+#else
+#define BAL_THR (40 * 24)
+#endif
+static void core_balance(void)                  /* CPU0, after the join: the next block's split */
+{
+    static uint32_t since;
+    uint32_t k, best = w_mask, all = (1u << NPART) - 1u;
+    int32_t d, ad, bd;
+    if (++since < CORE_DWELL || bal_n < 64u)
+        return;
+    d = bal_sum / (int32_t)bal_n;
+    bal_last = d;
+    bal_sum = 0;
+    bal_n = 0;
+    since = 0;
+    ad = d < 0 ? -d : d;
+    if (ad < BAL_THR)
+        return;
+    bd = ad;
+    for (k = 0; k < NPART; k++) {
+        uint32_t bit = 1u << k;
+        int32_t c1 = (int32_t)(core_peak[k] >> 4), c = c1 + c1 * (int32_t)CPU0_DEN / (int32_t)CPU0_NUM, nd, an;
+        if (d > 0 && (w_mask & bit) && (w_mask & ~bit))
+            nd = d - c;                             /* CPU1 slower: this one of its tracks to CPU0 */
+        else if (d < 0 && !(w_mask & bit) && (w_mask | bit) != all)
+            nd = d + c;                             /* CPU0 slower: this one of its tracks to CPU1 */
+        else
+            continue;
+        an = nd < 0 ? -nd : nd;
+        if (an * 4 < ad * 3 && an < bd)
+            bd = an, best = w_mask ^ bit;
+    }
+    w_mask = best;
+}
+#else
 static void core_balance(void)                  /* CPU0, after the join: the next block's split */
 {
     static uint32_t since;
@@ -863,6 +918,7 @@ static void core_balance(void)                  /* CPU0, after the join: the nex
         since = 0;
     }
 }
+#endif
 #endif
 static void mix_part_run(track_t *t, uint32_t n, const mixbus_t *o)
 {
@@ -1372,6 +1428,9 @@ static void mix_block(int32_t *out, uint32_t n)
     }
 #if KARMA_DUAL_CORE
     if (w_on) {                                         /* CPU1's tracks: wait, then into the mix and the sends */
+#if KARMA_BAL_MEAS
+        uint32_t c0_end = fm1_ticks();                  /* (test 10) CPU0 ready to join */
+#endif
         if (!audio_worker_join()) {
             hx_pre_mask = 0;                            /* (3.1.3: CPU1 gave up mid-job: the drums render here, */
             if (w_fx) {                                 /*  its effects' block is lost: silence for one block) */
@@ -1381,6 +1440,10 @@ static void mix_block(int32_t *out, uint32_t n)
             }
         } else {
             fx_done = w_fx;                             /* (3.1.4: only when CPU1 ran them; else CPU0 runs them below) */
+#if KARMA_BAL_MEAS
+            bal_sum += (int32_t)(w_end - c0_end);       /* (test 10) + CPU0 waited, - CPU1 was done first */
+            bal_n++;
+#endif
         }
         if (audio_worker_online)
             for (i = 0; i < n; i++) {

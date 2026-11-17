@@ -992,6 +992,11 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             ed_bk_u32(0);
 #endif
         ed_bk_u32(audio_lost);
+#if KARMA_DUAL_CORE && KARMA_BAL_MEAS
+        ed_bk_u32((uint32_t)(bal_last / (int32_t)FM1_TICKS_PER_US) + 100000u);   /* (test 10) CPU1 later than CPU0, us (+ 100000) */
+#else
+        ed_bk_u32(100000u);
+#endif
         break;
     case ED_PROF:                                          /* (3.1.3) mix_block's parts (fx.c PF_*): the blocks, then each part's
                                                             * us summed and its worst block's, since the last read (then 0),
