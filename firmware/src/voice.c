@@ -406,9 +406,15 @@ static volatile uint8_t vis_hit, vis_kick_hit, vis_note[NTRK];
 static void trk_note_on_(track_t *t, uint32_t note, uint32_t vel);
 static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)   /* (3.1.3: timed in the measuring build) */
 {
-    PC_T0();
+#if KARMA_PCOST
+    uint32_t t0 = fm1_ticks(), k = (uint32_t)(t - trk);
     trk_note_on_(t, note, vel);
-    PC_MARK(PC_EV_NOTE);
+    if (k < NPART)
+        karma_pc_add(PC_EV_N1 + k, t0);              /* (3.1.5 test 13) by track */
+    karma_pc_add(PC_EV_NOTE, t0);
+#else
+    trk_note_on_(t, note, vel);
+#endif
 }
 static void trk_note_on_(track_t *t, uint32_t note, uint32_t vel)
 {
@@ -478,7 +484,18 @@ static void strum_cancel(const track_t *t, uint32_t note, int all)
         if (stq[i].on && stq[i].trk == (uint8_t)(t - trk) && (all || stq[i].note == note))
             stq[i].on = 0;
 }
-static void trk_note_off(track_t *t, uint32_t note)
+static void trk_note_off_(track_t *t, uint32_t note);
+static void trk_note_off(track_t *t, uint32_t note)   /* (3.1.5 test 13: timed in the measuring build) */
+{
+#if KARMA_PCOST
+    uint32_t t0 = fm1_ticks();
+    trk_note_off_(t, note);
+    karma_pc_add(PC_EV_OFF, t0);
+#else
+    trk_note_off_(t, note);
+#endif
+}
+static void trk_note_off_(track_t *t, uint32_t note)
 {
     uint32_t i, k = 0, mode = (uint32_t)t->p[P_VOICE];
     if (is_drum(t))

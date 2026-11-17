@@ -18,6 +18,8 @@ enum { PC_SETUP, PC_BANK, PC_BOWLOOP, PC_BOWNOISE, PC_BLOW, PC_UP, PC_OUT_E, PC_
                                                          * set-up (envelopes, filter), each kind's samples, the decimator */
        PC_CL_REC, PC_CL_PLAY,                           /* (3.1.3) the CLOUD (cloud.c): the recording, the grains */
        PC_EV_DRUM, PC_EV_NOTE,                          /* (3.1.3) a note's start: a drum hit (drum_on), a synth note */
+       PC_EV_N1, PC_EV_N2, PC_EV_N3, PC_EV_OFF, PC_EV_ALL,   /* (3.1.5 test 13) a synth note's start by track, a note's
+                                                         * end, the whole of events_block (the bar's spike) */
        PC_N };
 #if KARMA_PCOST
 static volatile uint32_t pc_ticks[PC_N], pc_calls[PC_N], pc_max[PC_N];   /* (3.1.3: pc_max, the longest call) */

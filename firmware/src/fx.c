@@ -1381,7 +1381,15 @@ static void mix_block(int32_t *out, uint32_t n)
         thr_rev = (q & 1u) ? (thr_rev + 1928 > 32767 ? 32767 : thr_rev + 1928) : (thr_rev > 1928 ? thr_rev - 1928 : 0);
         thr_dly = (q & 2u) ? (thr_dly + 1928 > 32767 ? 32767 : thr_dly + 1928) : (thr_dly > 1928 ? thr_dly - 1928 : 0);
     }
+#if KARMA_PCOST
+    {
+        uint32_t ev_t0 = fm1_ticks();
+        events_block(n);
+        karma_pc_add(PC_EV_ALL, ev_t0);                 /* (3.1.5 test 13) */
+    }
+#else
     events_block(n);
+#endif
     duck_block(n * (uint32_t)song.g[G_BPM]);
     prof_blocks++;
     PROF(PF_EVENTS);
