@@ -8,7 +8,7 @@ import time
 import mido
 from karma_pcost import STAGES, ask, port
 
-SHOW = ["ev_all", "ev_n1", "ev_n2", "ev_n3", "ev_drum", "ev_off", "plx_init"]
+SHOW = ["ev_all", "ev_top", "ev_eng", "ev_keys", "ev_midi", "ev_seq", "ev_arp", "ev_n1", "ev_n2", "ev_n3", "ev_drum"]
 
 
 def main():

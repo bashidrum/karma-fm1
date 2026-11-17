@@ -2614,6 +2614,7 @@ static uint32_t mi_trk_held[NTRK][4];          /* (3.0.4) the notes MIDI in hold
 static void events_block(uint32_t n)
 {
     uint32_t i, pr, adv;
+    PC_T0();                                    /* (3.1.5 test 14: the measuring build times the parts) */
     if (mo_any && !song.g[G_MIDI]) {            /* MIDI = KEYS again: end what the sequencer had sent */
         seq_out_all_off();
         mo_any = 0;
@@ -2725,6 +2726,7 @@ static void events_block(uint32_t n)
         route_was = (uint8_t)rt;
         chans_was = chans;
     }
+    PC_MARK(PC_EV_TOP);
     pr = panic_req;
     panic_req = 0;
     if (pr)
@@ -2769,9 +2771,11 @@ static void events_block(uint32_t n)
         t->armp = t->p[P_AMODE];
         t->aholdp = t->p[P_AHOLD];
     }
+    PC_MARK(PC_EV_ENG);
     keyboard_block();
     drum_audition_poll();                             /* (the editor's DRUM SYNTH page) */
     strum_block(n);                                   /* (voice.c: the strummed notes due) */
+    PC_MARK(PC_EV_KEYS);
     while (mi_r != mi_w) {                            /* USB-MIDI (and TRS) in */
         uint32_t pkt = midi_in_q[mi_r % MQ], st = (pkt >> 8) & 0xF0u, ch = (pkt >> 8) & 0x0Fu;
         uint32_t d1 = (pkt >> 16) & 0x7Fu, d2 = (pkt >> 24) & 0x7Fu;
@@ -2876,10 +2880,12 @@ static void events_block(uint32_t n)
                     }
         mi_pen[0] = mi_pen[1] = mi_pen[2] = mi_pen[3] = 0;
     }
+    PC_MARK(PC_EV_MIDI);
     for (i = 0; i < NTRK; i++)
         seq_tick(&trk[i], adv);
     click_tick();
     roll_block(adv);
+    PC_MARK(PC_EV_SEQ);
     for (i = 0; i < NPART; i++)
         arp_tick(&trk[i], adv);
     if (song.playing) {
@@ -2893,4 +2899,5 @@ static void events_block(uint32_t n)
         arr_elapse(&arrangement_clock, adv, 1u);   /* (units: n x BPM, or the MIDI clock) */
 #endif
     }
+    PC_MARK(PC_EV_ARP);
 }

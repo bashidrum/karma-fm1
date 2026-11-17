@@ -13,7 +13,7 @@ import mido
 
 STAGES = ["setup", "bank", "bowloop", "bownoise", "blow", "upsample", "out", "omin", "plaits", "plaits_out", "prism",
           "om_osc", "om_iir", "om_fir", "om_rest", "plx_init", "init_max",
-          "hx_set", "hx_drum", "hx_snare", "hx_cym", "hx_dec", "cl_rec", "cl_play", "ev_drum", "ev_note", "ev_n1", "ev_n2", "ev_n3", "ev_off", "ev_all"]   # (3.1.3)
+          "hx_set", "hx_drum", "hx_snare", "hx_cym", "hx_dec", "cl_rec", "cl_play", "ev_drum", "ev_note", "ev_n1", "ev_n2", "ev_n3", "ev_off", "ev_all", "ev_top", "ev_eng", "ev_keys", "ev_midi", "ev_seq", "ev_arp"]   # (3.1.3)
 CHORD = [48, 55, 60, 64]
 
 

@@ -20,6 +20,9 @@ enum { PC_SETUP, PC_BANK, PC_BOWLOOP, PC_BOWNOISE, PC_BLOW, PC_UP, PC_OUT_E, PC_
        PC_EV_DRUM, PC_EV_NOTE,                          /* (3.1.3) a note's start: a drum hit (drum_on), a synth note */
        PC_EV_N1, PC_EV_N2, PC_EV_N3, PC_EV_OFF, PC_EV_ALL,   /* (3.1.5 test 13) a synth note's start by track, a note's
                                                          * end, the whole of events_block (the bar's spike) */
+       PC_EV_TOP, PC_EV_ENG, PC_EV_KEYS, PC_EV_MIDI, PC_EV_SEQ, PC_EV_ARP,   /* (test 14) events_block in its parts: the
+                                                         * transport / song / routing, engine_block x3, the keys and strum,
+                                                         * MIDI in, seq_tick x4 (+ click, roll), arp_tick x3 (+ the clock) */
        PC_N };
 #if KARMA_PCOST
 static volatile uint32_t pc_ticks[PC_N], pc_calls[PC_N], pc_max[PC_N];   /* (3.1.3: pc_max, the longest call) */
