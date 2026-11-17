@@ -680,6 +680,16 @@ static void mix_part(track_t *t, uint32_t n) { mix_part_to(t, n, &BUS0); }
 #ifndef KARMA_CPU1_FX
 #define KARMA_CPU1_FX 0
 #endif
+#ifndef KARMA_FX_WAIT                                   /* (3.1.5 test 8) CPU0 runs the effects (on the last block's sends, as
+                                                         * 3.1.3) in its wait for CPU1, not after the join: measured on Ariel's
+                                                         * FM-1 (2026-11-17) CPU0 waited ~150 us a block for CPU1, then ran
+                                                         * ~150 us of effects. One core does both: nothing shared with CPU1 */
+#define KARMA_FX_WAIT 1
+#endif
+#if KARMA_CPU1_FX
+#undef KARMA_FX_WAIT
+#define KARMA_FX_WAIT 0
+#endif
 static int32_t w_l[CTL], w_r[CTL], w_c[CTL], w_d[CTL], w_v[CTL], w_cl[CTL], w_b[CTL];
 #if KARMA_CPU1_FX
 #define FXP_C w_c                               /* (3.1.3: the last block's sends, between the blocks: fx_prev on CPU1, which
@@ -735,7 +745,13 @@ static int32_t stem_buf[NTRK][CTL];            /* (below: USB STEMS) */
 static uint8_t fx_stems;
 static int32_t stem_pre1[CTL];                  /* CPU1's own (stem_take's is CPU0's) */
 #endif
-#if !KARMA_DUAL_CORE || !KARMA_CPU1_FX                /* (3.1.5) the effects on CPU0 (one core, or KARMA_CPU1_FX 0): on this
+#if KARMA_DUAL_CORE && KARMA_FX_WAIT
+static int32_t fxp_c[CTL], fxp_d[CTL], fxp_r[CTL], fxp_cl[CTL];   /* (test 8) the last block's sends, held for CPU0's wait */
+#define FXP_C fxp_c
+#define FXP_D fxp_d
+#define FXP_R fxp_r
+#define FXP_CL fxp_cl
+#elif !KARMA_DUAL_CORE || !KARMA_CPU1_FX                /* (3.1.5) the effects on CPU0 (one core, or KARMA_CPU1_FX 0): on this
                                                  * block's sends, as 3.1.2, no block behind and no copy (3.1.4 held them in
                                                  * fxp_*: 512 B of RAM, now each track's ACID GEN and envelope steps) */
 #define FXP_C send_c
@@ -1301,6 +1317,7 @@ static void mix_block(int32_t *out, uint32_t n)
     uint32_t i, prof_t0 = PROF_NOW();
     int32_t m0, m1;
     int fx_done = 0;                                    /* (3.1.3) CPU1 ran this block's effects (fx_prev) */
+    int fx_wait = 0;                                    /* (test 8) CPU0 ran them in its wait */
     for (i = 0; i < n; i++)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
     {   /* REV / ECHO THROW (2.6): the sends glide to full and back over ~12 ms (17 blocks) */
@@ -1338,6 +1355,11 @@ static void mix_block(int32_t *out, uint32_t n)
                 cost_put0(i, PROF_NOW() - t0);              /* (3.1.5: the balance in CPU1's time) */
             }
         PROF(PF_T1);
+#if KARMA_FX_WAIT
+        fx_prev();                                      /* (test 8) the effects while CPU1 still renders */
+        fx_wait = 1;
+        PROF(PF_CLOUD);                                 /* (karma_prof "cloud": the effects in the wait) */
+#endif
     } else
 #endif
     for (i = 0; i < NPART; i++) {
@@ -1369,6 +1391,8 @@ static void mix_block(int32_t *out, uint32_t n)
         core_balance();
     }
 #endif
+    if (fx_wait)
+        fx_done = 1;
     /* (3.1.3) the drums after the join: their HEX voices may be CPU1's block (drums.c hx_pre_buf) */
     if (fx_stems)
         stem_take(TRK_DRUM, n, 0);
@@ -1420,7 +1444,7 @@ static void mix_block(int32_t *out, uint32_t n)
             stem_fx[0][i] = mix_l[i], stem_fx[1][i] = mix_r[i];
     texture_mix(mix_l, mix_r, n);                       /* GLO > TEXTURE (2.6): the bed, dry */
     punch_freeze_feed(send_r, mix_l, mix_r, n);         /* punch-in FREEZE: the dry mix into the held reverb */
-#if !KARMA_DUAL_CORE || !KARMA_CPU1_FX
+#if !KARMA_DUAL_CORE || (!KARMA_CPU1_FX && !KARMA_FX_WAIT)
     fxp_n = n;                                          /* (3.1.5) the effects on this block's sends, here */
 #endif
     if (!fx_done)                                       /* (3.1.3) one core, CPU0's effects, or no CPU1 this block */
@@ -1430,8 +1454,8 @@ static void mix_block(int32_t *out, uint32_t n)
         mix_r[i] += wet_r[i];
     }
     PROF(PF_BUSES);
-#if KARMA_DUAL_CORE && KARMA_CPU1_FX
-    for (i = 0; i < n; i++) {                           /* this block's sends, for the next block's effects (CPU1) */
+#if KARMA_DUAL_CORE && (KARMA_CPU1_FX || KARMA_FX_WAIT)
+    for (i = 0; i < n; i++) {                           /* this block's sends, for the next block's effects (CPU1 / CPU0's wait) */
         FXP_C[i] = send_c[i];
         FXP_D[i] = send_d[i];
         FXP_R[i] = send_r[i];
