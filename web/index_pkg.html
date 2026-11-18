@@ -313,7 +313,12 @@ const failed = (e, midi) => {
   const why = e && e.code === "notfound" && e.reason ? `/${e.reason} (${OS})` : "";   /* (3.0.4: the counts say why, which system) */
   /* (2026-11-08) other gear only: which names (a new FM-1 under a name the installer does not know?), anonymous */
   const seen = e && e.reason === "nofm1" && e.names ? ` [${safeNames(e.names).join(" | ")}]` : "";
-  gc(`${job}-failed`, `${job} failed: ${(e && (e.code || e.message)) || "?"}${why}${seen}`.slice(0, 120), true);
+  /* (2026-11-18) the reason and system in the event's name: GoatCounter keeps one title per name, so with one name
+   * for every failure only the first reason ever showed */
+  const slug = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32);
+  const kind = [slug(e && (e.code || e.message)) || "unknown", slug(e && e.code === "notfound" && e.reason)]
+    .filter(Boolean).join("-");
+  gc(`${job}-failed-${kind}-${OS}`, `${job} failed: ${(e && (e.code || e.message)) || "?"}${why}${seen}`.slice(0, 120), true);
   if (e && e.code === "notfound") {
     helpFound = false;
     showHelp(e.reason || "noports");
