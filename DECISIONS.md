@@ -41,3 +41,9 @@ Ben asked (20 Nov 2026) for a full first version of his brief without stopping f
 - Anything that belongs to everyone is neutral white/grey: play marker, SONG and SONGS section tiles (A B C D), "playing", KEY layer dials, the record-ready disc, the HOME tape, all seven visualisers.
 - Red is kept for recording and erasing only. The KARMA boot logo letters use Ben's four colours plus white.
 - Drum screens: the selected pad is outlined white, and the selected step and send bars are coral (they were track 1 purple and old green).
+
+## Name: PHEBUS (Ben, 20 Nov)
+- Ben's build is called PHEBUS. Boot logo and tape screen: plain white block letters, "a bit like an old Sega or Atari logo" (own letterforms, not a copy of either).
+- Claude's call: the four voice-colour bars stay under the boot wordmark.
+- Page titles say PHEBUS. Credits to KARMA, SLOOP and Felucca stay as they are (GPL attribution), as do file names, the repo name and the FM-1_926 package identity.
+- Not yet checked against existing product names or trade marks.

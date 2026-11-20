@@ -529,8 +529,7 @@ static void vis_wires(void)
  * its dB), at 0 VU an RMS of 18000 (-5 dBFS: the mix runs hot, so loud parts touch the red), rising in a third of
  * a picture's way and falling slower; the level in dB under it; a lamp for the peaks (near full scale). Silence: the
  * needles rest at the left */
-static const uint32_t KARMA_ROW[7] = {0x0E44F391u, 0x116D1449u, 0x11551445u, 0x1F54F7C3u, 0x11445445u, 0x11449449u,
-                                      0x11451451u};             /* tools/gen_logo.py KARMA_CELLS, a bit a cell */
+static const uint32_t KARMA_ROW[7] = {0x1C93BD27u, 0x02948529u, 0x02948529u, 0x0C939DE7u, 0x10948521u, 0x10948521u, 0x0E63BD21u};   /* PHEBUS (Ben, 20 Nov 2026): 4x7 letters, a bit a cell; tools/gen_logo.py */
 static const uint16_t KARMA_COL[5] = {RGB(140, 118, 240), RGB(40, 160, 245), RGB(228, 228, 236), RGB(20, 196, 170),
                                       RGB(255, 128, 108)};       /* (a letter each) */
 #define VU_REF 18000                                            /* the RMS at 0 VU */
@@ -606,7 +605,7 @@ static void vis_reel(void)
     for (y = 0; y < 7u; y++)                                    /* KARMA */
         for (x = 0; x < 29u; x++)
             if ((KARMA_ROW[y] >> x) & 1u)
-                cv_rect(83 + (int32_t)(x * 2u), 30 + (int32_t)(y * 2u), 2, 2, KARMA_COL[x / 6u]);
+                cv_rect(83 + (int32_t)(x * 2u), 30 + (int32_t)(y * 2u), 2, 2, C_WHITE);
     for (i = 0; i < 4u; i++) {                                  /* the sections */
         char ch[2] = {(char)('A' + i), 0};
         int32_t sx = 144 + (int32_t)i * 24;
@@ -721,8 +720,7 @@ static uint16_t boot_t = 0xFFFFu;
 #define BOOT_END 124u                                   /* (~2.1 s; 2026-10-28: the logo screen gone; 2.5 s felt slow) */
 static int boot_draw(void)
 {
-    const uint32_t *ROW = KARMA_ROW;
-    const uint16_t *COL = KARMA_COL;
+    static const uint64_t ROW[7] = {0x1F333EFD99FULL, 0x01B3660D9B3ULL, 0x01B3660D9B3ULL, 0x0F333E7DF9FULL, 0x1833660D983ULL, 0x1833660D983ULL, 0x0F9E3EFD983ULL};   /* PHEBUS, bold: 6x7 letters, 41 cells of 5x8 px (tools/gen_logo.py) */
     uint32_t t = boot_t, pass, x, y;
     int32_t fade;
     if (t >= BOOT_END)
@@ -738,21 +736,20 @@ static int boot_draw(void)
         cv_begin(240, 120, C_BLACK);
         cv_oy = -(int32_t)(pass * 120u);
         for (y = 0; y < 7u; y++)
-            for (x = 0; x < 29u; x++) {
+            for (x = 0; x < 41u; x++) {
                 uint32_t d = ((x * 7u + y * 13u) * 2654435761u >> 26) % 44u, s;   /* (each cell its own moment) */
                 uint16_t c;
                 if (!((ROW[y] >> x) & 1u) || t < d)
                     continue;
-                s = t - d >= 3u ? 6u : (t - d + 1u) * 2u;
-                c = t - d < 4u ? C_WHITE : COL[x / 6u];
-                c = mix565(c, C_BLACK, fade);
-                cv_rect(18 + (int32_t)(x * 7u) + (6 - (int32_t)s) / 2, 76 + (int32_t)(y * 7u) + (6 - (int32_t)s) / 2,
-                        (int32_t)s, (int32_t)s, c);
+                s = t - d >= 3u ? 4u : t - d + 1u;              /* solid blocks, plain white: an arcade wordmark */
+                c = mix565(C_WHITE, C_BLACK, fade);
+                cv_rect(17 + (int32_t)(x * 5u) + (4 - (int32_t)s) / 2 * 0, 68 + (int32_t)(y * 8u) + (4 - (int32_t)s),
+                        s == 4u ? 5 : (int32_t)s + 1, (int32_t)s * 2, c);
             }
         for (x = 0; x < 4u; x++) {                              /* the tracks' bars */
             int32_t w = clamp(((int32_t)t - 50 - (int32_t)x * 4) * 5, 0, 44);
             if (w)
-                cv_rect(26 + (int32_t)x * 48 + (44 - w) / 2, 150, w, 5, mix565(COL[x], C_BLACK, fade));
+                cv_rect(26 + (int32_t)x * 48 + (44 - w) / 2, 142, w, 5, mix565(TE_COL[x], C_BLACK, fade));   /* the four voices */
         }
         if (t >= 72u) {
             const char *v = FELUCCA_VERSION;
