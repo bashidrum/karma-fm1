@@ -47,3 +47,5 @@ Ben asked (20 Nov 2026) for a full first version of his brief without stopping f
 - Claude's call: the four voice-colour bars stay under the boot wordmark.
 - Page titles say PHEBUS. Credits to KARMA, SLOOP and Felucca stay as they are (GPL attribution), as do file names, the repo name and the FM-1_926 package identity.
 - Not yet checked against existing product names or trade marks.
+
+- 20 Nov, later: Ben asked for a smooth font, "something suitable for the Barbican. Or Daft Punk - but not their font". The wordmark is now TeX Gyre Adventor Bold (a free geometric face), tracked wide, plain white, stored as tools/assets/phebus_word.png. The boot animation fades it up and out instead of popping pixel cells in. The tiny PHEBUS on the tape screen is still pixel letters.

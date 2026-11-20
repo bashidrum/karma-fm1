@@ -123,17 +123,17 @@ KARMA_BARS = ("k1", "k2", "k4", "k5")                 # the four tracks, in orde
 
 
 def render_karma(W, H):
+    """PHEBUS (Ben, 20 Nov 2026): a smooth geometric wordmark, plain white, the four voices' bars under it.
+    tools/assets/phebus_word.png is the wordmark, drawn once from TeX Gyre Adventor Bold (GUST Font License)."""
     im = Image.new("RGB", (W, H), BLACK)
+    word = Image.open(Path(__file__).parent / "assets" / "phebus_word.png").convert("L")
+    y0 = 62
+    im.paste(Image.merge("RGB", (word, word, word)), ((W - word.width) // 2, y0))
     d = ImageDraw.Draw(im)
-    cw, ch = 5, 8                                     # a cell 5 x 8 px, solid: an arcade wordmark, plain white
-    x0, y0 = (W - 41 * cw) // 2, 58
-    for g, pts in KARMA_CELLS.items():
-        for x, y in pts:
-            d.rectangle([x0 + x * cw, y0 + y * ch, x0 + x * cw + cw - 1, y0 + y * ch + ch - 1], fill=KARMA_COL[g])
-    bw, gap, y = 44, 6, y0 + 7 * ch + 18               # the four voices: a bar each
+    bw, gap, y = 44, 6, y0 + word.height + 14          # the four voices: a bar each
     bx = (W - (4 * bw + 3 * gap)) // 2
     for i, g in enumerate(KARMA_BARS):
-        d.rectangle([bx + i * (bw + gap), y, bx + i * (bw + gap) + bw - 1, y + 5], fill=KARMA_COL[g])
+        d.rectangle([bx + i * (bw + gap), y, bx + i * (bw + gap) + bw - 1, y + 3], fill=KARMA_COL[g])
     return im
 
 # ---- SVG (stroke centred on the path) ---------------------------------------------------------
@@ -212,9 +212,8 @@ def rgb565(c):
 def splash_header(path):
     im = render_karma(SPLASH_W, SPLASH_H)
     # a fixed palette: black, and each colour at 1/3, 2/3 and full (pixel art: only the full ones used)
-    cols = [BLACK]
-    for c in KARMA_COL.values():
-        cols += [tuple(round(v * f) for v in c) for f in (1 / 3, 2 / 3, 1.0)]
+    cols = [BLACK] + [(round(255 * k / 11),) * 3 for k in range(1, 12)] + [KARMA_COL[g] for g in KARMA_BARS]
+    assert len(cols) == 16                            # black, 11 greys to white (the smooth edges), the four voices
     src = im.tobytes()
     px = []
     cache = {}

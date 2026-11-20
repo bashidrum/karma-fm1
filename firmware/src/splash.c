@@ -2,7 +2,7 @@
 /* SLOOP boot splash: the logo (tools/gen_logo.py -> sloop_logo.h: 16 colours, RLE runs of
  * (run - 1) << 4 | colour), drawn into the canvas in bands of at most 120 rows. */
 #include "sloop_logo.h"
-static void sloop_logo_draw(uint32_t y0)
+static void sloop_logo_fade(uint32_t y0, int32_t fade)   /* fade 0..256: towards black (the boot animation) */
 {
     uint32_t r0;
     for (r0 = 0; r0 < SLOOP_SPLASH_H; r0 += 120u) {
@@ -13,13 +13,14 @@ static void sloop_logo_draw(uint32_t y0)
             uint32_t run = (SLOOP_SPLASH_RLE[i] >> 4) + 1u, c = SLOOP_SPLASH_RLE[i] & 15u, p;
             if (c && pos + run > lo)
                 for (p = pos < lo ? lo : pos; p < pos + run && p < hi; p++)
-                    cv_px[p - lo] = swap16(SLOOP_SPLASH_PAL[c]);
+                    cv_px[p - lo] = swap16(fade ? mix565(SLOOP_SPLASH_PAL[c], C_BLACK, fade) : SLOOP_SPLASH_PAL[c]);
             pos += run;
         }
         cv_blit((240u - SLOOP_SPLASH_W) / 2u, y0 + r0);
     }
 }
 
+static void sloop_logo_draw(uint32_t y0) { sloop_logo_fade(y0, 0); }
 /* the boot screen: the logo, the version, where it comes from */
 static void sloop_splash(void)
 {

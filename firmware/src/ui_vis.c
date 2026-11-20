@@ -718,10 +718,10 @@ static void vis_select(int32_t s)
  * it. boot_t: started at 0 by the boot (main.c, the browser simulator's web_boot); 0xFFFF: none (the host tests) */
 static uint16_t boot_t = 0xFFFFu;
 #define BOOT_END 124u                                   /* (~2.1 s; 2026-10-28: the logo screen gone; 2.5 s felt slow) */
+static void sloop_logo_fade(uint32_t y0, int32_t fade);   /* splash.c */
 static int boot_draw(void)
 {
-    static const uint64_t ROW[7] = {0x1F333EFD99FULL, 0x01B3660D9B3ULL, 0x01B3660D9B3ULL, 0x0F333E7DF9FULL, 0x1833660D983ULL, 0x1833660D983ULL, 0x0F9E3EFD983ULL};   /* PHEBUS, bold: 6x7 letters, 41 cells of 5x8 px (tools/gen_logo.py) */
-    uint32_t t = boot_t, pass, x, y;
+    uint32_t t = boot_t;
     int32_t fade;
     if (t >= BOOT_END)
         return 0;
@@ -731,34 +731,19 @@ static int boot_draw(void)
         ui.force = 1;
         return 0;
     }
-    fade = t > BOOT_END - 20u ? (int32_t)(t - (BOOT_END - 20u)) * 256 / 20 : 0;   /* (the last 20 frames: to black) */
-    for (pass = 0; pass < 2u; pass++) {
-        cv_begin(240, 120, C_BLACK);
-        cv_oy = -(int32_t)(pass * 120u);
-        for (y = 0; y < 7u; y++)
-            for (x = 0; x < 41u; x++) {
-                uint32_t d = ((x * 7u + y * 13u) * 2654435761u >> 26) % 44u, s;   /* (each cell its own moment) */
-                uint16_t c;
-                if (!((ROW[y] >> x) & 1u) || t < d)
-                    continue;
-                s = t - d >= 3u ? 4u : t - d + 1u;              /* solid blocks, plain white: an arcade wordmark */
-                c = mix565(C_WHITE, C_BLACK, fade);
-                cv_rect(17 + (int32_t)(x * 5u) + (4 - (int32_t)s) / 2 * 0, 68 + (int32_t)(y * 8u) + (4 - (int32_t)s),
-                        s == 4u ? 5 : (int32_t)s + 1, (int32_t)s * 2, c);
-            }
-        for (x = 0; x < 4u; x++) {                              /* the tracks' bars */
-            int32_t w = clamp(((int32_t)t - 50 - (int32_t)x * 4) * 5, 0, 44);
-            if (w)
-                cv_rect(26 + (int32_t)x * 48 + (44 - w) / 2, 142, w, 5, mix565(TE_COL[x], C_BLACK, fade));   /* the four voices */
-        }
-        if (t >= 72u) {
-            const char *v = FELUCCA_VERSION;
-            if (v[0] == 'K' && v[5] == ' ')
-                v += 6;
-            cv_text(120 - text_w(&FONT_S, v) / 2, 172, &FONT_S, v, mix565(RGB(196, 196, 204), C_BLACK, fade));
-        }
-        cv_oy = 0;
-        cv_blit(0, pass * 120u);
+    if (!t)
+        lcd_fill(0, 0, 240, 240, C_BLACK);
+    /* PHEBUS (Ben, 20 Nov 2026): the smooth wordmark fades up from black (24 frames), holds, fades out (20) */
+    fade = t < 24u ? 256 - (int32_t)t * 256 / 24 : t > BOOT_END - 20u ? (int32_t)(t - (BOOT_END - 20u)) * 256 / 20 : 0;
+    sloop_logo_fade(10, fade);
+    {
+        const char *v = FELUCCA_VERSION;
+        if (v[0] == 'K' && v[5] == ' ')
+            v += 6;
+        cv_begin(240, 20, C_BLACK);
+        if (t >= 40u)
+            cv_text(120 - text_w(&FONT_S, v) / 2, 0, &FONT_S, v, mix565(RGB(196, 196, 204), C_BLACK, fade));
+        cv_blit(0, 202);
     }
     return 1;
 }
