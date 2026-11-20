@@ -769,8 +769,8 @@ static void boot_frame(uint32_t t)
     uint32_t pass;
     for (pass = 0; pass < 2u; pass++) {
         cv_begin(240, 120, C_BLACK);
-        flow_band(pass * 120u, 120u, t, fade, 1u, 0u, 0u);   /* (Ben, 20 Nov: no strip behind the wordmark: pure negative space) */
-        sloop_logo_knock(38, pass * 120u, 120u);
+        flow_band(pass * 120u, 120u, t, fade, 1u, 0u, 240u);   /* (the wordmark fills the square: the only black is its letters) */
+        sloop_logo_knock(0, pass * 120u, 120u);
         cv_blit(0, pass * 120u);
     }
 }

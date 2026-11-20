@@ -40,15 +40,8 @@ static void sloop_logo_knock(uint32_t y0, uint32_t band_y, uint32_t rows)
     }
 }
 /* the boot screen: the logo, the version, where it comes from */
-static void sloop_splash(void)
+static void sloop_splash(void)                        /* (the wordmark fills the screen: nothing under it) */
 {
     lcd_fill(0, 0, 240, 240, C_BLACK);
-    sloop_logo_draw(10);
-    const char *v = FELUCCA_VERSION;
-    if (v[0] == 'K' && v[1] == 'A' && v[5] == ' ')
-        v += 6;                                         /* "KARMA 3.0" -> "3.0" under the wordmark */
-    cv_begin(240, 36, C_BLACK);
-    cv_text(120 - text_w(&FONT_S, v) / 2, 0, &FONT_S, v, RGB(196, 196, 204));
-    cv_text(120 - text_w(&FONT_S, "based on felucca") / 2, 18, &FONT_S, "based on felucca", RGB(96, 96, 104));
-    cv_blit(0, 202);
+    sloop_logo_draw(0);
 }

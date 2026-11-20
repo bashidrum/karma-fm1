@@ -123,17 +123,12 @@ KARMA_BARS = ("k1", "k2", "k4", "k5")                 # the four tracks, in orde
 
 
 def render_karma(W, H):
-    """PHEBUS (Ben, 20 Nov 2026): a smooth geometric wordmark, plain white, the four voices' bars under it.
-    tools/assets/phebus_word.png is the wordmark, drawn once from TeX Gyre Adventor Bold (GUST Font License)."""
+    """PHEBUS (Ben, 20 Nov 2026): "The title font should fill the square. PHE / BUS". Two lines, plain white here;
+    the boot knocks it black out of a FLOW backdrop (ui_vis.c). tools/assets/phebus_word.png is the wordmark, drawn
+    once from TeX Gyre Adventor Bold (GUST Font License), its strokes thickened."""
     im = Image.new("RGB", (W, H), BLACK)
     word = Image.open(Path(__file__).parent / "assets" / "phebus_word.png").convert("L")
-    y0 = 62
-    im.paste(Image.merge("RGB", (word, word, word)), ((W - word.width) // 2, y0))
-    d = ImageDraw.Draw(im)
-    bw, gap, y = 44, 6, y0 + word.height + 14          # the four voices: a bar each
-    bx = (W - (4 * bw + 3 * gap)) // 2
-    for i, g in enumerate(KARMA_BARS):
-        d.rectangle([bx + i * (bw + gap), y, bx + i * (bw + gap) + bw - 1, y + 3], fill=KARMA_COL[g])
+    im.paste(Image.merge("RGB", (word, word, word)), ((W - word.width) // 2, (H - word.height) // 2))
     return im
 
 # ---- SVG (stroke centred on the path) ---------------------------------------------------------
@@ -197,7 +192,7 @@ def svg(kind):
 
 
 # ---- firmware splash ---------------------------------------------------------------------------
-SPLASH_W, SPLASH_H = 240, 188
+SPLASH_W, SPLASH_H = 240, 240                     # PHEBUS: the wordmark fills the square (Ben, 20 Nov 2026)
 # the scale: the icon (240), the gap (22), the wordmark's x-height (72), the p's descender (36) and its round
 # end (6): 376 units in SPLASH_H rows. At 0.56 (before 2.4) the p's tail ran past row 188 and was cut
 SPLASH_K = 0.5
