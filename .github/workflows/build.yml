@@ -1,0 +1,82 @@
+# Ben's KARMA: build the firmware package and the browser simulator on every push to `ben`,
+# and publish the site (simulator, installer, editor) to the gh-pages branch.
+name: build
+on:
+  push:
+    branches: [ben]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-ben
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      JIELI_TOOLCHAIN: /home/runner/.jieli/toolchain
+      AC79_SDK: /home/runner/fw-AC79_AIoT_SDK
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install Pillow
+
+      - name: Cache JieLi toolchain
+        id: tc
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/.jieli
+          key: jieli-toolchain-v1
+      - name: Get JieLi toolchain
+        if: steps.tc.outputs.cache-hit != 'true'
+        run: sh tools/get_toolchain.sh /home/runner/.jieli
+
+      - name: Cache AC79 SDK files
+        id: sdk
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/fw-AC79_AIoT_SDK
+          key: ac79-sdk-v1.2.1-files-v1
+      - name: Get AC79 SDK (the three files the package needs)
+        if: steps.sdk.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch AC79NN_SDK_V1.2.1_2023-12-13 \
+            https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git /tmp/sdk
+          for f in cpu/wl82/tools/uboot.boot cpu/wl82/tools/cfg_tool.bin cpu/wl82/tools/cfg/eq_cfg_hw.bin; do
+            mkdir -p "$AC79_SDK/$(dirname $f)"; cp "/tmp/sdk/$f" "$AC79_SDK/$f"
+          done
+          rm -rf /tmp/sdk
+
+      - name: Build firmware
+        run: ./build.sh
+
+      - uses: mymindstorm/setup-emsdk@v14
+      - name: Build simulator
+        run: sh web/emu/build.sh
+
+      - name: Make site
+        run: |
+          KARMA_VERSION="3.1.5-ben.${{ github.run_number }}" sh tools/make_pages.sh
+          echo "${{ github.sha }} run ${{ github.run_number }}" > docs/BUILD.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: karma-ben-${{ github.run_number }}
+          path: |
+            build/karma.fwsc
+            build/emu/
+
+      - name: Publish site to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs
+          publish_branch: gh-pages
+          force_orphan: true

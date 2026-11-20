@@ -43,6 +43,8 @@ Decided 20 Nov (Ben: "Yeah let's confirm those colour swaps for the alien and cr
 | Crocodile | green | #00B7A5 |
 | Snake | coral | #DE5C50 |
 
+> "Also feel free to improve the colours so they feel like a cohesive palette" (20 Nov: the hex values above are the starting point, not fixed)
+
 ### Drums
 
 Decided 20 Nov: keep KARMA's own drum kits; no new drum engine for now ("Let's stay put with the drum machines. I didn't realise there were lots of options to choose from!").
