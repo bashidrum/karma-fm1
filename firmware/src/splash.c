@@ -21,6 +21,24 @@ static void sloop_logo_fade(uint32_t y0, int32_t fade)   /* fade 0..256: towards
 }
 
 static void sloop_logo_draw(uint32_t y0) { sloop_logo_fade(y0, 0); }
+/* the wordmark knocked out of what the canvas holds (240 x rows, the screen's rows band_y..): the logo's greys (1..11,
+ * its smooth edges) darken to black; its bars (12..15) are left out. The logo's row 0 is the screen's row y0 */
+static void sloop_logo_knock(uint32_t y0, uint32_t band_y, uint32_t rows)
+{
+    uint32_t pos = 0, i;
+    for (i = 0; i < sizeof SLOOP_SPLASH_RLE; i++) {
+        uint32_t run = (SLOOP_SPLASH_RLE[i] >> 4) + 1u, c = SLOOP_SPLASH_RLE[i] & 15u, p;
+        if (c && c < 12u)
+            for (p = pos; p < pos + run; p++) {
+                uint32_t sy = y0 + p / SLOOP_SPLASH_W, sx = (240u - SLOOP_SPLASH_W) / 2u + p % SLOOP_SPLASH_W;
+                if (sy >= band_y && sy < band_y + rows) {
+                    uint16_t *q = &cv_px[(sy - band_y) * 240u + sx];
+                    *q = c == 11u ? 0 : swap16(mix565(swap16(*q), C_BLACK, (int32_t)c * 256 / 11));
+                }
+            }
+        pos += run;
+    }
+}
 /* the boot screen: the logo, the version, where it comes from */
 static void sloop_splash(void)
 {

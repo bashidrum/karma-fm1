@@ -713,16 +713,69 @@ static void vis_select(int32_t s)
     settings_later = 1;                                 /* (kept with the settings, once stopped) */
 }
 
-/* ---- the boot animation (KARMA 3.0): the KARMA letters pop in a cell at a time in the tracks' colours, the four
- * tracks' bars sweep in, the version, then it fades into the UI; ~2 s at the UI's frame rate, a button or a key skips
- * it. boot_t: started at 0 by the boot (main.c, the browser simulator's web_boot); 0xFFFF: none (the host tests) */
+/* ---- FLOW (Ben, 20 Nov 2026: "acid psychedelic modern glitch art ... flowing and morphing"; the four voices' colours
+ * only): a field of warped sines, posterised into bands of the voices' colours and black. Three kinds by the seed:
+ * 0 liquid marble, 1 wavy stripes (two voices), 2 marble torn sideways in rows (glitch). Drawn in 2x2 blocks. */
+static uint32_t flow_seed;
+static uint8_t flow_lit;                                /* 1: no black here (behind the black wordmark): dim voices instead */
+static uint16_t flow_px(int32_t x, int32_t y, uint32_t t)
+{
+    static const uint8_t BAND[3][16] = {{0, 4, 1, 1, 4, 2, 6, 4, 3, 3, 4, 0, 5, 4, 2, 4},      /* 0..3 a voice, 4 black, */
+                                        {0, 0, 0, 4, 4, 1, 1, 1, 0, 0, 0, 4, 4, 1, 1, 1},      /* 5 white, 6 a voice dim */
+                                        {4, 0, 4, 4, 2, 5, 4, 1, 4, 4, 3, 4, 0, 4, 6, 4}};
+    uint32_t s = flow_seed, kind = s % 3u, rot = (s >> 4) & 3u, k;
+    int32_t a, b, v;
+    if (kind == 2u) {                                   /* rows of 4 torn sideways, a new tear every few frames */
+        uint32_t h = ((uint32_t)(y >> 2) * 2654435761u + (t >> 3) * 40503u + s) >> 24;
+        if (h < 44u)
+            x += (int32_t)(h * 3u) - 60;
+    }
+    a = x * (int32_t)(3u + ((s >> 8) & 3u)) + ((isin((uint32_t)(y * 5) + t * 3u + (s >> 10)) * 150) >> 15);
+    b = y * (int32_t)(3u + ((s >> 12) & 3u)) + ((isin((uint32_t)(a + (a >> 1)) + t * 2u + (s >> 14)) * 130) >> 15);
+    a += (isin((uint32_t)b + t * 5u) * 110) >> 15;
+    v = kind == 1u ? a * 2 + b : (isin((uint32_t)a) + isin((uint32_t)(b + (a >> 1)))) >> 6;
+    k = BAND[kind][(((uint32_t)(v + (int32_t)(t * 4u))) >> 6) & 15u];
+    if (k == 4u && flow_lit)
+        return TE_MID[((((uint32_t)(v + (int32_t)(t * 4u))) >> 7) + rot) & 3u];
+    return k < 4u ? TE_COL[(k + rot) & 3u] : k == 4u ? C_BLACK : k == 5u ? C_WHITE : TE_MID[rot];
+}
+static void flow_band(uint32_t y0, uint32_t rows, uint32_t t, int32_t fade, uint32_t st, uint32_t lit0, uint32_t lit1)
+{   /* into the canvas: rows y0.. of the screen, in st x st blocks (1: smooth); rows lit0..lit1-1 of the screen: no black */
+    uint32_t x, y, i, j;
+    for (y = 0; y < rows; y += st) {
+        flow_lit = y0 + y >= lit0 && y0 + y < lit1;
+        for (x = 0; x < 240u; x += st) {
+            uint16_t c = flow_px((int32_t)x, (int32_t)(y0 + y), t);
+            if (fade)
+                c = mix565(c, C_BLACK, fade);
+            c = swap16(c);
+            for (j = 0; j < st && y + j < rows; j++)
+                for (i = 0; i < st; i++)
+                    cv_px[(y + j) * 240u + x + i] = c;
+        }
+    }
+    flow_lit = 0;
+}
+static void sloop_logo_knock(uint32_t y0, uint32_t band_y, uint32_t rows);   /* splash.c */
+/* ---- the boot animation (PHEBUS; Ben, 20 Nov 2026): a FLOW backdrop, a different one each start, and the wordmark
+ * black in it: "the phebus is all black so it appears as the negative space in the trippy background visual". ~3 s,
+ * a button or a key skips it. boot_t: started at 0 by the boot; 0xFFFF: none (the host tests) */
 static uint16_t boot_t = 0xFFFFu;
-#define BOOT_END 124u                                   /* (~2.1 s; 2026-10-28: the logo screen gone; 2.5 s felt slow) */
-static void sloop_logo_fade(uint32_t y0, int32_t fade);   /* splash.c */
+#define BOOT_END 180u
+static void boot_frame(uint32_t t)
+{
+    int32_t fade = t < 16u ? 256 - (int32_t)t * 16 : t > BOOT_END - 20u ? (int32_t)(t - (BOOT_END - 20u)) * 256 / 20 : 0;
+    uint32_t pass;
+    for (pass = 0; pass < 2u; pass++) {
+        cv_begin(240, 120, C_BLACK);
+        flow_band(pass * 120u, 120u, t, fade, 1u, 96u, 145u);   /* (the wordmark: rows 104..136, black on colour) */
+        sloop_logo_knock(42, pass * 120u, 120u);
+        cv_blit(0, pass * 120u);
+    }
+}
 static int boot_draw(void)
 {
     uint32_t t = boot_t;
-    int32_t fade;
     if (t >= BOOT_END)
         return 0;
     if (fm1_in.buttons || fm1_in.notes || ++boot_t >= BOOT_END) {
@@ -731,19 +784,8 @@ static int boot_draw(void)
         ui.force = 1;
         return 0;
     }
-    if (!t)
-        lcd_fill(0, 0, 240, 240, C_BLACK);
-    /* PHEBUS (Ben, 20 Nov 2026): the smooth wordmark fades up from black (24 frames), holds, fades out (20) */
-    fade = t < 24u ? 256 - (int32_t)t * 256 / 24 : t > BOOT_END - 20u ? (int32_t)(t - (BOOT_END - 20u)) * 256 / 20 : 0;
-    sloop_logo_fade(10, fade);
-    {
-        const char *v = FELUCCA_VERSION;
-        if (v[0] == 'K' && v[5] == ' ')
-            v += 6;
-        cv_begin(240, 20, C_BLACK);
-        if (t >= 40u)
-            cv_text(120 - text_w(&FONT_S, v) / 2, 0, &FONT_S, v, mix565(RGB(196, 196, 204), C_BLACK, fade));
-        cv_blit(0, 202);
-    }
+    if (!t)                                             /* a different one each start: the clock, the battery's noise */
+        flow_seed = (fm1_ticks() * 2654435761u) ^ (fm1_ms * 40503u) ^ ((uint32_t)batt_level() << 7) ^ 0x9E3779B9u;
+    boot_frame(t);
     return 1;
 }
