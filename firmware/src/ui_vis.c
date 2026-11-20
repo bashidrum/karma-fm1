@@ -727,12 +727,13 @@ static uint16_t flow_px(int32_t x, int32_t y, uint32_t t)
     int32_t a, b, v;
     if (kind == 2u) {                                   /* rows of 4 torn sideways, a new tear every few frames */
         uint32_t h = ((uint32_t)(y >> 2) * 2654435761u + (t >> 3) * 40503u + s) >> 24;
-        if (h < 44u)
-            x += (int32_t)(h * 3u) - 60;
+        if (h < 14u)                                    /* (few tears, short: the field stays readable) */
+            x += (int32_t)(h * 4u) - 28;
     }
-    a = x * (int32_t)(3u + ((s >> 8) & 3u)) + ((isin((uint32_t)(y * 5) + t * 3u + (s >> 10)) * 150) >> 15);
-    b = y * (int32_t)(3u + ((s >> 12) & 3u)) + ((isin((uint32_t)(a + (a >> 1)) + t * 2u + (s >> 14)) * 130) >> 15);
-    a += (isin((uint32_t)b + t * 5u) * 110) >> 15;
+    /* Ben, 20 Nov: seed 0 (x3, y3) "is also the limit for how busy these should get": scales 2..3, never finer */
+    a = x * (int32_t)(2u + ((s >> 8) & 1u)) + ((isin((uint32_t)(y * 5) + t * 3u + (s >> 10)) * 150) >> 15);
+    b = y * (int32_t)(2u + ((s >> 12) & 1u)) + ((isin((uint32_t)a + t * 2u + (s >> 14)) * 110) >> 15);
+    a += (isin((uint32_t)b + t * 5u) * 90) >> 15;
     v = kind == 1u ? a * 2 + b : (isin((uint32_t)a) + isin((uint32_t)(b + (a >> 1)))) >> 6;
     k = BAND[kind][(((uint32_t)(v + (int32_t)(t * 4u))) >> 6) & 15u];
     if (k == 4u && flow_lit)
