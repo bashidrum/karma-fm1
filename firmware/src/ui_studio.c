@@ -24,10 +24,12 @@ static int on_drum_page(void) { return !ui.home && cur_page()->scope == SC_DRUM;
 #define TE_G3 RGB(118, 118, 126)         /* labels */
 #define TE_G4 RGB(196, 196, 204)         /* secondary text */
 #define TE_RED RGB(255, 44, 52)          /* recording, erasing */
+#define TE_MUTE RGB(255, 196, 40)        /* a muted track: a yellow M, as Ableton (SPEC.md, 20 Nov 2026) */
+#define TE_SOLO RGB(60, 190, 255)        /* a soloed track: a blue S, as Ableton */
 /* Ben's palette (SPEC.md, 20 Nov 2026): track 1 purple, 2 blue, 3 green, 4 (drums) coral */
-static const uint16_t TE_COL[4] = {RGB(140, 118, 240), RGB(40, 160, 245), RGB(20, 196, 170), RGB(240, 102, 88)};
-static const uint16_t TE_MID[4] = {RGB(92, 78, 158), RGB(26, 106, 162), RGB(13, 129, 112), RGB(158, 67, 58)};
-static const uint16_t TE_DIM[4] = {RGB(48, 40, 82), RGB(14, 54, 83), RGB(7, 67, 58), RGB(82, 35, 30)};
+static const uint16_t TE_COL[4] = {RGB(140, 118, 240), RGB(40, 160, 245), RGB(20, 196, 170), RGB(255, 128, 108)};
+static const uint16_t TE_MID[4] = {RGB(92, 78, 158), RGB(26, 106, 162), RGB(13, 129, 112), RGB(168, 84, 71)};
+static const uint16_t TE_DIM[4] = {RGB(48, 40, 82), RGB(14, 54, 83), RGB(7, 67, 58), RGB(87, 44, 37)};
 #define TE_DRUM TE_COL[3]
 
 static void te_disc(int32_t cx, int32_t cy, int32_t r, uint16_t c)     /* filled circle */

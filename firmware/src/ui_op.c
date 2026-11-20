@@ -175,7 +175,7 @@ static void op_trackbar(uint32_t *cache)
         if ((song.rec >> i) & 1u)
             te_disc(x + 47, 14, 3, TE_RED);
         else if ((song.solo >> i) & 1u)
-            cv_rect(x + 45, 11, 6, 6, sel ? C_BLACK : C_WHITE);
+            cv_rect(x + 45, 11, 6, 6, sel ? C_BLACK : TE_SOLO);
     }
     cv_blit(0, OP_BAR_Y);
 }
@@ -1077,7 +1077,7 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
             op_ink = mute ? OP_PUR_D : OP_PUR;
             op_band_member(i, cx, top - 1 - (i == TRK_DRUM ? 0 : air), air > 2, anylit && !side, anylit && side, c);
             if (mute || (song.solo >> i) & 1u) {
-                cv_rect(cx + 14, 2, 12, 14, mute ? TE_RED : C_WHITE);
+                cv_rect(cx + 14, 2, 12, 14, mute ? TE_MUTE : TE_SOLO);
                 cv_text(cx + 16, 1, &FONT_S, mute ? "M" : "S", C_BLACK);
             }
         }
@@ -1098,7 +1098,7 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
             uint16_t c = i < 4u ? TE_COL[i] : i < 8u ? TE_MID[i - 4u] : KEYS[i] == ' ' ? OP_PUR_D : TE_G4;
             char ch[2] = {KEYS[i], 0};
             if (on)
-                cv_rect(x, 4, 12, 22, i < 4u ? TE_RED : C_WHITE);
+                cv_rect(x, 4, 12, 22, i < 4u ? TE_MUTE : i < 8u ? TE_SOLO : C_WHITE);
             else
                 op_box(x, 4, 12, 22, c);
             if (i == 9u && (flags & 4u))
@@ -1188,9 +1188,9 @@ static void op_home_body(void)
             if (rec)
                 cv_text(236 - text_w(&FONT_S, "REC"), 0, &FONT_S, "REC", TE_RED);
             else if (solo)
-                cv_text(236 - text_w(&FONT_S, "SOLO"), 0, &FONT_S, "SOLO", C_WHITE);
+                cv_text(236 - text_w(&FONT_S, "SOLO"), 0, &FONT_S, "SOLO", TE_SOLO);
             else if (silent)
-                cv_text(236 - text_w(&FONT_S, "MUTE"), 0, &FONT_S, "MUTE", TE_G3);
+                cv_text(236 - text_w(&FONT_S, "MUTE"), 0, &FONT_S, "MUTE", TE_MUTE);
             cv_blit(0, OP_BODY_Y + 44);
         }
     }

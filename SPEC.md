@@ -45,6 +45,8 @@ Decided 20 Nov (Ben: "Yeah let's confirm those colour swaps for the alien and cr
 
 > "Also feel free to improve the colours so they feel like a cohesive palette" (20 Nov: the hex values above are the starting point, not fixed)
 
+> "The Red for what I assume is Mute? is very similar to the coral... perhaps we could pair any of the controls (if they exist with the same colours as Ableton which would make Solo a blue S, Mute a yellow M etc. ? And maybe we could slightly persuide the coral colour out brighter with a bit more orange / pink rather than Red" (20 Nov)
+
 ### Drums
 
 Decided 20 Nov: keep KARMA's own drum kits; no new drum engine for now ("Let's stay put with the drum machines. I didn't realise there were lots of options to choose from!").
