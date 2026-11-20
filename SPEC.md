@@ -67,3 +67,17 @@ Decided 20 Nov: keep KARMA's own drum kits; no new drum engine for now ("Let's s
 - GPL-3.0-only: if this build is shared with anyone, the full source must be shared too. A public fork covers that.
 - The hardware build needs JieLi's Linux toolchain and the AC79 SDK. Neither is reachable from Claude's cloud workspace, so builds run on GitHub Actions in Ben's fork (or on his Mac with Docker).
 - Newer FM-1 units have a changed chip; check Ben's unit before the first flash.
+
+## 20 Nov 2026, evening: name, characters, backdrops (Ben's words)
+
+Name: "I want it to be called something that sounds a bit like a greek or roman god's name. Maybe meaning something that encapsulates a euphoric french touch feeling. But could also be the name of a space probe" ... "Phebus?" ... "Just do it in plain white. PHEBUS." ... "Can you do it in a smooth font? Rather than pixelated? Something suitable for the barbican. Or Daft Punk - but not their font."
+
+Characters and backdrops (with six reference pictures: a realistic grey alien with huge black eyes; two muscular crocodile-men, one roaring; a tall chrome humanoid robot with a blank visor head; two pencil drawings of a reared cobra, fangs and tongue out): "I want a cross between this kind of ferocity in the characters. Will screensavers or backdrops that have really specific acid psychedelic modern glitch art fused with alex gray's psychedellic eyes and desert art vibe"
+
+His picker answers:
+- How the fierce characters move: "Both" (dance while playing, strike poses on accents).
+- Backdrop colours: "Four voice colours" (purple, blue, teal and coral only, each driven by its own voice's level).
+- Where backdrops appear: "Screensavers only" (they replace the visualiser screens; working screens stay clean).
+- Order: "Characters first".
+
+Claude's notes: the references set a mood, they are not to be traced or copied; the robot reference is a real product, so the robot is an original design. Backdrops are original work, not copies of any artist's paintings.
