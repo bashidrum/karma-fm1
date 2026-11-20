@@ -1030,6 +1030,10 @@ static void layer_screen_draw(void)
     {   /* (a message shows in the title: the dials stay) */
         uint8_t m = ui.msg_t;
         ui.msg_t = 0;
+        if (layer == LY_MIX)                            /* GLO layer: the levels of tracks 1..4 */
+            knob_tint_voices();
+        else
+            knob_tint_all(song.sel);
         te_dials(184, lab, val, ratio, layer * 7919u, &foot);
         ui.msg_t = m;
     }

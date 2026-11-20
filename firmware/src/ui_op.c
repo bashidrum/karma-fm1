@@ -96,7 +96,7 @@ static void op_knobs(const char *const lab[4], const char *const val[4], const c
 #if KARMA_ANN
     opk_take(lab, val, unit);                           /* every frame, for the screen reader (ui_speak.c) */
 #endif
-    sig = studio_hash(sig + dim * 977u, ui.msg_t ? ui.msg : "");
+    sig = studio_hash(sig + dim * 977u + knob_tint_sig() * 7919u, ui.msg_t ? ui.msg : "");
     for (k = 0; k < 4u; k++) {
         sig = studio_hash(sig * 7u + (uint32_t)ratio[k] + (ui.hot_t && ui.hot_col == k) * 5003u, lab[k]);
         sig = studio_hash(sig, val[k]);
@@ -117,15 +117,15 @@ static void op_knobs(const char *const lab[4], const char *const val[4], const c
     for (k = 0; k < 4u; k++) {
         int32_t x0 = 4 + 58 * (int32_t)k, x = x0;
         uint32_t hot = ui.hot_t && ui.hot_col == k;
-        uint16_t c = hot ? C_WHITE : (dim >> k) & 1u ? TE_G2 : TE_COL[k];
+        uint16_t c = hot ? C_WHITE : (dim >> k) & 1u ? TE_G2 : tint_col(k, 0);
         const char *v = val[k], *u = unit ? unit[k] : "";
         int32_t uw = u[0] ? text_w(&FONT_S, u) + 3 : 0;
         if (!lab[k][0])
             continue;
-        cv_text(x0, 5, &FONT_S, lab[k], TE_COL[k]);
+        cv_text(x0, 5, &FONT_S, lab[k], tint_col(k, 0));
         if (ratio[k] >= 0) {
             cv_rect(x0, 22, 52, 1, TE_G1);
-            cv_rect(x0, 22, ratio[k] * 52 / 1000, 1, TE_MID[k]);
+            cv_rect(x0, 22, ratio[k] * 52 / 1000, 1, tint_col(k, 1));
         }
         if (op_is_num(v) && (int32_t)str_len(v) * 16 + uw <= 58) {   /* (with a unit that fits beside them) */
             if (*v == '-') {
@@ -146,7 +146,7 @@ static void op_knobs(const char *const lab[4], const char *const val[4], const c
         if (uw && x + uw <= x0 + 57)
             cv_text(x + 3, 38, &FONT_S, u, TE_G3);
         if (hot)
-            cv_rect(x0, 55, 52, 2, TE_COL[k]);
+            cv_rect(x0, 55, 52, 2, tint_col(k, 0));
     }
     cv_blit(0, OP_KNOB_Y);
 }
@@ -1110,6 +1110,7 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
     {
         uint8_t m = ui.msg_t;
         ui.msg_t = 0;
+        knob_tint_voices();                             /* the mixer: one knob per voice */
         op_knobs(LAB, val, 0, ratio, 0, 4242u, &knobs);
         ui.msg_t = m;
     }

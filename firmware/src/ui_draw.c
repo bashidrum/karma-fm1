@@ -707,7 +707,7 @@ static void graph_big(void)
             x0 = (240 - text_w(&FONT_L, ui.big_v[c]) - (ui.big_u[c][0] ? text_w(&FONT_S, ui.big_u[c]) + 4 : 0)) / 2;
             y0 = 30;
         }
-        cv_text(x0, y0 + 2, &FONT_S, ui.big_l[c], TE_COL[c & 3u]);
+        cv_text(x0, y0 + 2, &FONT_S, ui.big_l[c], tint_col(c, 0));
         x = cv_text(x0, y0 + 20, &FONT_L, ui.big_v[c], ui.big_c[c] == C_DIM ? C_DIM : ui.big_c[c] == C_WHITE ? C_WHITE : C_HI);
         if (ui.big_u[c][0])
             cv_text(x + 4, y0 + 34, &FONT_S, ui.big_u[c], C_GRAY);
@@ -725,13 +725,13 @@ static void graph_menu(const track_t *t)
     uint32_t c;
     for (c = 0; c < 4u; c++) {
         int32_t y = 2 + (int32_t)c * 30, x, lw, vw, uw;
-        uint16_t vc = ui.big_c[c];                      /* (the knob's colour, as the band below; dim: does nothing now) */
+        uint16_t vc = ui.big_c[c] == C_DIM ? C_DIM : ui.big_c[c] == C_WHITE ? C_WHITE : tint_col(c, 0);   /* (the page's tint; dim: does nothing now) */
         char n[2] = {(char)('1' + c), 0};
         if (!ui.big_l[c][0])
             continue;
-        cv_rect(4, y + 6, 12, 18, TE_COL[c & 3u]);      /* the knob: its number on its colour */
+        cv_rect(4, y + 6, 12, 18, tint_col(c, 0));      /* the knob: its number, in the page's tint */
         cv_text(6, y + 7, &FONT_S, n, C_BLACK);
-        lw = cv_text(22, y + 7, &FONT_S, ui.big_l[c], TE_COL[c & 3u]);
+        lw = cv_text(22, y + 7, &FONT_S, ui.big_l[c], tint_col(c, 0));
         uw = ui.big_u[c][0] ? text_w(&FONT_S, ui.big_u[c]) + 4 : 0;
         vw = text_w(&FONT_L, ui.big_v[c]);
         if (168 - uw - vw >= lw + 8) {                  /* the value large, to the right */
@@ -880,6 +880,10 @@ static void draw_columns(void)                         /* the four knobs of the 
         lab[c] = opk.lab[c];
         val[c] = opk.val[c];
         unit[c] = opk.unit[c];
+    }
+    {                                                   /* a track's page: its colour; a song or global page: neutral */
+        uint32_t sc = cur_page()->scope;
+        knob_tint_all(sc == SC_GLOBAL || sc == SC_SONG ? TINT_NEUTRAL : sc == SC_DRUM ? TRK_DRUM : song.sel);
     }
     op_knobs(lab, val, unit, opk.ratio, opk.dim, song.sel * 7u + ui.page * 31u + ui.home, &ui.col_sig);
     {                                                   /* the track bar under them: it follows the track selected here */

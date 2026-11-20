@@ -47,6 +47,10 @@ Decided 20 Nov (Ben: "Yeah let's confirm those colour swaps for the alien and cr
 
 > "The Red for what I assume is Mute? is very similar to the coral... perhaps we could pair any of the controls (if they exist with the same colours as Ableton which would make Solo a blue S, Mute a yellow M etc. ? And maybe we could slightly persuide the coral colour out brighter with a bit more orange / pink rather than Red" (20 Nov)
 
+### Colour means voice (Ben, 20 Nov, about the FX screen)
+
+> "I realise that this is a confusing layout for me on the FX screen... it lists 1,2,3, DRUM along the bottom, I thought they were pages no percentages of how much track had of each page's effect as a wet dry control. Stupid design there. Also they've used the same colours for the FX as they have for the voices. The voices' colours should be a unique signifier that whatever you are interacting with is being applied to THAT specific voice. Otherwise, we can use a generic colour to mean general or global controls. And if you're editing lots of parameters that effect only one voice, all the controls on that page would be in THAT specific voice's colour"
+
 ### Drums
 
 Decided 20 Nov: keep KARMA's own drum kits; no new drum engine for now ("Let's stay put with the drum machines. I didn't realise there were lots of options to choose from!").

@@ -31,6 +31,21 @@ static const uint16_t TE_COL[4] = {RGB(140, 118, 240), RGB(40, 160, 245), RGB(20
 static const uint16_t TE_MID[4] = {RGB(92, 78, 158), RGB(26, 106, 162), RGB(13, 129, 112), RGB(168, 84, 71)};
 static const uint16_t TE_DIM[4] = {RGB(48, 40, 82), RGB(14, 54, 83), RGB(7, 67, 58), RGB(87, 44, 37)};
 #define TE_DRUM TE_COL[3]
+/* Ben's rule (SPEC.md, 20 Nov 2026): a voice's colour means "this acts on that voice". A knob strip is tinted by what
+ * each knob acts on: 0..3 a track, 4 neutral (general or global controls). knob_tint[] is set by the screen that draws
+ * the strip, just before op_knobs / te_dials. */
+#define TINT_NEUTRAL 4u
+static const uint16_t *const TE_TINTS[3] = {TE_COL, TE_MID, TE_DIM};
+static uint8_t knob_tint[4] = {0, 1, 2, 3};
+static uint16_t tint_col(uint32_t k, uint32_t shade)    /* shade 0 full, 1 mid, 2 dim */
+{
+    static const uint16_t NEU[3] = {RGB(196, 196, 204), RGB(118, 118, 126), RGB(54, 54, 60)};
+    uint32_t v = knob_tint[k & 3u];
+    return v < 4u ? TE_TINTS[shade][v] : NEU[shade];
+}
+static void knob_tint_all(uint32_t v) { knob_tint[0] = knob_tint[1] = knob_tint[2] = knob_tint[3] = (uint8_t)v; }
+static void knob_tint_voices(void) { knob_tint[0] = 0, knob_tint[1] = 1, knob_tint[2] = 2, knob_tint[3] = 3; }
+static uint32_t knob_tint_sig(void) { return knob_tint[0] + knob_tint[1] * 5u + knob_tint[2] * 25u + knob_tint[3] * 125u; }
 
 static void te_disc(int32_t cx, int32_t cy, int32_t r, uint16_t c)     /* filled circle */
 {
@@ -87,7 +102,7 @@ static void te_dials(int32_t y0, const char *const lab[4], const char *const val
                      uint32_t sig, uint32_t *cache)
 {
     uint32_t k;
-    sig = studio_hash(sig, ui.msg_t ? ui.msg : "");
+    sig = studio_hash(sig + knob_tint_sig() * 7919u, ui.msg_t ? ui.msg : "");
     for (k = 0; k < 4u; k++) {
         sig = studio_hash(sig * 7u + (uint32_t)ratio[k] + (ui.hot_t && ui.hot_col == k) * 5003u, lab[k]);
         sig = studio_hash(sig, val[k]);
@@ -106,7 +121,7 @@ static void te_dials(int32_t y0, const char *const lab[4], const char *const val
         int32_t cx = 30 + 60 * (int32_t)k;
         if (!lab[k][0])
             continue;
-        te_dial(cx, 12, 11, ratio[k], TE_COL[k], TE_DIM[k]);
+        te_dial(cx, 12, 11, ratio[k], tint_col(k, 0), tint_col(k, 2));
         te_text_c(cx, 24, lab[k], TE_G3);
     }
     cv_blit(0, (uint32_t)y0);
@@ -232,6 +247,8 @@ static void studio_tracks_draw(void)
         ratio[1] = t->p[P_MUTE] ? 0 : (int32_t)lvl * 1000 / 127;
         ratio[2] = (t->p[P_SLEN] - 1) * 1000 / 63;
         ratio[3] = (t->p[P_PAN] + 64) * 1000 / 127;
+        knob_tint_all(song.sel);                        /* HOME: swing is the song's, the rest the selected track's */
+        knob_tint[0] = TINT_NEUTRAL;
         op_knobs(lab, val, 0, ratio, 0, song.sel, &footer);
     }
     op_trackbar(&bar);
@@ -595,6 +612,7 @@ static void drum_screen_draw(void)
             ratio[2] = v[2][0] == 'o' ? 1000 : 0;
             ratio[3] = dstep_has(s, drum_lane) ? (int32_t)lvl_rank(dstep_lvl(s, drum_lane)) * 333 : 0;   /* ghost left ..
                                                                      * hard right (2.5: it followed the stored order) */
+            knob_tint_all(TRK_DRUM);
             op_knobs(LG, val, 0, ratio, 0, 1u, &footer);
         } else {
             str_cpy(v[0], LANE_SHORT[drum_lane], 8);   /* KIT: the sound, the kit, the sound's own reverb and delay */
@@ -605,6 +623,7 @@ static void drum_screen_draw(void)
             ratio[1] = (int32_t)kit * 1000 / (int32_t)(DRUM_KITS - 1u);
             ratio[2] = drum_send[drum_lane][0] * 1000 / DRUM_SEND_REV;
             ratio[3] = drum_send[drum_lane][1] * 1000 / DRUM_SEND_DLY;
+            knob_tint_all(TRK_DRUM);
             op_knobs(LK, val, 0, ratio, 0, 2u, &footer);
         }
     }
@@ -930,6 +949,7 @@ static void rec_screen_draw(void)
             for (k = 0; k < 4u; k++)
                 if (!lab[k][0])
                     val[k] = "";                        /* (a dial not shown: no value either) */
+            knob_tint_all(song.sel);
             te_dials(184, lab, val, ratio, rt * 7u + count * 3u, &dials);
         }
     }
