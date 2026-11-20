@@ -326,8 +326,11 @@ static void tap_tempo(void)
 static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
 {
     int32_t w = punch_key(k);
-    if (layer >= LY_COUNT)
-        return;                                         /* (KB_GRID: the DRUMS grid page's, ui_studio.c) */
+    if (layer >= LY_COUNT) {                            /* KB_GRID: the GRID's (ui_grid.c); a layer held, only */
+        if (!down)                                      /* its releases come: a step held let go */
+            grid_key(k, 0);
+        return;
+    }
     if (!down) {
         if (w >= 0) {
             ui.step_held &= (uint16_t)~(1u << w);

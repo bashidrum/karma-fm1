@@ -158,7 +158,7 @@ The layers are **FX** (punch-in effects), **EDIT** (erase), **ARP** (note repeat
 | **SEL** | SEL pages (SEL, SEL 2) | key / chord layer |
 | **EDIT** | EDIT pages (EDIT 1, EDIT 2, VOICE, VOICE 2) · drum track: the sound pages (HEX OSC, HEX AEG, HEX MOD, HEX CLICK, HEX FILT, HEX MORE) · on HOME with the drum track: the **DRUM** screen · on the STEP page: clear the step · on the SONG screen: twice erases the part at the cursor | erase layer |
 | **ARP** | ARP pages (ARP, ARP 2) | note-repeat layer |
-| **SEQ** | SEQ pages (STEP, PATTERN, PLAY, ACID GEN, ACID GEN 2, GEN, GEN 2, HARMONY, SONG; the drum track: DRUM GEN, DRUM GEN 2 in place of the GEN pages) · on HOME with the drum track: the **DRUM** screen · on DRUM: GRID → KIT → DRUM GEN | step layer |
+| **SEQ** | SEQ pages (STEP, PATTERN, PLAY, ACID GEN, ACID GEN 2, GEN, GEN 2, HARMONY, SONG; the drum track: DRUM GEN, DRUM GEN 2 in place of the GEN pages) · on HOME: the **GRID** of the selected track ([The GRID](#the-grid-step-keys-on-every-track)) · on a synth track's GRID: the STEP page · on DRUM: GRID → KIT → DRUM GEN | step layer |
 | **GLO** | GLO pages (GLOBAL, MASTER, SYSTEM, DRUMS, MIDI, MIDI 2, MIDI 3, TEXTURE, TEXTURE 2) | mix layer |
 | **OCT− / OCT+** | synth track: octave down / up (−3 … +3) · both together: octave 0 | drum track: **ghost** (OCT−) / **hard** (OCT+) hits while held |
 | **ALGORITHM** | select track 1–4, on every screen (inside a layer it waits; not during a free take, on the SONG screen or in the menu) | — |
@@ -244,8 +244,8 @@ Open it with **EDIT** or **SEQ** tapped on the HOME screen while the drum track 
 | KNOB 2 **step** | moves to a step — you hear what it holds |
 | KNOB 3 **hit** | right: a hit of that sound on that step (NORM) · left: clear it |
 | KNOB 4 **level** | the hit's level up / down (GHOST, SOFT, NORM, HARD) |
-| **white keys** | the 16 steps of the sound KNOB 1 picks: press to set the step (you hear it), again to clear it; the keys light that sound's steps |
-| **first four black keys** | the page of steps: 1–16, 17–32, 33–48, 49–64 |
+| **white keys** | the 16 steps of the sound KNOB 1 picks: press to set the step (you hear it), again to clear it; the keys light that sound's steps. **Hold** a step: KNOB 1–4 are its LEVEL, RATCH, NUDGE, COND and the FX page buttons lock, as on every track's [GRID](#the-grid-step-keys-on-every-track) |
+| **first four black keys** | the page of steps: 1–16, 17–32, 33–48, 49–64 (also OCT− / OCT+) |
 | **PRESETS** | the kit |
 | **SAVE** | the SONG screen |
 | **HOME** | back to HOME |
@@ -437,11 +437,12 @@ Details in [Song mode](#14-song-mode-sections-chains-songs).
 
 Each track has up to **64 steps** with its own **length** (1–64) and **division** (1/32 to two bars). Tracks of different lengths loop on their own and stay in phase (polymeters). A synth step holds up to 4 notes (a chord) with a level and ratchet, a tie or a rest, an accent and a slide; a drum step holds any of the 16 sounds, each with its own level and ratchet.
 
-There are three ways to enter steps:
+There are four ways to enter steps:
 
 1. **Live** — REC and play (see [Recording](#8-recording)).
-2. **The SEQ layer** — hold SEQ, the white keys are steps (all tracks; see [SEQ — steps](#seq--steps)).
-3. **The STEP page** (synth tracks) — tap **SEQ**: the step under the cursor is written from the keys, acid style:
+2. **The GRID** — on HOME tap **SEQ**: the white keys are the steps, no button held, on every track (Elektron style; see [The GRID](#the-grid-step-keys-on-every-track)).
+3. **The SEQ layer** — hold SEQ, the white keys are steps (all tracks; see [SEQ — steps](#seq--steps)).
+4. **The STEP page** (synth tracks) — on the GRID tap **SEQ** (or SEQ → STEP): the step under the cursor is written from the keys, acid style:
 
 | STEP page | Does |
 | --- | --- |
@@ -455,6 +456,34 @@ There are three ways to enter steps:
 Not while recording or armed (the keys record live then). On the drum track, the STEP page shows *DRUM TRACK*: use the DRUM grid or the SEQ layer.
 
 The **PATTERN** page (tap SEQ again) holds the track's **LEN**, **DIV**, **SWG** (swing) and **GATE** (how long each note lasts).
+
+### The GRID: step keys on every track
+
+Tap **SEQ** on HOME: the selected track's **GRID**. On the drum track it is the DRUM screen's grid; on a synth track the same thing for notes. **ALGORITHM** changes the track and the GRID stays. The keys play nothing here: they are steps. **HOME** goes back.
+
+The screen, in the track's colour: the 16 steps of the page (two rows of eight: keys 1–8, 9–16), a set step filled with its note (white text: an accent; a white dot on its right edge: a slide; a bar along the bottom: its velocity), a TIE as a bar from the note before it, a dot top right for a lock or nudge, a notch top left for a condition. The cursor is framed white, the playhead is a white bar, the bars under the tiles are the pages (the one shown filled). Below: the cursor's step (notes, length, velocity, condition, nudge, locks) and the **PEN**, the note or chord a new step gets. The title says the page (*GRID 1/2*).
+
+| Control | Does |
+| --- | --- |
+| **tap a step key** | an empty step is set: synth, the PEN at VEL 100 (POLY: the whole chord); drums, the sound KNOB 1 picks (NORM) · a set step is cleared (when its key comes up) |
+| **hold a step key** | the step stays selected while held, and the screen shows all it holds, big: notes, LEN, VEL, flags, condition, nudge, every lock. Let go: kept as set (a held step that you changed is never cleared). Several held: edited together |
+| step held + **KNOB 1–4** | synth: **NOTE** (one click = one note of the track's scale; a chord moves whole), **LEN** (steps; the steps after become TIEs), **VEL** 1–127, **COND** (–, FILL, NO FILL, CHANCE) · drums: **LEVEL**, **RATCH** x1–x4, **NUDGE**, **COND** |
+| step held + **SELECT** (synth) | right: the knobs become **FLAG** (–, ACC, SLD, A+S), **RATCH**, **NUDGE**; left: back |
+| step held + **ENV**, **LFO**, **FX** or **EDIT** (tap) | **parameter locks**: that button's page goes on the knobs (title *LOCK ENV*…), and each knob turned locks its parameter on the step(s) held. A value in full colour is a lock, a dim one is the track's own value. Tap the button again: its next page that can lock. Let go of the step: the GRID's knobs come back |
+| step held + **PRESETS** / **ALGORITHM** | as in the SEQ layer: a lock of the lock parameter / which parameter |
+| step held + **OCT−** | removes locks: on a lock page, that page's locks only; on the GRID, every lock, the nudge and the condition |
+| step held + **OCT+** | the condition, round: normal, FILL ONLY, NO FILL, CHANCE |
+| **first four black keys** | the page: steps 1–16, 17–32, 33–48, 49–64 (up to the track's length). The other black keys do nothing here |
+| **OCT− / OCT+** (no step held) | the page before / after |
+| **KNOB 1–4** (no step held), synth | **NOTE**: the PEN, one note of the scale a click · **STEP**: the cursor · **HIT**: right sets the cursor's step (the PEN), left clears it · **VEL** of the cursor's step. (Drums: SOUND, STEP, HIT, LEVEL, as before) |
+| **PRESETS** (no step held) | synth: the sound, as on HOME · drums: the kit |
+| **SELECT** (no step held) | synth: the tempo · drums: GRID ↔ KIT |
+| **SEQ** (tap) | synth: the STEP page (acid style entry, then PATTERN…) · drums: GRID → KIT → DRUM GEN |
+| **EDIT**, **ENV**, **LFO**, **FX** (no step held) | their pages, as anywhere (drums: EDIT the sound's pages; ENV and LFO nothing) |
+
+The PEN is the last note or chord you played (on the keys elsewhere, or a MIDI keyboard, which still plays on the GRID), or what KNOB 1 sets. Each step key, set or cleared, is one undo (EDIT + OCT−). The locks are the same as everywhere: 24 a track, the sound parameters only (*NOT LOCKABLE*, *NO LOCK LEFT*); a page with nothing to lock says *NOTHING TO LOCK HERE*.
+
+The other ways stay: hold **SEQ** for the step layer, and the **STEP** page writes steps from the keys, acid style.
 
 ### The other SEQ pages: PLAY, ACID GEN, GEN, HARMONY, DRUM GEN
 
@@ -670,6 +699,7 @@ Stop first (*STOP FIRST*). Save the current song before you load another if you 
 | **Visualiser** | tap **HOME** on HOME | eleven full-screen visualisers; see [The visualiser](#19-the-visualiser) |
 | **Layer** | hold a layer button | 16 tiles (the white keys) and the four dials, in the layer's colour; FX: all 27 keys as a keyboard; GLO: the MIX screen |
 | **DRUM** (grid / kit) | tap **EDIT** or **SEQ** on HOME with the drum track | see [The DRUM screen](#the-drum-screen) |
+| **GRID** (synth tracks) | tap **SEQ** on HOME with a synth track | the steps on the keys; see [The GRID](#the-grid-step-keys-on-every-track) |
 | **REC READY / FREE TAKE / COUNT-IN** | **REC** while stopped | the tracks, then **mode · length · start** on KNOB 1–3 (4-3-2-1 during a count-in); in a free take: the seconds and the loop it would make |
 | **Hold ring** | hold **REC** | the ring of *clear track* filling |
 | **SONG** | tap **SAVE** on HOME, or **SAVE + key 16** | the section chain; see [The SONG screen](#the-song-screen) |

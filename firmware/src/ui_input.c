@@ -145,20 +145,8 @@ static uint32_t keys_lit(void)
     default:                                       /* playing, ARP roll, SAVE song, every page and the menu */
         break;
     }
-    if (kb_grid) {                                 /* the DRUMS grid page: the sound's steps of this page */
-        uint32_t len = trk_len(TDRUM), b0 = drum_cursor / 16u * 16u;
-        for (i = 0; i < 16u; i++) {
-            uint32_t idx = b0 + i, on;
-            if (idx >= len)
-                continue;
-            on = dstep_has(&TDRUM->dstep[idx], drum_lane);
-            if (song.playing && idx == TDRUM->seq_idx)
-                on = !on || blink;
-            if (on)
-                m |= 1u << key_of_white(i);
-        }
-        return m | fm1_in.notes;
-    }
+    if (kb_grid)                                   /* the GRID: the steps of the page shown (ui_grid.c) */
+        return grid_keys_lit(blink) | fm1_in.notes;
     m = fm1_in.notes;
     if (is_drum(t) || lights_notes)                /* the drum track: each hit lights its key; NOTES: the synths too */
         m |= keys_sounding(t);
@@ -190,7 +178,7 @@ static uint32_t keys_notes_dim(void)
  * 1, 5, 9, 13) while a layer is held, and on the drum track (its 16 sounds, 4 x 4 as on KIT) */
 static uint32_t keys_guide(void)
 {
-    if (ui.layer == LY_PLAY && !is_drum(TSEL))
+    if (ui.layer == LY_PLAY && !is_drum(TSEL) && !kb_grid)
         return 0u;
     return 1u << key_of_white(0) | 1u << key_of_white(4) | 1u << key_of_white(8) | 1u << key_of_white(12);
 }
@@ -665,7 +653,10 @@ static void layer_tap(uint32_t layer)
 {
     switch (layer) {
     case LY_FX:
-        open_family(FAM_FX);
+        if (on_drum_page() && sg_held)                    /* the GRID, a step held: the FX pages lock (ui_grid.c) */
+            sg_lock_open(FAM_FX);
+        else
+            open_family(FAM_FX);
         break;
     case LY_ERASE:
     case LY_STEP:
@@ -675,8 +666,18 @@ static void layer_tap(uint32_t layer)
             break;
         }
 #endif
-        if (on_drum_page() && layer == LY_ERASE) {        /* DRUMS: EDIT -> the sound's pages (HEX OSC ..) */
+        if (on_drum_page() && sg_held) {                  /* the GRID, a step held: EDIT's pages lock; SEQ nothing */
+            if (layer == LY_ERASE)
+                sg_lock_open(FAM_EDIT);
+            break;
+        }
+        if (on_drum_page() && layer == LY_ERASE) {        /* GRID: EDIT -> the sound's pages (drums: HEX OSC ..) */
             open_family(FAM_EDIT);
+            break;
+        }
+        if (on_drum_page() && !is_drum(TSEL)) {           /* a synth's GRID: SEQ -> the STEP page (acid style entry) */
+            ui.fam_last[FAM_SEQ] = 0;
+            open_family(FAM_SEQ);
             break;
         }
         if (on_drum_page()) {                             /* DRUMS: SEQ -> GRID -> KIT -> DRUM GEN */
@@ -688,8 +689,8 @@ static void layer_tap(uint32_t layer)
             studio_open(SC_DRUM);                         /* to the drums */
             break;
         }
-        if (!ui.home && cur_page()->scope == SC_TRK && is_drum(TSEL)) {
-            studio_open(SC_DRUM);
+        if (!ui.home && cur_page()->scope == SC_TRK && (is_drum(TSEL) || layer == LY_STEP)) {
+            studio_open(SC_DRUM);                         /* HOME: SEQ -> the GRID, every track (drums: EDIT too) */
             break;
         }
         if (layer == LY_ERASE && song.seq_mode && cur_page()->scope == SC_STEP && !is_drum(TSEL)) {
@@ -804,9 +805,9 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         while (lk_r != lk_w) {                            /* a key let go after its layer: its release only */
             uint32_t e = lk_q[lk_r % LKQ];
             lk_r++;
-            if ((e >> 8) == KB_GRID) {                    /* the DRUMS grid page: a step key */
-                if (((e >> 7) & 1u) && grid_keys_on())
-                    grid_key(e & 31u);
+            if ((e >> 8) == KB_GRID) {                    /* the GRID: a step key (its release always) */
+                if (!((e >> 7) & 1u) || grid_keys_on())
+                    grid_key(e & 31u, (e >> 7) & 1u);
             } else if (!((e >> 7) & 1u)) {
                 layer_key(e >> 8, e & 31u, 0);
             }

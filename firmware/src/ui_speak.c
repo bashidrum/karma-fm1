@@ -113,7 +113,7 @@ static const char *sp_title(void)                      /* the screen's name, as 
     if (pg->scope == SC_TRK)
         return "home";                                  /* (the TRACKS page: its header says HOME) */
     if (on_drum_page())
-        return "drum kit";
+        return is_drum(TSEL) ? "drum kit" : "step grid";   /* (a synth track's GRID: ui_grid.c) */
     return pg->scope == SC_ENGINE && !is_drum(TSEL) ? e->page_title[pg->id[0] != P_E0] : pg->title;
 }
 
@@ -321,7 +321,7 @@ static int sp_special(void)
         }
         return 1;
     }
-    if (on_drum_page()) {                              /* the drum kit screen: the kit */
+    if (on_drum_page() && is_drum(TSEL)) {             /* the drum kit screen: the kit */
         sp_cat(". kit ");
         sp_kit();
         return 1;
