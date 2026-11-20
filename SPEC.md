@@ -30,6 +30,14 @@ Ben, 20 Nov 2026, after playing the simulator:
 
 > "The graphics bum me out. I'm up for whimsical characters but they're kind of gross looking. I would want a robot, an alien, a crocodile and a snake. And I would want them to dance rather than play. We could have a white robot, green alien, blue crocodile, and a red snake? What are the Juno colours, the roland colours, let's steal those."
 
+Colours, later the same evening (with a photo of a Roland Jupiter-08 Boutique):
+
+> "I like the purple and sage green colours that I use on everything else too and the icy kind of baby blue with a coralish red / orange pink."
+
+### Drums
+
+> "I don't love the 808.. truth be told I'd rather 707 or 606 sounds. Reckon you could hunt one down for us to steal and replace this kit? Or just if there's a REALLY good sounding drum synth out for the FM1 maybe we can steal its brain and stick it in our one?"
+
 ### Sound design layout
 
 > "The menu diving is intense and doesn't yield significantly better results. I would want a sound design layout that matches the flow and ease of the Minifreak. Oscillator engine > Filter > ADSR > FX + MOD matrix. We could leave the mod matrix to the end. But their concepts for small builds on synths are definitely the best and most fluid sound design."
