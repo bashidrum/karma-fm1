@@ -1035,7 +1035,7 @@ async function editorDsyn() {
         good = good && DSYN.desc(k, m)[0] === want;
       }
     }
-    good = good && js(DSYN.PAGES.map((p) => p[0])) === js([...pc.matchAll(/\{"(HEX \w+)", FAM_EDIT/g)].map((x) => x[1]))
+    good = good && js(DSYN.PAGES.map((p) => p[0])) === js([...pc.matchAll(/\{"(HEX \w+)", FAM_\w+/g)].map((x) => x[1]))
       && DSYN.desc("aux1", 0)[2] === 11 && DSYN.desc("aux1", 1)[0] === "REPT" && DSYN.desc("aux1", 2)[2] === 127 && DSYN.desc("aux1", 3)[2] === 35;
     ok(good, "dsyn: each model's labels and ranges == the device's EDIT pages (params.c GP[G_HX*], hex_desc; HEX OSC .. HEX MORE)");
   }

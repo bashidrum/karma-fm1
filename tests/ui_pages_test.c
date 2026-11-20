@@ -172,7 +172,7 @@ int main(int argc, char **argv)
     ui.menu = 2; ui.force = 1; frame(); ppm("page-about"); ui.menu = 0;
     go_home(); ui.force = 1; frame(); ppm("page-tracks");
     open_family(FAM_ENV); ui.force = 1; ui.hot_col = 1; ui.hot_t = 30; frame(); ppm("page-env");
-    open_family(FAM_EDIT); ui.force = 1; frame(); ppm("page-edit");
+    go_home(); open_family(FAM_EDIT); ui.force = 1; frame(); ppm("page-edit");   /* (EDIT: the chain's start, OSC) */
     open_family(FAM_FX); ui.force = 1; frame(); ppm("page-fx");
     open_family(FAM_SEQ); ui.force = 1; frame(); ppm("page-step");
     open_family(FAM_GLO); ui.force = 1; frame(); ppm("page-global");
@@ -915,19 +915,24 @@ int main(int argc, char **argv)
         song.g[G_BPM] = bpm;
         tap(B_LFO);
         check(!strcmp(PT(), "LFO"), "SELECT: LFO opens its first page");
+        /* (the sound chain, Ben 20 Nov 2026: OSC > FILTER > ENV > FX > MOD; MOD is LFO, LFO DEST, LFO 2) */
         SEL(1);
-        check(!strcmp(PT(), "LFO 2") && song.g[G_BPM] == bpm, "SELECT on LFO: next page LFO 2 (2.6), the tempo untouched");
+        check(!strcmp(PT(), "LFO DEST") && song.g[G_BPM] == bpm, "SELECT on LFO: next page LFO DEST, the tempo untouched");
+        SEL(1);
+        check(!strcmp(PT(), "LFO 2") && song.g[G_BPM] == bpm, "SELECT: then LFO 2 (2.6)");
         ui.force = 1; frame(); ppm("page-lfo2");
         SEL(1);
-        check(!strcmp(PT(), "LFO DEST") && song.g[G_BPM] == bpm, "SELECT: then LFO DEST");
-        SEL(1);
-        check(!strcmp(PT(), "LFO DEST") && song.g[G_BPM] == bpm, "SELECT: stops at the last page of the family");
+        check(!strcmp(PT(), "LFO 2") && song.g[G_BPM] == bpm, "SELECT: stops at the end of the chain (MOD's last page)");
         SEL(-1);
-        check(!strcmp(PT(), "LFO 2"), "SELECT left: the page before");
+        check(!strcmp(PT(), "LFO DEST"), "SELECT left: the page before");
         SEL(-1);
         check(!strcmp(PT(), "LFO"), "SELECT left: LFO");
+        SEL(-1);
+        check(!strcmp(PT(), "CLOUD 2"), "SELECT left from MOD's first page: FX's last (one chain)");
         tap(B_FX); SEL(1);
-        check(!strcmp(PT(), "FILTER"), "SELECT on FX: next page, the track FILTER");
+        check(!strcmp(PT(), "INSERT"), "SELECT on FX: next page, INSERT");
+        go_home(); tap(B_EDIT); tap(B_EDIT); SEL(1);
+        check(!strcmp(PT(), "FILTER 2"), "EDIT, EDIT: FILTER; SELECT: FILTER 2 (ACID: the track FILTER)");
         TSEL->p[P_TFLT] = -32; ui.force = 1; frames(2); ppm("page-filter");
         check(!strcmp(ui.big_l[0], "FILT") && !strcmp(ui.big_v[0], "LP50") && !ui.big_l[1][0],
               "FILTER page: its one value drawn large (LP50 %)");
@@ -939,13 +944,24 @@ int main(int argc, char **argv)
             check(lit > 100u, "FILTER page: the knob band shows it");
         }
         TSEL->p[P_TFLT] = 0;
-        SEL(9);
-        SEL(9);                                         /* (two turns: the pages are more than one takes) */
-        check(!strcmp(PT(), "CLOUD 2"), "SELECT on FX: on to the last page, CLOUD 2");
-        tap(B_EDIT); SEL(-9);
-        check(!strcmp(PT(), "EDIT 1"), "SELECT on EDIT: back to the first page");
-        SEL(9);
-        check(!strcmp(PT(), "VOICE 2"), "SELECT on EDIT: up to VOICE 2");
+        tap(B_FX); SEL(7);
+        check(!strcmp(PT(), "CLOUD 2"), "SELECT on FX: on to its last page, CLOUD 2");
+        SEL(1);
+        check(!strcmp(PT(), "LFO"), "SELECT on FX's last page: on to MOD (LFO)");
+        go_home(); tap(B_EDIT); SEL(-9);
+        check(!strcmp(PT(), "OSC"), "EDIT: the chain's start, OSC; SELECT left stops there");
+        SEL(2);
+        check(!strcmp(PT(), "VOICE 2"), "SELECT on OSC: up to VOICE 2 (ACID: OSC, VOICE, VOICE 2)");
+        tap(B_EDIT);
+        check(!strcmp(PT(), "FILTER"), "EDIT on the chain: the next stage, FILTER");
+        tap(B_EDIT);
+        check(!strcmp(PT(), "ENV"), "EDIT: then ENV");
+        tap(B_EDIT);
+        check(!strcmp(PT(), "FX"), "EDIT: then FX");
+        tap(B_EDIT);
+        check(!strcmp(PT(), "LFO"), "EDIT: then MOD (LFO)");
+        tap(B_EDIT);
+        check(!strcmp(PT(), "OSC"), "EDIT on MOD: round to OSC");
         tap(B_SEQ); SEL(9);
         check(!strcmp(PT(), "HARMONY"), "SELECT on SEQ: STEP .. HARMONY, not into the SONG screen");
         tap(B_ENV);
@@ -1321,23 +1337,23 @@ int main(int argc, char **argv)
         go_home(); frames(16);
 
         song.sel = 0; set_engine_of(&trk[0], 0); trk[0].engine = trk[0].eng_req; go_home(); frame();
-        WALK(FAM_EDIT, "FILTER", flt_a);
+        for (j = 0; j < NPAGES; j++) flt_a |= PAGES[j].id[0] == P_FTYPE && PAGES[j].fam == FAM_FLT && page_shown(&PAGES[j]);
         open_family(FAM_EDIT); frame();
         for (j = 0; j < 30u && strcmp(PAGES[ui.page].title, "FILTER"); j++) { encs[panel.enc[EN_SELECT]] = 1; frame(); }
         ui.force = 1; frame(); ppm("page-filter");
         {   /* on EDIT > FILTER, ALGORITHM to a track that is not ANALOG: not left on a page it does not have */
             int16_t bpm0 = song.g[G_BPM];
             encs[panel.enc[EN_ALGO]] = 1; frames(2);
-            check(song.sel == 1u && trk[1].eng_req != 0u && PAGES[ui.page].fam == FAM_EDIT &&
-                  strcmp(PAGES[ui.page].title, "FILTER") && page_shown(cur_page()),
-                  "EDIT > FILTER, then a track that is not ANALOG: the page before (EDIT 2), not FILTER");
+            check(song.sel == 1u && trk[1].eng_req != 0u && PAGES[ui.page].fam == FAM_FLT &&
+                  PAGES[ui.page].id[0] == P_TFLT && page_shown(cur_page()),
+                  "FILTER (ANALOG's TYPE), then a track that is not ANALOG: its own FILTER page (FILT), not TYPE");
             encs[panel.enc[EN_SELECT]] = 1; frame();
             check(song.g[G_BPM] == bpm0, "  and SELECT turns pages there, not the tempo");
             song.sel = 0; go_home(); frame();
         }
         set_engine_of(&trk[0], 1); trk[0].engine = trk[0].eng_req; go_home(); frame();
-        WALK(FAM_EDIT, "FILTER", flt_o);
-        check(flt_a && !flt_o, "EDIT: the FILTER page (TYPE) with ANALOG only");
+        for (j = 0; j < NPAGES; j++) flt_o |= PAGES[j].id[0] == P_FTYPE && page_shown(&PAGES[j]);
+        check(flt_a && !flt_o, "FILTER: the TYPE page with ANALOG only");
         set_engine_of(&trk[0], TRK_DEF[0][0]); apply_preset_to(&trk[0], TRK_DEF[0][1]); trk[0].engine = trk[0].eng_req;
         go_home(); frames(16);
 
@@ -1346,8 +1362,7 @@ int main(int argc, char **argv)
         key(1);                                           /* F#3 */
         release(B_GLO); frames(16);
         check(mlu.on == 1u && !mlu.pick, "GLO + F#3: MIDI LEARN on");
-        open_family(FAM_FX); frame();
-        for (j = 0; j < 12u; j++) { encs[panel.enc[EN_SELECT]] = -1; frame(); }   /* the FX page: KNOB 1 = DIST */
+        open_family(FAM_FX); frame();                     /* FX: its first page, KNOB 1 = DIST */
         frames(16);
         ui.force = 1; frame(); ppm("header-learn");
         K(EN_K1, 1);
@@ -1451,6 +1466,7 @@ int main(int argc, char **argv)
             uint32_t k, pg;
             go_home(); song.sel = 0; song.playing = 0; ly_lock = LY_PLAY; open_family(FAM_SEQ); frames(2);
             pg = ui.page;
+            gen_on = 0;                                   /* (the fuzz above may have left GEN on on another track) */
             for (k = 0; k < NPAGES; k++)
                 if (!strcmp(PAGES[k].title, "GEN"))
                     ui.page = (uint8_t)k;
@@ -1519,6 +1535,54 @@ int main(int argc, char **argv)
         encs[panel.enc[EN_SELECT]] = 1; ui.force = 1; frames(3);
         ppm("juno-vcf");
         go_home(); frames(2);
+    }
+    {   /* the sound chain on each voice (Ben, 20 Nov 2026: OSC > FILTER > ENV > FX > MOD, as the MiniFreak): EDIT opens
+         * OSC, SELECT walks every page of it in stage order to MOD's last; every stage the voice has is visited, none
+         * shown empty (DRUM TRACK); each page shot as chain-<voice>-<n> */
+        static const char *const VN[5] = {"acid", "juno", "elem", "plaits", "drum"};
+        uint32_t v, j, n, st, last, seen, want, empty;
+        char nm[40];
+        for (v = 0; v < 5u; v++) {
+            go_home(); song.playing = 0; ly_lock = LY_PLAY; frames(2);
+            track_select(v < 2u ? 0u : v - 1u); frames(2);
+            if (v < 2u)
+                host_preset(&trk[0], v ? ENGI_JUNO : ENGI_ACID, 0);
+            frames(2);
+            if (v == 4u) {
+                studio_open(SC_DRUM); frames(2);
+            }
+            tap(B_EDIT); frames(2);
+            check(on_chain() && fam_stage(cur_page()->fam) == 0 && stage_page(0, 0) == ui.page,
+                  v == 4u ? "chain (drums): EDIT on the DRUM screen opens OSC (HEX OSC)" : "chain: EDIT opens OSC, its first page");
+            for (want = 0, st = 0; st < NSTAGE; st++)
+                want |= (uint32_t)(stage_page(st, 0) < NPAGES) << st;
+            for (n = 0, last = 0, seen = 0, empty = 0, j = ~0u; n < 30u && j != ui.page; n++) {
+                j = ui.page;
+                st = (uint32_t)fam_stage(cur_page()->fam);
+                if (st < last) last = 99u;
+                else last = st;
+                seen |= 1u << st;
+                empty |= is_drum(TSEL) && !page_for_drum(cur_page());
+                ui.force = 1; frames(2);
+                snprintf(nm, sizeof nm, "chain-%s-%02u", VN[v], (unsigned)n);
+                ppm(nm);
+                printf("chain %-6s %2u %-5s %-9s %-6s %-6s %-6s %-6s ok\n", VN[v], (unsigned)n, STAGE_NAME[st], cur_page()->title,
+                       opk.lab[0], opk.lab[1], opk.lab[2], opk.lab[3]);
+                encs[panel.enc[EN_SELECT]] = 1; frame();
+            }
+            check(last != 99u && seen == want && !empty && (v == 4u ? want == 15u : want == 31u),
+                  v == 4u ? "chain (drums): OSC FILT ENV FX in order, no MOD, nothing empty" : "chain: OSC FILT ENV FX MOD in order");
+        }
+        track_select(TRK_DRUM); frames(2); studio_open(SC_DRUM); frames(2); tap(B_EDIT); frames(2);
+        j = ui.page; tap(B_LFO); frames(1);
+        check(ui.page == j && !strcmp(ui.msg, "NO LFO ON DRUMS"), "chain (drums): LFO: NO LFO ON DRUMS, the page stays");
+        tap(B_ENV); frames(1);
+        check(!strcmp(cur_page()->title, "HEX AEG"), "chain (drums): ENV opens the sound's envelope (HEX AEG)");
+        encs[panel.enc[EN_ALGO]] = -1; frames(2);
+        check(song.sel == 2u && !strcmp(cur_page()->title, "ENV"), "chain: ALGORITHM to a synth on ENV: its ENV");
+        tap(B_LFO); frames(1); encs[panel.enc[EN_ALGO]] = 1; frames(2);
+        check(song.sel == TRK_DRUM && on_chain() && fam_stage(cur_page()->fam) == 3, "chain: on MOD, to the drums: their FX (the stage before)");
+        track_select(0); host_preset(&trk[0], ENGI_ACID, 0); go_home(); frames(2);
     }
     printf("ui: %s\n", fails ? "FAILED" : "pages, layers (punch, steps, erase, roll, key, mix), layer lock, song layer, REC hold, drums, REC, 20000-frame fuzz PASS");
     return fails;

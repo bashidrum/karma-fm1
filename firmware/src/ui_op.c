@@ -665,6 +665,47 @@ static void op_pages(uint32_t k, uint32_t n, uint32_t *cache)
     cv_blit(0, 146);
 }
 
+/* the sound chain's signal path, in place of the dots (Ben, 20 Nov 2026: the MiniFreak's flow): OSC > FILT > ENV >
+ * FX > MOD, always all five in the same places, in the voice's colour: the stage shown filled, a stage the voice
+ * does not have dark; at the right the stage's pages (k of n), when it has more than one. The bottom rows of the
+ * graph above it give way (draw_graph) */
+#define OP_CHAIN_H 13                                   /* (a row apart from the graph, then 12) */
+#define OP_CHAIN_Y (OP_KNOB_Y - OP_CHAIN_H)
+static void op_chain(uint32_t st, uint32_t have, uint32_t k, uint32_t n, uint32_t *cache)
+{
+    uint32_t v = song.sel & 3u, s, i, sig = 0x51u + st + have * 8u + k * 256u + n * 4096u + v * 65536u;
+    int32_t x = 3, p, sz;
+    if (!ui.force && sig == *cache)
+        return;
+    *cache = sig;
+    cv_begin(240, OP_CHAIN_H, C_BLACK);
+    for (s = 0; s < NSTAGE; s++) {
+        int32_t w = text_w(&FONT_S, STAGE_NAME[s]) + 6;
+        if (s) {                                        /* the arrow between two stages */
+            cv_line(x + 1, 4, x + 3, 6, TE_G2);
+            cv_line(x + 3, 7, x + 1, 9, TE_G2);
+            x += 6;
+        }
+        if (s == st)
+            cv_rect(x, 1, w, OP_CHAIN_H - 1, TE_COL[v]);
+        cv_text(x + 3, 0, &FONT_S, STAGE_NAME[s], s == st ? C_BLACK : (have >> s) & 1u ? TE_MID[v] : TE_G2);
+        x += w;
+    }
+    if (n > 1u) {                                       /* the stage's pages, right-aligned */
+        p = (237 - x - 6) / (int32_t)n;
+        p = p > 9 ? 9 : p;
+        sz = p > 7 ? (p - 3 > 6 ? 6 : p - 3) : p - 2;   /* (FX's eight or nine: 4 px, 2 apart) */
+        for (i = 0; i < n; i++) {
+            int32_t bx = 237 - (int32_t)(n - i) * p + (p - sz), by = 1 + (OP_CHAIN_H - 1 - sz) / 2;
+            if (i + 1u == k)
+                cv_rect(bx, by, sz, sz, TE_COL[v]);
+            else
+                op_box(bx, by, sz, sz, TE_DIM[v]);
+        }
+    }
+    cv_blit(0, OP_CHAIN_Y);
+}
+
 /* the four tracks' meters, for the screens that show the whole band (the mixer, HOME), once a frame: up at
  * once, falling; a rise: the track's character hops for 6 frames */
 static uint8_t op_mx[NTRK], op_hop[NTRK];

@@ -460,8 +460,26 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
 }
 
 /* ------------------------------------------------------------ pages --- */
-enum { FAM_HOME, FAM_ENV, FAM_LFO, FAM_FX, FAM_SCL, FAM_EDIT, FAM_GLO, FAM_SAVE, FAM_ARP, FAM_SEQ, FAM_TRK,
+/* (Ben, 20 Nov 2026: "Oscillator engine > Filter > ADSR > FX + MOD matrix", after the MiniFreak) a voice's sound
+ * pages are one chain of five stages, in signal order, the same on every engine: OSC (FAM_EDIT) > FILTER (FAM_FLT)
+ * > ENV (FAM_ENV) > FX (FAM_FX) > MOD (FAM_LFO). SELECT walks the whole chain; EDIT steps stage to stage; ENV, FX
+ * and LFO open their own stage (ui.c, chain_open). A stage's first page holds its four most used controls. The
+ * family numbers are the UI's only (no project, preset, editor or MIDI number holds them) */
+enum { FAM_HOME, FAM_ENV, FAM_LFO, FAM_FX, FAM_SCL, FAM_EDIT, FAM_GLO, FAM_SAVE, FAM_ARP, FAM_SEQ, FAM_TRK, FAM_FLT,
        FAM_COUNT };
+#define FAM_OSC FAM_EDIT
+#define FAM_MOD FAM_LFO
+#define NSTAGE 5u
+static const uint8_t STAGE_FAM[NSTAGE] = {FAM_OSC, FAM_FLT, FAM_ENV, FAM_FX, FAM_MOD};
+static const char *const STAGE_NAME[NSTAGE] = {"OSC", "FILT", "ENV", "FX", "MOD"};
+static int32_t fam_stage(uint32_t fam)             /* the chain's stage of a family, -1 = not a sound stage */
+{
+    uint32_t s;
+    for (s = 0; s < NSTAGE; s++)
+        if (STAGE_FAM[s] == fam)
+            return (int32_t)s;
+    return -1;
+}
 enum { SC_TRACK, SC_GLOBAL, SC_ENGINE, SC_STEP, SC_TRK, SC_SONG, SC_DRUM };
 enum { GR_NONE, GR_ADSR, GR_LFO, GR_STEPS, GR_ARP, GR_SCALE, GR_FX, GR_ROLL, GR_BROWSE, GR_SLOTS, GR_USER, GR_TRK,
        GR_SLCR, GR_INS, GR_HEX, GR_DGEN };
@@ -470,38 +488,62 @@ typedef struct {
     const char *title;
     uint8_t fam, scope, graph;
     uint8_t id[4];               /* param ids; 0xFF = empty slot */
+    uint8_t eng;                 /* 0: every synth engine; PG_ENG(e): engine e's own page; PG_OTHER: an engine without
+                                  * its own pages (none a track can choose today: ENG_GONE, the host tests' engine 0) */
 } page_t;
+#define PG_ENG(e) ((uint8_t)((e) + 1u))
+#define PG_OTHER 0xFFu
 
 static const page_t PAGES[] = {
+    /* ---- the sound chain (fam_stage): OSC > FILTER > ENV > FX > MOD. The pages a voice does not have are skipped
+     * (page_shown); the drum track's are its selected HEX sound's (GR_HEX) and the track's own FILTER, INSERT,
+     * SLICER and the global FX. An engine's E0..E7 keep their meaning: only where they are shown moved */
+    /* OSC: the engine's source, then the voice (mono / poly, glide, unison) */
+    {"OSC", FAM_OSC, SC_TRACK, GR_NONE, {P_E0, P_E5, P_E7, P_E6}, PG_ENG(ENGI_ACID)},   /* WAVE ACC SLIDE DRV */
+    {"OSC", FAM_OSC, SC_TRACK, GR_NONE, {P_E0, P_E1, P_E2, P_E3}, PG_ENG(ENGI_JUNO)},   /* WAVE PW SUB NOISE (DCO) */
+    {"OSC", FAM_OSC, SC_TRACK, GR_NONE, {P_E0, P_E1, P_E2, P_E3}, PG_ENG(ENGI_ELEM)},   /* MODEL STRC BRIT DAMP (BODY) */
+    {"OSC 2", FAM_OSC, SC_TRACK, GR_NONE, {P_E4, P_E5, P_E6, P_E7}, PG_ENG(ENGI_ELEM)}, /* POS ACC BOW EXC (EXCT) */
+    {"OSC", FAM_OSC, SC_TRACK, GR_NONE, {P_E0, P_E1, P_E2, P_E3}, PG_ENG(ENGI_PRISM)},  /* MODEL HARM TIMB MRPH */
+    {"OSC 2", FAM_OSC, SC_TRACK, GR_NONE, {P_E4, P_E5, 0xFF, 0xFF}, PG_ENG(ENGI_PRISM)},  /* ENV SUB (E6, E7: unused) */
+    {"OSC", FAM_OSC, SC_TRACK, GR_NONE, {P_E0, P_E1, P_E2, P_E3}, PG_OTHER},
+    {"OSC 2", FAM_OSC, SC_TRACK, GR_NONE, {P_E4, P_E5, P_E6, P_E7}, PG_OTHER},
+    {"VOICE", FAM_OSC, SC_TRACK, GR_NONE, {P_VOICE, P_GLIDE, P_GLMODE, P_PRIO}},
+    {"VOICE 2", FAM_OSC, SC_TRACK, GR_NONE, {P_ALLOC, P_DETUNE, P_PAN, P_MUTE}},
+    {"HEX OSC", FAM_OSC, SC_GLOBAL, GR_HEX, {G_HXMODEL, G_HXWAVE, G_HXTUNE, G_HXFINE}},   /* the drum track: the */
+    {"HEX MOD", FAM_OSC, SC_GLOBAL, GR_HEX, {G_HXPAMT, G_HXPDEC, G_HXRATIO, G_HXFM}},      /* selected sound of its */
+    {"HEX CLICK", FAM_OSC, SC_GLOBAL, GR_HEX, {G_HXCLICK, G_HXCLVL, G_HXCTONE, G_HXCRUSH}}, /* HEX kit (page_shown: */
+    {"HEX MORE", FAM_OSC, SC_GLOBAL, GR_HEX, {G_HXAUX1, G_HXAUX2, 0xFF, 0xFF}},             /* the drum track only) */
+    /* FILTER: the engine's filter (cutoff, resonance, envelope amount first), then FILT, the track's own LP / HP
+     * filter (every voice, the drum track too; FX + KNOB 4) */
+    {"FILTER", FAM_FLT, SC_TRACK, GR_NONE, {P_E1, P_E2, P_E3, P_E4}, PG_ENG(ENGI_ACID)},   /* CUT RES ENV DEC */
+    {"FILTER 2", FAM_FLT, SC_TRACK, GR_NONE, {P_TFLT, 0xFF, 0xFF, 0xFF}, PG_ENG(ENGI_ACID)},
+    {"FILTER", FAM_FLT, SC_TRACK, GR_NONE, {P_E4, P_E5, P_E6, P_TFLT}, PG_ENG(ENGI_JUNO)},   /* CUT RES ENV, FILT */
+    {"FILTER", FAM_FLT, SC_TRACK, GR_NONE, {P_FTYPE, P_E4, P_E5, P_E7}, PG_OTHER},   /* ANALOG only (2.6, Felucca 1.5):
+                                                                          * TYPE CUT RES KTR (page_shown) */
+    {"HEX FILT", FAM_FLT, SC_GLOBAL, GR_HEX, {G_HXFTYPE, G_HXCUT, G_HXRES, G_HXDRIVE}},
+    {"FILTER", FAM_FLT, SC_TRACK, GR_NONE, {P_TFLT, 0xFF, 0xFF, 0xFF}},   /* (not ACID's, JUNO's: page_shown) */
+    /* ENV: the amp envelope, then where it goes (FLT: the filter envelope amount) and its sync */
     {"ENV", FAM_ENV, SC_TRACK, GR_ADSR, {P_ATK, P_DEC, P_SUS, P_REL}},
     {"ENV DEST", FAM_ENV, SC_TRACK, GR_NONE, {P_ED_FLT, P_ED_PIT, P_ED_SHP, P_ESYNC}},   /* (P_ED_FX: the level trim, no
                                                                        * page); 2.6: ESYNC, ENV's times as note values */
-    {"LFO", FAM_LFO, SC_TRACK, GR_LFO, {P_LRATE, P_LWAVE, P_LPHASE, P_LFADE}},
-    {"LFO 2", FAM_LFO, SC_TRACK, GR_LFO, {P_LSYNC, P_LTRIG, P_LPOL, 0xFF}},   /* 2.6 (Felucca 1.4): SYNC TRIG POL */
-    {"LFO DEST", FAM_LFO, SC_TRACK, GR_NONE, {P_LD_PIT, P_LD_FLT, P_LD_SHP, P_LD_AMP}},
+    {"HEX AEG", FAM_ENV, SC_GLOBAL, GR_HEX, {G_HXATK, G_HXDEC, G_HXSLOPE, G_HXLVL}},
+    /* FX: the track's drive and sends, its own effects in signal order, then the shared (global) effects */
     {"FX", FAM_FX, SC_TRACK, GR_FX, {P_DIST, P_CHOR, P_DLY, P_REV}},
-    {"FILTER", FAM_FX, SC_TRACK, GR_NONE, {P_TFLT, 0xFF, 0xFF, 0xFF}},   /* the track's filter (drum track too) */
-    {"SLICER", FAM_FX, SC_TRACK, GR_SLCR, {P_SLCR, P_SLPAT, P_SLRATE, P_SLDEPTH}},   /* drum track too */
+    {"CHORUS", FAM_FX, SC_TRACK, GR_NONE, {P_E7, 0xFF, 0xFF, 0xFF}, PG_ENG(ENGI_JUNO)},   /* JUNO's own BBD chorus */
     {"INSERT", FAM_FX, SC_TRACK, GR_INS, {P_ITYPE, P_IA, P_IB, P_IC}},   /* 2.6 (Felucca 1.5): the track's INSERT (fx.c), */
     {"INSERT 2", FAM_FX, SC_TRACK, GR_INS, {P_IMIX, 0xFF, 0xFF, 0xFF}},  /* .. its dry / wet; the drum track too */
+    {"SLICER", FAM_FX, SC_TRACK, GR_SLCR, {P_SLCR, P_SLPAT, P_SLRATE, P_SLDEPTH}},   /* drum track too */
+    {"CLOUD", FAM_FX, SC_GLOBAL, GR_NONE, {G_CLSEND, G_CLPOS, G_CLSIZE, G_CLPIT}},     /* Clouds' grains (cloud.c): the */
     {"DLY", FAM_FX, SC_GLOBAL, GR_NONE, {G_DTIME, G_DFDBK, G_DCOLOR, G_DMIX}},
     {"REV/CHO", FAM_FX, SC_GLOBAL, GR_NONE, {G_RSIZE, G_RDAMP, G_CRATE, G_CDEPTH}},
-    {"CLOUD", FAM_FX, SC_GLOBAL, GR_NONE, {G_CLSEND, G_CLPOS, G_CLSIZE, G_CLPIT}},     /* Clouds' grains (cloud.c): the */
     {"CLOUD 2", FAM_FX, SC_GLOBAL, GR_NONE, {G_CLDENS, G_CLTEX, G_CLFB, G_CLFRZ}},   /* track's send, then the cloud's own */
+    /* MOD: the LFO, where it goes, then its sync (2.6, Felucca 1.4) */
+    {"LFO", FAM_MOD, SC_TRACK, GR_LFO, {P_LRATE, P_LWAVE, P_LPHASE, P_LFADE}},
+    {"LFO DEST", FAM_MOD, SC_TRACK, GR_NONE, {P_LD_PIT, P_LD_FLT, P_LD_SHP, P_LD_AMP}},
+    {"LFO 2", FAM_MOD, SC_TRACK, GR_LFO, {P_LSYNC, P_LTRIG, P_LPOL, 0xFF}},   /* SYNC TRIG POL */
+    /* ---- the other pages */
     {"SEL", FAM_SCL, SC_TRACK, GR_SCALE, {P_ROOT, P_SCALE, P_QUANT, P_CHORD}},
     {"SEL 2", FAM_SCL, SC_TRACK, GR_SCALE, {P_TRANS, P_STRUM, P_VLEAD, 0xFF}},   /* (2.4: the chords played) */
-    {"HEX OSC", FAM_EDIT, SC_GLOBAL, GR_HEX, {G_HXMODEL, G_HXWAVE, G_HXTUNE, G_HXFINE}},   /* the drum track's EDIT: */
-    {"HEX AEG", FAM_EDIT, SC_GLOBAL, GR_HEX, {G_HXATK, G_HXDEC, G_HXSLOPE, G_HXLVL}},       /* the selected sound of */
-    {"HEX MOD", FAM_EDIT, SC_GLOBAL, GR_HEX, {G_HXPAMT, G_HXPDEC, G_HXRATIO, G_HXFM}},      /* its HEX kit (page_shown: */
-    {"HEX CLICK", FAM_EDIT, SC_GLOBAL, GR_HEX, {G_HXCLICK, G_HXCLVL, G_HXCTONE, G_HXCRUSH}}, /* the drum track only) */
-    {"HEX FILT", FAM_EDIT, SC_GLOBAL, GR_HEX, {G_HXFTYPE, G_HXCUT, G_HXRES, G_HXDRIVE}},
-    {"HEX MORE", FAM_EDIT, SC_GLOBAL, GR_HEX, {G_HXAUX1, G_HXAUX2, 0xFF, 0xFF}},
-    {"EDIT 1", FAM_EDIT, SC_ENGINE, GR_NONE, {P_E0, P_E1, P_E2, P_E3}},
-    {"EDIT 2", FAM_EDIT, SC_ENGINE, GR_NONE, {P_E4, P_E5, P_E6, P_E7}},
-    {"FILTER", FAM_EDIT, SC_TRACK, GR_NONE, {P_FTYPE, P_E4, P_E5, P_E7}},   /* ANALOG only (2.6, Felucca 1.5): TYPE CUT
-                                                                          * RES KTR (page_shown) */
-    {"VOICE", FAM_EDIT, SC_TRACK, GR_NONE, {P_VOICE, P_GLIDE, P_GLMODE, P_PRIO}},
-    {"VOICE 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_ALLOC, P_DETUNE, P_PAN, P_MUTE}},
     {"GLOBAL", FAM_GLO, SC_GLOBAL, GR_NONE, {G_BPM, G_SWING, G_CLOCK, G_TUNE}},
     {"MASTER", FAM_GLO, SC_GLOBAL, GR_NONE, {G_DUST, G_DUCK, G_FILT, G_ROLL}},
     {"SYSTEM", FAM_GLO, SC_GLOBAL, GR_NONE, {G_MIDI, G_SYNC, G_ROUTE, G_INFO}},
@@ -545,22 +587,40 @@ static int page_for_drum(const page_t *pg)
         return 0;                                   /* by ALGO from a synth track, it drew the drum steps as notes */
     if (pg->scope == SC_GLOBAL)
         return pg->graph != GR_BROWSE && pg->graph != GR_USER;
+    if (pg->eng)                                    /* (a synth engine's own page) */
+        return 0;
     return pg->scope != SC_ENGINE && (pg->scope != SC_TRACK || pg->fam == FAM_SEQ || pg->graph == GR_SLCR ||
-                                      pg->graph == GR_INS);
+                                      pg->graph == GR_INS || pg->id[0] == P_TFLT);   /* (FILTER: the drum track's too) */
 }
-/* a page the buttons and SELECT reach on the selected track: EDIT > FILTER (TYPE) on ANALOG only */
+/* the selected synth track's engine has page pg (pg->eng: PG_ENG(e) e's own, PG_OTHER any engine without its own) */
+static int page_eng_ok(const page_t *pg)
+{
+    uint32_t e = TSEL->eng_req % NENGINES;
+    int own = e == ENGI_ACID || e == ENGI_JUNO || e == ENGI_ELEM || e == ENGI_PRISM;
+    if (pg->eng == PG_OTHER)
+        return !own;
+    if (pg->eng)
+        return pg->eng == PG_ENG(e);
+    if (pg->fam == FAM_FLT && pg->id[0] == P_TFLT)   /* FILTER (FILT alone): where the engine's own pages do not */
+        return e != ENGI_ACID && e != ENGI_JUNO;    /* hold it already */
+    return 1;
+}
+/* a page the buttons and SELECT reach on the selected track. On the sound chain (fam_stage) a page the voice does
+ * not have is skipped, never shown empty: an engine's own pages on that engine only, the drum track's the ones it
+ * has (its HEX sound, FILTER, INSERT, SLICER, the global FX); ANALOG's FILTER (TYPE) on ANALOG only */
 static int page_shown(const page_t *pg)
 {
-    if (pg->graph == GR_HEX)                         /* the HEX sound pages: the drum track's EDIT, and only its */
+    if (pg->graph == GR_HEX)                         /* the HEX sound pages: the drum track's, and only its */
         return is_drum(TSEL);
-    if (pg->fam == FAM_EDIT && is_drum(TSEL))
-        return 0;
+    if (fam_stage(pg->fam) >= 0)
+        return is_drum(TSEL) ? page_for_drum(pg) : page_eng_ok(pg) &&
+                                   (pg->id[0] != P_FTYPE || TSEL->eng_req % NENGINES == 0u);
     if (pg->scope == SC_GLOBAL && (pg->id[0] == G_GNON || pg->id[0] == G_GNOCT || pg->id[0] == G_GKROOT || pg->id[0] == G_AGDENS ||
                                    pg->id[0] == G_AGSCALE))
         return !is_drum(TSEL);                       /* GEN, ACID GEN: the synth tracks' */
     if (pg->graph == GR_DGEN)
         return is_drum(TSEL);                        /* DRUM GEN: the drum track's */
-    return pg->id[0] != P_FTYPE || (!is_drum(TSEL) && TSEL->eng_req % NENGINES == 0u);
+    return 1;
 }
 
 /* a HEX sound's byte as its model reads it (hex_drums.c): what differs from GP's (the DRUM model's) */
