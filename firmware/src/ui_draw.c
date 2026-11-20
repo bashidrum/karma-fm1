@@ -851,16 +851,29 @@ static void draw_graph(void)
         x = cv_text(4, 16, &FONT_L, ui.focus_v, C_WHITE);
         cv_text(x + 4, 30, &FONT_S, ui.focus_u, C_DIM);
     }
-    /* graphs keep out of the top G_OY rows: skip them unless something is (or was) there */
+    /* graphs keep out of the top G_OY rows: skip them unless something is (or was) there; on the sound chain the
+     * bottom rows are the signal path's (draw_foot) */
+    if (on_chain())
+        cv_h = OP_CHAIN_Y - Y_GRAPH;
     cv_blit_from(0, Y_GRAPH, top || ui.graph_top || ui.force ? 0u : G_OY);
     ui.graph_top = (uint8_t)top;
 }
 
-/* under the graph: the pages of this family (ui_op.c) */
+/* under the graph: the pages of this family; on the sound chain its signal path (ui_op.c) */
 static void draw_foot(void)
 {
     const page_t *pg = cur_page();
     uint32_t i, n = 0, k = 0;
+    if (on_chain()) {
+        uint32_t st = (uint32_t)fam_stage(pg->fam), s, have = 0;
+        for (s = 0; s < NSTAGE; s++)
+            have |= (uint32_t)(stage_page(s, 0) < NPAGES) << s;
+        for (; (i = stage_page(st, n)) < NPAGES; n++)
+            if (i == ui.page)
+                k = n + 1u;
+        op_chain(st, have, k, n, &ui.foot_sig);
+        return;
+    }
     for (i = 0; i < NPAGES && !ui.home; i++)
         if (PAGES[i].fam == pg->fam && (page_shown(&PAGES[i]) || i == ui.page)) {   /* (the pages it has) */
             n++;
@@ -883,7 +896,8 @@ static void draw_columns(void)                         /* the four knobs of the 
     }
     {                                                   /* a track's page: its colour; a song or global page: neutral */
         uint32_t sc = cur_page()->scope;
-        knob_tint_all(sc == SC_GLOBAL || sc == SC_SONG ? TINT_NEUTRAL : sc == SC_DRUM ? TRK_DRUM : song.sel);
+        knob_tint_all(cur_page()->graph == GR_HEX && !ui.home ? TRK_DRUM   /* (the drum voice's sound: its colour) */
+                      : sc == SC_GLOBAL || sc == SC_SONG ? TINT_NEUTRAL : sc == SC_DRUM ? TRK_DRUM : song.sel);
     }
     op_knobs(lab, val, unit, opk.ratio, opk.dim, song.sel * 7u + ui.page * 31u + ui.home, &ui.col_sig);
     {                                                   /* the track bar under them: it follows the track selected here */

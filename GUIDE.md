@@ -118,7 +118,8 @@ The 11 black keys are F#3, G#3, A#3, C#4, D#4, F#4, G#4, A#4, C#5, D#5, F#5. The
 
 Every function button has two lives:
 
-- **Tap** it: its **pages** open (sound design, settings), as on any FM-1 firmware. Tap it again: the next page of that button. **SELECT** also walks the pages of that button, both ways. Each button remembers the last page you used.
+- **Tap** it: its **pages** open (sound design, settings), as on any FM-1 firmware. Tap it again: the next page of that button. **SELECT** also walks the pages of that button, both ways. GLO, SEL, ARP, SEQ and SAVE remember the last page you used.
+- **Sound design** is one chain, the same on every voice: **OSC › FILT › ENV › FX › MOD** (see [The sound chain](#the-sound-chain)). EDIT, ENV, FX and LFO all open it.
 - **Hold** it: a **layer**. While it is held, the 16 white keys and KNOB 1–4 do something else, and after 0.14 s the screen shows the 16 keys as 16 tiles (four rows of four: keys 1–4, 5–8, 9–12, 13–16) and the knobs as dials. Let go: back to playing.
 
 The layers are **FX** (punch-in effects), **EDIT** (erase), **ARP** (note repeat), **SEQ** (steps), **SEL** (key and chords), **GLO** (mix) and **SAVE** (song). ENV and LFO have no layer: they only open pages.
@@ -152,18 +153,18 @@ The layers are **FX** (punch-in effects), **EDIT** (erase), **ARP** (note repeat
 | **REC** | playing: record now / stop recording · stopped: arm (*rec ready*) · free take: close the loop · count-in: cancel | ~2 s: **clear the selected track** (a ring fills; let go before it is full and nothing happens) |
 | **SAVE** | on HOME or DRUM: the **SONG** screen · on the SONG screen: the **saved songs** (SONG 1–3) · elsewhere: the **SAVE pages** (the sound's presets, tools) | the **song layer** (sections A–D, chain, song mode, SONG REC) |
 | **HOME** | the **HOME** screen · on HOME: the **visualiser** (HOME again closes it) | 0.7 s: the **menu** (SCREEN, LIGHTS, AUDIO, SYSTEM); hold again to leave it |
-| **ENV** | ENV pages (ENV, ENV DEST) | — |
-| **LFO** | LFO pages (LFO, LFO 2, LFO DEST) | — |
-| **FX** | FX pages (FX, FILTER, SLICER, INSERT, INSERT 2, DLY, REV/CHO, CLOUD, CLOUD 2) | punch-in layer |
+| **ENV** | the sound chain's **ENV** stage (ENV; again: ENV DEST) · drum track: HEX AEG | — |
+| **LFO** | the sound chain's **MOD** stage (LFO; again: LFO DEST, LFO 2) · drum track: *NO LFO ON DRUMS* | — |
+| **FX** | the sound chain's **FX** stage (FX; again: its next page, up to CLOUD 2) | punch-in layer |
 | **SEL** | SEL pages (SEL, SEL 2) | key / chord layer |
-| **EDIT** | EDIT pages (EDIT 1, EDIT 2, VOICE, VOICE 2) · drum track: the sound pages (HEX OSC, HEX AEG, HEX MOD, HEX CLICK, HEX FILT, HEX MORE) · on HOME with the drum track: the **DRUM** screen · on the STEP page: clear the step · on the SONG screen: twice erases the part at the cursor | erase layer |
+| **EDIT** | the **sound chain**: from anywhere else its start, **OSC**; on the chain the next stage (OSC → FILT → ENV → FX → MOD → OSC) · drum track: from the DRUM screen, the selected sound's OSC (HEX OSC) · on HOME with the drum track: the **DRUM** screen · on the STEP page: clear the step · on the SONG screen: twice erases the part at the cursor | erase layer |
 | **ARP** | ARP pages (ARP, ARP 2) | note-repeat layer |
 | **SEQ** | SEQ pages (STEP, PATTERN, PLAY, ACID GEN, ACID GEN 2, GEN, GEN 2, HARMONY, SONG; the drum track: DRUM GEN, DRUM GEN 2 in place of the GEN pages) · on HOME with the drum track: the **DRUM** screen · on DRUM: GRID → KIT → DRUM GEN | step layer |
 | **GLO** | GLO pages (GLOBAL, MASTER, SYSTEM, DRUMS, MIDI, MIDI 2, MIDI 3, TEXTURE, TEXTURE 2) | mix layer |
 | **OCT− / OCT+** | synth track: octave down / up (−3 … +3) · both together: octave 0 | drum track: **ghost** (OCT−) / **hard** (OCT+) hits while held |
 | **ALGORITHM** | select track 1–4, on every screen (inside a layer it waits; not during a free take, on the SONG screen or in the menu) | — |
 | **PRESETS** | on HOME and the PRESETS page: the selected track's **sound** (its own engines' sounds, then your user presets for them) · drum track: the **kit** · on the DRUM screen: the kit | — |
-| **SELECT** | on HOME, inside a layer and on the REC screen: the **tempo** · on a page: previous / next page of its button (stops at the ends) · DRUM screen: grid ↔ kit · visualiser: the style · menu: the section | — |
+| **SELECT** | on HOME, inside a layer and on the REC screen: the **tempo** · on a page: previous / next page of its button (stops at the ends); on the sound chain every page from OSC to MOD, stage after stage · DRUM screen: grid ↔ kit · visualiser: the style · menu: the section | — |
 | **KNOB 1–4** | the four dials at the bottom of the screen | — |
 | **MASTER** | output volume (the visualiser ignores it) | — |
 
@@ -315,7 +316,7 @@ All seven layers at a glance:
 | Hold | Name | White keys | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 | Tap |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | **FX** | punch | a punch-in effect while the key is held | FILTER (master) | DUST | DUCK | TRK FILT (selected track) | FX pages |
-| **EDIT** | erase | erase that sound / note from the pattern | SHIFT | LENGTH ×2 / ½ | TRANSPOSE | — | EDIT pages |
+| **EDIT** | erase | erase that sound / note from the pattern | SHIFT | LENGTH ×2 / ½ | TRANSPOSE | — | the sound chain (OSC) |
 | **ARP** | roll | note repeat on the grid | RATE | — | — | — | ARP pages |
 | **SEQ** | steps | steps 1–16 of the page | SOUND / NOTE | DIV | SWING | LENGTH | SEQ pages |
 | **SEL** | key | the key of the song | CHORD | SCALE | KEYS | TRANSPOSE | SEL pages |
@@ -673,7 +674,7 @@ Stop first (*STOP FIRST*). Save the current song before you load another if you 
 | **REC READY / FREE TAKE / COUNT-IN** | **REC** while stopped | the tracks, then **mode · length · start** on KNOB 1–3 (4-3-2-1 during a count-in); in a free take: the seconds and the loop it would make |
 | **Hold ring** | hold **REC** | the ring of *clear track* filling |
 | **SONG** | tap **SAVE** on HOME, or **SAVE + key 16** | the section chain; see [The SONG screen](#the-song-screen) |
-| **Pages** | tap ENV, LFO, FX, SEL, EDIT, ARP, SEQ, GLO, SAVE | the page's four values at the bottom in the knobs' colours, and above them a picture: a graph (ENV, LFO, STEP, PATTERN, SEL, SLICER), the arp's stepping stones, the FX wizard, or the track's character; the GLO pages and SAVE → TOOLS read as a list, one row per knob |
+| **Pages** | tap ENV, LFO, FX, SEL, EDIT, ARP, SEQ, GLO, SAVE | the page's four values at the bottom in the knobs' colours; on the sound chain, just above them, the **signal path** OSC › FILT › ENV › FX › MOD (the stage you are on filled in the voice's colour, a stage the voice does not have dark, the stage's pages as squares on the right); above that a picture: a graph (ENV, LFO, STEP, PATTERN, SEL, SLICER), the arp's stepping stones, the FX wizard, or the track's character; the GLO pages and SAVE → TOOLS read as a list, one row per knob |
 | **Menu** | hold **HOME** | the settings of the FM-1 in four sections; see [The HOME menu](#20-the-home-menu-and-the-lights) |
 
 The **title line** of every screen also carries short messages: *KEY D*, *ERASED*, *AGAIN: SAVE*, *NEXT: B*, *chain A B B C*, *lock flt 12*…
@@ -684,30 +685,52 @@ The lettering (2.6) is Terminus **Bold**, all in **capitals**: thicker strokes, 
 
 ## 16. Every page, knob by knob
 
-Tap a button to open its first page (or the last one you used); **tap it again** for its next page, or turn **SELECT** to go back and forth. On the drum track, pages that do not apply to it show *DRUM TRACK*.
+Tap a button to open its first page (or the last one you used); **tap it again** for its next page, or turn **SELECT** to go back and forth. On the drum track, pages that do not apply to it show *DRUM TRACK* (the sound chain skips them instead).
+
+### The sound chain
+
+After the Arturia MiniFreak: each voice's sound is one chain of five stages in signal order, with the same names and the same order on every engine, so what you learn on one voice works on all of them:
+
+**OSC** (the engine's source, then the voice) › **FILT** (filter) › **ENV** (envelope) › **FX** › **MOD** (LFO).
+
+- **EDIT** opens **OSC**; on the chain, EDIT again steps to the next stage (OSC → FILT → ENV → FX → MOD → back to OSC).
+- **ENV**, **FX** and **LFO** jump straight to the ENV, FX and MOD stage's first page; tap again for that stage's next page.
+- **SELECT** walks every page of the chain, one by one, across the stages (it stops at OSC's first page and MOD's last).
+- Each stage's first page holds its four most used controls. A page a voice does not have is skipped, never shown empty.
+- The strip above the knobs names the five stages and shows where you are (see [The screens](#15-the-screens)).
+
+| Stage | ACID | JUNO | ELEMENTS | PLAITS | Drum track (the selected sound) |
+| --- | --- | --- | --- | --- | --- |
+| **OSC** | **OSC**: WAVE · ACC · SLIDE · DRV, then VOICE, VOICE 2 | **OSC**: WAVE · PW · SUB · NOISE, then VOICE, VOICE 2 | **OSC**: MODEL · STRC · BRIT · DAMP · **OSC 2**: POS · ACC · BOW · EXC, then VOICE, VOICE 2 | **OSC**: MODEL · HARM · TIMB · MRPH · **OSC 2**: ENV · SUB, then VOICE, VOICE 2 | HEX OSC, HEX MOD, HEX CLICK, HEX MORE |
+| **FILT** | **FILTER**: CUT · RES · ENV · DEC · **FILTER 2**: FILT | **FILTER**: CUT · RES · ENV · FILT | **FILTER**: FILT | **FILTER**: FILT | HEX FILT, then **FILTER**: FILT (the whole drum track) |
+| **ENV** | ENV, ENV DEST | ENV, ENV DEST | ENV, ENV DEST | ENV, ENV DEST | HEX AEG |
+| **FX** | FX, INSERT, INSERT 2, SLICER, CLOUD, DLY, REV/CHO, CLOUD 2 | FX, **CHORUS** (CHOR: the Juno's chorus), then as ACID | as ACID | as ACID | INSERT, INSERT 2, SLICER, CLOUD, DLY, REV/CHO, CLOUD 2 |
+| **MOD** | LFO, LFO DEST, LFO 2 | the same | the same | the same | none (dark on the strip) |
+
+**FILT** (the track's own one-knob filter, left LP, right HP, centre OFF) is the last control of every voice's FILT stage. DLY, REV/CHO, CLOUD 2 and CLOUD's POS / SIZE / PITCH are shared by all tracks: their knobs are grey, the strip keeps the voice's colour.
 
 | Button | Page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
 | --- | --- | --- | --- | --- | --- |
-| **ENV** | **ENV** | ATK attack | DEC decay | SUS sustain | REL release |
-| | **ENV DEST** | FLT: envelope → brightness (±) | PIT: envelope → pitch (±, the 808 punch) | SHP: envelope → the engine's shape (±) | ESYNC (2.6): OFF / ON, ATK DEC REL as note values |
-| **LFO** | **LFO** | RATE (Hz) | WAVE: SIN, TRI, SAW, SQR, S&H | PHS phase | FADE (fade-in time) |
-| | **LFO 2** (2.6) | SYNC: OFF, 4BAR, 2BAR, 1BAR, 1/2, 1/4, 1/8, 8T, 1/16, 16T, 1/32 | TRIG: NOTE / FREE | POL: BI / UNI | — |
-| | **LFO DEST** | PIT: vibrato | FLT: filter wobble | SHP: shape | AMP: tremolo |
-| **FX** | **FX** (sends) | DST drive | CHO chorus send | DLY delay send | REV reverb send |
-| | **FILTER** | FILT: one-knob filter of the track — left LP, right HP, centre OFF | — | — | — |
-| | **SLICER** | SLCR: OFF, GATE, STUT (stutter) | PAT: pattern 1–16 | RATE: 1/8, 1/16, 1/32, 8T, 16T, 32T | DEPTH |
-| | **INSERT** (2.6) | INSRT: OFF, SOFT, HARD, FOLD, FUZZ, CRUSH, PHASR, FLANG, CHOR | A | B | C (what A B C are depends on the type: see [Per track](#per-track)) |
-| | **INSERT 2** (2.6) | MIX: dry / wet | — | — | — |
-| | **DLY** (global) | TIME: 1/4, 1/8, 1/16, 1/32, 8T, 16T, 1/8D, 1/16D, 1/4D (2.6; at 60 BPM and below it stops at 1.49 s) | FDBK feedback | COLR colour (tone of the repeats) | MIX |
-| | **REV/CHO** (global) | SIZE reverb size | DAMP reverb damping | CRT chorus rate | CDP chorus depth |
-| | **CLOUD** | SEND: the selected track's send (drum track: the selected sound's) | POS: where the grains start | SIZE: grain size | PITCH ±24 |
-| | **CLOUD 2** (global) | DENS: noon none, right random grains, left a steady rate | TEXT: the grain window | FDBK: the cloud fed back in | FRZ: OFF / ON (the recording stands still) |
-| **SEL** | **SEL** | ROOT (the track's key) | SCL: the track's scale (SEL + KNOB 2 sets all three) | QNT keys: OFF, SNAP, WHITE | CHORD: OFF, TRIAD, 7TH, 9TH, SUS4, POWER |
-| | **SEL 2** | TRN transpose ±24 | STRUM ±60 ms | VLEAD: OFF / ON | — |
-| **EDIT** | **EDIT 1** | engine parameter 1 | 2 | 3 | 4 (see [the engines](#the-four-engines)) |
-| | **EDIT 2** | engine parameter 5 | 6 | 7 | 8 |
+| **EDIT** (OSC) | **OSC**, **OSC 2** | the engine's parameters, see the table above and [the engines](#the-four-engines) | | | |
 | | **VOICE** | VCE: POLY, MONO, LEG (legato), UNI (unison) | GLD glide | GLMOD: RATE / TIME | PRIO: LAST, LOW, HIGH (mono note priority) |
 | | **VOICE 2** | ALLOC: ROT (rotate) / REUSE | DTUNE (unison detune) | PAN | MUTE |
+| **EDIT** (FILT) | **FILTER**, **FILTER 2** | see the table above; FILT: one-knob filter of the track: left LP, right HP, centre OFF | | | |
+| **ENV** | **ENV** | ATK attack | DEC decay | SUS sustain | REL release |
+| | **ENV DEST** | FLT: envelope → brightness (±) | PIT: envelope → pitch (±, the 808 punch) | SHP: envelope → the engine's shape (±) | ESYNC (2.6): OFF / ON, ATK DEC REL as note values |
+| **FX** | **FX** (sends) | DST drive | CHO chorus send | DLY delay send | REV reverb send |
+| | **CHORUS** (JUNO) | CHOR: OFF, I, II, I+II | — | — | — |
+| | **INSERT** (2.6) | INSRT: OFF, SOFT, HARD, FOLD, FUZZ, CRUSH, PHASR, FLANG, CHOR | A | B | C (what A B C are depends on the type: see [Per track](#per-track)) |
+| | **INSERT 2** (2.6) | MIX: dry / wet | — | — | — |
+| | **SLICER** | SLCR: OFF, GATE, STUT (stutter) | PAT: pattern 1–16 | RATE: 1/8, 1/16, 1/32, 8T, 16T, 32T | DEPTH |
+| | **CLOUD** | SEND: the selected track's send (drum track: the selected sound's) | POS: where the grains start | SIZE: grain size | PITCH ±24 |
+| | **DLY** (global) | TIME: 1/4, 1/8, 1/16, 1/32, 8T, 16T, 1/8D, 1/16D, 1/4D (2.6; at 60 BPM and below it stops at 1.49 s) | FDBK feedback | COLR colour (tone of the repeats) | MIX |
+| | **REV/CHO** (global) | SIZE reverb size | DAMP reverb damping | CRT chorus rate | CDP chorus depth |
+| | **CLOUD 2** (global) | DENS: noon none, right random grains, left a steady rate | TEXT: the grain window | FDBK: the cloud fed back in | FRZ: OFF / ON (the recording stands still) |
+| **LFO** (MOD) | **LFO** | RATE (Hz) | WAVE: SIN, TRI, SAW, SQR, S&H | PHS phase | FADE (fade-in time) |
+| | **LFO DEST** | PIT: vibrato | FLT: filter wobble | SHP: shape | AMP: tremolo |
+| | **LFO 2** (2.6) | SYNC: OFF, 4BAR, 2BAR, 1BAR, 1/2, 1/4, 1/8, 8T, 1/16, 16T, 1/32 | TRIG: NOTE / FREE | POL: BI / UNI | — |
+| **SEL** | **SEL** | ROOT (the track's key) | SCL: the track's scale (SEL + KNOB 2 sets all three) | QNT keys: OFF, SNAP, WHITE | CHORD: OFF, TRIAD, 7TH, 9TH, SUS4, POWER |
+| | **SEL 2** | TRN transpose ±24 | STRUM ±60 ms | VLEAD: OFF / ON | — |
 | **ARP** | **ARP** | MODE: OFF, UP, DN, UPDN, RND, ORD | RATE: 1/4 … 16T | OCT: 1–4 octaves | GATE |
 | | **ARP 2** | SWG swing | PROB probability of each note | HOLD: OFF / ON (latch) | ORD: NOTE (pitch order) / PLAY (the order you played) |
 | **SEQ** | **STEP** | STEP (cursor) | NOTE | TIME: NOTE, TIE, REST · on a note: LEN (2.6) | FLAG: –, ACC, SLD, A+S |
@@ -720,7 +743,7 @@ Tap a button to open its first page (or the last one you used); **tap it again**
 | | **DRUMS** | CH4: the drum track's MIDI channel (OFF, 1–16, default 10; the same setting as GLO → MIDI → CH4; 2.6: a setting of the FM-1) | LVL drum level | REV drum reverb | DLY drum delay (2.5): the drums into the tempo delay (FX → DLY sets its time, feedback and tone), saved with the project |
 | | **MIDI** (2.6) | CH1: track 1's MIDI channel (OFF, 1–16) | CH2: track 2's | CH3: track 3's | CH4: the drum track's (default 10) |
 | | **MIDI 2** (2.6) | IN: NOTES / CLOCK / CH 1–16 | OTHER: the channels no track has: SEL (the selected track) / OFF | OUT: KEYS / SEQ | BEND: the pitch bend's range, 1–12 semitones |
-| | **MIDI 3** | KNOBS: what a controller's 8 knobs do: PANEL (the FM-1's eight rotaries, the default), 70-77 or 1-8 or AUTO (the two EDIT pages), GM (the GM map) | — | — | — |
+| | **MIDI 3** | KNOBS: what a controller's 8 knobs do: PANEL (the FM-1's eight rotaries, the default), 70-77 or 1-8 or AUTO (the engine's eight parameters, E1–E8), GM (the GM map) | — | — | — |
 | | **TEXTURE** (2.6) | SRC: OFF, VINYL, TAPE, RAIN, WIND, RADIO, ROOM, USR1–4 | LEVEL | TONE (LP ← OFF → HP) | MOVE |
 | | **TEXTURE 2** (2.6) | RATE: 1–16 bars | WHEN: PLAY / ALWAYS | DUCK: OFF / ON | — |
 | **SAVE** | **PRESETS** | the sound | the engine: ACID / JUNO (track 1 only) | — | — |
@@ -731,11 +754,11 @@ Notes:
 
 - **Global** pages (DLY, REV/CHO, CLOUD 2 and CLOUD's POS / SIZE / PITCH, GLOBAL, MASTER, SYSTEM, DRUMS) are the same whatever track is selected.
 - **SYNC**, **MIDI** and **IN** are settings of the FM-1, kept when you load a project.
-- On the **drum track**, the pages that work are SLICER, INSERT, PATTERN and DRUM GEN (SEQ), the SONG screen and the global pages; **EDIT** opens its sound pages (HEX OSC, HEX AEG, HEX MOD, HEX CLICK, HEX FILT, HEX MORE). The kit and each sound's reverb and delay are on the DRUM screen's KIT page, the drum level on GLO → DRUMS, and its filter is **FX + KNOB 4**.
+- On the **drum track**, the pages that work are its sound chain (EDIT from the DRUM screen: HEX OSC, HEX MOD, HEX CLICK, HEX MORE › HEX FILT, FILTER › HEX AEG › INSERT, INSERT 2, SLICER and the shared FX), PATTERN and DRUM GEN (SEQ), the SONG screen and the global pages. The kit and each sound's reverb and delay are on the DRUM screen's KIT page, the drum level on GLO → DRUMS, and its filter is **FX + KNOB 4**.
 - ACID and ELEMENTS presets hold SUS at 127: the engine's own decay is what you hear.
 - **ENV SYNC** (ENV DEST → ESYNC ON, 2.6): ATK, DEC and REL become note values of the tempo, from 0 through 1/64T … 1/4, 1/2 … to 4BAR, with triplets and dotted values; at 120 BPM an ATK of 1/4 lasts half a second, at 60 a whole one. They follow the tempo as it changes. OFF: times in milliseconds, as before.
 - **LFO 2** (2.6): **SYNC** locks the LFO's cycle to a note value of the tempo (RATE is then ignored; OFF: RATE, as before) · **TRIG** NOTE restarts the LFO at PHS on each new phrase (as before), FREE lets it run on · **POL** BI swings above and below the value, UNI only above it (a tremolo that only lowers the level, a wobble that only opens).
-- On the screen, EDIT 1 and EDIT 2 carry the engine's own page names: ACID *303 / MORE*, JUNO *DCO / VCF*, ELEMENTS *BODY / EXCT*, PLAITS *TONE / MOD*.
+- The web editor still groups each engine's eight parameters under the engine's own page names: ACID *303 / MORE*, JUNO *DCO / VCF*, ELEMENTS *BODY / EXCT*, PLAITS *TONE / MOD*. On the FM-1 they sit on the sound chain's OSC, FILTER and FX pages (see [The sound chain](#the-sound-chain)).
 - Any sound parameter on these pages can be **locked** on a step (see [Parameter locks](#parameter-locks)), except the pattern, arp, key and voice-mode ones.
 
 ---
@@ -759,9 +782,9 @@ Each synth track keeps its own engine: **track 1** plays **ACID** or **JUNO**, *
 
 ### The four engines
 
-Each engine's eight parameters are on **EDIT 1** (KNOB 1–4) and **EDIT 2** (KNOB 1–4), tap EDIT once and twice; the screen shows them under the engine's own page names. A dash is an unused knob.
+Each engine has eight parameters (E1–E8 below, as the web editor and a controller's AUTO knobs number them). On the FM-1 they sit on the [sound chain](#the-sound-chain): ACID OSC (WAVE ACC SLIDE DRV) and FILTER (CUT RES ENV DEC); JUNO OSC (E1–E4), FILTER (CUT RES ENV) and FX › CHORUS; ELEMENTS OSC (E1–E4) and OSC 2 (E5–E8); PLAITS OSC (E1–E4) and OSC 2 (ENV SUB). A dash is an unused knob.
 
-| Engine | Sound | EDIT 1: KNOB 1 · 2 · 3 · 4 | EDIT 2: KNOB 1 · 2 · 3 · 4 |
+| Engine | Sound | E1 · E2 · E3 · E4 | E5 · E6 · E7 · E8 |
 | --- | --- | --- | --- |
 | **ACID** (*303 / MORE*) | the TB-303 voice from X0X, one note at a time. A step's ACCENT (or a key played hard) is the 303's accent, a step's SLIDE its slide | WAVE: SAW / SQR · CUT cutoff · RES resonance · ENV envelope amount | DEC decay · ACC accent amount · DRV drive (0 = off) · SLIDE slide time |
 | **JUNO** (*DCO / VCF*) | a Juno-106 style polysynth from FM-106: DCO, ladder filter, BBD chorus, up to 6 voices. The track's ENV is its envelope; LFO → SHP is pulse-width modulation | WAVE: SAW, PLS, S+P · PW pulse width · SUB sub-oscillator · NOISE | CUT cutoff · RES resonance · ENV envelope → filter · CHOR: OFF, I, II, I+II |
@@ -770,7 +793,7 @@ Each engine's eight parameters are on **EDIT 1** (KNOB 1–4) and **EDIT 2** (KN
 
 **ELEMENTS' models**, and the knobs that change name with them:
 
-- **BOUNC**: hit again and again while the key is held (EDIT 2 KNOB 3: LAST, how long the bounces go on).
+- **BOUNC**: hit again and again while the key is held (OSC 2 KNOB 3: LAST, how long the bounces go on).
 - **PICK**: a plectrum (KNOB 3: GAP, the time between catch and pluck).
 - **BOW**: bowed, it sings while held. BOW is the pressure; KNOB 4 becomes TONE (the bow's hiss).
 - **BLOW**: breath, and a reed pipe above two thirds of BLOW (KNOB 3: BLOW, KNOB 4: TONE).
@@ -1066,7 +1089,7 @@ On the FM-1 your kit works like any other: steps, levels, ratchets, fill conditi
 
 ### Your own HEX kits (MY HEX 1–4)
 
-**MY HEX 1–4** are the last four kits of the drum track's KIT. Each sound is one of the LXR-02's drum voices (**MODEL**: DRUM, SNARE, CLAP, CYM, HAT) with the values of the FM-1's drum EDIT pages. By default they are copies of HEX BOOM, HEX ACID, HEX METAL and HEX GLITCH.
+**MY HEX 1–4** are the last four kits of the drum track's KIT. Each sound is one of the LXR-02's drum voices (**MODEL**: DRUM, SNARE, CLAP, CYM, HAT) with the values of the FM-1's drum sound pages (HEX OSC … HEX AEG). By default they are copies of HEX BOOM, HEX ACID, HEX METAL and HEX GLITCH.
 
 **On the FM-1:** select the drum track, open the DRUM screen and tap **EDIT**: the selected sound's pages. Turn a knob on a HEX kit and it is copied into the next free MY HEX kit, which the drum track then plays.
 

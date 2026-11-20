@@ -288,12 +288,72 @@ static void note_name(char *b, uint32_t n)
     fmt_int(b + str_len(b), (int32_t)(n / 12u) - 1);
 }
 
+/* the sound chain (params.c, fam_stage): OSC > FILTER > ENV > FX > MOD, the pages the selected voice has, in order */
+static int on_chain(void)
+{
+    return !ui.home && fam_stage(cur_page()->fam) >= 0;
+}
+static uint32_t stage_page(uint32_t st, uint32_t k)     /* stage st's k-th page shown, NPAGES = none */
+{
+    uint32_t i;
+    for (i = 0; i < NPAGES; i++)
+        if (PAGES[i].fam == STAGE_FAM[st] && page_shown(&PAGES[i]) && k-- == 0u)
+            return i;
+    return NPAGES;
+}
+static uint32_t chain_list(uint8_t *idx, uint32_t max)  /* the chain's pages shown, OSC first */
+{
+    uint32_t st, k, i, n = 0;
+    for (st = 0; st < NSTAGE; st++)
+        for (k = 0; n < max && (i = stage_page(st, k)) < NPAGES; k++)
+            idx[n++] = (uint8_t)i;
+    return n;
+}
+static void page_go(uint32_t i)
+{
+    ui.page = (uint8_t)i;
+    ui.fam_last[PAGES[i].fam] = ui.page;
+    ui.home = 0;
+    page_entered();
+}
+/* a stage's button (ENV, FX, LFO): the stage's first page, its four most used controls; on that stage already: its
+ * next page, round. EDIT: from anywhere else the chain's start (OSC), on the chain the next stage the voice has,
+ * round (MOD -> OSC). A stage the voice has none of (the drum track's MOD): a message, nothing moves */
+static void chain_open(uint32_t fam)
+{
+    int32_t st = fam_stage(fam), cur = on_chain() ? fam_stage(cur_page()->fam) : -1;
+    uint32_t i, k;
+    if (fam == FAM_OSC && cur >= 0) {
+        for (k = 1; k <= NSTAGE; k++) {
+            st = (int32_t)(((uint32_t)cur + k) % NSTAGE);
+            if (stage_page((uint32_t)st, 0) < NPAGES)
+                break;
+        }
+    } else if (cur == st) {
+        for (k = 0; (i = stage_page((uint32_t)st, k)) < NPAGES && i != ui.page; k++)
+            ;
+        i = stage_page((uint32_t)st, k + 1u);
+        page_go(i < NPAGES ? i : stage_page((uint32_t)st, 0));
+        return;
+    }
+    i = stage_page((uint32_t)st, 0);
+    if (i >= NPAGES) {
+        ui_message(is_drum(TSEL) ? "NO LFO ON DRUMS" : "NOT ON THIS SOUND");
+        return;
+    }
+    page_go(i);
+}
+
 static void open_family(uint32_t fam)
 {
+    if (fam_stage(fam) >= 0) {
+        chain_open(fam);
+        return;
+    }
     if (!ui.home && cur_page()->fam == fam) {          /* same button again: next page */
         uint32_t i = ui.page + 1u;
         while (i < NPAGES && PAGES[i].fam == fam && !page_shown(&PAGES[i]))
-            i++;                                        /* (not a page of another engine: EDIT > FILTER) */
+            i++;
         if (i >= NPAGES || PAGES[i].fam != fam)
             i = page_first(fam);
         ui.page = (uint8_t)i;
@@ -307,41 +367,61 @@ static void open_family(uint32_t fam)
 }
 
 /* SELECT on a page: the previous / next page of its family, as tapping the button again but both ways,
- * stopping at the ends. Not the screens of their own (SONG, DRUMS) nor a family of one page (TRACKS):
- * 0 then, and SELECT is the tempo there */
+ * stopping at the ends; on the sound chain: the whole chain, stage after stage (OSC .. MOD). Not the screens of
+ * their own (SONG, DRUMS) nor a family of one page (TRACKS): 0 then, and SELECT is the tempo there */
 static int page_walk(int32_t s)
 {
     const page_t *pg = cur_page();
     uint32_t i, fam = pg->fam, n = 0;
     int32_t cur = -1, to;
-    uint8_t idx[12];                                    /* (FX has nine) */
+    uint8_t idx[40];                                    /* (the chain: about 20) */
     if (ui.home || pg->scope == SC_SONG || pg->scope == SC_DRUM)
         return 0;
-    for (i = 0; i < NPAGES && n < 12u; i++) {
-        if (PAGES[i].fam != fam || PAGES[i].scope == SC_SONG || PAGES[i].scope == SC_DRUM || !page_shown(&PAGES[i]))
-            continue;
-        if (i == ui.page)
-            cur = (int32_t)n;
-        idx[n++] = (uint8_t)i;
-    }
+    if (on_chain())
+        n = chain_list(idx, sizeof idx);
+    else
+        for (i = 0; i < NPAGES && n < sizeof idx; i++) {
+            if (PAGES[i].fam != fam || PAGES[i].scope == SC_SONG || PAGES[i].scope == SC_DRUM || !page_shown(&PAGES[i]))
+                continue;
+            idx[n++] = (uint8_t)i;
+        }
+    for (i = 0; i < n; i++)
+        if (idx[i] == ui.page)
+            cur = (int32_t)i;
     if (n < 2u || cur < 0)
         return 0;
     to = clamp(cur + s, 0, (int32_t)n - 1);
-    if (to != cur) {
-        ui.page = idx[to];
-        ui.fam_last[fam] = ui.page;
-        page_entered();
-    }
+    if (to != cur)
+        page_go(idx[to]);
     return 1;
 }
 
-/* the page shown is one the selected track has (2.6: EDIT > FILTER, ANALOG only): after a track or engine change,
- * from the previous page of the family that it has (a hidden page is never the first one), once a frame */
+/* the page shown is one the selected track has: after a track or engine change, from the previous page of the
+ * family that it has (a hidden page is never the first one), once a frame. On the chain: the page of the same name
+ * in the same stage (OSC 2 -> OSC 2), else the stage's first, else the nearest stage before it the voice has, else
+ * after it */
 static void page_fix(void)
 {
-    uint32_t i = ui.page, fam = PAGES[i].fam;
+    uint32_t i = ui.page, fam = PAGES[i].fam, k;
+    int32_t st = fam_stage(fam), d;
     if (ui.home || page_shown(&PAGES[i]))
         return;
+    if (st >= 0) {
+        uint32_t to = NPAGES;
+        for (k = 0; to >= NPAGES && (i = stage_page((uint32_t)st, k)) < NPAGES; k++)
+            if (str_eq(PAGES[i].title, cur_page()->title))
+                to = i;
+        for (d = 0; to >= NPAGES && d < (int32_t)(2u * NSTAGE); d++) {   /* 0, -1, -2 .. then +1, +2 .. */
+            int32_t s2 = d < (int32_t)NSTAGE ? st - d : st + d - (int32_t)NSTAGE + 1;
+            if (s2 >= 0 && s2 < (int32_t)NSTAGE)
+                to = stage_page((uint32_t)s2, 0);
+        }
+        if (to < NPAGES) {
+            page_go(to);
+            return;
+        }
+    }
+    i = ui.page;
     while (i > 0u && PAGES[i - 1u].fam == fam && !page_shown(&PAGES[i - 1u]))
         i--;
     ui.page = (uint8_t)(i > 0u && PAGES[i - 1u].fam == fam ? i - 1u : page_first(fam));

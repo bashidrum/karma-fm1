@@ -26,7 +26,8 @@ static void led_put(uint8_t *nl, uint32_t id, int on)
 }
 
 static const uint8_t FAM_BTN[FAM_COUNT] = {B_HOME, B_ENV, B_LFO, B_FX, B_SCL, B_EDIT, B_GLO, B_SAVE,
-                                           B_ARP, B_SEQ, B_HOME};   /* button of each page family (TRACKS: HOME) */
+                                           B_ARP, B_SEQ, B_HOME, B_EDIT};   /* button of each page family (TRACKS:
+                                                                             * HOME; the chain's FILTER: EDIT) */
 
 static uint32_t cur_fam(void) { return ui.home ? FAM_HOME : cur_page()->fam; }
 static uint32_t cur_btn(void)                      /* the button of the screen shown */

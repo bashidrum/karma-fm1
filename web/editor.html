@@ -3454,10 +3454,10 @@ const DSYN = {
     }
     return null;
   },
-  /* the device's EDIT pages (params.c: HEX OSC .. HEX MORE) */
-  PAGES: [["HEX OSC", ["model", "wave", "coarse", "fine"]], ["HEX AEG", ["atk", "dec", "slope", "level"]],
-    ["HEX MOD", ["pamt", "pdec", "fmratio", "fmamt"]], ["HEX CLICK", ["click", "clvl", "ctone", "crush"]],
-    ["HEX FILT", ["ftype", "cut", "res", "drive"]], ["HEX MORE", ["aux1", "aux2"]]],
+  /* the device's drum sound pages, in its sound chain's order (params.c: OSC > FILTER > ENV) */
+  PAGES: [["HEX OSC", ["model", "wave", "coarse", "fine"]], ["HEX MOD", ["pamt", "pdec", "fmratio", "fmamt"]],
+    ["HEX CLICK", ["click", "clvl", "ctone", "crush"]], ["HEX MORE", ["aux1", "aux2"]],
+    ["HEX FILT", ["ftype", "cut", "res", "drive"]], ["HEX AEG", ["atk", "dec", "slope", "level"]]],
   name8: (s) => { const b = new Uint8Array(8); String(s || "").replace(/[^\x20-\x7E]/g, "").slice(0, 8).split("").forEach((ch, i) => { b[i] = ch.charCodeAt(0); }); return b; },
   /* a kit as a file: {format, version, name, crush, sounds: [22 numbers] x 16} (version 2: the HEX sounds; the
      SLOOP 2.5 files, "sloop-drumsynth" 1, held the old synthesised sounds and do not open) */
