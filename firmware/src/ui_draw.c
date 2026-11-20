@@ -130,34 +130,34 @@ static void graph_adsr(const track_t *t, uint16_t c)
         cv_pset(x2, y, OP_PUR_D);
         cv_pset(x3, y, OP_PUR_D);
     }
-    cv_line(x0, bot, x1, top, TE_COL[0]);                               /* attack: linear */
+    cv_line(x0, bot, x1, top, tint_col(0u, 0));                               /* attack: linear */
     px = x1;
     py = top;
     for (i = 1; i <= d; i++) {                                          /* decay: exponential to SUS */
         int32_t lvl;
         e = (e * (32768 - 150733 / d)) >> 15;           /* k^d = exp(-4.6) */
         lvl = sus + ((1000 - sus) * e >> 15);
-        cv_line(px, py, x1 + i, EGY(lvl), TE_COL[1]);
+        cv_line(px, py, x1 + i, EGY(lvl), tint_col(1u, 0));
         px = x1 + i;
         py = EGY(lvl);
         if (dpos < 0 && lvl <= cur)
             dpos = px;
     }
-    cv_line(px, py, x3, EGY(sus), TE_COL[2]);                            /* sustain */
+    cv_line(px, py, x3, EGY(sus), tint_col(2u, 0));                            /* sustain */
     px = x3;
     py = EGY(sus);
     e = 32768;
     for (i = 1; i <= r; i++) {                                          /* release: exponential to 0 */
         e = (e * (32768 - 150733 / r)) >> 15;
-        cv_line(px, py, x3 + i, EGY(sus * e >> 15), TE_COL[3]);
+        cv_line(px, py, x3 + i, EGY(sus * e >> 15), tint_col(3u, 0));
         px = x3 + i;
         py = EGY(sus * e >> 15);
         if (rpos < 0 && (sus * e >> 15) <= cur)
             rpos = px;
     }
-    te_disc(x1, top, 2, TE_COL[1]);                                      /* a dot where the next knob takes over */
-    te_disc(x2, EGY(sus), 2, TE_COL[2]);
-    te_disc(x3, EGY(sus), 2, TE_COL[3]);
+    te_disc(x1, top, 2, tint_col(1u, 0));                                      /* a dot where the next knob takes over */
+    te_disc(x2, EGY(sus), 2, tint_col(2u, 0));
+    te_disc(x3, EGY(sus), 2, tint_col(3u, 0));
     if (stage == 1) {                                                   /* where the voice is on the line */
         plat = 0;
         tx = x0 + a * cur / 1000;

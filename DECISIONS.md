@@ -35,3 +35,9 @@ Ben asked (20 Nov 2026) for a full first version of his brief without stopping f
 
 ## Not yet checked
 - Nothing has run on a real FM-1. Sound and timing are untested by ear.
+
+## Colour sweep, 20 Nov (after Ben's "you didn't get it everywhere")
+- The old KARMA scheme coloured things by knob position (knob 1 blue, 2 green, 3 yellow, 4 red). All of it is gone: on a voice's page, the envelope, scenes and markers are in that voice's colour only.
+- Anything that belongs to everyone is neutral white/grey: play marker, SONG and SONGS section tiles (A B C D), "playing", KEY layer dials, the record-ready disc, the HOME tape, all seven visualisers.
+- Red is kept for recording and erasing only. The KARMA boot logo letters use Ben's four colours plus white.
+- Drum screens: the selected pad is outlined white, and the selected step and send bars are coral (they were track 1 purple and old green).

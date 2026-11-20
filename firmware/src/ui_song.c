@@ -27,7 +27,7 @@ static void song_screen_draw(void)
     song_sane();
     uint32_t i, start = song_cursor > 3u ? song_cursor - 3u : 0u;
     static uint32_t previous;
-    static const uint16_t SC[4] = {RGB(40, 124, 255), RGB(30, 204, 112), RGB(255, 198, 24), RGB(255, 98, 26)};
+    static const uint16_t SC[4] = {RGB(196, 196, 204), RGB(196, 196, 204), RGB(196, 196, 204), RGB(196, 196, 204)};
     uint32_t sig = song_cursor + 17u * arrangement_enabled + 37u * song.playing +
                    71u * arrangement_clock.index + 127u * arrangement_clock.bar +
                    257u * arrangement.count + 509u * song.g[G_BPM];
@@ -40,12 +40,12 @@ static void song_screen_draw(void)
     /* Draw one small band at a time: never exceed the 124-row canvas. */
     cv_begin(240, 40, C_BLACK);
     cv_text(4, 4, &FONT_L, "SONG", C_WHITE);
-    cv_text(76, 20, &FONT_S, arrangement_enabled ? "song mode" : "loop mode", arrangement_enabled ? SC[3] : RGB(118, 118, 126));
+    cv_text(76, 20, &FONT_S, arrangement_enabled ? "song mode" : "loop mode", arrangement_enabled ? C_WHITE : RGB(118, 118, 126));
     fmt_int(b, song.g[G_BPM]);
     cv_text(236 - text_w(&FONT_S, b) - 28, 4, &FONT_S, b, C_WHITE);
     cv_text(236 - 24, 4, &FONT_S, "bpm", RGB(118, 118, 126));
     cv_text(236 - text_w(&FONT_S, song.playing ? "playing" : "stopped"), 20, &FONT_S,
-            song.playing ? "playing" : "stopped", song.playing ? SC[1] : RGB(118, 118, 126));
+            song.playing ? "playing" : "stopped", song.playing ? C_WHITE : RGB(118, 118, 126));
     cv_rect(0, 39, 240, 1, RGB(26, 26, 30));
     cv_blit(0, 0);
     for (i = 0; i < 5u; i++) {
@@ -103,7 +103,7 @@ static void song_screen_draw(void)
  * 3 LOAD, 4 SAVE (GO: twice). A song is the four parts, the order and the loop (project.c song_go) */
 static void song_bank_draw(void)
 {
-    static const uint16_t SC[4] = {RGB(40, 124, 255), RGB(30, 204, 112), RGB(255, 198, 24), RGB(255, 98, 26)};
+    static const uint16_t SC[4] = {RGB(196, 196, 204), RGB(196, 196, 204), RGB(196, 196, 204), RGB(196, 196, 204)};
     static uint32_t previous;
     uint32_t i, sig = 0x5B4Eu + ui.sslot * 7u + 131u * song.playing;
     char b[16];

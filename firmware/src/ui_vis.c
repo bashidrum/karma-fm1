@@ -355,9 +355,9 @@ static void vis_scope(void)
         int32_t y = 120 - vis_l[i0 + i] * 100 / (vs.scale ? vs.scale : 1);
         y = clamp(y, 2, 237);
         if (i) {
-            cv_line((int32_t)i - 1, py - 1, (int32_t)i, y - 1, TE_DIM[0]);
-            cv_line((int32_t)i - 1, py + 2, (int32_t)i, y + 2, TE_DIM[0]);
-            vis_thick((int32_t)i - 1, py, (int32_t)i, y, TE_COL[0]);
+            cv_line((int32_t)i - 1, py - 1, (int32_t)i, y - 1, TE_G2);
+            cv_line((int32_t)i - 1, py + 2, (int32_t)i, y + 2, TE_G2);
+            vis_thick((int32_t)i - 1, py, (int32_t)i, y, TE_G4);
         }
         py = y;
     }
@@ -368,13 +368,13 @@ static void vis_spectrum(void)
     for (k = 0; k < 32u; k++) {
         int32_t x0 = 4 + (int32_t)k * 7, h = vs.bar[k] * 210 / 1000, y, cy = 232 - vs.cap[k] * 210 / 1000;
         for (y = 232; y > 232 - h; y -= 4)          /* LED segments */
-            cv_rect(x0, y - 2, 5, 3, TE_COL[k / 8u]);
+            cv_rect(x0, y - 2, 5, 3, TE_G4);
         cv_rect(x0, cy - 1, 5, 2, C_WHITE);
     }
 }
 static uint16_t vis_heat(uint32_t v)               /* 0..255: black, blue, green, yellow, white */
 {
-    static const uint16_t ST[5] = {RGB(0, 0, 0), RGB(40, 124, 255), RGB(30, 204, 112), RGB(255, 198, 24), RGB(255, 255, 255)};
+    static const uint16_t ST[5] = {RGB(0, 0, 0), RGB(54, 54, 60), RGB(118, 118, 126), RGB(196, 196, 204), RGB(255, 255, 255)};
     static const uint8_t AT[5] = {0, 77, 140, 204, 255};
     uint32_t k;
     v = (v + ((v * v) >> 8)) >> 1;                  /* (quiet parts a little darker: about v^1.4) */
@@ -403,7 +403,7 @@ static void vis_spectrogram(void)
 static void vis_lissajous(void)
 {
     uint32_t f, i;
-    static const uint16_t COLS[3] = {RGB(10, 66, 38), RGB(20, 136, 76), RGB(30, 204, 112)};
+    static const uint16_t COLS[3] = {RGB(54, 54, 60), RGB(118, 118, 126), RGB(196, 196, 204)};
     cv_rect(120, 30, 1, 180, C_LINE);
     cv_rect(30, 120, 180, 1, C_LINE);
     for (f = 0; f < 3u; f++) {                      /* the oldest first, dimmest */
@@ -424,7 +424,7 @@ static void vis_meters(void)
         char lab[2] = {(char)(i < 4u ? '1' + i : 'M'), 0};
         for (k = 0; k < 24u; k++) {
             int32_t y = 206 - (int32_t)k * 8;
-            uint16_t col = (int32_t)k < on ? (k < 18u ? c : k < 22u ? TE_COL[2] : RGB(255, 44, 52)) : TE_G1;
+            uint16_t col = (int32_t)k < on ? (k < 18u ? c : k < 22u ? C_WHITE : RGB(255, 44, 52)) : TE_G1;
             if ((int32_t)k == pk && pk > 0)
                 col = C_WHITE;
             cv_rect(x0, y - 5, 35, 6, col);
@@ -436,15 +436,15 @@ static void vis_ring(void)
 {
     int32_t k = vs.kick, r0 = 52 + k * 18 / 255, rc = r0 * 6 / 10, sc = vs.peak > vs.scale ? vs.peak : vs.scale;
     int32_t px = 0, py = 0, i;
-    vis_ellipse(120, 120, rc, rc, RGB(40 + 140 * k / 255, 14 + 50 * k / 255, 4));
+    vis_ellipse(120, 120, rc, rc, RGB(40 + 140 * k / 255, 40 + 140 * k / 255, 44 + 144 * k / 255));
     for (i = 0; i <= 180; i++) {                    /* the wave round the ring, 2 degrees a point */
         uint32_t a = (uint32_t)(i % 180) * 1024u / 180u, j = 20u + (uint32_t)(i % 180) * 2u;
         int32_t s = (vis_l[j - 2u] + vis_l[j - 1u] + vis_l[j] + vis_l[j + 1u] + vis_l[j + 2u]) / 5;
         int32_t rr = r0 + s * 20 / (sc > 1600 ? sc : 1600), x = 120 + ((icos(a) * rr) >> 15), y = 120 + ((isin(a) * rr) >> 15);
         if (i) {
-            cv_line(px, py - 1, x, y - 1, RGB(120, 40, 10));
-            cv_line(px, py + 2, x, y + 2, RGB(120, 40, 10));
-            vis_thick(px, py, x, y, TE_COL[3]);
+            cv_line(px, py - 1, x, y - 1, RGB(54, 54, 60));
+            cv_line(px, py + 2, x, y + 2, RGB(54, 54, 60));
+            vis_thick(px, py, x, y, TE_G4);
         }
         px = x, py = y;
     }
@@ -456,12 +456,12 @@ static void vis_lcd(void)
     vis_seg(74, 30, 44, 76, 7, (int)(bpm / 10u % 10u), C_WHITE);
     vis_seg(130, 30, 44, 76, 7, (int)(bpm % 10u), C_WHITE);
     cv_text(190, 90, &FONT_S, "bpm", C_DIM);
-    vis_seg(18, 124, 26, 46, 5, bar >= 10u ? (int)(bar / 10u % 10u) : -1, TE_COL[3]);
-    vis_seg(52, 124, 26, 46, 5, (int)(bar % 10u), TE_COL[3]);
-    cv_rect(88, 164, 5, 6, TE_COL[3]);
-    vis_seg(100, 124, 26, 46, 5, (int)(beat % 4u + 1u), TE_COL[3]);
+    vis_seg(18, 124, 26, 46, 5, bar >= 10u ? (int)(bar / 10u % 10u) : -1, TE_G4);
+    vis_seg(52, 124, 26, 46, 5, (int)(bar % 10u), TE_G4);
+    cv_rect(88, 164, 5, 6, TE_G4);
+    vis_seg(100, 124, 26, 46, 5, (int)(beat % 4u + 1u), TE_G4);
     for (k = 0; k < 4u; k++)
-        vis_ellipse(154 + (int32_t)k * 22, 144, 8, 8, song.playing && beat % 4u == k ? TE_COL[3] : RGB(40, 40, 46));
+        vis_ellipse(154 + (int32_t)k * 22, 144, 8, 8, song.playing && beat % 4u == k ? TE_G4 : RGB(40, 40, 46));
     for (i = 0; i < 4u; i++)
         for (k = 0; k < 14u; k++)
             cv_rect(18 + (int32_t)k * 15, 186 + (int32_t)i * 12, 13, 9,
@@ -531,8 +531,8 @@ static void vis_wires(void)
  * needles rest at the left */
 static const uint32_t KARMA_ROW[7] = {0x0E44F391u, 0x116D1449u, 0x11551445u, 0x1F54F7C3u, 0x11445445u, 0x11449449u,
                                       0x11451451u};             /* tools/gen_logo.py KARMA_CELLS, a bit a cell */
-static const uint16_t KARMA_COL[5] = {RGB(40, 124, 255), RGB(30, 204, 112), RGB(228, 228, 236), RGB(255, 98, 26),
-                                      RGB(141, 130, 236)};       /* (a letter each) */
+static const uint16_t KARMA_COL[5] = {RGB(140, 118, 240), RGB(40, 160, 245), RGB(228, 228, 236), RGB(20, 196, 170),
+                                      RGB(255, 128, 108)};       /* (a letter each) */
 #define VU_REF 18000                                            /* the RMS at 0 VU */
 static int32_t vu_amp[2];                                       /* the needles: the RMS, with the meter's ballistics */
 static uint8_t vu_lamp[2];                                      /* pictures the peak lamp stays lit */
@@ -623,8 +623,8 @@ static void vis_reel(void)
         int32_t cx = s ? 176 : 64, cy = 106, sp;
         op_ell(cx, cy, 46, 46, OP_PUR);
         op_ell(cx, cy, 45, 45, OP_PUR);
-        op_ell(cx, cy, pack[s], pack[s], TE_COL[3]);            /* the tape on this reel */
-        op_ell(cx, cy, pack[s] - 1, pack[s] - 1, TE_COL[3]);
+        op_ell(cx, cy, pack[s], pack[s], TE_G4);            /* the tape on this reel */
+        op_ell(cx, cy, pack[s] - 1, pack[s] - 1, TE_G4);
         op_ell(cx, cy, 8, 8, OP_PUR);
         op_ell(cx, cy, 7, 7, OP_PUR);
         for (sp = 0; sp < 3; sp++) {                            /* three spokes */
@@ -633,9 +633,9 @@ static void vis_reel(void)
                       cx + ((icos(an) * 41) >> 15), cy + ((isin(an) * 41) >> 15), OP_PUR);
         }
     }
-    vis_thick(30, 140, 86, 162, TE_COL[3]);                     /* the tape, past the head */
-    vis_thick(86, 162, 154, 162, TE_COL[3]);
-    vis_thick(154, 162, 210, 140, TE_COL[3]);
+    vis_thick(30, 140, 86, 162, TE_G4);                     /* the tape, past the head */
+    vis_thick(86, 162, 154, 162, TE_G4);
+    vis_thick(154, 162, 210, 140, TE_G4);
     cv_rect(107, 154, 26, 16, C_BLACK);
     op_box(107, 154, 26, 16, lit);
     op_box(108, 155, 24, 14, lit);

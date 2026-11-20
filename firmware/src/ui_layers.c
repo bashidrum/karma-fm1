@@ -899,7 +899,7 @@ static void layer_screen_draw(void)
     }
     case LY_SCALE: {                                    /* the white keys' notes / chords; the root lit */
         uint32_t root = (uint32_t)trk[0].p[P_ROOT] % 12u, mask = SCALE_MASK[clamp(trk[0].p[P_SCALE], 0, NSCALES - 1)];
-        col = TE_COL[1];
+        col = TE_G4;
         str_cpy(sub, "key: ", sizeof sub);
         str_cpy(sub + 5, N_NOTE[root], 4);
         str_cpy(sub + str_len(sub), " ", 2);
@@ -995,14 +995,14 @@ static void layer_screen_draw(void)
             int next = live_req == (int8_t)i ||
                        (chain_n && live_req < 0 && (chain_sec[((chain_i + 1u) % chain_n) % CHAIN_MAX] & 3u) == i);
             str_cpy(tl[i].lab, SL[i], 8);
-            tl[i].bg = used ? (playing ? TE_COL[i] : TE_DIM[i]) : TE_G1;
-            tl[i].fg = used ? C_BLACK : TE_G3;
+            tl[i].bg = used ? (playing ? TE_G4 : TE_G2) : TE_G1;   /* sections are everyone's: neutral */
+            tl[i].fg = used ? (playing ? C_BLACK : C_WHITE) : TE_G3;
             tl[i].top = next ? C_WHITE : 0;
             str_cpy(tl[4 + i].lab, "save A", 8);
             tl[4 + i].lab[5] = (char)('A' + i);
             tl[4 + i].bg = sec_armed == i + 1u ? TE_RED : TE_G1;
             tl[4 + i].fg = sec_armed == i + 1u ? C_BLACK : TE_G4;
-            tl[4 + i].top = TE_DIM[i];
+            tl[4 + i].top = 0;
         }
         str_cpy(tl[12].lab, arrangement_enabled ? "song" : "loop", 8);
         tl[12].bg = arrangement_enabled ? C_WHITE : TE_G2;
@@ -1036,7 +1036,7 @@ static void layer_screen_draw(void)
         if (layer == LY_MIX)                            /* GLO layer: the levels of tracks 1..4 */
             knob_tint_voices();
         else
-            knob_tint_all(song.sel);
+            knob_tint_all(layer == LY_SCALE || layer == LY_SONG ? TINT_NEUTRAL : song.sel);   /* the key, the song: everyone's */
         te_dials(184, lab, val, ratio, layer * 7919u, &foot);
         ui.msg_t = m;
     }

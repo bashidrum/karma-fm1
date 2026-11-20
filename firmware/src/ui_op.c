@@ -51,7 +51,7 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
     if (playing) {
         int32_t i;
         for (i = 0; i < 10; i++)
-            cv_rect(156 + i, 4 + i / 2, 1, 12 - i, TE_COL[1]);
+            cv_rect(156 + i, 4 + i / 2, 1, 12 - i, C_WHITE);
     } else {
         cv_rect(156, 5, 10, 10, TE_G3);
     }
@@ -270,7 +270,7 @@ static void op_drum_scene(uint32_t bank, uint32_t len)
         cv_pset((int32_t)i, 93, LIT(0) || LIT(1) ? C_WHITE : OP_PUR_D);
     /* the step: the one that plays (white), stopped the one of KNOB 2 (green) */
     n = (song.playing ? TDRUM->seq_idx % len : drum_cursor) + 1u;
-    c = song.playing ? C_WHITE : TE_COL[1];
+    c = song.playing ? C_WHITE : TE_COL[3];
     te_digit(4, 4, 14, 30, 2, n / 10u, c);
     te_digit(22, 4, 14, 30, 2, n % 10u, c);
     cv_text(4, 38, &FONT_S, "STEP", TE_G3);
@@ -284,7 +284,7 @@ static void op_drum_scene(uint32_t bank, uint32_t len)
             if (p >= len)
                 continue;
             cv_rect(190 + (int32_t)j * 3, 4 + (int32_t)i * 3, 2, 2,
-                    dstep_has(&TDRUM->dstep[p], i) ? (SEL(i) ? TE_COL[0] : OP_PUR) : SEL(i) ? TE_DIM[0] : RGB(30, 32, 38));
+                    dstep_has(&TDRUM->dstep[p], i) ? (SEL(i) ? TE_COL[3] : OP_PUR) : SEL(i) ? TE_DIM[3] : RGB(30, 32, 38));
         }
     if (song.playing && TDRUM->seq_idx % len / 16u == bank)
         op_box(189 + (int32_t)(TDRUM->seq_idx % len % 16u) * 3, 3, 4, 50, C_WHITE);
@@ -418,11 +418,11 @@ static void op_scene_robot(track_t *t, const int32_t ratio[4], int analog_wave)
 #define WY(xx, f, ph) (104 - ((op_wave((uint32_t)(((xx) - 8) * (int32_t)(f) / 56) + (ph), kind, morph) * amp) >> 15))
     pose = op_dance(&flip);
     if (ratio[2] >= 0)                                  /* KNOB 3: the moon */
-        op_ell(222 - (op_px ? 146 : 0), 70 - ratio[2] * 34 / 1000, 5, 5, TE_COL[2]);
+        op_ell(222 - (op_px ? 146 : 0), 70 - ratio[2] * 34 / 1000, 5, 5, tint_col(2u, 0));
     for (x = 8; x <= 232; x += 2) {                     /* KNOB 1: the wave; white as a note starts */
         int32_t y = WY(x, cyc, op_ph);
         if (x > 8)
-            cv_line(x - 2, py, x, y, op_hit > 6u ? C_WHITE : TE_COL[0]);
+            cv_line(x - 2, py, x, y, op_hit > 6u ? C_WHITE : tint_col(0u, 0));
         py = y;
     }
     n = ratio[1] <= 0 ? 0 : 3 + ratio[1] * 10 / 1000;   /* KNOB 2: the rays, round its head */
@@ -430,7 +430,7 @@ static void op_scene_robot(track_t *t, const int32_t ratio[4], int analog_wave)
         uint32_t a = 512u + 64u + (uint32_t)i * 384u / (uint32_t)(n > 1 ? n - 1 : 1);
         int32_t hx = cx + (pose == 1u ? (flip ? -10 : 10) : 0), hy = 46 - (pose == 2u ? 4 : 0) - hop;
         int32_t co = SINE[(a + 256u) & 1023u], si = SINE[a & 1023u];
-        cv_line(hx + ((co * 30) >> 15), hy + ((si * 26) >> 15), hx + ((co * 36) >> 15), hy + ((si * 32) >> 15), TE_COL[1]);
+        cv_line(hx + ((co * 30) >> 15), hy + ((si * 26) >> 15), hx + ((co * 36) >> 15), hy + ((si * 32) >> 15), tint_col(1u, 0));
     }
     op_ell(120, 121, 70, 2, op_hit > 4u ? C_WHITE : OP_PUR_D);   /* the floor: it rings under a note */
     op_char(0, pose, flip, cx - 56, 18 - hop);
@@ -439,7 +439,7 @@ static void op_scene_robot(track_t *t, const int32_t ratio[4], int analog_wave)
         int32_t fx = cx + (i & 1 ? 30 : -30), d = (9 - (int32_t)op_hit) * 3;
         rnd = rnd * 1664525u + 1013904223u;
         x = (int32_t)((rnd >> 8) % 21u) - 10;
-        cv_line(fx + x, 118 - d / 2, fx + x * 2, 116 - d - (int32_t)((rnd >> 20) % 5u), TE_COL[3]);
+        cv_line(fx + x, 118 - d / 2, fx + x * 2, 116 - d - (int32_t)((rnd >> 20) % 5u), tint_col(3u, 0));
     }
 #undef WY
 }
@@ -460,7 +460,7 @@ static void op_scene_alien(const int32_t ratio[4])
     for (x = 8; x < 232; x += 8)
         cv_pset(x, 122, OP_PUR_D);
     if (ratio[2] >= 0)                                  /* KNOB 3: the moon */
-        op_ell(222 - (op_px ? 146 : 0), 70 - ratio[2] * 34 / 1000, 5, 5, TE_COL[2]);
+        op_ell(222 - (op_px ? 146 : 0), 70 - ratio[2] * 34 / 1000, 5, 5, tint_col(2u, 0));
     n = ratio[1] < 0 ? 0 : 1 + ratio[1] * 5 / 1000;     /* KNOB 2: strings of lights from above, swinging with the sound */
     for (i = 0; i < n; i++) {
         static const uint8_t VX[6] = {62, 190, 40, 212, 20, 230};
@@ -469,24 +469,24 @@ static void op_scene_alien(const int32_t ratio[4])
         x = VX[i];
         if (op_px && x > 150)
             y0 = 46;
-        cv_line(x, y0, x + sw, y0 + len, TE_COL[1]);
+        cv_line(x, y0, x + sw, y0 + len, tint_col(1u, 0));
         for (k = 1; k <= 3; k++)                        /* its bulbs */
-            cv_rect(x + sw * k / 3 - 1, y0 + len * k / 3 - 1, 3, 3, TE_COL[1]);
+            cv_rect(x + sw * k / 3 - 1, y0 + len * k / 3 - 1, 3, 3, tint_col(1u, 0));
     }
     op_char(1, pose, flip, 64, 18 - hop);
     for (s = -1; s <= 1; s += 2) {                      /* KNOB 1: the speakers, at the sides */
         int32_t dx = 120 + s * 82, hw = 11 + big, top = 88 - big * 2, hot = op_hit > 3u && (s > 0) == (side != 0);
         int32_t r = 6 + big / 2;
         cv_rect(dx - hw, top, hw * 2 + 1, 122 - top, C_BLACK);
-        op_box(dx - hw, top, hw * 2 + 1, 122 - top, TE_COL[0]);
-        op_ell(dx, top + 7, 2, 2, TE_COL[0]);                           /* the tweeter */
-        op_ell(dx, 112 - r, r + (hot ? 1 : 0), r + (hot ? 1 : 0), hot ? C_WHITE : TE_COL[0]);   /* the cone */
-        op_ell(dx, 112 - r, 2, 2, hot ? C_WHITE : TE_COL[0]);
+        op_box(dx - hw, top, hw * 2 + 1, 122 - top, tint_col(0u, 0));
+        op_ell(dx, top + 7, 2, 2, tint_col(0u, 0));                           /* the tweeter */
+        op_ell(dx, 112 - r, r + (hot ? 1 : 0), r + (hot ? 1 : 0), hot ? C_WHITE : tint_col(0u, 0));   /* the cone */
+        op_ell(dx, 112 - r, 2, 2, hot ? C_WHITE : tint_col(0u, 0));
         if (op_hit && hot && ratio[3] > 0) {            /* KNOB 4: the rings, towards the middle */
             int32_t rr = 8 + (8 - (int32_t)op_hit) * (2 + ratio[3] * 3 / 1000);
-            op_arc(dx, 112 - r, rr + r, rr + r, s > 0 ? 384 : 896, s > 0 ? 640 : 1152, TE_COL[3]);
+            op_arc(dx, 112 - r, rr + r, rr + r, s > 0 ? 384 : 896, s > 0 ? 640 : 1152, tint_col(3u, 0));
             if (ratio[3] > 500 && rr > 14)
-                op_arc(dx, 112 - r, rr + r - 7, rr + r - 7, s > 0 ? 384 : 896, s > 0 ? 640 : 1152, TE_COL[3]);
+                op_arc(dx, 112 - r, rr + r - 7, rr + r - 7, s > 0 ? 384 : 896, s > 0 ? 640 : 1152, tint_col(3u, 0));
         }
     }
 }
@@ -506,23 +506,23 @@ static void op_scene_croc(const int32_t ratio[4])
         uint32_t h = (uint32_t)(i + 1) * 2654435761u;
         int32_t x = (int32_t)(((h >> 4) % 240u + 240u * 64u - (op_ph >> (3u + (uint32_t)i % 3u)) % 240u) % 240u);
         int32_t y = 22 + (int32_t)((h >> 14) % 90u), big = i % 5 == 0 && ((ui.frame / 8u + (uint32_t)i) & 3u);
-        cv_rect(x, y, 1 + big, 1, TE_COL[2]);
+        cv_rect(x, y, 1 + big, 1, tint_col(2u, 0));
         if (big && i % 10 == 0) {
-            cv_pset(x, y - 1, TE_COL[2]);
-            cv_pset(x, y + 1, TE_COL[2]);
+            cv_pset(x, y - 1, tint_col(2u, 0));
+            cv_pset(x, y + 1, tint_col(2u, 0));
         }
     }
     if (ratio[1] >= 0) {                                /* KNOB 2: the planet and its ring */
         int32_t r = 5 + ratio[1] * 10 / 1000, px = 206, py = 96;
-        op_ell(px, py, r, r, TE_COL[1]);
-        op_arc(px, py, r + 7, 3, 0, 512, TE_COL[1]);
-        cv_pset(px - r - 7, py, TE_COL[1]);
-        cv_pset(px + r + 7, py, TE_COL[1]);
-        op_arc(px - 2, py - 2, r * 2 / 3, r * 2 / 3, 576, 768, TE_COL[1]);
+        op_ell(px, py, r, r, tint_col(1u, 0));
+        op_arc(px, py, r + 7, 3, 0, 512, tint_col(1u, 0));
+        cv_pset(px - r - 7, py, tint_col(1u, 0));
+        cv_pset(px + r + 7, py, tint_col(1u, 0));
+        op_arc(px - 2, py - 2, r * 2 / 3, r * 2 / 3, 576, 768, tint_col(1u, 0));
     }
     bw = 30 + (ratio[0] < 0 ? 0 : ratio[0] * 30 / 1000);   /* KNOB 1: the spotlight, from above: bright on a note */
     {
-        uint16_t c = op_hit > 5u ? C_WHITE : op_hit || op_lvl ? TE_COL[0] : TE_DIM[0];
+        uint16_t c = op_hit > 5u ? C_WHITE : op_hit || op_lvl ? tint_col(0u, 0) : tint_col(0u, 2);
         cv_line(cx - 6, 22, cx - bw, 120, c);
         cv_line(cx + 6, 22, cx + bw, 120, c);
         op_ell(cx, 120, bw, 3, c);
@@ -531,12 +531,12 @@ static void op_scene_croc(const int32_t ratio[4])
     for (i = 0; i < n; i++) {
         uint32_t h = (uint32_t)(i + 1) * 2246822519u;
         int32_t up = (int32_t)(((h >> 7) + op_ph / 12u) % 64u), y = 120 - up * 96 / 64, half = 6 + (bw - 6) * (y - 22) / 98;
-        cv_rect(cx - half + (int32_t)((h >> 3) % (uint32_t)(half * 2 + 1)), y, 2, 2, TE_COL[3]);
+        cv_rect(cx - half + (int32_t)((h >> 3) % (uint32_t)(half * 2 + 1)), y, 2, 2, tint_col(3u, 0));
     }
     op_char(2, pose, flip, cx - 56, 18 - hop);
     for (i = 0; i < 7; i++) {                           /* the floor lights: one runs along; all of them on a note */
         int on = op_hit > 4u || (live && (uint32_t)i == (op_ph / 160u) % 7u);
-        cv_rect(24 + i * 30, 122, 12, 2, on ? TE_COL[3] : TE_DIM[3]);
+        cv_rect(24 + i * 30, 122, 12, 2, on ? tint_col(3u, 0) : tint_col(3u, 2));
     }
 }
 
@@ -590,40 +590,40 @@ static void op_prism_panel(const track_t *t)
         }
         if (model == PRM_HARM) {
             for (i = 0; i < PR_HARM_N; i++) {
-                cv_rect(x0 + 4 + (int32_t)i * 3, y0 + 38 - pts[i], 2, pts[i] + 1, TE_COL[0]);
+                cv_rect(x0 + 4 + (int32_t)i * 3, y0 + 38 - pts[i], 2, pts[i] + 1, tint_col(0u, 0));
             }
         } else {
             for (x = 0; x < 80; x += 4)
                 cv_pset(x0 + x, y0 + 20, OP_PUR_D);
             for (i = 1; i < 80u; i++)
-                cv_line(x0 + (int32_t)i - 1, y0 + 20 - pts[i - 1], x0 + (int32_t)i, y0 + 20 - pts[i], TE_COL[0]);
+                cv_line(x0 + (int32_t)i - 1, y0 + 20 - pts[i - 1], x0 + (int32_t)i, y0 + 20 - pts[i], tint_col(0u, 0));
         }
     } else if (model == PRM_SWARM) {
         int32_t spread = h, len = 8 + mo * 30 / 32767, n = 2 + tb * 10 / 32767;   /* (HARM as it is: its cube is the pitch) */
         for (i = 0; i < 8u; i++) {                      /* (their ranks: -1 .. 1.33, as the model's) */
             int32_t y = y0 + 22 - (((int32_t)i - 3) * spread * 13 / 3) / 32767;
-            cv_line(x0 + 40 - len, y + 2, x0 + 40 + len, y - 2, TE_COL[0]);
-            cv_line(x0 + 40 + len, y - 2, x0 + 40 + len, y + 2, TE_COL[0]);
+            cv_line(x0 + 40 - len, y + 2, x0 + 40 + len, y - 2, tint_col(0u, 0));
+            cv_line(x0 + 40 + len, y - 2, x0 + 40 + len, y + 2, tint_col(0u, 0));
         }
         for (i = 0; i < (uint32_t)n; i++)               /* TIMB: the grains' rate */
-            cv_rect(x0 + 2 + (int32_t)i * 6, y0, 3, 2, TE_COL[2]);
+            cv_rect(x0 + 2 + (int32_t)i * 6, y0, 3, 2, tint_col(2u, 0));
     } else {                                            /* CHORD */
         uint32_t tones = TONES[(uint32_t)t->p[P_E1] * 11u / 128u];
         for (i = 0; i < 7u; i++) {
             int32_t on = (tones >> WHITE[i]) & 1u;
             if (on)
-                cv_rect(x0 + 5 + (int32_t)i * 10, y0 + 2, 9, 30, WHITE[i] ? TE_COL[1] : C_WHITE);
+                cv_rect(x0 + 5 + (int32_t)i * 10, y0 + 2, 9, 30, WHITE[i] ? tint_col(1u, 0) : C_WHITE);
             else
                 op_box(x0 + 5 + (int32_t)i * 10, y0 + 2, 9, 30, OP_PUR);
         }
         for (i = 0; i < 5u; i++) {
             int32_t on = (tones >> BLACK[i]) & 1u;
-            cv_rect(x0 + 5 + BX[i], y0 + 2, 5, 17, on ? TE_COL[1] : C_BLACK);
+            cv_rect(x0 + 5 + BX[i], y0 + 2, 5, 17, on ? tint_col(1u, 0) : C_BLACK);
             if (!on)
                 op_box(x0 + 5 + BX[i], y0 + 2, 5, 17, OP_PUR);
         }
         for (i = 0; i < 20u; i++)                       /* INVRT: twenty steps up */
-            cv_rect(x0 + 1 + (int32_t)i * 4, y0 + 36, 3, 2, (int32_t)i <= t->p[P_E2] * 20 / 128 ? TE_COL[2] : OP_PUR_D);
+            cv_rect(x0 + 1 + (int32_t)i * 4, y0 + 36, 3, 2, (int32_t)i <= t->p[P_E2] * 20 / 128 ? tint_col(2u, 0) : OP_PUR_D);
     }
 }
 
@@ -807,9 +807,9 @@ static void op_arp_scene(const track_t *t)
     x0 = 12 + (216 - sp * (int32_t)n) / 2;
     for (k = 1; k * 12u <= (uint32_t)(hi - lo); k++)      /* KNOB 3: the octaves */
         for (i = 8; i < 232u; i += 6u)
-            cv_pset((int32_t)i, AY(lo + 12 * (int32_t)k) + 3, TE_COL[2]);
+            cv_pset((int32_t)i, AY(lo + 12 * (int32_t)k) + 3, tint_col(2u, 0));
     for (i = 0; i < TICKS[(uint32_t)t->p[P_ARATE] % 6u]; i++)   /* KNOB 2: the grid */
-        cv_rect(12 + (int32_t)i * 216 / TICKS[(uint32_t)t->p[P_ARATE] % 6u], 120, 2, 2, TE_COL[1]);
+        cv_rect(12 + (int32_t)i * 216 / TICKS[(uint32_t)t->p[P_ARATE] % 6u], 120, 2, 2, tint_col(1u, 0));
     if (live && t->arp_note && t->arp_note != last) {   /* a new note: to its stone (the next one with it) */
         for (k = 1; k <= n; k++)
             if (seq[(pos + k) % n] == t->arp_note)
@@ -827,13 +827,13 @@ static void op_arp_scene(const track_t *t)
         pos = prev = 0;
     for (i = 0; i < n; i++) {                       /* KNOB 1: the stones; KNOB 4: how much of each is lit */
         int32_t x = x0 + (int32_t)i * sp + 1, y = AY(seq[i]), w = sp - 3, lit = w * gate / 127;
-        uint16_t c = !mode ? OP_PUR_D : TE_COL[0];
+        uint16_t c = !mode ? OP_PUR_D : tint_col(0u, 0);
         if (i == pos && live && op_arp_hop > 3u)
             cv_rect(x, y, w, 4, C_WHITE);
         else {
             op_box(x, y, w, 4, c);
             if (mode)
-                cv_rect(x + 1, y + 1, lit > 2 ? lit - 2 : 1, 2, i == pos && live ? C_WHITE : TE_COL[3]);
+                cv_rect(x + 1, y + 1, lit > 2 ? lit - 2 : 1, 2, i == pos && live ? C_WHITE : tint_col(3u, 0));
         }
     }
     {                                               /* the character: on its stone, or on the way there */
@@ -920,7 +920,7 @@ static void op_fx_scene(const int32_t ratio[4])
         n = 1 + ratio[3] * 3 / 1000;
         for (i = 0; i < n; i++) {
             int32_t r = 6 + (int32_t)((ph / 6u + (uint32_t)i * (uint32_t)maxr / (uint32_t)n) % (uint32_t)maxr);
-            op_arc(tx, ty, r, r, 800, 1248, r > maxr - 6 ? TE_DIM[3] : TE_COL[3]);
+            op_arc(tx, ty, r, r, 800, 1248, r > maxr - 6 ? tint_col(3u, 2) : tint_col(3u, 0));
         }
     }
     if (ratio[0] > 0) {                                 /* KNOB 1: the bolt, new at each frame while it sounds */
@@ -931,7 +931,7 @@ static void op_fx_scene(const int32_t ratio[4])
             int32_t nx = tx + 2 + len * i / 6, ny;
             rnd = rnd * 1664525u + 1013904223u;
             ny = ty - 2 - (len * i / 6) * 26 / 114 + (i == 6 ? 0 : (int32_t)((rnd >> 12) % (uint32_t)(2 * jag + 1)) - jag);
-            cv_line(px, py, nx, ny, i > 4 && live ? C_WHITE : TE_COL[0]);
+            cv_line(px, py, nx, ny, i > 4 && live ? C_WHITE : tint_col(0u, 0));
             px = nx;
             py = ny;
         }
@@ -942,9 +942,9 @@ static void op_fx_scene(const int32_t ratio[4])
             for (x = tx + 6; x <= 232; x += (int32_t)j + 1) {
                 int32_t y = ty + 12 + (int32_t)j * 7 + ((SINE[((uint32_t)x * 22u + ph * 2u + j * 300u) & 1023u] * amp) >> 15);
                 if (j == 0 && x > tx + 6)
-                    cv_line(x - 1, py, x, y, TE_COL[1]);
+                    cv_line(x - 1, py, x, y, tint_col(1u, 0));
                 else
-                    cv_pset(x, y, TE_COL[1]);
+                    cv_pset(x, y, tint_col(1u, 0));
                 py = y;
             }
     }
@@ -953,13 +953,13 @@ static void op_fx_scene(const int32_t ratio[4])
         for (i = 0; i < n; i++) {
             int32_t sx = tx + 14 + i * 19, s = 5 - i * 4 / 5, b = SINE[(ph * 3u + (uint32_t)i * 170u) & 1023u];
             int32_t sy = ty + 44 - (((b < 0 ? -b : b) * (9 - i)) >> 15);
-            cv_rect(sx - s, sy, 2 * s + 1, 1, TE_COL[2]);
-            cv_rect(sx, sy - s, 1, 2 * s + 1, TE_COL[2]);
+            cv_rect(sx - s, sy, 2 * s + 1, 1, tint_col(2u, 0));
+            cv_rect(sx, sy - s, 1, 2 * s + 1, tint_col(2u, 0));
             if (s > 2) {
-                cv_pset(sx - 2, sy - 2, TE_COL[2]);
-                cv_pset(sx + 2, sy - 2, TE_COL[2]);
-                cv_pset(sx - 2, sy + 2, TE_COL[2]);
-                cv_pset(sx + 2, sy + 2, TE_COL[2]);
+                cv_pset(sx - 2, sy - 2, tint_col(2u, 0));
+                cv_pset(sx + 2, sy - 2, tint_col(2u, 0));
+                cv_pset(sx - 2, sy + 2, tint_col(2u, 0));
+                cv_pset(sx + 2, sy + 2, tint_col(2u, 0));
             }
         }
     }
@@ -1078,7 +1078,7 @@ static void op_home_body(void)
         for (k = 0; k < 2; k++) {
             int32_t cx = 100 + k * 48, pack = k ? 5 + done : 13 - done, sp;
             op_ell(cx, 21, 16, 16, OP_PUR);
-            op_ell(cx, 21, pack, pack, TE_COL[3]);      /* the tape on this reel */
+            op_ell(cx, 21, pack, pack, TE_G4);      /* the tape on this reel */
             op_ell(cx, 21, 3, 3, OP_PUR);
             for (sp = 0; sp < 3; sp++) {                /* three spokes */
                 uint32_t an = (a + (uint32_t)sp * 341u) & 1023u;
@@ -1086,9 +1086,9 @@ static void op_home_body(void)
                         cx + ((SINE[(an + 256u) & 1023u] * 14) >> 15), 21 + ((SINE[an] * 14) >> 15), OP_PUR);
             }
         }
-        cv_line(88, 33, 112, 41, TE_COL[3]);            /* the tape, past the head */
-        cv_line(112, 41, 136, 41, TE_COL[3]);
-        cv_line(136, 41, 160, 33, TE_COL[3]);
+        cv_line(88, 33, 112, 41, TE_G4);            /* the tape, past the head */
+        cv_line(112, 41, 136, 41, TE_G4);
+        cv_line(136, 41, 160, 33, TE_G4);
         cv_rect(119, 37, 10, 6, C_BLACK);
         op_box(119, 37, 10, 6, playing ? C_WHITE : TE_G3);
         for (i = 0; i < 4u; i++) {                      /* the sections */

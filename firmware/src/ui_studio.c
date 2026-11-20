@@ -605,9 +605,9 @@ static void drum_screen_draw(void)
                 int32_t x = 2 + (int32_t)(i % 4u) * 60, y = (int32_t)(i / 4u) * 25;
                 cv_rect(x, y, 56, 23, pad_lit[i] ? TE_DRUM : TE_G1);
                 if (i == drum_lane)
-                    op_box(x, y, 56, 23, TE_COL[0]);
+                    op_box(x, y, 56, 23, C_WHITE);
                 te_text_c(x + 28, y + 2, LANE_SHORT[i], pad_lit[i] ? C_BLACK : i == drum_lane ? C_WHITE : TE_G3);
-                cv_rect(x + 3, y + 19, drum_send[i][0] * 24 / DRUM_SEND_REV, 2, pad_lit[i] ? C_BLACK : TE_COL[2]);
+                cv_rect(x + 3, y + 19, drum_send[i][0] * 24 / DRUM_SEND_REV, 2, pad_lit[i] ? C_BLACK : TE_COL[3]);
                 cv_rect(x + 30, y + 19, drum_send[i][1] * 24 / DRUM_SEND_DLY, 2, pad_lit[i] ? C_BLACK : TE_COL[3]);
             }
             cv_blit(0, 38);
@@ -840,7 +840,7 @@ static void rec_screen_draw(void)
             uint32_t n = secs > 99u ? 99u : secs;
             body = sig;
             cv_begin(240, 106, C_BLACK);
-            te_disc(18, 30, 9, blink ? TE_RED : TE_DIM[3]);
+            te_disc(18, 30, 9, blink ? TE_RED : TE_G2);
             if (n >= 10u)
                 te_digit(36, 4, 32, 56, 7, n / 10u, C_WHITE);
             te_digit(76, 4, 32, 56, 7, n % 10u, C_WHITE);
@@ -885,7 +885,7 @@ static void rec_screen_draw(void)
             cv_text(144, 14, &FONT_S, "count-in", TE_G4);
             cv_text(144, 34, &FONT_S, "rec: cancel", TE_G3);
         } else {
-            te_disc(28, 30, 18, blink ? TE_RED : TE_DIM[3]);
+            te_disc(28, 30, 18, blink ? TE_RED : TE_G2);
             te_disc(28, 30, 7, C_BLACK);
             cv_text(60, 6, &FONT_S, L1[m], C_WHITE);
             cv_text(60, 24, &FONT_S, L2[m], TE_G4);
