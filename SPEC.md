@@ -85,3 +85,6 @@ Claude's notes: the references set a mood, they are not to be traced or copied; 
 Backdrops, further (Ben, 20 Nov, 22:42, with six reference pictures: a jagged horizontal-wave glitch in neon purple, green and blue on black; flat two-colour wavy stripe posters; three flat-colour illustrated faces; three liquid marble swirls in neon colours on black, one with thin drips): "These but flowing and morphing"
 
 Characters, first draft feedback (Ben, 20 Nov, 23:08): "Let's go more classic on the robot, blockier. And lose the hood of the cobra, it just looks like he's eaten something too big for his throat"
+
+## The dream (Ben, 20 Nov 2026, 23:39)
+"Go deep and maybe do some research first on the best groove box UI's and what most people complain about when using them. And how we can make ours the best one ever. I love the flow on the minifreak. If it could do drums, sequencing, patterns, song mode. It would be the dream"
