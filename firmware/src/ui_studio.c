@@ -257,6 +257,8 @@ static void studio_tracks_draw(void)
 /* ---------------------------------------------------------------- DRUMS --- */
 static const char *const LV_NAME[4] = {"norm", "ghost", "soft", "hard"};
 static uint32_t lvl_rank(uint32_t lvl);                 /* (below) ghost 0, soft 1, norm 2, hard 3 */
+/* the level order of the knobs: ghost < soft < norm < hard */
+static const uint8_t LV_UP[4] = {LV_GHOST, LV_SOFT, LV_NORM, LV_HARD};
 static uint16_t lvl_col(uint32_t lvl)                   /* a hit's colour by its level */
 {
     return lvl == LV_GHOST ? TE_DIM[3] : lvl == LV_SOFT ? TE_MID[3] : lvl == LV_HARD ? C_WHITE : TE_DRUM;
@@ -538,10 +540,17 @@ static void pads_tick(void)                             /* once a frame: the hit
         }
 }
 
+#include "ui_grid.c"               /* the step GRID on every track (Elektron style) */
+
 static void drum_screen_draw(void)
 {
     static uint32_t head, scene_sig, steps_sig, body_sig, footer, bar;
     uint32_t i, len = (uint32_t)clamp(TDRUM->p[P_SLEN], 1, 64), kit = drum_kit(), sig, bank, pat = 0, lit = 0;
+    if (song.sel != TRK_DRUM) {                         /* a synth track: its GRID (ui_grid.c) */
+        sg_draw();
+        head = scene_sig = steps_sig = body_sig = footer = 0;
+        return;
+    }
     if (drum_cursor >= len) drum_cursor = (uint8_t)(len - 1u);
     bank = drum_cursor / 16u;
     {
@@ -564,7 +573,16 @@ static void drum_screen_draw(void)
     }
     sig = pat * 31u + drum_lane * 977u + drum_cursor * 101u + len * 3u + (song.playing ? TDRUM->seq_idx + 1u : 0u) * 71u;
     if (!drum_page) {                                  /* GRID: the drummer and the kit, then the 16 steps (ui_op.c) */
-        if (ui.force || sig * 131u + lit != scene_sig) {
+        if (sg_held) {                                 /* a step held: all it holds, where the drummer was */
+            uint32_t ls = 0;
+            for (i = 0; i < NLOCK; i++)
+                ls = ls * 31u + TDRUM->lock[i].step + TDRUM->lock[i].param * 257u + (uint32_t)TDRUM->lock[i].val * 65537u;
+            ls = ls * 31u + sig + sg_held + (uint32_t)TDRUM->micro[drum_cursor] * 7u + step_fill(TDRUM, drum_cursor) * 3u;
+            if (ui.force || ls * 131u + 1u != scene_sig) {
+                scene_sig = ls * 131u + 1u;
+                sg_detail_draw(SG_BODY_Y, SG_SCENE_H, (uint32_t)sg_first(), 1);
+            }
+        } else if (ui.force || sig * 131u + lit != scene_sig) {
             scene_sig = sig * 131u + lit;
             op_drum_scene(bank, len);
         }
@@ -601,7 +619,9 @@ static void drum_screen_draw(void)
         const char *val[4] = {v[0], v[1], v[2], v[3]};
         static const char *const LG[4] = {"sound", "step", "hit", "level"}, *const LK[4] = {"sound", "kit", "reverb", "delay"};
         int32_t ratio[4];
-        if (!drum_page) {
+        if (!drum_page && (sg_held || sg_lpage < NPAGES)) {
+            sg_knobs_held((uint32_t)(sg_held ? sg_first() : (int32_t)drum_cursor), &footer);
+        } else if (!drum_page) {
             const dstep_t *s = &TDRUM->dstep[drum_cursor];
             str_cpy(v[0], LANE_SHORT[drum_lane], 8);
             fmt_int(v[1], drum_cursor + 1);
@@ -630,56 +650,7 @@ static void drum_screen_draw(void)
     op_trackbar(&bar);
 }
 
-/* the level order of the knobs: ghost < soft < norm < hard */
-static const uint8_t LV_UP[4] = {LV_GHOST, LV_SOFT, LV_NORM, LV_HARD};
 static uint32_t lvl_rank(uint32_t lvl) { return lvl == LV_GHOST ? 0u : lvl == LV_SOFT ? 1u : lvl == LV_NORM ? 2u : 3u; }
-
-/* the GRID page shown, no layer held: its keys are steps (seq.c kb_grid) */
-static int grid_keys_on(void) { return on_drum_page() && !drum_page && song.sel == TRK_DRUM && !ui.menu; }
-/* a key down on the GRID page: the white keys are the 16 steps of this page of steps for the sound of
- * KNOB 1 — an empty one is set (NORM, the sound heard), a set one cleared; the first four black keys
- * pick the page (steps 1-16, 17-32, 33-48, 49-64), as in the SEQ layer. The cursor follows */
-static void grid_key(uint32_t k)
-{
-    static const int8_t PG[12] = {-1, 0, -1, 1, -1, 2, -1, -1, 3, -1, -1, -1};
-    uint32_t len = trk_len(TDRUM), idx;
-    int32_t w = punch_key(k);
-    dstep_t *st;
-    if (w < 0) {
-        if (k < 12u && PG[k] >= 0 && (uint32_t)PG[k] * 16u < len) {
-            idx = (uint32_t)PG[k] * 16u + drum_cursor % 16u;
-            drum_cursor = (uint8_t)(idx < len ? idx : len - 1u);
-            ui.force = 1;
-        }
-        return;
-    }
-    idx = drum_cursor / 16u * 16u + (uint32_t)w;
-    if (idx >= len)
-        return;
-    drum_cursor = (uint8_t)idx;
-    if (song.playing && arrangement_enabled) {
-        ui_message("STOP THE SONG FIRST");
-        return;
-    }
-    undo_mark(TDRUM, ui.step_sess ? ui.step_sess : (ui.step_sess = (undo_sess += 4u) | 3u));
-    st = &TDRUM->dstep[idx];
-    fm1_irq_off();
-    if (dstep_has(st, drum_lane)) {
-        dstep_clr(st, drum_lane);
-        if (!dstep_mask(st)) {                          /* an empty step keeps no lock, no nudge, no condition */
-            lock_del(TDRUM, idx, P_COUNT);
-            TDRUM->micro[idx] = 0;
-            step_fill_set(TDRUM, idx, FC_NORM);
-        }
-    } else {
-        dstep_set(st, drum_lane, LV_NORM, 0);
-        TDRUM->seq_active = 1;
-    }
-    fm1_irq_on();
-    if (dstep_has(st, drum_lane))
-        audition_lane(drum_lane);
-    sync_reload = 1;
-}
 
 /* DRUMS: SEQ -> GRID -> KIT -> SEQ > DRUM GEN (SEQ there: back to the GRID) */
 static void drum_seq_tap(void)
@@ -706,7 +677,7 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
 {
     uint32_t k, b;
     int32_t s;
-    if (song.sel != TRK_DRUM || home == 1u) {
+    if (home == 1u) {
         go_home();
         return;
     }
@@ -727,17 +698,18 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
             return;
         }
     }
+    if (!sg_held && (s = panel_enc(EN_ALGO)) && !ft_on)   /* the track: the GRID stays, on the track chosen */
+        track_select((uint32_t)clamp((int32_t)song.sel + s, 0, 3));
+    if (song.sel != TRK_DRUM) {                         /* a synth track's GRID (ui_grid.c) */
+        sg_synth_input(pressed);
+        return;
+    }
+    if (!drum_page && sg_input(pressed))                /* (a step held: its knobs; OCT- / OCT+, ENV, LFO) */
+        return;
     if ((s = panel_enc(EN_SELECT)) && (uint32_t)(s > 0) != drum_page) {   /* SELECT: grid <- -> kit (its pages) */
         drum_page = (uint8_t)(s > 0);
         ui.msg_t = 0;
         ui.force = 1;
-    }
-    if ((s = panel_enc(EN_ALGO)) && !ft_on) {
-        track_select((uint32_t)clamp((int32_t)song.sel + s, 0, 3));
-        if (song.sel != TRK_DRUM) {
-            go_home();
-            return;
-        }
     }
     if ((s = panel_enc(EN_PRESET))) TDRUM->p[P_E0] = (int16_t)clamp(TDRUM->p[P_E0] + s, 0, DRUM_KITS - 1);
     if (drum_page)                                      /* KIT: a key played picks its sound (KNOB 3, 4: its sends) */

@@ -587,6 +587,112 @@ int main(int argc, char **argv)
         song.rec = 0; transport_req = 2; frames(2);
         song.sel = TRK_DRUM;
     }
+    {   /* ---- the step GRID on every track (SPEC.md, 20 Nov 2026: Elektron style; ui_grid.c) */
+        track_t *t = &trk[0];
+        static track_t keep[NTRK];
+        uint32_t k5 = key_of_lane(4), k1 = key_of_lane(0), a0, a1;
+        memcpy(keep, trk, sizeof keep);
+        song.sel = 0; go_home(); frames(16);
+        steps_clear(t);
+        t->p[P_SLEN] = 32; t->p[P_SCALE] = 2; t->p[P_ROOT] = 0;   /* (C minor) */
+        pen_n = 1; pen_note[0] = 48;
+        tap(B_SEQ); frames(2);
+        check(on_drum_page() && kb_grid && grid_keys_on(), "GRID: HOME + SEQ on a synth track opens its GRID, the keys are steps");
+        key(k1);
+        check(step_on(&t->step[0]) && t->step[0].note[0] == 48 && t->step[0].vel == 100 && t->step[0].n == 1,
+              "GRID: tap an empty step: set with the pen (C3), VEL 100");
+        key(k1);
+        check(!step_on(&t->step[0]), "GRID: tap a set step: cleared");
+        fm1_in.notes |= 1u << k5; frame();                /* step 5 held */
+        check(step_on(&t->step[4]) && sg_held == 1u << 4, "GRID: step 5 held: set, held");
+        encs[panel.enc[EN_K1]] = 1; frame();
+        check(t->step[4].note[0] == 50, "GRID: step held + KNOB 1: NOTE one degree of the scale up (C3 -> D3)");
+        encs[panel.enc[EN_K1]] = 1; frame();
+        check(t->step[4].note[0] == 51, "GRID: KNOB 1 again: D3 -> D#3 (C minor)");
+        encs[panel.enc[EN_K2]] = 1; frame();
+        check(note_len(t, 4) == 2u && t->step[5].time == ST_TIE, "GRID: step held + KNOB 2: LEN 2 (a TIE after it)");
+        encs[panel.enc[EN_K3]] = -10; frame();
+        check(t->step[4].vel == 90, "GRID: step held + KNOB 3: VEL 90");
+        encs[panel.enc[EN_K4]] = 1; frame();
+        check(step_fill(t, 4) == FC_FILL, "GRID: step held + KNOB 4: COND fill only");
+        ui.force = 1; frame(); ppm("grid-synth-held");
+        a0 = (uint32_t)t->p[P_ATK];
+        tap(B_ENV); frame();
+        check(sg_lpage < NPAGES && PAGES[sg_lpage].fam == FAM_ENV && on_drum_page(),
+              "GRID: step held + ENV: the ENV page locks, the GRID stays");
+        encs[panel.enc[EN_K1]] = 3; frame();
+        {
+            int l = lock_find(t, 4, P_ATK, 0);
+            check(l >= 0 && t->lock[l].val == (int32_t)a0 + 3 && t->p[P_ATK] == (int16_t)a0,
+                  "GRID: step held + ENV + KNOB 1: an ATK lock on step 5, the track's ATK unchanged");
+        }
+        tap(B_FX); frame();
+        check(sg_lpage < NPAGES && PAGES[sg_lpage].fam == FAM_FX, "GRID: step held + FX tapped: the FX page locks");
+        a1 = (uint32_t)PAGES[sg_lpage].id[0];
+        encs[panel.enc[EN_K1]] = 2; frame();
+        check(lock_find(t, 4, a1, 0) >= 0, "GRID: FX + KNOB 1: its lock on step 5");
+        ui.force = 1; frame(); ppm("grid-synth-lock");
+        press(B_OCTDN); release(B_OCTDN); frame();
+        check(lock_find(t, 4, a1, 0) < 0 && lock_find(t, 4, P_ATK, 0) >= 0, "GRID: OCT- on the FX lock page: its locks go, ATK's stays");
+        ui.msg_t = 0;
+        fm1_in.notes &= ~(1u << k5); frame();
+        check(step_on(&t->step[4]) && !sg_held && sg_lpage == 0xFF, "GRID: step let go after edits: kept, the knobs back");
+        {   /* a scene: an acid line over two pages */
+            static const uint8_t NT[16] = {36, 0, 48, 36, 0, 39, 36, 0, 43, 0, 36, 46, 0, 36, 48, 0};
+            uint32_t j;
+            for (j = 0; j < 16u; j++) if (NT[j] && j != 4u) {
+                memset(&t->step[j], 0, sizeof(step_t));
+                t->step[j].n = 1; t->step[j].note[0] = NT[j]; t->step[j].time = ST_NOTE; t->step[j].vel = (uint8_t)(j % 4u ? 80 : 120);
+                if (j == 11u) t->step[j].flags = SF_ACCENT | SF_SLIDE;
+            }
+            t->step[20].n = 3; t->step[20].note[0] = 48; t->step[20].note[1] = 51; t->step[20].note[2] = 55; t->step[20].time = ST_NOTE;
+            t->micro[8] = -6;
+        }
+        ui.cursor = 4; ui.force = 1; frame(); ppm("grid-synth");
+        transport_req = 1; frames(20); ui.force = 1; frame(); ppm("grid-synth-play");
+        transport_req = 2; frames(2);
+        fm1_in.notes |= 1u << k5; frame(); encs[panel.enc[EN_SELECT]] = 1; frame();
+        check(sg_alt == 1u, "GRID: step held + SELECT: FLAG RATCH NUDGE on the knobs");
+        encs[panel.enc[EN_K1]] = 1; frame(); encs[panel.enc[EN_K3]] = -4; frame();
+        check((t->step[4].flags & SF_ACCENT) && t->micro[4] == -4, "GRID: FLAG ACC, NUDGE -4");
+        ui.force = 1; frame(); ppm("grid-synth-flag");
+        press(B_OCTDN); release(B_OCTDN);
+        check(!step_locked(t, 4) && !step_fill(t, 4), "GRID: step held + OCT-: its locks, nudge and condition go");
+        fm1_in.notes &= ~(1u << k5); frame(); ui.msg_t = 0;
+        key(3);                                           /* the second black key: steps 17-32 */
+        check(ui.cursor / 16u == 1u, "GRID: black key 2: the page of steps 17-32");
+        ui.force = 1; frame(); ppm("grid-synth-p2");
+        press(B_OCTUP); release(B_OCTUP);
+        check(ui.cursor / 16u == 0u, "GRID: OCT+ (no step held): the next page (round to 1-16)");
+        encs[panel.enc[EN_K2]] = -3; frame();
+        check(ui.cursor == 1u, "GRID: KNOB 2 (no step held): the cursor (step 5 -> step 2)");
+        encs[panel.enc[EN_K3]] = 1; frame();
+        check(step_on(&t->step[1]) && t->step[1].note[0] == 48, "GRID: KNOB 3 right: the pen on the cursor's step");
+        encs[panel.enc[EN_K3]] = -1; frame();
+        check(!step_on(&t->step[1]), "GRID: KNOB 3 left: cleared");
+        tap(B_SEQ); frames(2);
+        check(cur_page()->scope == SC_STEP, "GRID, SEQ: the STEP page (the acid style entry stays)");
+        go_home(); frames(2);
+        check(!kb_grid, "HOME: the keys play notes again");
+        /* the drum grid: hold a step, as on the synths */
+        song.sel = TRK_DRUM; studio_open(SC_DRUM); drum_page = 0; drum_lane = 0; drum_cursor = 0; frames(16);
+        memset(&TDRUM->dstep[1], 0, sizeof(dstep_t));
+        fm1_in.notes |= 1u << key_of_lane(1); frame();
+        check(dstep_has(&TDRUM->dstep[1], 0) && sg_held == 2u, "DRUM GRID: an empty step pressed: set at once (as before)");
+        encs[panel.enc[EN_K2]] = 1; frame();
+        encs[panel.enc[EN_K3]] = 5; frame();
+        check(dstep_rat(&TDRUM->dstep[1], 0) == 1u && TDRUM->micro[1] == 5, "DRUM GRID: step held + KNOB 2 RATCH x2, KNOB 3 NUDGE 5");
+        ui.force = 1; frame(); ppm("grid-drum-held");
+        fm1_in.notes &= ~(1u << key_of_lane(1)); frame();
+        check(dstep_has(&TDRUM->dstep[1], 0), "DRUM GRID: let go after an edit: kept");
+        key(key_of_lane(1));
+        check(!dstep_has(&TDRUM->dstep[1], 0), "DRUM GRID: tapped again: cleared");
+        encs[panel.enc[EN_ALGO]] = -1; frames(2);
+        check(song.sel == 2u && on_drum_page() && kb_grid, "GRID: ALGORITHM to a synth track: its GRID");
+        song.sel = 0; go_home(); frames(16);
+        memcpy(trk, keep, sizeof keep); sync_reload = 1;
+        song.sel = TRK_DRUM;
+    }
     {   /* the free take screens */
         static track_t keep[NTRK];
         memcpy(keep, trk, sizeof keep);
