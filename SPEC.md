@@ -34,7 +34,19 @@ Colours, later the same evening (with a photo of a Roland Jupiter-08 Boutique):
 
 > "I like the purple and sage green colours that I use on everything else too and the icy kind of baby blue with a coralish red / orange pink."
 
+Decided 20 Nov (Ben: "Yeah let's confirm those colour swaps for the alien and crocodile. Here's the palette."), from his Ableton track colours:
+
+| Track character | Colour | Hex (sampled from his screenshot) |
+|---|---|---|
+| Robot | purple | #7D61E0 |
+| Alien | blue | #119AEB |
+| Crocodile | green | #00B7A5 |
+| Snake | coral | #DE5C50 |
+
 ### Drums
+
+Decided 20 Nov: keep KARMA's own drum kits; no new drum engine for now ("Let's stay put with the drum machines. I didn't realise there were lots of options to choose from!").
+
 
 > "I don't love the 808.. truth be told I'd rather 707 or 606 sounds. Reckon you could hunt one down for us to steal and replace this kit? Or just if there's a REALLY good sounding drum synth out for the FM1 maybe we can steal its brain and stick it in our one?"
 
