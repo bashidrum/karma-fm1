@@ -768,8 +768,8 @@ static void boot_frame(uint32_t t)
     uint32_t pass;
     for (pass = 0; pass < 2u; pass++) {
         cv_begin(240, 120, C_BLACK);
-        flow_band(pass * 120u, 120u, t, fade, 1u, 96u, 145u);   /* (the wordmark: rows 104..136, black on colour) */
-        sloop_logo_knock(42, pass * 120u, 120u);
+        flow_band(pass * 120u, 120u, t, fade, 1u, 93u, 147u);   /* (the wordmark: rows 100..139, black on colour) */
+        sloop_logo_knock(38, pass * 120u, 120u);
         cv_blit(0, pass * 120u);
     }
 }
