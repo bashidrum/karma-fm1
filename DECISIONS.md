@@ -49,3 +49,20 @@ Ben asked (20 Nov 2026) for a full first version of his brief without stopping f
 - Not yet checked against existing product names or trade marks.
 
 - 20 Nov, later: Ben asked for a smooth font, "something suitable for the Barbican. Or Daft Punk - but not their font". The wordmark is now TeX Gyre Adventor Bold (a free geometric face), tracked wide, plain white, stored as tools/assets/phebus_word.png. The boot animation fades it up and out instead of popping pixel cells in. The tiny PHEBUS on the tape screen is still pixel letters.
+
+## Boot screen and backdrops, 20 Nov (late)
+- Boot: a flowing backdrop in the four voice colours, a different one each start, with PHE / BUS filling the square in black. About 3 seconds (was 2); any key skips. The colour bars and version number are gone from boot.
+- On the boot only, the backdrop has no black of its own (deep versions of the four colours instead), so the letters stay whole. Elsewhere the backdrops keep black bands.
+- Ben set the density limit ("the limit for how busy these should get"); patterns are drawn at that scale or broader, and glitch tears are rare and short.
+- The letters are stretched about 9% taller to fill the square.
+- The "different every time" pick uses the clock and battery reading; how random that is on real hardware is unknown.
+- Drawn at full resolution; speed on the real device is unknown.
+
+## Fierce characters, 20 Nov (late)
+- A subagent drafted all four; it was stopped part-way and Claude finished the work.
+- Robot: Ben asked for "more classic ... blockier": a box robot with antenna, visor slit, grille mouth, chest panel, clamp hands, slab feet.
+- Snake: Ben asked to "lose the hood": a hoodless viper on a slim S neck with a flat wedge head, fangs and tongue.
+- Crocodile: on Ben's worry about its silhouette, the arms in the dance poses are thrown clear of the body (one up behind, one reaching forward).
+- Alien: unchanged from the first draft.
+- STRIKE pose: shown for 8 frames when the character's own voice starts a note at the hard/accent velocity level; nothing in the sound or sequencer changes. In the mixer row the small figures strike too.
+- Sprite data grew from 22,944 to 31,216 bytes.
