@@ -169,6 +169,8 @@ int main(int argc, char **argv)
     for (i = 0; i < NPART; i++) { set_engine_of(&trk[i], TRK_DEF[i][0]); apply_preset_to(&trk[i], TRK_DEF[i][1]); trk[i].engine = trk[i].eng_req; }
     TDRUM->p[P_E0] = DRUM_DEFAULT_KIT;
     sloop_splash(); ppm("page-splash");
+    { static const uint32_t SEED[6] = {0u, 0x1231u, 0x2462u, 0x7733u, 0x51A4u, 0x9C55u}; uint32_t k;   /* the boot: FLOW, PHEBUS black in it */
+      for (k = 0; k < 6u; k++) { char nm[16]; snprintf(nm, sizeof nm, "boot-%u", (unsigned)k); flow_seed = SEED[k]; boot_frame(60u + k * 9u); ppm(nm); } }
     ui.menu = 2; ui.force = 1; frame(); ppm("page-about"); ui.menu = 0;
     go_home(); ui.force = 1; frame(); ppm("page-tracks");
     open_family(FAM_ENV); ui.force = 1; ui.hot_col = 1; ui.hot_t = 30; frame(); ppm("page-env");
