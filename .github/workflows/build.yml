@@ -55,7 +55,7 @@ jobs:
           rm -rf /tmp/sdk
 
       - name: Build firmware
-        run: ./build.sh
+        run: sh build.sh
 
       - uses: mymindstorm/setup-emsdk@v14
       - name: Build simulator
