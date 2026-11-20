@@ -18,7 +18,21 @@ FM-1 is the synth and drum machine; the MPC Sample is the sampler and arranger. 
 
 ## Changes requested
 
-(none yet: to be filled in from Ben's own words once he has played the simulator)
+Ben, 20 Nov 2026, after playing the simulator:
+
+### Step sequencers on the keys
+
+> "I like the step sequencer being on the keys. Would be cool if all the other step sequencers worked like that or if that was selectable."
+
+> "Then the step sequencers should copy Elektron as much as possible. Press a key to enter a step. Choose a note, and place it into a step. You can param lock per step which would be super powerful on a small device like this."
+
+### Graphics and characters
+
+> "The graphics bum me out. I'm up for whimsical characters but they're kind of gross looking. I would want a robot, an alien, a crocodile and a snake. And I would want them to dance rather than play. We could have a white robot, green alien, blue crocodile, and a red snake? What are the Juno colours, the roland colours, let's steal those."
+
+### Sound design layout
+
+> "The menu diving is intense and doesn't yield significantly better results. I would want a sound design layout that matches the flow and ease of the Minifreak. Oscillator engine > Filter > ADSR > FX + MOD matrix. We could leave the mod matrix to the end. But their concepts for small builds on synths are definitely the best and most fluid sound design."
 
 ## Claude's notes
 
