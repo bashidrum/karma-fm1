@@ -402,10 +402,12 @@ static uint32_t graph_signature(void)
     if (ui.home)
         return h ^ (ui.frame / 2u);                  /* scope: redraw every other frame */
     h ^= (uint32_t)pg->graph * 131u + TSEL->eng_req + song.sel * 7777u;
-    if (pg->fam == FAM_FX && (pg->graph == GR_FX || big_page(pg)))   /* the wizard: moves while the track sounds */
+    if (pg->fam == FAM_FX && (pg->graph == GR_FX || big_page(pg)))   /* the character and its spells: move while the track sounds */
         h ^= ((is_drum(t) ? drums.peak : t->peak) > 64 || op_mx[song.sel & 3u] || op_hop[song.sel & 3u] ? ui.frame / 2u : 0u) * 40503u;
     else if (big_page(pg) && !is_drum(t))            /* the character's scene (ui_op.c): moves while the track sounds */
         h ^= (t->peak > 64 || op_lvl || op_hit ? ui.frame / 2u : 0u) * 40503u + op_note * 977u + user_of(t) * 31u;
+    if (pg->fam == FAM_FX || big_page(pg))           /* (the characters dance: a pose a beat) */
+        h ^= (song.playing ? (clk_beat & 3u) + 1u : 0u) * 69069u;
     for (i = 0; i < P_COUNT; i++)
         h = (h ^ (uint32_t)t->p[i]) * 16777619u;
     h ^= (uint32_t)TSEL->preset * 7u + (uint32_t)song.g[G_SLOT] * 13u + TSEL->user * 257u + up_gen * 7919u + ui.uslot * 104729u;
@@ -723,6 +725,7 @@ static int menu_page(const page_t *pg)
 static void graph_menu(const track_t *t)
 {
     uint32_t c;
+    (void)t;
     for (c = 0; c < 4u; c++) {
         int32_t y = 2 + (int32_t)c * 30, x, lw, vw, uw;
         uint16_t vc = ui.big_c[c] == C_DIM ? C_DIM : ui.big_c[c] == C_WHITE ? C_WHITE : tint_col(c, 0);   /* (the page's tint; dim: does nothing now) */
@@ -745,11 +748,7 @@ static void graph_menu(const track_t *t)
         }
         cv_rect(22, y + 28, 146, 1, C_LINE);
     }
-    if (is_drum(t))
-        op_sprite_wh(OP_SPR_DRUMMER_MX, OP_SPR_DRUMMER_MX_W, OP_SPR_DRUMMER_MX_H, 208 - OP_SPR_DRUMMER_MX_W / 2,
-                     100 - OP_SPR_DRUMMER_MX_H, 0, TE_COL[3]);
-    else
-        op_sprite_scaled(song.sel % 3u, 210, 100, TE_COL[song.sel & 3u]);
+    op_sprite_scaled(song.sel & 3u, 210, 100, TE_COL[song.sel & 3u]);
 }
 
 static void draw_graph(void)
@@ -800,7 +799,7 @@ static void draw_graph(void)
             break;
         case GR_FX:
             cv_oy = 0;
-            op_fx_scene(opk.ratio);                  /* the wizard (ui_op.c) */
+            op_fx_scene(opk.ratio);                  /* the track's character dancing, its spells (ui_op.c) */
             break;
         case GR_SLCR:
             graph_slicer(t, c);
@@ -822,7 +821,7 @@ static void draw_graph(void)
                 cv_oy = 0;
                 if (menu_page(pg)) {
                     graph_menu(t);
-                } else if (pg->fam == FAM_FX) {              /* FILTER, INSERT, DLY, REV/CHO: the wizard too */
+                } else if (pg->fam == FAM_FX) {              /* FILTER, INSERT, DLY, REV/CHO: the character too */
                     if (!is_drum(t))
                         op_names(t);
                     op_fx_scene(opk.ratio);

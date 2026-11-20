@@ -563,7 +563,7 @@ static void drum_screen_draw(void)
         pat = pat * 31u + s->rat[0] + s->rat[1] * 7u + s->rat[2] * 49u + s->rat[3] * 343u;
     }
     sig = pat * 31u + drum_lane * 977u + drum_cursor * 101u + len * 3u + (song.playing ? TDRUM->seq_idx + 1u : 0u) * 71u;
-    if (!drum_page) {                                  /* GRID: the drummer and the kit, then the 16 steps (ui_op.c) */
+    if (!drum_page) {                                  /* GRID: the snake dancing, then the 16 steps (ui_op.c) */
         if (ui.force || sig * 131u + lit != scene_sig) {
             scene_sig = sig * 131u + lit;
             op_drum_scene(bank, len);
