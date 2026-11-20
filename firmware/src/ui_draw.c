@@ -407,7 +407,7 @@ static uint32_t graph_signature(void)
     else if (big_page(pg) && !is_drum(t))            /* the character's scene (ui_op.c): moves while the track sounds */
         h ^= (t->peak > 64 || op_lvl || op_hit ? ui.frame / 2u : 0u) * 40503u + op_note * 977u + user_of(t) * 31u;
     if (pg->fam == FAM_FX || big_page(pg))           /* (the characters dance: a pose a beat) */
-        h ^= (song.playing ? (clk_beat & 3u) + 1u : 0u) * 69069u;
+        h ^= (song.playing ? (clk_beat & 3u) + 1u : 0u) * 69069u + (op_strike[song.sel & 3u] ? 2246822519u : 0u);   /* (and the STRIKE pose) */
     for (i = 0; i < P_COUNT; i++)
         h = (h ^ (uint32_t)t->p[i]) * 16777619u;
     h ^= (uint32_t)TSEL->preset * 7u + (uint32_t)song.g[G_SLOT] * 13u + TSEL->user * 257u + up_gen * 7919u + ui.uslot * 104729u;

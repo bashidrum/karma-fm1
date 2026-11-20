@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
 """Draws the four characters, one a track (1 the robot, 2 the alien, 3 the crocodile, DRUM the snake), and writes
-firmware/src/op_sprites.h. They dance: each has three poses at full size (IDLE, LEAN: leaning to the right of
-the picture, mirrored for the left; UP: arms, tail or head up), two for the mixer and a head for HOME's lanes.
+firmware/src/op_sprites.h. Fierce, not cute (Ben, 20 Nov 2026): a grey alien, a croc-man, a chrome robot with a
+blank visor, a reared cobra. They dance and strike: each has four poses at full size (IDLE, LEAN: leaning to the
+right of the picture, mirrored for the left; UP: arms, tail or head up; STRIKE: shown for a moment when its voice
+plays an accent), three for the mixer (IDLE, LEAN, STRIKE) and a head for HOME's lanes.
   tools/gen_sprites.py [PREVIEW.png]     (the preview: every pose, 4x, in the tracks' colours)
 Pixel art, 4 bits a pixel, kept in flash: the full size pictures are 56 x 52 and drawn twice as large (each
 pixel 2 x 2: chunky, the same stroke as the mixer's); the colours are shades of the track's own colour (a
-character is its voice's colour) and white and black for the eyes (op_pal in ui_op.c).
+character is its voice's colour, no other hue) and white and black (op_pal in ui_op.c).
 The pictures are made here, by code (ellipses, rounded boxes, thick lines; each part outlined): original
 drawings, no artwork copied. Needs Pillow and numpy."""
+import math
 import sys
 from pathlib import Path
 
@@ -76,7 +79,8 @@ class Pic:
                 self.a[int(y), int(x)] = c
 
     def rect(self, x0, y0, x1, y1, c):              # filled, inclusive
-        self.a[max(0, y0):y1 + 1, max(0, x0):x1 + 1] = c
+        if y1 >= 0 and x1 >= 0:
+            self.a[max(0, y0):y1 + 1, max(0, x0):x1 + 1] = c
 
     def line(self, pts, c, w=1):
         m = Image.new("L", (self.w, self.h), 0)
@@ -89,271 +93,402 @@ class Pic:
         return im
 
 
-def eye(p, x, y, look=0, big=False):
-    """a cute eye: white, a black pupil (looking left -1, ahead 0, right 1), its white glint"""
-    if big:                                         # 4 x 5
-        p.rect(x, y, x + 3, y + 4, WHITE)
-        px = x + 1 + look
-        p.rect(px, y + 1, px + 1, y + 4, BLACK)
-        p.px([(px, y + 1)], WHITE)
-    else:                                           # 3 x 3
-        p.rect(x, y, x + 2, y + 2, WHITE)
-        p.rect(x + 1 + look, y + 1, x + 1 + look, y + 2, BLACK)
+def rot(pts, ang, ox, oy):
+    """points (x forward, y down) turned by ang degrees (negative: up) about (0, 0), then moved to (ox, oy)"""
+    c, s = math.cos(math.radians(ang)), math.sin(math.radians(ang))
+    return [(ox + x * c - y * s, oy + x * s + y * c) for x, y in pts]
+
+
+def joint(p, x, y, r=1.5):
+    """a mechanical joint: a small round knuckle, a dark pin"""
+    p.ell(x, y, r, r)
+    p.px([(round(x), round(y))], DARK)
+
+
+def claw(p, x, y, dx, dy, n=3, spread=2):
+    """n white claws from (x, y), two pixels each, pointing (dx, dy), fanned across"""
+    ox, oy = -dy, dx
+    for k in range(n):
+        o = (k - (n - 1) / 2) * spread
+        bx, by = x + ox * o, y + oy * o
+        p.px([(round(bx), round(by)), (round(bx + dx + ox * o * 0.3), round(by + dy + oy * o * 0.3))], WHITE)
+
+
+def fingers(p, x, y, tips):
+    """long thin fingers (outlined) from the palm (x, y) to each tip"""
+    for tx, ty in tips:
+        p.tube([(x, y), (tx, ty)], 1)
+    p.ell(x, y, 1.5, 1.5)
 
 
 # --------------------------------------------------------------------------------------------- the robot ---
-def robot(pose, s=None):
-    """track 1: the robot, boxy, an aerial with a light, a visor with two eyes and a smile, a little keyboard on
-    its chest (a synth of its own). IDLE: arms down; LEAN: to the right, a hand pointing up and out, the other on
-    its hip, a knee up; UP: both arms up, a hop."""
+def seg(p, a, b, w, fill=COL):
+    """a limb segment as a hard rectangle from a to b, w wide"""
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    n = math.hypot(dx, dy) or 1
+    ox, oy = -dy / n * w / 2, dx / n * w / 2
+    p.poly([(a[0] + ox, a[1] + oy), (b[0] + ox, b[1] + oy), (b[0] - ox, b[1] - oy), (a[0] - ox, a[1] - oy)], fill)
+
+
+def clamp(p, e, d, open_=1):
+    """a clamp hand at e, its two prongs pointing d (a unit direction)"""
+    ox, oy = -d[1], d[0]
+    seg(p, (e[0] - ox * 3, e[1] - oy * 3), (e[0] + ox * 3, e[1] + oy * 3), 3, LIGHT)
+    for sgn in (-1, 1):
+        k = 2.5 + (0.8 if open_ else 0)
+        a = (e[0] + ox * k * sgn + d[0], e[1] + oy * k * sgn + d[1])
+        seg(p, a, (a[0] + d[0] * 4, a[1] + d[1] * 4), 2, LIGHT)
+
+
+def robot(pose):
+    """track 1: the robot (Ben, 20 Nov 2026: "more classic ... blockier"): a classic box robot, all right angles:
+    a square head with an antenna, a black visor slit and a grille of a mouth, a box of a chest with a panel and
+    rivets, square shoulders, limbs of rectangles, clamps for hands, slabs for feet. IDLE: planted wide, clamps
+    down; LEAN: to the right, a clamp raised, the other arm bent; UP: both arms straight up, a hop; STRIKE: a
+    lunge to the right, an arm thrust out, clamp open, the visor flaring white."""
     p = Pic()
-    hop = -2 if pose == "UP" else 0
-    hx = {"IDLE": 0, "LEAN": 5, "UP": 0}[pose]      # the head's shift; the body's is half of it
-    bx = hx // 2
-    y = hop
-    # legs and feet (behind the body)
+    y = -2 if pose == "UP" else 0
+    bx = {"IDLE": 0, "LEAN": 2, "UP": 0, "STRIKE": 4}[pose]
+    # legs: thigh and shin a rectangle each, slab feet
     if pose == "LEAN":
-        p.tube([(22 + bx, 40), (17, 44), (19, 47)], 5)              # the left knee up, out to the side
-        p.box(14, 45, 23, 49, 2)
-        p.tube([(33 + bx, 40), (35, 47)], 5)
-        p.box(31, 46, 41, 51, 2)
+        legs = [((23 + bx, 37), (20, 48)), ((33 + bx, 37), (37, 48))]
+    elif pose == "STRIKE":
+        legs = [((23 + bx, 37), (14, 48)), ((33 + bx, 37), (41, 48))]
     else:
-        for lx in (22, 33):
-            p.tube([(lx, 40 + y), (lx, 46 + y)], 5)
-        p.box(16, 46 + y, 25, 51 + y, 2)
-        p.box(30, 46 + y, 39, 51 + y, 2)
-    # arms (behind the body at the shoulders)
-    L, R = (17 + bx, 27 + y), (38 + bx, 27 + y)
+        legs = [((23, 37 + y), (21, 48 + y)), ((33, 37 + y), (35, 48 + y))]
+    for a, b in legs:
+        seg(p, a, b, 6)
+        mx, my = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+        p.line([(mx - 2, my), (mx + 2, my)], DARK)                     # the knee's seam
+        p.box(b[0] - 5, b[1], b[0] + 5, min(51, b[1] + 3), 0)
+        p.line([(b[0] - 4, b[1] + 1), (b[0] + 4, b[1] + 1)], LIGHT)
+    # hips
+    p.box(19 + bx, 33 + y, 37 + bx, 37 + y, 0)
+    p.line([(28 + bx, 34 + y), (28 + bx, 36 + y)], DARK)
+    # arms: upper arm, forearm (heavier), a clamp
+    S = [(14 + bx, 20 + y), (42 + bx, 20 + y)]
     if pose == "IDLE":
-        arms = [[L, (12, 31), (11, 37)], [R, (43, 31), (44, 37)]]
-        hands = [(11, 38), (44, 38)]
+        arms = [(S[0], (12, 27), (11, 35), (0, 1)), (S[1], (44, 27), (45, 35), (0, 1))]
     elif pose == "LEAN":
-        arms = [[L, (10, 30), (6, 24)], [R, (45, 22), (50, 15)]]        # both arms up and out to the right
-        hands = [(5, 22), (51, 13)]
+        arms = [(S[0], (11, 27), (11, 34), (0, 1)), (S[1], (49, 15), (50, 7), (0, -1))]
+    elif pose == "UP":
+        arms = [(S[0], (11, 12 + y), (11, 5 + y), (0, -1)), (S[1], (45, 12 + y), (45, 5 + y), (0, -1))]
     else:
-        arms = [[L, (10, 22), (7, 14)], [R, (45, 22), (48, 14)]]
-        hands = [(7, 12), (48, 12)]
-    for a in arms:
-        p.tube(a, 4)
-    for x, yy in hands:
-        p.ell(x, yy, 2.5, 2.5, LIGHT)
-    # the body: a rounded box, its keyboard
-    p.box(16 + bx, 22 + y, 39 + bx, 41 + y, 3)
-    p.rect(19 + bx, 31 + y, 36 + bx, 37 + y, WHITE)                 # the keys
-    for k in range(6):
-        p.rect(19 + bx + 3 * k - 1 if k else 18 + bx, 31 + y, 19 + bx + 3 * k - 1 if k else 18 + bx, 37 + y, DARK)
-    p.rect(37 + bx, 31 + y, 37 + bx, 37 + y, DARK)
-    p.rect(18 + bx, 30 + y, 37 + bx, 30 + y, DARK)
-    p.rect(18 + bx, 38 + y, 37 + bx, 38 + y, DARK)
-    for k in (1, 2, 4, 5):                                           # the black keys
-        p.rect(19 + bx + 3 * k - 2, 31 + y, 19 + bx + 3 * k - 1, 34 + y, BLACK)
-    for k, c in enumerate((LIGHT, WHITE, LIGHT)):                    # three lights over them
-        p.rect(21 + bx + 5 * k, 25 + y, 22 + bx + 5 * k, 26 + y, c)
-    p.rect(35 + bx, 25 + y, 36 + bx, 26 + y, DARK)
-    # the head: aerial, ears, box, visor
-    ax = 28 + hx
-    p.tube([(ax, 7 + y), (ax, 6 + y)], 2)
-    p.ell(ax, 5 + y, 2, 2, WHITE)
-    p.box(ax - 15, 11 + y, ax - 13, 16 + y, 1)
-    p.box(ax + 12, 11 + y, ax + 14, 16 + y, 1)
-    p.box(ax - 12, 6 + y, ax + 11, 21 + y, 3)
-    p.box(ax - 9, 9 + y, ax + 8, 18 + y, 2, BLACK, None)
-    p.rect(ax - 7, 11 + y, ax - 5, 14 + y, WHITE)                    # eyes: tall, rounded by the visor's black
-    p.rect(ax + 4, 11 + y, ax + 6, 14 + y, WHITE)
-    if pose == "UP":                                                 # happy: eyes shut ^ ^
-        p.rect(ax - 7, 11 + y, ax - 5, 14 + y, BLACK)
-        p.rect(ax + 4, 11 + y, ax + 6, 14 + y, BLACK)
-        p.px([(ax - 7, 13 + y), (ax - 6, 12 + y), (ax - 5, 13 + y), (ax + 4, 13 + y), (ax + 5, 12 + y), (ax + 6, 13 + y)], WHITE)
-    p.px([(ax - 3, 16 + y), (ax - 2, 17 + y), (ax - 1, 17 + y), (ax, 17 + y), (ax + 1, 17 + y), (ax + 2, 16 + y)], LIGHT)
-    p.marks += [("visor", ax, y), ("keys", 28 + bx, y)]
+        arms = [(S[0], (8, 24), (6, 17), (0, -1)), (S[1], (48, 21), (50, 21), (1, 0))]
+    for sh, el, ha, d in arms:
+        seg(p, sh, el, 4)
+        seg(p, el, ha, 6)
+        clamp(p, ha, d, pose in ("STRIKE", "UP"))
+    if pose == "STRIKE":                                               # the thrust: speed lines behind the arm
+        for ly, l in ((15, 5), (27, 4)):
+            p.line([(40, ly), (40 + l, ly)], LIGHT)
+    # the chest: a box, a light panel with a dial, a grille, rivets
+    p.box(17 + bx, 16 + y, 39 + bx, 33 + y, 0)
+    p.box(20 + bx, 19 + y, 27 + bx, 25 + y, 0, LIGHT)
+    p.px([(22 + bx, 21 + y), (23 + bx, 22 + y), (24 + bx, 23 + y)], DARK)
+    for k in range(3):
+        p.line([(30 + bx, 20 + y + k * 2), (36 + bx, 20 + y + k * 2)], DARK)
+    p.rect(21 + bx, 28 + y, 23 + bx, 30 + y, BLACK)
+    p.px([(22 + bx, 29 + y)], WHITE)
+    p.rect(26 + bx, 28 + y, 28 + bx, 30 + y, DARK)
+    p.rect(31 + bx, 28 + y, 35 + bx, 30 + y, DARK)
+    p.px([(18 + bx, 17 + y), (38 + bx, 17 + y), (18 + bx, 32 + y), (38 + bx, 32 + y)], LIGHT)
+    # shoulders: square blocks
+    for sx, sy in S:
+        p.box(sx - 3, sy - 4, sx + 3, sy + 2, 0)
+        p.line([(sx - 2, sy - 3), (sx + 2, sy - 3)], LIGHT)
+    # neck
+    hx = bx + {"IDLE": 0, "LEAN": 2, "UP": 0, "STRIKE": 3}[pose]
+    p.box(25 + hx, 13 + y, 31 + hx, 16 + y, 0, DARK)
+    # the head: a box, ear bolts, an antenna, a black visor slit, a grille
+    cx, cy = 28 + hx, 7 + y
+    p.box(cx - 9, cy - 1, cx - 7, cy + 2, 0)
+    p.box(cx + 7, cy - 1, cx + 9, cy + 2, 0)
+    p.box(cx - 7, cy - 5, cx + 7, cy + 6, 0)
+    p.line([(cx - 6, cy - 4), (cx + 2, cy - 4)], LIGHT)
+    p.rect(cx, cy - 8, cx, cy - 6, COL)
+    p.rect(cx - 1, cy - 9, cx + 1, cy - 8, LIGHT)
+    p.rect(cx - 5, cy - 2, cx + 5, cy, BLACK)
+    if pose == "STRIKE":                                               # the visor flares
+        p.rect(cx - 5, cy - 1, cx + 5, cy - 1, WHITE)
+        p.px([(cx + 10, cy - 1), (cx + 11, cy - 1), (cx + 12, cy - 1)], LIGHT)
+    else:                                                              # two hard eyes in the slit
+        p.rect(cx - 4, cy - 1, cx - 2, cy - 1, WHITE)
+        p.rect(cx + 2, cy - 1, cx + 4, cy - 1, WHITE)
+    for k in range(-4, 5, 2):                                          # the mouth: a grille
+        p.rect(cx + k, cy + 3, cx + k, cy + 4, DARK)
+    p.marks += [("visor", cx, cy - 1, pose == "STRIKE")]
     return p
 
 
 # --------------------------------------------------------------------------------------------- the alien ---
 def alien(pose):
-    """track 2: the alien, a big round head, two feelers with lights, big dark eyes with a glint, a small smile, a
-    little body. IDLE: arms down; LEAN: swaying right, arms out to the side, one up; UP: both arms up, a hop."""
+    """track 2: the alien, a grey: a huge bulbous head tapering to a small chin, enormous black almond eyes slanted
+    up and out (a glint in each, a frown of a brow over them), a thin neck, a thin body, long thin limbs, long
+    three fingered hands. IDLE: arms hanging; LEAN: swaying right, a long hand raised; UP: both hands raised,
+    fingers spread, a hop; STRIKE: it leans in and down, eyes wider, mouth open, both hands reaching, spread."""
     p = Pic()
-    hop = -2 if pose == "UP" else 0
-    hx = {"IDLE": 0, "LEAN": 4, "UP": 0}[pose]
-    bx = hx // 2
-    y = hop
-    # legs and feet
+    y = -2 if pose == "UP" else 0
+    bx = {"IDLE": 0, "LEAN": 2, "UP": 0, "STRIKE": 2}[pose]
+    hx = {"IDLE": 0, "LEAN": 4, "UP": 0, "STRIKE": 5}[pose]
+    hy = 3 if pose == "STRIKE" else 0
+    c = 27.5
+    # legs: long, thin, knobbly knees, small feet
     if pose == "LEAN":
-        p.tube([(24 + bx, 42), (20, 46), (18, 48)], 4)
-        p.ell(16, 48, 4, 2.5)
-        p.tube([(32 + bx, 42), (34, 49)], 4)
-        p.ell(36, 50, 4.5, 2.5)
+        legs = [[(25 + bx, 40), (22, 45), (20, 50)], [(31 + bx, 40), (34, 45), (36, 50)]]
+    elif pose == "STRIKE":
+        legs = [[(25 + bx, 40), (20, 45), (17, 50)], [(31 + bx, 40), (36, 44), (37, 50)]]
     else:
-        for lx, fx in ((24, 21), (32, 35)):
-            p.tube([(lx, 42 + y), (lx, 48 + y)], 4)
-            p.ell(fx, 49 + y, 4.5, 2.5)
-    # arms
-    L, R = (21 + bx, 33 + y), (35 + bx, 33 + y)
+        legs = [[(25, 40 + y), (23, 45 + y), (22, 50 + y)], [(30, 40 + y), (32, 45 + y), (33, 50 + y)]]
+    for lg in legs:
+        p.tube(lg, 2)
+        fx, fy = lg[2]
+        p.poly([(fx - 2, fy + 1), (fx + 3, fy + 1), (fx + 1, fy - 1)])
+    # arms: long and thin, with long fingers
+    S = [(23 + bx, 30 + y + hy // 2), (32 + bx, 30 + y + hy // 2)]
     if pose == "IDLE":
-        arms, hands = [[L, (16, 37), (14, 42)], [R, (40, 37), (42, 42)]], [(14, 43), (42, 43)]
+        arms = [[S[0], (19, 36), (16, 43)], [S[1], (36, 36), (39, 43)]]
+        tips = [[(14, 48), (16, 49), (18, 48)], [(37, 48), (39, 49), (41, 48)]]
     elif pose == "LEAN":
-        arms, hands = [[L, (13, 34), (6, 31)], [R, (43, 32), (50, 27)]], [(5, 30), (51, 26)]
+        arms = [[S[0], (17, 34), (11, 38)], [S[1], (40, 25), (46, 17)]]
+        tips = [[(7, 42), (8, 43), (11, 43)], [(45, 11), (48, 11), (51, 13)]]
+    elif pose == "UP":
+        arms = [[S[0], (16, 24 + y), (10, 16 + y)], [S[1], (39, 24 + y), (45, 16 + y)]]
+        tips = [[(5, 13 + y), (7, 10 + y), (10, 10 + y)], [(45, 10 + y), (48, 10 + y), (50, 13 + y)]]
     else:
-        arms, hands = [[L, (12, 30), (6, 22)], [R, (44, 30), (50, 22)]], [(5, 20), (51, 20)]
-    for a in arms:
-        p.tube(a, 3)
-    for x, yy in hands:
-        p.ell(x, yy, 2, 2, LIGHT)
-    # the body: a small pear, a pale belly
-    p.ell(28 + bx, 37 + y, 8, 8)
-    p.ell(28 + bx, 39 + y, 4, 4, LIGHT, None)
-    # the head
-    hc = 28 + hx
-    p.tube([(hc - 7, 8 + y), (hc - 10, 5 + y)], 2)
-    p.tube([(hc + 7, 8 + y), (hc + 10, 5 + y)], 2)
-    p.ell(hc - 10, 5 + y, 2, 2, WHITE)
-    p.ell(hc + 10, 5 + y, 2, 2, WHITE)
-    p.ell(hc, 17 + y, 15, 12)
-    p.ell(hc - 5, 11 + y, 4, 2, LIGHT, None)                         # a shine on the dome
-    for sx in (-1, 1):                                               # the eyes: big, dark, slanted a little
-        ex = hc + sx * 7
-        p.part(lambda d, ex=ex, sx=sx: d.ellipse((ex - 4, 15 + y, ex + 4, 23 + y), fill=255), BLACK, None)
-        p.px([(ex - 2, 17 + y), (ex - 1, 17 + y), (ex - 2, 18 + y)], WHITE)
-        p.px([(ex + 2, 21 + y)], WHITE)
-        p.marks.append(("aeye", ex, 19 + y))
-    if pose == "UP":                                                 # an open, happy mouth
-        p.rect(hc - 2, 25 + y, hc + 2, 26 + y, BLACK)
-        p.px([(hc - 3, 25 + y), (hc + 3, 25 + y)], DARK)
+        arms = [[S[0], (16, 33), (9, 29)], [S[1], (41, 30), (48, 27)]]
+        tips = [[(3, 25), (4, 29), (4, 32), (7, 34)], [(52, 21), (54, 25), (54, 28), (51, 32)]]
+    for a, tp in zip(arms, tips):
+        p.tube(a, 2)
+        fingers(p, *a[2], tp)
+    # neck, body: thin, a pot belly hint, ribs
+    p.tube([(c + bx + (hx - bx) * 0.6, 25 + y + hy), (c + bx, 30 + y)], 2)
+    p.ell(c + bx, 34 + y, 5, 6)
+    p.px([(int(c + bx) - 2, 31 + y), (int(c + bx) - 1, 31 + y), (int(c + bx) - 2, 33 + y), (int(c + bx) - 1, 33 + y),
+          (int(c + bx) + 2, 31 + y), (int(c + bx) + 3, 31 + y), (int(c + bx) + 2, 33 + y), (int(c + bx) + 3, 33 + y)], DARK)
+    # the head: a dome, tapering to the chin
+    hc, ty = c + hx, y + hy
+    big = pose == "STRIKE"
+
+    def head(d):
+        d.ellipse((hc - 13, ty, hc + 13, ty + 20), fill=255)
+        d.polygon([(hc - 12, ty + 12), (hc + 12, ty + 12), (hc + 3, ty + 25), (hc - 3, ty + 25)], fill=255)
+    p.part(head)
+    p.part(lambda d: d.ellipse((hc - 9, ty + 2, hc - 3, ty + 6), fill=255), LIGHT, None)   # the dome's shine
+    p.px([(int(hc) - 8, ty + 7), (int(hc) - 9, ty + 8)], LIGHT)
+    for sx in (-1, 1):                                                  # the eyes
+        def eyep(d, sx=sx):
+            e = [(1, 0), (5, -3), (11, -4), (12, -1), (9, 3), (4, 4)] if not big else \
+                [(0, 0), (5, -4), (12, -5), (13, -1), (10, 4), (4, 5)]
+            d.polygon([(hc + sx * (x + 0.5) - (0.5 if sx < 0 else 0), ty + 14 + yy) for x, yy in e], fill=255)
+        p.part(eyep, BLACK, DARK)
+        gx = int(hc + sx * 4) - (1 if sx < 0 else 0)
+        p.px([(gx + sx, ty + 12), (gx + 2 * sx, ty + 12), (gx + sx, ty + 13)], WHITE)   # the glint
+        p.px([(gx + 6 * sx, ty + 16)], LIGHT)
+        p.px([(int(hc) + sx * 2 - (1 if sx < 0 else 0), ty + 10), (int(hc) + sx * 3 - (1 if sx < 0 else 0), ty + 11)], DARK)   # the frown
+        p.marks.append(("aeye", hc + sx * 7, ty + 14, big))
+    p.px([(int(hc) - 1, ty + 19), (int(hc) + 1, ty + 19)], DARK)      # nostrils
+    if big:                                                            # mouth open
+        p.rect(int(hc) - 2, ty + 21, int(hc) + 2, ty + 23, BLACK)
+        p.px([(int(hc) - 3, ty + 22), (int(hc) + 3, ty + 22)], DARK)
     else:
-        p.px([(hc - 2, 25 + y), (hc - 1, 26 + y), (hc, 26 + y), (hc + 1, 26 + y), (hc + 2, 25 + y)], DARK)
-    p.px([(hc - 11, 24 + y), (hc - 10, 24 + y), (hc + 10, 24 + y), (hc + 11, 24 + y)], LIGHT)   # cheeks
+        p.rect(int(hc) - 2, ty + 22, int(hc) + 2, ty + 22, DARK)
     return p
 
 
 # ----------------------------------------------------------------------------------------- the crocodile ---
 def croc(pose):
-    """track 3: the crocodile, standing, turned to the right: a long snout with a grin and two teeth, eyes on
-    top of its head, a pale belly, bumps down its back, a thick tail. IDLE: arms down, tail on the ground;
-    LEAN: to the right, arms up and out, the tail swung up; UP: both arms up, tail up, a hop."""
+    """track 3: the crocodile, a muscular croc-man standing upright, hunched, turned to the right: a heavy tail on
+    the ground, ridged scales down its back and tail, a pale plated belly, thick arms with white claws, clawed
+    feet, a long snout full of teeth, an eye under a hard brow. IDLE: hunched, claws forward, jaws shut and
+    toothy; LEAN: to the right, a claw raised, the tail swung up; UP: head back, jaws parted, both claws up, a
+    hop; STRIKE: the jaws snap wide open, claws out."""
     p = Pic()
-    hop = -2 if pose == "UP" else 0
-    hx = {"IDLE": 0, "LEAN": 2, "UP": 0}[pose]
-    bx = hx // 2
-    y = hop
-    # the tail, behind it all
-    if pose == "IDLE":
-        p.poly([(19, 37), (22, 47), (12, 50), (1, 50), (1, 48), (11, 44)])
+    y = -2 if pose == "UP" else 0
+    bx = {"IDLE": 0, "LEAN": 2, "UP": 0, "STRIKE": 3}[pose]
+    au, al = {"IDLE": (0, 0), "LEAN": (-4, 4), "UP": (-28, -2), "STRIKE": (-38, 26)}[pose]
+    # the tail, behind it all: heavy, on the ground (swung up when it moves)
+    if pose in ("IDLE", "STRIKE"):
+        tail = [(19, 31), (23, 44), (14, 49), (5, 51), (0, 51), (0, 49), (8, 46), (14, 40)]
+        ridge = [(15, 40), (11, 44), (6, 47)]
     else:
-        p.poly([(18 + bx, 35 + y), (22 + bx, 45 + y), (12, 43 + y), (4, 35 + y), (2, 30 + y), (7, 33 + y), (14, 37 + y)])
-    # legs and feet: turned to the right
+        tail = [(19, 30 + y), (23, 43 + y), (14, 44 + y), (7, 40 + y), (2, 33 + y), (5, 33 + y), (10, 37 + y), (15, 36 + y)]
+        ridge = [(13, 37 + y), (8, 36 + y), (5, 33 + y)]
+    p.poly(tail)
+    for tx, ty in ridge:                                               # scutes along the tail
+        p.poly([(tx - 1, ty), (tx + 1, ty - 1), (tx + 1, ty + 1)], COL)
+        p.px([(tx, ty)], DARK)
+    # legs: thick, bent, clawed feet
     if pose == "LEAN":
-        p.tube([(21 + bx, 44), (17, 46)], 5)
-        p.box(12, 44, 21, 48, 2)
-        p.tube([(30 + bx, 44), (31, 48)], 5)
-        p.box(28, 47, 38, 51, 2)
+        legs = [[(21 + bx, 41), (17, 45), (17, 49)], [(29 + bx, 41), (33, 45), (32, 49)]]
+    elif pose == "STRIKE":
+        legs = [[(21 + bx, 41), (16, 45), (14, 49)], [(29 + bx, 41), (35, 44), (36, 49)]]
     else:
-        for lx in (21, 30):
-            p.tube([(lx, 44 + y), (lx, 48 + y)], 5)
-            p.box(lx - 3, 47 + y, lx + 6, 51 + y, 2)
-    # the far arm (behind the body)
+        legs = [[(21, 41 + y), (19, 45 + y), (19, 49 + y)], [(29, 41 + y), (32, 45 + y), (31, 49 + y)]]
+    for lg in legs:
+        p.tube(lg[:2], 6)
+        p.tube(lg[1:], 4)
+        fx, fy = lg[2]
+        p.box(fx - 3, fy, fx + 4, fy + 2, 1)
+        p.px([(fx + 5, fy + 2), (fx + 5, fy + 1), (fx + 3, fy + 3 if fy + 3 < 52 else fy + 2)], WHITE)
+    # the far arm, behind the body
     if pose == "IDLE":
-        p.tube([(18, 31), (14, 36), (14, 39)], 4)
-        hand = (14, 40)
+        far = [(23, 24), (21, 31), (29, 33)]
     elif pose == "LEAN":
-        p.tube([(18 + bx, 31), (11, 30), (7, 25)], 4)
-        hand = (6, 23)
+        far = [(23 + bx, 24), (13, 22), (9, 12)]                       # (thrown out behind and up: clear of the body)
+    elif pose == "UP":
+        far = [(23, 22 + y), (13, 15 + y), (10, 5 + y)]
     else:
-        p.tube([(18, 29 + y), (13, 23 + y), (11, 16 + y)], 4)
-        hand = (11, 14 + y)
-    p.ell(*hand, 2.5, 2.5, LIGHT)
-    # the bumps down its back, the body, its belly
-    for k in range(4):
-        p.ell(14 + bx, 25 + y + k * 5, 2, 2)
-    p.ell(25 + bx, 36 + y, 11, 11)
-    p.ell(27 + bx, 38 + y, 6, 8, LIGHT, None)
-    for k in range(3):
-        p.rect(24 + bx, 35 + y + k * 3, 30 + bx, 35 + y + k * 3, COL)
-    # the near arm (raised: behind the snout, its hand above it)
-    def near_arm():
-        if pose == "UP":
-            p.tube([(33, 29 + y), (41, 16 + y), (44, 8 + y)], 4)
-            hand = (44, 6 + y)
-        elif pose == "LEAN":
-            p.tube([(33 + bx, 31), (42, 33), (49, 30)], 4)
-            hand = (50, 29)
-        else:
-            p.tube([(33, 31), (37, 36), (37, 39)], 4)
-            hand = (37, 40)
-        p.ell(*hand, 2.5, 2.5, LIGHT)
-    near_arm()
-    # the head: eyes on top, then the skull, the jaw and the snout as one
-    hc = 23 + hx
-    for sx in (-4, 4):
-        p.ell(hc + sx, 8 + y, 4, 4)
-
-    def head(d):
-        d.ellipse((hc - 10, 8 + y, hc + 10, 26 + y), fill=255)
-        d.polygon([(hc + 2, 11 + y), (hc + 26, 13 + y), (hc + 29, 15 + y), (hc + 29, 22 + y), (hc + 25, 25 + y),
-                   (hc + 2, 26 + y)], fill=255)
-    p.part(head)
-    p.rect(hc + 4, 21 + y, hc + 26, 24 + y, LIGHT)                   # the pale jaw
-    p.px([(hc + 27, 21 + y), (hc + 27, 22 + y)], LIGHT)
-    for x in range(hc + 4, hc + 29):                                 # the mouth, up at the cheek
-        p.px([(x, 20 + y)], DARK)
-    p.px([(hc + 3, 19 + y), (hc + 2, 18 + y)], DARK)
-    p.px([(hc + 24, 14 + y), (hc + 26, 14 + y)], DARK)               # nostrils
-    for x in (hc + 9, hc + 16, hc + 23):                             # teeth
-        p.px([(x, 21 + y), (x - 1, 21 + y)], WHITE)
-        p.px([(x - 1, 22 + y)], WHITE)
-    for sx in (-4, 4):
-        eye(p, hc + sx - 1, 6 + y, 1)
-    if pose == "UP":                                                 # happy: eyes shut
-        for sx in (-4, 4):
-            p.rect(hc + sx - 1, 6 + y, hc + sx + 1, 8 + y, COL)
-            p.px([(hc + sx - 1, 7 + y), (hc + sx, 6 + y), (hc + sx + 1, 7 + y)], DARK)
+        far = [(24 + bx, 24), (20, 30), (31, 31)]
+    p.tube(far[:2], 5)
+    p.tube(far[1:], 4)
+    # the body: a hunched barrel, a plated belly
+    p.part(lambda d: (d.ellipse((15 + bx, 21 + y, 35 + bx, 45 + y), fill=255),
+                      d.ellipse((19 + bx, 16 + y, 35 + bx, 30 + y), fill=255)))
+    p.part(lambda d: d.ellipse((26 + bx, 25 + y, 35 + bx, 44 + y), fill=255), LIGHT, None)
+    for k in range(5):
+        yy = 28 + y + k * 3
+        p.line([(28 + bx, yy), (34 + bx, yy)], DARK)
+    # scale rows on the back, ridges down the spine
+    for k, (sx, sy) in enumerate([(19, 19), (16, 24), (15, 29), (15, 34), (16, 39)]):
+        p.poly([(sx + bx - 2, sy + y), (sx + bx, sy + y - 2), (sx + bx + 1, sy + y + 1)], COL)
+        p.px([(sx + bx + 3, sy + y + 1), (sx + bx + 5, sy + y + 1), (sx + bx + 4, sy + y + 3)], DARK)
+    # the head: the skull, then the jaws on a hinge
+    H = (32 + bx, 17 + y)
+    up = rot([(-4, -6), (3, -6), (16, -4), (21, -3), (22, -1), (21, 0), (0, 1)], au, *H)
+    lo = rot([(0, 0), (20, 0), (21, 1), (19, 3), (6, 4), (-3, 4)], al, *H)
+    p.poly(lo)
+    p.ell(H[0] - 1, H[1] - 2, 5, 5)
+    p.poly(up)
+    if au != al:                                                       # open: the mouth, teeth top and bottom
+        mouth = rot([(1, 1), (20, 1)], au, *H)[::-1] + rot([(1, -1), (19, -1)], al, *H)
+        mouth = [H] + rot([(19, 1)], au, *H) + rot([(18, -1)], al, *H)
+        p.part(lambda d: d.polygon(mouth, fill=255), BLACK, None)
+        for t in range(4, 20, 3):
+            (ax, ay), = rot([(t, 1.5)], au, *H)
+            (bx2, by2), = rot([(t + 1, -1.5)], al, *H)
+            p.px([(round(ax), round(ay))], WHITE)
+            p.px([(round(bx2), round(by2))], WHITE)
+        p.marks.append(("cjaw", H[0], H[1], 1))
+    else:                                                              # shut: interlocking teeth along the jaw
+        for t in range(5, 21, 2):
+            (ax, ay), = rot([(t, 1 if t % 4 == 1 else 0)], au, *H)
+            p.px([(round(ax), round(ay))], WHITE)
+        p.line([rot([(1, 0.5)], au, *H)[0], rot([(20, 0.5)], au, *H)[0]], DARK)
+        for t in range(6, 20, 4):
+            (ax, ay), = rot([(t, 1)], au, *H)
+            p.px([(round(ax), round(ay))], WHITE)
+        p.marks.append(("cjaw", H[0], H[1], 0))
+    (nx, ny), = rot([(19, -5)], au, *H)                                # the nostril bump
+    p.ell(nx, ny, 1.5, 1)
+    # the eye: on top of the skull, under a heavy brow
+    (ex, ey), = rot([(1, -6)], au * 0.5, *H)
+    ex, ey = round(ex), round(ey)
+    p.ell(ex, ey, 3, 2.5)
+    p.rect(ex - 1, ey, ex + 1, ey + 1, BLACK)
+    p.px([(ex + 1, ey)], WHITE)
+    p.px([(ex - 2, ey - 2), (ex - 1, ey - 2), (ex, ey - 1), (ex + 1, ey - 1), (ex + 2, ey - 1)], DARK)
+    p.marks.append(("ceye", ex, ey, 0))
+    # the near arm: a big shoulder, a thick forearm, claws
+    if pose == "IDLE":
+        near, cl = [(30, 25), (35, 32), (41, 30)], (1, 0)
+    elif pose == "LEAN":
+        near, cl = [(30 + bx, 26), (40, 32), (48, 29)], (1, 0)         # (reaching out under the snout)
+    elif pose == "UP":
+        near, cl = [(29, 24 + y), (39, 29 + y), (47, 24 + y)], (1, -1)
+    else:
+        near, cl = [(31 + bx, 25), (39, 31), (46, 33)], (1, 0)
+    p.ell(near[0][0], near[0][1], 4, 4)
+    p.tube(near[:2], 5)
+    p.tube(near[1:], 5)
+    p.px([(near[0][0] - 1, near[0][1] - 2), (near[0][0], near[0][1] - 3)], LIGHT)
+    hx, hy = near[2]
+    p.ell(hx, hy, 2.5, 2.5, COL)
+    claw(p, hx + cl[0] * 3, hy + cl[1] * 3, *cl, n=3, spread=1.5 if pose == "STRIKE" else 1)
+    if pose in ("UP", "STRIKE", "LEAN"):
+        fx, fy = far[2]
+        claw(p, fx + (0 if pose == "UP" else 2 if pose == "STRIKE" else -1), fy - (3 if pose != "STRIKE" else 0),
+             *((0, -1) if pose != "STRIKE" else (1, 0)), n=3)
     return p
 
 
 # --------------------------------------------------------------------------------------------- the snake ---
 def snake(pose):
-    """the drums: the snake, coiled, its head up, big eyes, a pale front. (Kept under the picture's top 6 rows:
-    the drum screen is lower.) IDLE: upright, the tail's tip down; LEAN: swaying right in an S, the tongue out,
-    the tip up; UP: stretched tall, eyes shut with joy, the tip up."""
+    """the drums: the snake (Ben, 20 Nov 2026: "lose the hood"): a viper reared out of its coils on a slim neck in
+    an S, belly plates down the neck's front, a flat wedge of a head, a slit eye under a hard brow, the mouth open
+    on two white fangs. (Kept under the picture's top 6 rows: the drum screen is lower.) IDLE: reared, fangs
+    bared; LEAN: swaying right, the forked tongue out; UP: stretched tall, hissing; STRIKE: the neck straightens
+    and lunges to the right, jaws wide, fangs and tongue out."""
     p = Pic()
-    hx = {"IDLE": 0, "LEAN": 9, "UP": 0}[pose]
-    top = 8 if pose == "UP" else 11
+    gape = {"IDLE": 2, "LEAN": 2, "UP": 4, "STRIKE": 5}[pose]
     # the coils, the bottom one first; the tail's tip
-    tip = [(42, 47), (49, 44), (51, 39)] if pose != "IDLE" else [(42, 48), (48, 48), (52, 46)]
-    p.tube(tip, 4)
-    p.ell(28, 46, 17, 5)
-    p.ell(27, 39, 13, 4.5)
-    for (x0, x1, yy) in ((16, 40, 43), (19, 35, 36)):              # a shine along each
-        p.rect(x0, yy, x1, yy, LIGHT)
-    # the neck: up from the coils to the head, its pale front
-    if pose == "LEAN":
-        neck = [(26, 37), (21, 31), (24, 24), (hx + 27, top + 11)]
+    tip = [(42, 48), (49, 47), (52, 43), (51, 40)] if pose != "IDLE" else [(42, 49), (49, 49), (53, 47)]
+    p.tube(tip, 3)
+    p.ell(27, 47, 18, 4.5)
+    p.ell(25, 41, 12, 3.5)
+    p.rect(13, 45, 40, 45, LIGHT)
+    p.rect(16, 39, 33, 39, LIGHT)
+    for k in range(11, 44, 4):                                         # scales across them
+        p.px([(k, 48), (k + 2, 50)], DARK)
+    for k in range(16, 36, 4):
+        p.px([(k + 1, 42), (k + 3, 43)], DARK)
+    # the head's hinge, then the neck up to it from the coils: slim, an S
+    H = {"IDLE": (27, 15), "LEAN": (33, 16), "UP": (28, 12), "STRIKE": (37, 21)}[pose]
+    end = (H[0] - 4, H[1] + 1)
+    if pose == "IDLE":
+        ctrl = [(26, 40), (32, 34), (24, 27), (23, 20), end]
+    elif pose == "LEAN":
+        ctrl = [(25, 40), (19, 33), (28, 27), (30, 21), end]
     elif pose == "UP":
-        neck = [(27, 37), (30, 30), (27, 22), (28, top + 11)]
+        ctrl = [(26, 40), (31, 33), (24, 25), (23, 17), end]
     else:
-        neck = [(27, 37), (30, 31), (27, 26), (28, top + 11)]
-    p.tube(neck, 9)
-    for (x0, y0), (x1, y1) in zip(neck, neck[1:]):
-        p.line([(x0 + 2, y0), (x1 + 2, y1)], LIGHT, 2)
-    # the head
-    hc = 28 + hx
-    p.ell(hc, top + 6, 11, 8)
-    look = 1 if pose == "LEAN" else 0
-    eye(p, hc - 7, top + 3, look, True)
-    eye(p, hc + 3, top + 3, look, True)
-    if pose == "UP":                                                 # happy: eyes shut
-        for ex in (hc - 7, hc + 3):
-            p.rect(ex, top + 3, ex + 3, top + 7, COL)
-            p.px([(ex, top + 5), (ex + 1, top + 4), (ex + 2, top + 4), (ex + 3, top + 5)], DARK)
-    p.px([(hc - 3, top + 10), (hc - 2, top + 11), (hc - 1, top + 11), (hc, top + 11), (hc + 1, top + 11), (hc + 2, top + 10)], DARK)
-    p.px([(hc - 9, top + 9), (hc - 8, top + 9), (hc + 7, top + 9), (hc + 8, top + 9)], LIGHT)
-    if pose == "LEAN":                                               # the tongue, forked, out to the side
-        p.px([(hc + 11, top + 9), (hc + 12, top + 9), (hc + 13, top + 8), (hc + 13, top + 10)], LIGHT)
+        ctrl = [(25, 40), (22, 34), (29, 28), end]
+    p.tube(ctrl, 6)
+    def neck_x(yy):                                                    # the neck's centre at a row
+        for (x0, y0), (x1, y1) in zip(ctrl, ctrl[1:]):
+            if y1 <= yy <= y0:
+                return x0 + (x1 - x0) * (y0 - yy) / max(1, y0 - y1)
+        return ctrl[-1][0]
+    for yy in range(end[1] + 2, 39):                                   # the belly plates: a pale band, a line a plate
+        x = round(neck_x(yy)) + 1
+        p.rect(x - 1, yy, x + 1, yy, LIGHT if yy % 2 else DARK)
+    # the head: flat, a wedge turned to the right, the jaws on a hinge, open
+    au, al = {"IDLE": (-6, 16), "LEAN": (-6, 14), "UP": (-22, 26), "STRIKE": (-24, 36)}[pose]
+    def J(pts, a):
+        return rot([(x * 1.3, yy * 1.3) for x, yy in pts], a, *H)
+    lo = J([(-2, 0), (10, 0), (11, 0.8), (9, 2), (-3, 2.5)], al)
+    up = J([(-6, -1), (-5, -3.2), (-1, -4.4), (5, -3.8), (10, -2.2), (12, -1), (11.5, 0), (0, 1), (-6, 1)], au)
+    p.poly(lo, LIGHT)                                                  # (its pale underside)
+    p.poly(up)
+    mouth = [H] + J([(11, 0.5)], au) + J([(10, -0.3)], al)
+    p.part(lambda d: d.polygon(mouth, fill=255), BLACK, None)
+    for f0, f1 in (((9, 0.6), (9, 3.4)), ((6, 0.6), (6, 2.4))):       # the fangs, down from the upper jaw
+        (x0, y0), (x1, y1) = J([f0, f1], au)
+        p.line([(round(x0), round(y0)), (round(x1), round(y1))], WHITE)
+    (ex, ey), = J([(2, -2.4)], au)                                     # the eye: a slit under a brow
+    ex, ey = round(ex), round(ey)
+    p.px([(ex - 1, ey), (ex, ey), (ex + 1, ey)], BLACK)
+    p.px([(ex + 1, ey)], WHITE)
+    p.px([(ex - 2, ey - 2), (ex - 1, ey - 2), (ex, ey - 1), (ex + 1, ey - 1), (ex + 2, ey - 1)], DARK)
+    (nx, ny), = J([(10.5, -1.4)], au)
+    p.px([(round(nx), round(ny))], DARK)                               # the nostril
+    p.marks.append(("seye", ex, ey, 0))
+    if pose != "IDLE":                                                 # the forked tongue, out of the mouth
+        (tx, ty), = J([(8, 0)], (au + al) / 2)
+        (ux, uy), = J([(15, 0)], (au + al) / 2 * 0.5)
+        p.tube([(tx, ty), (ux, uy)], 1, LIGHT)
+        ux, uy = round(ux), round(uy)
+        p.px([(ux + 1, uy - 1), (ux + 2, uy - 2), (ux + 1, uy + 1), (ux + 2, uy + 2)], LIGHT)
+    p.marks.append(("smouth", H[0] - 3, H[1], gape))
+    if pose == "STRIKE":                                               # the lunge: speed lines behind the head
+        for ly, l in ((H[1] - 6, 5), (H[1] - 2, 4)):
+            p.line([(H[0] - 16 - l, ly), (H[0] - 16, ly)], LIGHT)
     return p
 
 
 CHARS = [("ROBOT", robot), ("ALIEN", alien), ("CROC", croc), ("SNAKE", snake)]
-POSES = ["IDLE", "LEAN", "UP"]
+POSES = ["IDLE", "LEAN", "UP", "STRIKE"]
+
 
 
 # ------------------------------------------------------------------------------------------ the mixer's size ---
@@ -397,105 +532,102 @@ def mixer(p):
     def put(x, y, c):
         if 0 <= x < MW and 0 <= y < MH:
             o[y, x] = c
-    for what, x, y in p.marks:
-        if what == "visor":                                      # the robot's: black, two eyes, a smile
-            x0, y0 = m(x - 9, 9 + y)
-            x1, y1 = m(x + 8, 18 + y)
+    for what, x, y, k in p.marks:
+        if what == "visor":                                      # the robot's: black glass, a glint (or the flare)
+            x0, y0 = m(x - 5, y - 1)
+            x1, y1 = m(x + 5, y + 1)
             o[y0:y1 + 1, x0:x1 + 1] = BLACK
-            for ex in (x0 + 2, x1 - 3):
-                o[y0 + 1:y0 + 3, ex:ex + 2] = WHITE
-            o[y1 - 1, x0 + 4:x1 - 3] = LIGHT
-        elif what == "keys":                                     # its keyboard: white, black keys, framed
-            x0, y0 = m(x - 9, 30 + y)
-            x1, y1 = m(x + 9, 38 + y)
-            o[y0:y1 + 1, x0:x1 + 1] = DARK
-            o[y0 + 1:y1, x0 + 1:x1] = WHITE
-            for k in range(x0 + 2, x1 - 1, 2):
-                if (k - x0) % 7 != 6:
-                    o[y0 + 1:y0 + 3, k] = BLACK
-        elif what == "aeye":                                     # the alien's: big, black, a glint
+            if k:
+                o[(y0 + y1) // 2, x0:x1 + 1] = WHITE
+            else:
+                put(x0 + 1, (y0 + y1) // 2, WHITE)
+                put(x1 - 1, (y0 + y1) // 2, WHITE)
+        elif what == "aeye":                                     # the alien's: a slanted black almond, a glint
             cx, cy = m(x, y)
-            o[cy - 3:cy + 3, cx - 3:cx + 3] = COL
-            o[cy - 2:cy + 2, cx - 2:cx + 2] = BLACK
-            for dx, dy in ((-2, -2), (1, -2), (-2, 1), (1, 1)):
-                put(cx + dx, cy + dy, COL)
-            put(cx - 1, cy - 1, WHITE)
+            d = 1 if x > p.w / 2 else -1
+            for dx, dy in ((-1, 0), (0, 0), (1, 0), (2, -1), (-1, 1), (0, 1), (1, 1)) + (((2, 0), (3, -1)) if k else ()):
+                put(cx + d * dx - (1 if d < 0 else 0), cy + dy, BLACK)
+            put(cx + d * 1 - (1 if d < 0 else 0), cy, WHITE)
+        elif what in ("ceye", "seye"):                           # the croc's, the snake's: a slit, a glint
+            cx, cy = m(x, y)
+            put(cx - 1, cy, BLACK)
+            put(cx, cy, WHITE)
     return o
 
 
 # ------------------------------------------------------------------------------------- HOME's lanes: heads ---
 HEADS = {   # HW x HH, drawn by hand: . see-through, o dark, c the colour, l light, w white, k black
 "ROBOT": [
-"........oo........",
-".......owwo.......",
-"........oo........",
-"........oo........",
+"........ll........",
+"........cc........",
 "..oooooooooooooo..",
+"..olllllllccccco..",
 "..occcccccccccco..",
-"ooockkkkkkkkkkcooo",
-"ocockwwkkkkwwkcoco",
-"ocockwwkkkkwwkcoco",
-"ocockkkkkkkkkkcoco",
-"ocockklkkkklkkcoco",
-"ooockkkllllkkkcooo",
+"oookkkkkkkkkkkkooo",
+"ocokwwwkkkkwwwkoco",
+"oookkkkkkkkkkkkooo",
+"..occcccccccccco..",
+"..occcccccccccco..",
+"..occocococococo..",
+"..occocococococo..",
 "..occcccccccccco..",
 "..oooooooooooooo..",
 "......occcco......",
-"......oooooo......",
+"....oooooooooo....",
 ],
 "ALIEN": [
-".ooo..........ooo.",
-".owo..........owo.",
-".ooo..........ooo.",
-"...oo........oo...",
-"....oooooooooo....",
-"...occllcccccco...",
+".....oooooooo.....",
+"...oocllccccco....".replace("co....", "coo..."),
 "..occllcccccccco..",
+".occlcccccccccccо.".replace("о", "o"),
 ".occcccccccccccco.",
-".ockkkcccccckkkco.",
-".ockwkkcccckwkkco.",
-".ockkkkcccckkkkco.",
-"..ockkcccccckkco..",
-"..olcccckkcccclo..",
+"occcccccccccccccco",
+"ockkccccccccccckko".replace("ockk", "ocKK").replace("K", "k"),
+"okkwkkcccccckkwkko",
+"okkkkkkcccckkkkkko",
+".occkkkkcckkkkcco.",
+"..occckkcckkccco..",
 "...occcccccccco...",
-"....oooooooooo....",
-"..................",
+"....occcoocccо....".replace("о", "o"),
+".....occoocco.....",
+"......occcco......",
+".......oooo.......",
 ],
 "CROC": [
 "..................",
-"..................",
-".oooo.oooo........",
-".owko.owko........",
-".owko.owko........",
-"occccocccco.......",
-"occcccccccoooooo..",
-"occccccccccccckco.",
-"occcccccccccccccco",
-"occoooooooooooooo.",
-"occclwlllwllllllo.",
-"occclllllllllllo..",
-".occoooooooooooo..",
-".occcco...........",
-".occcco...........",
 "..oooo............",
+".ocllco...........",
+".ockwcooooooooo...",
+"occccccccccccccoo.",
+"occcccccccccccccco",
+"occcccccccccccccco",
+"occowowowowowowoo.",
+"occokkkkkkkkkkko..",
+"occowkwkwkwkwko...",
+"occollllllllllo...",
+".occoooooooooo....",
+".occcco...........",
+".occcco...........",
+"..occco...........",
+"..ooooo...........",
 ],
 "SNAKE": [
 "..................",
-".....oooooooo.....",
-"...ooccccccccoo...",
-"..occcccccccccco..",
-".occwwwccccwwwcco.",
-".occwwkccccwwkcco.",
-".occwwkccccwwkcco.",
-".occcccccccccccco.",
-".olcccccccccccclo.",
-".occcocccccocccco.",
-"..occcooooooccco..",
-"...occcccccccco...",
-"....oolcccccoo....",
-".....olcccco......",
-".....olcccco......",
-".....olcccco......",
+"..................",
+"....oooooo........",
+"..ooccccccooo.....",
+".occccccccccccooo.",
+"occccckwccccccccco",
+"occcccccccccccccco",
+"occccccoowkkwkkoo.",
+"occcccokkwkkwkko..",
+".occccollllllloo..",
+"..occcooooooo.....",
+"..occlco..........",
+"..ocooco..........",
+"..occlco..........",
+"..ocooco..........",
+"..occlco..........",
 ],
 }
 
@@ -511,8 +643,8 @@ def main():
     big = [[f(pz).image() for pz in POSES] for _, f in CHARS]
     L = ["/* generated by tools/gen_sprites.py: the four characters, 4 bits a pixel (op_pal in ui_op.c: 1 dark, 2 the",
          " * track's colour, 3 light, 4 white, 5 black), the first pixel of a byte in its low half. Drawn by that script:",
-         " * original pictures. OP_SPR_BIG[track][pose]: IDLE, LEAN (to the right; mirrored for the left), UP, 56 x 52",
-         " * drawn twice as large. */", "#pragma once",
+         " * original pictures. OP_SPR_BIG[track][pose]: IDLE, LEAN (to the right; mirrored for the left), UP, STRIKE (on",
+         " * an accent), 56 x 52 drawn twice as large. OP_SPR_MX[track][pose]: the mixer's, IDLE, LEAN, STRIKE. */", "#pragma once",
          f"#define OP_BIG_W {BW}", f"#define OP_BIG_H {BH}"]
     total = 0
 
@@ -529,19 +661,20 @@ def main():
     for (name, _), ims in zip(CHARS, big):
         for pz, im in zip(POSES, ims):
             emit(name + ("" if pz == "IDLE" else "_" + pz), im)
-    L.append("static const uint8_t *const OP_SPR_BIG[4][3] = {%s};" % ", ".join(
+    L.append("static const uint8_t *const OP_SPR_BIG[4][4] = {%s};" % ", ".join(
         "{%s}" % ", ".join("OP_SPR_" + n + ("" if pz == "IDLE" else "_" + pz) for pz in POSES) for n, _ in CHARS))
     L += [f"#define OP_MX_W {MW}", f"#define OP_MX_H {MH}", f"#define OP_HM_W {HW}", f"#define OP_HM_H {HH}"]
     small = []
     for name, f in CHARS:
-        mx = [mixer(f(pz)) for pz in POSES[:2]]
+        mx = [mixer(f(pz)) for pz in ("IDLE", "LEAN", "STRIKE")]
         hm = head(name)
         small.append(mx + [hm])
         emit(name + "_MX", mx[0])
         emit(name + "_MX_LEAN", mx[1])
+        emit(name + "_MX_STRIKE", mx[2])
         emit(name + "_HM", hm)
-    L.append("static const uint8_t *const OP_SPR_MX[4][2] = {%s};" % ", ".join(
-        "{OP_SPR_%s_MX, OP_SPR_%s_MX_LEAN}" % (n, n) for n, _ in CHARS))
+    L.append("static const uint8_t *const OP_SPR_MX[4][3] = {%s};" % ", ".join(
+        "{OP_SPR_%s_MX, OP_SPR_%s_MX_LEAN, OP_SPR_%s_MX_STRIKE}" % (n, n, n) for n, _ in CHARS))
     L.append("static const uint8_t *const OP_SPR_HM[4] = {%s};" % ", ".join("OP_SPR_%s_HM" % n for n, _ in CHARS))
     OUT.write_text("\n".join(L) + "\n")
     print(OUT, total, "B")
@@ -556,13 +689,13 @@ def main():
                 sheet.paste(rgb.resize((BW * s, BH * s), Image.NEAREST), (16 + c * (BW * s + 16), 16 + r * (BH * s + 16)))
         sheet.save(sys.argv[1])
         s = 6
-        sm = Image.new("RGB", (3 * (MW * s + 16) + 16, 4 * (MH * s + 16) + 16), (30, 30, 34))
+        sm = Image.new("RGB", (4 * (MW * s + 16) + 16, 4 * (MH * s + 16) + 16), (30, 30, 34))
         for r, ims in enumerate(small):
             pal = shades(TRACK_RGB[r])
             for c, a in enumerate(ims):
                 rgb = Image.new("RGB", (a.shape[1], a.shape[0]))
                 rgb.putdata([pal[v] for v in a.flatten().tolist()])
-                k = s if c < 2 else 2 * s
+                k = s if c < 3 else 2 * s
                 sm.paste(rgb.resize((a.shape[1] * k, a.shape[0] * k), Image.NEAREST), (16 + c * (MW * s + 16), 16 + r * (MH * s + 16)))
         sm.save(sys.argv[1].replace(".png", "-small.png"))
 

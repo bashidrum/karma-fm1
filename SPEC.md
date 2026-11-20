@@ -81,3 +81,7 @@ His picker answers:
 - Order: "Characters first".
 
 Claude's notes: the references set a mood, they are not to be traced or copied; the robot reference is a real product, so the robot is an original design. Backdrops are original work, not copies of any artist's paintings.
+
+Backdrops, further (Ben, 20 Nov, 22:42, with six reference pictures: a jagged horizontal-wave glitch in neon purple, green and blue on black; flat two-colour wavy stripe posters; three flat-colour illustrated faces; three liquid marble swirls in neon colours on black, one with thin drips): "These but flowing and morphing"
+
+Characters, first draft feedback (Ben, 20 Nov, 23:08): "Let's go more classic on the robot, blockier. And lose the hood of the cobra, it just looks like he's eaten something too big for his throat"

@@ -220,7 +220,9 @@ static void op_sprite_wh(const uint8_t *d, int32_t w, int32_t h, int32_t x0, int
 /* a character at full size (112 x 104: its pixels doubled): pose 0 still, 1 leaning, 2 arms up (op_dance) */
 static void op_char(uint32_t ti, uint32_t pose, int flip, int32_t x0, int32_t y0)
 {
-    op_sprite_wh(OP_SPR_BIG[ti & 3u][pose % 3u], OP_BIG_W, OP_BIG_H, x0, y0, flip, TE_COL[ti & 3u], 2);
+    if (op_strike[ti & 3u])                              /* its voice just played an accent: the STRIKE pose (Ben: "Both") */
+        pose = 3u;
+    op_sprite_wh(OP_SPR_BIG[ti & 3u][pose & 3u], OP_BIG_W, OP_BIG_H, x0, y0, flip, TE_COL[ti & 3u], 2);
 }
 /* the dance: a pose a beat while the song plays (lean right, arms up, lean left, arms up the other way); still
  * when it is stopped. *flip: mirrored */
@@ -733,7 +735,7 @@ static void op_band_member(uint32_t i, int32_t cx, int32_t fy, uint32_t pose, in
     uint32_t sm = op_k == 1, k = i & 3u;
     int32_t w = sm ? OP_HM_W : OP_MX_W, h = sm ? OP_HM_H : OP_MX_H;
     op_dim = op_ink == OP_PUR_D;
-    op_sprite_wh(sm ? OP_SPR_HM[k] : OP_SPR_MX[k][pose & 1u], w, h, cx - w / 2, fy - h + 1, flip, c, 1);
+    op_sprite_wh(sm ? OP_SPR_HM[k] : OP_SPR_MX[k][op_strike[k] ? 2u : pose & 1u], w, h, cx - w / 2, fy - h + 1, flip, c, 1);
     op_dim = 0;
 }
 
@@ -983,6 +985,7 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
     for (i = 0; i < NTRK; i++)
         sig = sig * 131u + mx[i] + hop[i] * 97u + (uint32_t)ratio[i] * 7u + (trk[i].p[P_MUTE] != 0) * 3u;
     sig = sig * 31u + song.solo + (song.playing ? clk_beat & 3u : 4u) * 64u;   /* (the dance: a pose a beat) */
+    sig = sig * 31u + (op_strike[0] != 0) + (op_strike[1] != 0) * 2u + (op_strike[2] != 0) * 4u + (op_strike[3] != 0) * 8u;
     if (ui.force || sig != scene) {
         scene = sig;
         cv_begin(240, 96, C_BLACK);

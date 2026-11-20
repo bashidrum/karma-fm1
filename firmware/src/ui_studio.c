@@ -267,6 +267,9 @@ static uint16_t pad_lit[DRUM_LANES];                   /* pads and key LEDs: fra
 static uint8_t key_lit[27];                             /* menu NOTES, a synth track: frames its key stays lit */
 static uint8_t key_lit_trk = 0xFF;                      /* (the track key_lit is for) */
 static uint8_t op_note = 60, op_hit;                    /* the selected synth track: its last note, frames since (8 .. 0) */
+static uint8_t op_strike[NTRK];                         /* each track's character: frames of its STRIKE pose still to show
+                                                         * (an accent: pads_tick; ui_op.c op_dance) */
+#define OP_STRIKE_FR 8u
 #include "acid_gen.c"             /* SEQ > ACID GEN: TB-3PO's acid lines */
 
 /* FX > CLOUD's SEND (G_CLSEND) is the selected track's send, on the drum track the selected sound's: the value on
@@ -532,6 +535,38 @@ static void pads_tick(void)                             /* once a frame: the hit
                 op_note = (uint8_t)k;
                 op_hit = 8;
             }
+    {   /* an accent, a note or a hit started at LV_HARD's velocity (116 and up: an ACC step, a HARD hit, a key
+         * played hard): its track's character strikes a pose for a few frames. Read from the voices the notes
+         * started since the last frame (their ages), nothing in the sound is changed */
+        static uint32_t seen_v, seen_d;
+        uint32_t top_v = seen_v, top_d = seen_d, j;
+        for (i = 0; i < NTRK; i++)
+            if (op_strike[i])
+                op_strike[i]--;
+        for (i = 0; i < NPART; i++)
+            for (j = 0; j < NVOICE; j++) {
+                const voice_t *v = &trk[i].v[j];
+                uint32_t age = v->age;
+                if (v->active && (int32_t)(age - seen_v) > 0) {
+                    if (vel_lvl(v->vel) == LV_HARD)
+                        op_strike[i] = OP_STRIKE_FR;
+                    if ((int32_t)(age - top_v) > 0)
+                        top_v = age;
+                }
+            }
+        for (j = 0; j < NDRUM; j++) {
+            const voice_t *v = &drums.v[j];
+            uint32_t age = v->age;
+            if (v->active && (int32_t)(age - seen_d) > 0) {
+                if (vel_lvl(v->vel) == LV_HARD)
+                    op_strike[TRK_DRUM] = OP_STRIKE_FR;
+                if ((int32_t)(age - top_d) > 0)
+                    top_d = age;
+            }
+        }
+        seen_v = top_v;
+        seen_d = top_d;
+    }
     if (song.sel < NPART && (n[song.sel][0] | n[song.sel][1] | n[song.sel][2] | n[song.sel][3]))
         for (k = 0; k < 27u; k++) {
             uint32_t note = kb_map(TSEL, k);
@@ -582,8 +617,8 @@ static void drum_screen_draw(void)
                 scene_sig = ls * 131u + 1u;
                 sg_detail_draw(SG_BODY_Y, SG_SCENE_H, (uint32_t)sg_first(), 1);
             }
-        } else if (ui.force || sig * 131u + lit != scene_sig) {
-            scene_sig = sig * 131u + lit;
+        } else if (ui.force || sig * 131u + lit + (op_strike[TRK_DRUM] ? 977u : 0u) != scene_sig) {   /* (the snake's STRIKE) */
+            scene_sig = sig * 131u + lit + (op_strike[TRK_DRUM] ? 977u : 0u);
             op_drum_scene(bank, len);
         }
         if (ui.force || sig != steps_sig) {
