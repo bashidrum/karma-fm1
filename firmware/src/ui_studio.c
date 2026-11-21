@@ -729,6 +729,7 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
     }
     if (!sg_held && (s = panel_enc(EN_ALGO)) && !ft_on)   /* the track: the GRID stays, on the track chosen */
         track_select((uint32_t)clamp((int32_t)song.sel + s, 0, 3));
+    sg_follow();                                        /* (playing: the page the playhead goes onto) */
     if (song.sel != TRK_DRUM) {                         /* a synth track's GRID (ui_grid.c) */
         sg_synth_input(pressed);
         return;

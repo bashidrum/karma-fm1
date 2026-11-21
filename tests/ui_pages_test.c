@@ -699,8 +699,17 @@ int main(int argc, char **argv)
         key(3);                                           /* the second black key: steps 17-32 */
         check(ui.cursor / 16u == 1u, "GRID: black key 2: the page of steps 17-32");
         ui.force = 1; frame(); ppm("grid-synth-p2");
+        ui.msg_t = 0;
+        press(B_OCTUP); release(B_OCTUP);                 /* REVIEW 4: past the last page, one added (a copy) */
+        check(t->p[P_SLEN] == 48 && ui.cursor / 16u == 2u && !memcmp(&t->step[36], &t->step[20], sizeof(step_t)) &&
+              t->step[36].n == 3u && !strcmp(ui.msg, "48 STEPS"),
+              "GRID: OCT+ on the last page: a page added, a copy of the last, shown, \"48 STEPS\"");
+        ui.force = 1; frame(); ppm("grid-synth-page-add");
         press(B_OCTUP); release(B_OCTUP);
-        check(ui.cursor / 16u == 0u, "GRID: OCT+ (no step held): the next page (round to 1-16)");
+        check(t->p[P_SLEN] == 64 && ui.cursor / 16u == 3u && !strcmp(ui.msg, "64 STEPS"), "GRID: OCT+ again: 64 STEPS");
+        press(B_OCTUP); release(B_OCTUP);
+        check(t->p[P_SLEN] == 64 && ui.cursor / 16u == 0u, "GRID: OCT+ at 64 steps: round to the first page");
+        t->p[P_SLEN] = 32; ui.cursor = 4; frame();
         frames(16); aud_on_left = 0; pen_n = 1; pen_note[0] = 48;
         encs[panel.enc[EN_K1]] = 1; frames(2);
         check(pen_note[0] == 50 && aud_on_left && aud_on_nt[0] == 50u && grid_voice(t, 50),
@@ -854,6 +863,32 @@ int main(int argc, char **argv)
             release(B_EDIT); frames(20);                   /* (past LY_QUIET_MS) */
             go_home(); frames(4);
         }
+        memcpy(trk, keep, sizeof keep); sync_reload = 1;
+        song.sel = TRK_DRUM;
+    }
+    {   /* REVIEW 4: the GRID follows the playhead onto the next page; a page picked by hand stays until it moves on */
+        track_t *t = &trk[0];
+        static track_t keep[NTRK];
+        uint32_t j;
+        memcpy(keep, trk, sizeof keep);
+        song.sel = 0; go_home(); frames(16);
+        steps_clear(t); t->p[P_SLEN] = 32;
+        tap(B_SEQ); frames(2);
+        ui.cursor = 3;
+        transport_req = 1;
+        for (j = 0; j < 400u && t->seq_idx % 32u < 17u; j++) frame();
+        check(song.playing && t->seq_idx % 32u >= 16u && ui.cursor / 16u == 1u, "GRID, playing: the view follows the playhead onto page 2");
+        ui.force = 1; frame(); ppm("grid-synth-follow");
+        key(1);                                           /* (F#3: the first black key: page 1 by hand) */
+        frames(4);
+        check(t->seq_idx % 32u >= 16u && ui.cursor / 16u == 0u, "GRID, playing: page 1 picked by hand stays while the playhead is on 2");
+        for (j = 0; j < 400u && t->seq_idx % 32u >= 16u; j++) frame();
+        frames(2);
+        check(t->seq_idx % 32u < 16u && ui.cursor / 16u == 0u, "  ... and the playhead back on page 1: page 1");
+        for (j = 0; j < 400u && t->seq_idx % 32u < 17u; j++) frame();
+        check(ui.cursor / 16u == 1u, "  ... onto page 2 again: page 2");
+        transport_req = 2; frames(4);
+        go_home(); frames(4);
         memcpy(trk, keep, sizeof keep); sync_reload = 1;
         song.sel = TRK_DRUM;
     }
@@ -1185,8 +1220,18 @@ int main(int argc, char **argv)
         check(drum_cursor / 16u == 1u, "grid: the black keys pick the page of steps (17-32)");
         key(key_of_white(0));
         check(dstep_has(&TDRUM->dstep[16], 0), "grid: ... and the white keys are its steps (step 17)");
+        ui.msg_t = 0;
         key(8);                                                     /* (C#4: the fourth: steps 49-64, none) */
-        check(drum_cursor / 16u == 1u, "grid: a page past LENGTH is not picked");
+        check(drum_cursor / 16u == 1u && TDRUM->p[P_SLEN] == 32 && !strcmp(ui.msg, "ADD PAGE 3"),
+              "grid: a page two past LENGTH is not picked, and says so (\"ADD PAGE 3\")");
+        dstep_set(&TDRUM->dstep[17], 6, LV_HARD, 1); TDRUM->micro[17] = 3;
+        key(5);                                                     /* (A#3: the third: the slot after the last) */
+        check(drum_cursor / 16u == 2u && TDRUM->p[P_SLEN] == 48 && dstep_has(&TDRUM->dstep[33], 6) &&
+              dstep_lvl(&TDRUM->dstep[33], 6) == LV_HARD && TDRUM->micro[33] == 3 && dstep_has(&TDRUM->dstep[32], 0),
+              "grid: the page key after the last: a page added, a copy of the last (hits, levels, nudges)");
+        ui.force = 1; frame(); ppm("grid-drum-page-add");
+        memset(&TDRUM->dstep[17], 0, sizeof(dstep_t)); TDRUM->micro[17] = 0; TDRUM->micro[33] = 0;
+        TDRUM->p[P_SLEN] = 32; drum_cursor = 16; frame();
         memset(pad_lit, 0, sizeof pad_lit);
         encs[panel.enc[EN_K1]] = 3; frames(2);
         check(drum_lane == 3 && pad_lit[3], "grid: KNOB 1 picks the sound and plays it");

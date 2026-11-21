@@ -290,11 +290,12 @@ static void op_drum_scene(uint32_t bank, uint32_t len)
         }
     if (song.playing && TDRUM->seq_idx % len / 16u == bank)
         op_box(189 + (int32_t)(TDRUM->seq_idx % len % 16u) * 3, 3, 4, 50, C_WHITE);
-    for (i = 0; i * 16u < len && len > 16u; i++) {      /* the pages of steps (more than one), this one filled */
+    for (i = 0; i < 4u; i++) {                          /* the four page slots: this one filled, the others in use
+                                                         * grey, the unused ones dim (OCT+ past the last adds one) */
         if (i == bank)
             cv_rect(190 + (int32_t)i * 8, 58, 6, 6, C_WHITE);
         else
-            op_box(190 + (int32_t)i * 8, 58, 6, 6, OP_PUR);
+            op_box(190 + (int32_t)i * 8, 58, 6, 6, i * 16u < len ? OP_PUR : OP_PUR_D);
     }
 #undef LIT
 #undef SEL

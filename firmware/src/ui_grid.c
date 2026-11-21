@@ -141,6 +141,60 @@ static void sg_drop(void)
     sg_lpage = 0xFF;
     sg_alt = 0;
 }
+/* a page of steps added after the last, a copy of it (its steps, nudges, conditions and locks; REVIEW.md 4, 21 Nov
+ * 2026): the pattern 16 steps longer, the GRID on the new page, "32 STEPS" said. Never past 64; a pattern whose
+ * last page is short is first made whole (its steps past the end, out of sight, emptied) */
+static void sg_page_add(track_t *t)
+{
+    uint32_t len = trk_len(t), pages = (len + 15u) / 16u, src = (pages - 1u) * 16u, dst = pages * 16u, i, k, lost = 0;
+    char b[24];
+    if (pages >= 4u) {
+        ui_message("64 STEPS: THE MOST");
+        return;
+    }
+    if (song.playing && arrangement_enabled) {
+        ui_message("STOP THE SONG FIRST");
+        return;
+    }
+    sg_undo(t);
+    fm1_irq_off();
+    for (i = len; i < dst; i++) {                       /* (the short last page made whole: empty steps) */
+        memset(&t->step[i], 0, sizeof t->step[i]);
+        if (!is_drum(t))
+            t->step[i].time = ST_REST;
+        lock_del(t, i, P_COUNT);
+        t->micro[i] = 0;
+        step_fill_set(t, i, FC_NORM);
+    }
+    for (i = 0; i < 16u; i++) {
+        t->step[dst + i] = t->step[src + i];            /* (a drum step is the same 10 bytes: the union) */
+        t->micro[dst + i] = t->micro[src + i];
+        step_fill_set(t, dst + i, step_fill(t, src + i));
+        lock_del(t, dst + i, P_COUNT);
+    }
+    for (k = 0; k < NLOCK; k++)
+        if (t->lock[k].step >= src && t->lock[k].step < src + 16u)
+            lost += !lock_set(t, t->lock[k].step + 16u, t->lock[k].param, t->lock[k].val);
+    t->p[P_SLEN] = (int16_t)(dst + 16u);
+    fm1_irq_on();
+    sync_reload = 1;
+    sg_cur_set(dst + sg_cur() % 16u);
+    ui.force = 1;
+    fmt_int(b, (int32_t)(dst + 16u));
+    ui_say(b, lost ? " STEPS, LOCKS FULL" : " STEPS");
+}
+/* the shown page follows the playhead as it goes onto another page (a page picked by hand stays until it does) */
+static void sg_follow(void)
+{
+    static uint8_t was = 0xFF;
+    const track_t *t = TSEL;
+    uint32_t pg = song.playing ? t->seq_idx % trk_len(t) / 16u : 0xFFu;
+    if (pg != was && pg != 0xFFu && !sg_held && pg != sg_page()) {
+        sg_cur_set(pg * 16u + sg_cur() % 16u < trk_len(t) ? pg * 16u + sg_cur() % 16u : trk_len(t) - 1u);
+        ui.force = 1;
+    }
+    was = (uint8_t)pg;
+}
 /* the GRID shown, no layer held: its keys are steps (seq.c kb_grid). The drum track's KIT page: its pads */
 static int grid_keys_on(void) { return on_drum_page() && (song.sel != TRK_DRUM || !drum_page) && !ui.menu; }
 /* a key of the GRID (seq.c lk_q KB_GRID), down or up: a white key is a step of the page shown, the first four
@@ -152,10 +206,17 @@ static void grid_key(uint32_t k, uint32_t down)
     uint32_t len = trk_len(t), idx;
     int32_t w = punch_key(k);
     if (w < 0) {
-        if (down && !sg_held && k < 12u && PG[k] >= 0 && (uint32_t)PG[k] * 16u < len) {
+        if (!down || sg_held || k >= 12u || PG[k] < 0)
+            return;
+        if ((uint32_t)PG[k] * 16u < len) {
             idx = (uint32_t)PG[k] * 16u + sg_cur() % 16u;
             sg_cur_set(idx < len ? idx : len - 1u);
             ui.force = 1;
+        } else if ((uint32_t)PG[k] == (len + 15u) / 16u) {
+            sg_page_add(t);                             /* the slot after the last: a page added */
+        } else {
+            char b[4] = {(char)('1' + (len + 15u) / 16u), 0};
+            ui_say("ADD PAGE ", b);                     /* (one at a time: the slot after the last first) */
         }
         return;
     }
@@ -460,7 +521,9 @@ static int sg_input(uint32_t pressed)
         uint32_t up = (pressed >> panel.btn[B_OCTUP]) & 1u, pages = (trk_len(TSEL) + 15u) / 16u, pg;
         if (sg_held) {
             sg_held_oct(up);
-        } else {                                        /* the page of steps before / after */
+        } else if (up && sg_page() + 1u == pages && pages < 4u) {
+            sg_page_add(TSEL);                          /* past the last page: one added, a copy of it */
+        } else {                                        /* the page of steps before / after (64 steps: round) */
             pg = (sg_page() + (up ? 1u : pages - 1u)) % pages;
             sg_cur_set((uint32_t)clamp((int32_t)(pg * 16u + sg_cur() % 16u), 0, (int32_t)trk_len(TSEL) - 1));
             ui.force = 1;
@@ -701,10 +764,14 @@ static void sg_tiles_draw(uint32_t y, uint32_t big)
         if (song.playing && idx == t->seq_idx % len)
             cv_rect(x, ty + (int32_t)th + 1, w, 2, C_WHITE);
     }
-    for (j = 0; j < 4u && big; j++) {                    /* the pages: the one shown filled, the one playing marked */
+    for (j = 0; j < 4u && big; j++) {                    /* the four page slots: the one shown filled, the others in
+                                                         * use grey, the unused ones an outline (OCT+ past the last
+                                                         * adds one); the one playing marked */
         int32_t x = 4 + (int32_t)j * 58;
-        if (j >= pages)
+        if (j >= pages) {
+            op_box(x, 64, 54, 5, TE_G2);
             continue;
+        }
         cv_rect(x, 64, 54, 5, j == sg_page() ? TE_COL[sel] : TE_G2);
         if (song.playing && t->seq_idx / 16u == j)
             cv_rect(x + 22, 70, 10, 2, C_WHITE);
