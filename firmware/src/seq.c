@@ -51,7 +51,7 @@ static uint8_t pen_n = 1, pen_note[4] = {60};   /* the last chord / note played:
 static uint8_t pen_lane;                       /* the last drum lane played: the SEQ layer's lane */
 /* SLOOP 2.6: the MIDI keyboard's notes. mi_pen: the notes held on the selected track (its pen, as the keys: the notes
  * down together are a chord). step_in_q: every synth note-on / note-off from MIDI, note | on << 7 | track << 8, for the
- * STEP page's entry (ui_input.c midi_entry): the audio side writes, the UI reads; a full queue drops and says so */
+ * UI (ui_input.c midi_entry: the MIDI hint while recording): the audio side writes, the UI reads; a full queue drops and says so */
 static uint32_t mi_pen[4];
 #define STEP_IN_Q 32u
 static volatile uint16_t step_in_q[STEP_IN_Q];

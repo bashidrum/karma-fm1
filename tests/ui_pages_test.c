@@ -178,7 +178,7 @@ int main(int argc, char **argv)
     open_family(FAM_ENV); ui.force = 1; ui.hot_col = 1; ui.hot_t = 30; frame(); ppm("page-env");
     go_home(); open_family(FAM_EDIT); ui.force = 1; frame(); ppm("page-edit");   /* (EDIT: the chain's start, OSC) */
     open_family(FAM_FX); ui.force = 1; frame(); ppm("page-fx");
-    open_family(FAM_SEQ); ui.force = 1; frame(); ppm("page-step");
+    open_family(FAM_SEQ); ui.force = 1; frame(); ppm("page-pattern");
     open_family(FAM_GLO); ui.force = 1; frame(); ppm("page-global");
     open_family(FAM_GLO); ui.force = 1; frame(); ppm("page-master");
     open_family(FAM_SCL); ui.force = 1; frame(); ppm("page-scale");
@@ -690,7 +690,10 @@ int main(int argc, char **argv)
         encs[panel.enc[EN_K3]] = -1; frame();
         check(!step_on(&t->step[1]), "GRID: KNOB 3 left: cleared");
         tap(B_SEQ); frames(2);
-        check(cur_page()->scope == SC_STEP, "GRID, SEQ: the STEP page (the acid style entry stays)");
+        check(!on_drum_page() && !strcmp(PAGES[ui.page].title, "PATTERN"), "GRID, SEQ: the SEQ pages (PATTERN; the STEP page is gone)");
+        open_family(FAM_ENV); frames(2);
+        tap(B_SEQ); frames(2);
+        check(on_drum_page() && kb_grid && song.sel == 0u, "REVIEW 2: SEQ on a sound page (ENV): back to the GRID");
         go_home(); frames(2);
         check(!kb_grid, "HOME: the keys play notes again");
         /* the drum grid: hold a step, as on the synths */
@@ -706,6 +709,15 @@ int main(int argc, char **argv)
         check(dstep_has(&TDRUM->dstep[1], 0), "DRUM GRID: let go after an edit: kept");
         key(key_of_lane(1));
         check(!dstep_has(&TDRUM->dstep[1], 0), "DRUM GRID: tapped again: cleared");
+        tap(B_ENV); frames(2);                            /* REVIEW U14: ENV / LFO on the drum GRID as from HOME */
+        check(!on_drum_page() && !strcmp(PAGES[ui.page].title, "HEX AEG"), "DRUM GRID: ENV opens the sound's envelope (HEX AEG), as from HOME");
+        tap(B_SEQ); frames(2);
+        check(on_drum_page() && drum_page == 0u, "DRUM: SEQ on HEX AEG: back to the GRID");
+        ui.msg_t = 0; tap(B_LFO); frames(2);
+        check(on_drum_page() && !strcmp(ui.msg, "NO LFO ON DRUMS"), "DRUM GRID: LFO says there is none (as from HOME)");
+        drum_page = 1; tap(B_FX); frames(2);
+        tap(B_SEQ); frames(2);
+        check(on_drum_page() && drum_page == 0u, "DRUM: KIT left for FX, then SEQ: the GRID (not the KIT, no dead STEP page)");
         encs[panel.enc[EN_ALGO]] = -1; frames(2);
         check(song.sel == 2u && on_drum_page() && kb_grid, "GRID: ALGORITHM to a synth track: its GRID");
         song.sel = 0; go_home(); frames(16);
@@ -1088,8 +1100,10 @@ int main(int argc, char **argv)
         check(!strcmp(PT(), "LFO"), "EDIT: then MOD (LFO)");
         tap(B_EDIT);
         check(!strcmp(PT(), "OSC"), "EDIT on MOD: round to OSC");
+        tap(B_SEQ); frames(2);
+        check(on_drum_page() && kb_grid, "SEQ on a sound page (OSC): the GRID");
         tap(B_SEQ); SEL(9);
-        check(!strcmp(PT(), "HARMONY"), "SELECT on SEQ: STEP .. HARMONY, not into the SONG screen");
+        check(!strcmp(PT(), "HARMONY"), "SEQ again: SEQ > PATTERN; SELECT: PATTERN .. HARMONY, not into the SONG screen");
         tap(B_ENV);
         check(!strcmp(PT(), "ENV"), "the button still opens its family");
         tap(B_ENV);
@@ -1183,41 +1197,6 @@ int main(int argc, char **argv)
         song.sel = 0; go_home(); frame();
     }
 
-    {   /* (2.4) STEP, then ALGO to the drum track: "DRUM TRACK" (it drew the drum steps as notes, reading past them) */
-        uint32_t j, b0;
-        song.sel = 0; go_home(); frames(2);
-        for (j = 0; j < NSTEP; j++) dstep_set(&TDRUM->dstep[j], j % 16u, LV_NORM, 3);
-        for (j = 0; j < NPAGES; j++) if (!strcmp(PAGES[j].title, "STEP")) break;
-        open_family(FAM_SEQ); ui.page = (uint8_t)j; ui.fam_last[FAM_SEQ] = (uint8_t)j; page_entered(); ui.force = 1; frames(2);
-        b0 = ui.page;
-        for (j = 0; j < 3u; j++) { encs[panel.enc[EN_ALGO]] = 1; frames(2); }
-        check(song.sel == TRK_DRUM && ui.page == b0 && !page_for_drum(cur_page()) && !strcmp(PAGES[ui.page].title, "STEP"),
-              "STEP on the drum track: not a page for the drums (DRUM TRACK shown, no piano roll of the drum steps)");
-        for (j = 0; j < NSTEP; j++) memset(&TDRUM->dstep[j], 0, sizeof(dstep_t));
-        song.sel = 0; go_home(); frames(4);
-    }
-    {   /* (2.4.1) the STEP page in chord mode: a key writes the whole chord it sounds (it wrote only the root, as
-         * 2.3 did); with a CHORD+ modifier held, the changed chord; a single note without chord mode */
-        uint32_t j, k5 = key_of_white(4), kmin = 1u;            /* key 5 = C4 (the I chord); F#3 (key index 1): minor */
-        track_t *t = &trk[1];
-        song.sel = 1; go_home(); frames(2);
-        steps_clear(t); t->p[P_SLEN] = 16; t->p[P_VOICE] = V_POLY;
-        t->p[P_ROOT] = 0; t->p[P_SCALE] = 1; t->p[P_QUANT] = 0; t->p[P_CHORD] = 1;   /* C major, TRIAD */
-        for (j = 0; j < NPAGES; j++) if (!strcmp(PAGES[j].title, "STEP")) break;
-        open_family(FAM_SEQ); ui.page = (uint8_t)j; ui.fam_last[FAM_SEQ] = (uint8_t)j; page_entered(); ui.force = 1; frames(2);
-        cursor_set(0); frames(1);
-        key(k5); frames(2);
-        check(t->step[0].n == 3u && t->step[0].note[0] % 12u == 0u && t->step[0].note[1] % 12u == 4u && t->step[0].note[2] % 12u == 7u,
-              "STEP page, chord mode TRIAD: C4 writes the chord C E G (not only C)");
-        fm1_in.notes = 1u << kmin; frames(2);
-        key(k5); frames(2);
-        fm1_in.notes = 0; frames(2);
-        check(t->step[1].n == 3u && t->step[1].note[1] % 12u == 3u, "STEP page, CHORD+: F# held, C4 writes C minor (C Eb G)");
-        t->p[P_CHORD] = 0;
-        key(k5); frames(2);
-        check(t->step[2].n == 1u && t->step[2].note[0] % 12u == 0u, "STEP page, no chord mode: one note");
-        steps_clear(t); song.sel = 0; go_home(); frames(4);
-    }
     {   /* the visualiser (2.4): HOME on HOME opens it, SELECT its 12 styles, HOME / a page closes it; a layer
          * shows its screen over it; the style is kept with the settings */
         uint32_t st, j, x, lit, k;
@@ -1305,85 +1284,41 @@ int main(int argc, char **argv)
         check(trk[0].step[4].vel == w + 1u && !trk[0].step[4].lvl, "SEQ: step 5 held + KNOB 2: its velocity one up (VEL)");
         ui.force = 1; frame(); ppm("layer-steps-vel");
         fm1_in.notes = 0; frame(); release(B_SEQ); frames(16);
-        open_family(FAM_SEQ); frame();
-        check(!strcmp(PAGES[ui.page].title, "STEP"), "SEQ: the STEP page first");
-        ui.cursor = 4; ui.force = 1; frame();
-        K(EN_K3, 1); K(EN_K3, 1);
+        tap(B_SEQ); frames(2); tap(B_SEQ); frames(2);
+        check(!strcmp(PAGES[ui.page].title, "PATTERN"), "SEQ pages: PATTERN first (the old STEP page is gone: the GRID edits steps)");
+        tap(B_SEQ); frames(2);                            /* (REVIEW 2: SEQ from a SEQ page: back to the GRID) */
+        check(on_drum_page() && kb_grid, "SEQ on SEQ > PATTERN: back to the GRID");
+        fm1_in.notes = 1u << key_of_lane(4); frame();     /* LEN on the GRID (a step held, KNOB 2), as STEP's KNOB 3 was */
+        K(EN_K2, 1); K(EN_K2, 1);
         check(note_len(&trk[0], 4) == 3u && trk[0].step[5].time == ST_TIE && trk[0].step[6].time == ST_TIE &&
-              trk[0].step[7].time != ST_TIE, "STEP page, KNOB 3 on a note: LEN 1 -> 3 (two TIEs after it)");
-        ui.force = 1; frame(); ppm("page-step-len");
-        {   /* the STEP page with a busier bank: ACC, SLD, a chord, a TIE, the step playing */
-            static const uint8_t RN[16] = {36, 0, 48, 39, 0, 43, 0, 46, 36, 36, 0, 51, 0, 41, 0, 34};
-            uint32_t k;
-            step_t keep[16];
-            for (k = 0; k < 16u; k++) {
-                keep[k] = trk[0].step[k];
-                trk[0].step[k].time = RN[k] ? ST_NOTE : ST_REST;
-                trk[0].step[k].n = RN[k] ? 1 : 0;
-                trk[0].step[k].note[0] = RN[k];
-                trk[0].step[k].flags = 0;
-            }
-            trk[0].step[1].time = ST_TIE;
-            trk[0].step[2].flags = SF_ACCENT;
-            trk[0].step[3].flags = SF_SLIDE;
-            trk[0].step[7].flags = SF_ACCENT | SF_SLIDE;
-            trk[0].step[11].n = 3; trk[0].step[11].note[1] = 55; trk[0].step[11].note[2] = 58;
-            step_fill_set(&trk[0], 2, FC_CHANCE); step_fill_set(&trk[0], 8, FC_CHANCE);
-            song.playing = 1; trk[0].seq_idx = 9; ui.cursor = 5;
-            ui.force = 1; frame(); ppm("page-step-busy");
-            song.playing = 0; ui.cursor = 4;
-            for (k = 0; k < 16u; k++)
-                trk[0].step[k] = keep[k];
-            step_fill_set(&trk[0], 2, FC_NORM); step_fill_set(&trk[0], 8, FC_NORM);
-            ui.force = 1; frame();
-        }
-        K(EN_K3, -1);
-        check(note_len(&trk[0], 4) == 2u && trk[0].step[6].time == ST_REST, "KNOB 3 back: LEN 2 (its last TIE a REST)");
+              trk[0].step[7].time != ST_TIE, "GRID, step held, KNOB 2 on a note: LEN 1 -> 3 (two TIEs after it)");
+        K(EN_K2, -1);
+        check(note_len(&trk[0], 4) == 2u && trk[0].step[6].time == ST_REST, "KNOB 2 back: LEN 2 (its last TIE a REST)");
         trk[0].step[5].n = 1, trk[0].step[5].note[0] = 64;   /* a TIE holding a note (TIME, or an older SLOOP) */
-        K(EN_K3, -1);
+        K(EN_K2, -1);
         check(note_len(&trk[0], 4) == 1u && trk[0].step[5].time == ST_REST && trk[0].step[5].n == 1u &&
               trk[0].step[5].note[0] == 64u, "LEN shorter over a TIE holding a note: a REST, the note kept (as TIME)");
+        fm1_in.notes = 0; frames(2);
         go_home(); frames(16);
         press(B_EDIT); frames(10);
         edges_btn |= BT(B_OCTDN); fm1_in.buttons |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
-        release(B_EDIT); frames(4);
+        release(B_EDIT); frames(16);
         check(note_len(&trk[0], 4) == 1u && trk[0].step[5].n == 0u && trk[0].step[4].n == 1u,
-              "EDIT + OCT-: the LEN turns on that step undone at once (the steps as before the first)");
-        {   /* 2.6: the STEP page takes a MIDI keyboard's notes as the keys (a YouTube comment): the notes played together
-             * (CH 1 = track 1, selected) the cursor step, all let go: on to the next; the SEQ layer's pen too; a note for
-             * another track (stopped): which track it plays, nothing written; off the page: nothing written */
+              "EDIT + OCT-: the LEN turns of that hold undone at once (the steps as before the step was held)");
+        {   /* 2.6: a MIDI keyboard's notes (CH 1 = track 1, selected) set the GRID's pen, the chord held together; a
+             * note for another track while recording says which track it plays */
             #define MIN(c, n, v) (midi_in_q[mi_w++ % MQ] = ((v) ? 0x09u | (0x90u | (c)) << 8 : 0x08u | (0x80u | (c)) << 8) | \
                                   (uint32_t)(n) << 16 | (uint32_t)(v) << 24)
-            step_t s9;
             uint32_t k9;
             int16_t v0 = trk[0].p[P_VOICE];
-            open_family(FAM_SEQ); frame();
             trk[0].p[P_VOICE] = V_POLY;
-            ui.cursor = 8; memset(&trk[0].step[8], 0, sizeof trk[0].step[8]); ui.force = 1; frame();
+            tap(B_SEQ); frames(2);
             MIN(0, 50, 100); MIN(0, 54, 90); frame();
-            check(trk[0].step[8].n == 2u && trk[0].step[8].note[0] == 50u && trk[0].step[8].note[1] == 54u &&
-                  trk[0].step[8].time == ST_NOTE && ui.cursor == 8u, "STEP page: two MIDI notes held (CH 1): step 9 the chord");
-            check(pen_n == 2u && pen_note[0] == 50u && pen_note[1] == 54u, "  and the SEQ layer's pen: that chord");
-            MIN(0, 50, 0); frame();
-            check(ui.cursor == 8u, "  one let go: still on step 9");
-            MIN(0, 54, 0); frame();
-            check(ui.cursor == 9u, "  both let go: on to step 10");
+            check(pen_n == 2u && pen_note[0] == 50u && pen_note[1] == 54u, "GRID: two MIDI notes held (CH 1): the pen, that chord");
+            MIN(0, 50, 0); MIN(0, 54, 0); frame();
             MIN(0, 62, 100); MIN(0, 62, 0); frame();
-            check(trk[0].step[9].n == 1u && trk[0].step[9].note[0] == 62u && ui.cursor == 10u && pen_n == 1u && pen_note[0] == 62u,
-                  "  a MIDI note tapped (on and off in one frame): step 10, on to step 11; the pen that note");
-            fm1_in.notes = 1u << 7; frame(); MIN(0, 67, 100); frame(); fm1_in.notes = 0; frame();
-            check(ui.cursor == 10u && trk[0].step[10].n == 2u && trk[0].step[10].note[1] == 67u,
-                  "  a key and a MIDI note together: one step; the MIDI note still held: no move");
-            MIN(0, 67, 0); frame();
-            check(ui.cursor == 11u, "  let go: on");
-            s9 = trk[0].step[11]; ui.msg[0] = 0;
-            MIN(1, 70, 100); MIN(1, 70, 0); frame();
-            check(!memcmp(&s9, &trk[0].step[11], sizeof s9) && ui.cursor == 11u && !strcmp(ui.msg, "MIDI PLAYS TRACK 2"),
-                  "  a note on CH 2 (track 2's): nothing written, \"MIDI PLAYS TRACK 2\"");
+            check(pen_n == 1u && pen_note[0] == 62u && step_in_r == step_in_w, "  a MIDI note tapped: the pen that note, the queue read");
             go_home(); frame();
-            s9 = trk[0].step[11];
-            MIN(0, 72, 100); frame(); MIN(0, 72, 0); frame();
-            check(!memcmp(&s9, &trk[0].step[11], sizeof s9) && step_in_r == step_in_w, "  off the STEP page: nothing written, the queue read");
             ui.msg[0] = 0; song.rec = 1;                  /* (2.6) recording track 1: a keyboard on track 2's channel */
             MIN(1, 60, 100); MIN(1, 60, 0); frame();
             check(!strcmp(ui.msg, "MIDI PLAYS TRACK 2"), "REC on track 1, a MIDI note on CH 2: \"MIDI PLAYS TRACK 2\" (not recorded)");

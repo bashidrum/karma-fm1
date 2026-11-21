@@ -287,55 +287,6 @@ static void tracks_edit(uint32_t slot, int32_t steps)
         ml_knob(t, vp == &t->p[P_LEVEL] ? P_LEVEL : P_PAN);   /* MIDI LEARN: LEVEL, PAN (2.6) */
 }
 
-static void step_edit(uint32_t slot, int32_t steps)
-{
-    step_t *st = &TSEL->step[ui.cursor];
-    uint32_t i;
-    if (is_drum(TSEL))
-        return;                                           /* (the drum track: its grid) */
-    switch (slot) {
-    case 0:                                               /* STEP: the cursor */
-        cursor_set(ui.cursor + steps);
-        break;
-    case 1:                                               /* NOTE: transpose the step */
-        if (!st->n) {
-            st->note[0] = last_note;
-            st->n = 1;
-            st->time = ST_NOTE;
-            break;
-        }
-        for (i = 0; i < st->n; i++)
-            st->note[i] = (uint8_t)clamp(st->note[i] + steps, 1, 127);
-        st->time = ST_NOTE;
-        last_note = st->note[0];
-        break;
-    case 2:                                               /* TIME; on a note its LEN (2.6: ui.c note_set_len) */
-        if (step_on(st)) {
-            static uint32_t len_sess, len_cur = 0xFFFFu;  /* the turns of LEN on one step: one undo */
-            uint32_t was = note_len(TSEL, ui.cursor), n;
-            if (len_cur != ui.cursor || !undo.valid || undo.undone || undo.sess != len_sess) {
-                len_sess = (undo_sess += 4u) | 3u;
-                len_cur = ui.cursor;
-            }
-            undo_mark(TSEL, len_sess);                    /* (EDIT + OCT- brings the steps back) */
-            fm1_irq_off();
-            n = note_set_len(TSEL, ui.cursor, (uint32_t)clamp((int32_t)was + steps, 1, NSTEP));
-            fm1_irq_on();
-            if (steps > 0 && n == was)
-                ui_message(ui.cursor + n < (uint32_t)clamp(TSEL->p[P_SLEN], 1, NSTEP) ? "NOTE AHEAD" : "END OF PATTERN");
-            break;
-        }
-        st->time = (uint8_t)clamp((int32_t)st->time + (steps > 0 ? 1 : -1), ST_NOTE, ST_REST);
-        break;
-    default: {                                            /* FLAG: - / ACC / SLD / A+S */
-        uint32_t f = (st->flags & SF_ACCENT ? 1u : 0u) | (st->flags & SF_SLIDE ? 2u : 0u);
-        f = (uint32_t)clamp((int32_t)f + (steps > 0 ? 1 : -1), 0, 3);
-        st->flags = (uint8_t)((st->flags & ~(SF_ACCENT | SF_SLIDE)) | (f & 1u ? SF_ACCENT : 0u) | (f & 2u ? SF_SLIDE : 0u));
-        break;
-    }
-    }
-}
-
 /* a new project: every track empty, the default sounds, 90 BPM (TOOLS > NEW) */
 static void project_new(void)
 {
@@ -385,10 +336,6 @@ static void edit_param(uint32_t slot, int32_t steps)
     int32_t v;
     if (is_drum(TSEL) && !page_for_drum(pg))
         return;                                           /* "DRUM TRACK": nothing to edit here */
-    if (pg->scope == SC_STEP) {
-        step_edit(slot, steps);
-        return;
-    }
     if (pg->scope == SC_TRK) {
         tracks_edit(slot, steps);
         return;
@@ -506,19 +453,11 @@ static void edit_param(uint32_t slot, int32_t steps)
     }
 }
 
-/* SLOOP 2.6: the STEP page's entry from a MIDI keyboard, as from the keys (seq_entry): the notes played together on the
- * selected track (the one its channel plays: GLO > MIDI) become the cursor step, as they sounded (no chord built: the
- * keyboard plays the notes it sends); letting them all go moves on. Called every frame (the queue is read even off the
- * page). Stopped, a note for another track says which one it plays: the STEP page writes the selected one. Returns
- * whether notes of the entry are still held */
-static uint32_t mi_held[4];
-static uint8_t mi_ok;                                     /* the last frame reached the STEP page's entry (seq_entry: no
-                                                         * layer, hold, menu, SONG or DRUMS page in the way) */
-static uint32_t midi_held(void) { return mi_held[0] | mi_held[1] | mi_held[2] | mi_held[3]; }
+/* SLOOP 2.6: the MIDI keyboard's notes as the UI sees them (seq.c step_in_q), every frame: recording, armed or in a free
+ * take, a note for another track than the one recording says which one it plays (once a take). The notes themselves
+ * sound, and set the GRID's pen, in seq.c (the old STEP page's entry is gone: REVIEW.md 2, 21 Nov 2026) */
 static void midi_entry(void)                              /* (top of ui_input: every frame) */
 {
-    track_t *t = TSEL;
-    int on_page = mi_ok && song.seq_mode && cur_page()->scope == SC_STEP && !is_drum(t) && !song.rec && !rec_wait && !ft_on;
     int rec_arm = song.rec || rec_wait || ft_on;          /* (2.6) recording, armed or a free take: on which track */
     uint32_t rec_trk = ft_on ? ft_trk % NTRK : song.sel % NTRK;
     static uint8_t rh_st, rh_trk;                         /* its hint: 0 off, 1 not said yet, 2 said (or not needed) */
@@ -526,107 +465,26 @@ static void midi_entry(void)                              /* (top of ui_input: e
         rh_st = 0;
     else if (!rh_st || rh_trk != rec_trk)
         rh_st = 1, rh_trk = (uint8_t)rec_trk;
-    mi_ok = 0;
-    if (step_in_lost) {                                   /* (the queue overflowed: what is in it and what is held are
-                                                         * unknown: all dropped) */
+    if (step_in_lost) {                                   /* (the queue overflowed: what is in it is unknown: dropped) */
         step_in_lost = 0;
         step_in_r = step_in_w;
-        mi_held[0] = mi_held[1] = mi_held[2] = mi_held[3] = 0;
     }
     while (step_in_r != step_in_w) {
-        uint32_t ev = step_in_q[step_in_r % STEP_IN_Q], note = ev & 127u, tr = (ev >> 8) % NTRK;
-        step_t *st = &t->step[ui.cursor];
+        uint32_t ev = step_in_q[step_in_r % STEP_IN_Q], tr = (ev >> 8) % NTRK;
         step_in_r++;
-        if (!(ev & 0x80u)) {
-            mi_held[note >> 5] &= ~(1u << (note & 31u));
+        if (!(ev & 0x80u))
             continue;
-        }
-        if (!on_page) {
-            if (rh_st == 1u && tr != rec_trk) {           /* (2.6, a YouTube comment) the keyboard plays another track
+        if (rh_st == 1u && tr != rec_trk) {               /* (2.6, a YouTube comment) the keyboard plays another track
                                                          * than the one recording: nothing is recorded, say why (once a
                                                          * take, and not when MIDI plays that track too: an external
                                                          * sequencer on the other tracks does not flash it) */
-                char b[2] = {(char)('1' + tr), 0};
-                ui_say("MIDI PLAYS TRACK ", b);
-                rh_st = 2;
-            } else if (rec_arm && tr == rec_trk) {
-                rh_st = 2;
-            }
-            continue;
-        }
-        if (&trk[tr] != t) {
-            if (!song.playing) {
-                char b[2] = {(char)('1' + tr), 0};
-                ui_say("MIDI PLAYS TRACK ", b);
-            }
-            continue;
-        }
-        mi_held[note >> 5] |= 1u << (note & 31u);
-        if (!ui.entry_open) {
-            ui.entry_open = 1;
-            undo_mark(t, (undo_sess += 4u) | 3u);
-            st->n = 0;
-            st->lvl = st->rat = 0;
-            st->time = ST_NOTE;
-        }
-        if (t->p[P_VOICE]) {
-            st->note[0] = (uint8_t)note;
-            st->n = 1;
-        } else if (st->n < 4u) {
-            st->note[st->n++] = (uint8_t)note;
+            char b[2] = {(char)('1' + tr), 0};
+            ui_say("MIDI PLAYS TRACK ", b);
+            rh_st = 2;
+        } else if (rec_arm && tr == rec_trk) {
+            rh_st = 2;
         }
     }
-    if (!on_page)
-        mi_held[0] = mi_held[1] = mi_held[2] = mi_held[3] = 0;
-}
-
-/* SEQ step entry, acid style: the keys pressed together (POLY: up to 4, MONO:
- * the last one) become the cursor step; releasing all keys moves on. Not while recording or armed:
- * the keys record live then (they would be written twice) */
-static void seq_entry(uint32_t pressed)
-{
-    track_t *t = TSEL;
-    step_t *st = &t->step[ui.cursor];
-    uint32_t k;
-    mi_ok = 1;                                            /* (next frame, midi_entry may write) */
-    if (is_drum(t) || song.rec || rec_wait || ft_on)
-        return;
-    for (k = 0; k < 27u; k++) {
-        uint32_t note;
-        if (!((pressed >> k) & 1u))
-            continue;
-        note = kb_map(t, k);
-        if (note == KB_SILENT)
-            continue;
-        if (!ui.entry_open) {
-            ui.entry_open = 1;
-            undo_mark(t, (undo_sess += 4u) | 3u);
-            st->n = 0;
-            st->lvl = st->rat = 0;
-            st->time = ST_NOTE;
-        }
-        if (t->p[P_CHORD] && !t->p[P_VOICE]) {            /* chord mode (2.4.1): the chord as it sounded (CHORD+,
-                                                            * VLEAD), not only its root; (not played yet: built here) */
-            uint8_t c[4];
-            uint32_t m, j;
-            if (kb_kind[k] == KS_NOTE && kb_n[k] && kb_root[k] == note) {
-                m = kb_n[k] > 4u ? 4u : kb_n[k];
-                memcpy(c, kb_nt[k], m);
-            } else {
-                m = chord_notes(t, note, c);
-            }
-            for (j = 0; j < m && st->n < 4u; j++)
-                st->note[st->n++] = c[j];
-        } else if (t->p[P_VOICE]) {
-            st->note[0] = (uint8_t)note;
-            st->n = 1;
-        } else if (st->n < 4u) {
-            st->note[st->n++] = (uint8_t)note;
-        }
-        last_note = (uint8_t)note;
-    }
-    if (ui.entry_open && !fm1_in.notes && !midi_held())
-        cursor_set(ui.cursor + 1);
 }
 
 /* HOME: tap on release, hold 0.7 s fires once. t0 = press time | 1,
@@ -667,41 +525,33 @@ static void layer_tap(uint32_t layer)
             break;
         }
 #endif
-        if (on_drum_page() && sg_held) {                  /* the GRID, a step held: EDIT's pages lock; SEQ nothing */
+        if (on_drum_page() && sg_held) {                  /* the GRID, a step held: EDIT walks the pages that lock
+                                                          * (OSC > FILT > ENV, ui_grid.c); SEQ nothing */
             if (layer == LY_ERASE)
                 sg_lock_open(FAM_EDIT);
             break;
         }
-        if (on_drum_page() && layer == LY_ERASE) {        /* GRID: EDIT -> the sound's pages (drums: HEX OSC ..) */
-            open_family(FAM_EDIT);
+        if (layer == LY_ERASE) {
+            if (on_drum_page() || ui.home || cur_page()->scope != SC_TRK || !is_drum(TSEL))
+                open_family(FAM_EDIT);                    /* the sound's pages (drums: HEX OSC ..) */
+            else
+                studio_open(SC_DRUM);                     /* HOME, the drum track: EDIT -> its GRID */
             break;
         }
-        if (on_drum_page() && !is_drum(TSEL)) {           /* a synth's GRID: SEQ -> the STEP page (acid style entry) */
-            ui.fam_last[FAM_SEQ] = 0;
-            open_family(FAM_SEQ);
+        /* SEQ (REVIEW.md 2, 21 Nov 2026: the GRID is the only step editor, SEQ always comes back to it). On the GRID:
+         * the sequencing pages (a synth track: SEQ > PATTERN and its family; the drums: KIT, then DRUM GEN); from
+         * anywhere else, every track: the GRID */
+        if (on_drum_page()) {
+            if (is_drum(TSEL)) {
+                drum_seq_tap();                           /* DRUMS: GRID -> KIT -> DRUM GEN */
+            } else {
+                ui.fam_last[FAM_SEQ] = 0;                 /* (its first page, PATTERN, every time) */
+                open_family(FAM_SEQ);
+            }
             break;
         }
-        if (on_drum_page()) {                             /* DRUMS: SEQ -> GRID -> KIT -> DRUM GEN */
-            drum_seq_tap();
-            break;
-        }
-        if (layer == LY_STEP && !ui.home && (cur_page()->graph == GR_HEX || cur_page()->graph == GR_DGEN)) {
-                                                          /* the sound's pages, DRUM GEN: SEQ -> back */
-            studio_open(SC_DRUM);                         /* to the drums */
-            break;
-        }
-        if (!ui.home && cur_page()->scope == SC_TRK && (is_drum(TSEL) || layer == LY_STEP)) {
-            studio_open(SC_DRUM);                         /* HOME: SEQ -> the GRID, every track (drums: EDIT too) */
-            break;
-        }
-        if (layer == LY_ERASE && song.seq_mode && cur_page()->scope == SC_STEP && !is_drum(TSEL)) {
-            undo_mark(TSEL, (undo_sess += 4u) | 3u);      /* STEP page: EDIT clears the step */
-            step_clear(&TSEL->step[ui.cursor]);
-            cursor_set(ui.cursor + 1);
-            ui_message("STEP CLEARED");
-            break;
-        }
-        open_family(layer == LY_STEP ? FAM_SEQ : FAM_EDIT);
+        drum_page = 0;                                    /* (the drums: their GRID, not the KIT) */
+        studio_open(SC_DRUM);
         break;
     case LY_ROLL:
         open_family(FAM_ARP);
@@ -983,7 +833,7 @@ static void ui_input(void)
     midi_chan_fix();                                    /* GLO > MIDI: no channel on two tracks (2.6, ui.c) */
     ml_poll();                                          /* MIDI LEARN: a CC came for the picked parameter (2.6) */
     page_fix();                                         /* (a page the track does not have: its neighbour, 2.6) */
-    midi_entry();                                       /* (the STEP page's MIDI notes: read every frame, 2.6) */
+    midi_entry();                                       /* (the MIDI notes' queue: read every frame, 2.6) */
     if (home == BT_HOLD) {                              /* HOME held: open the menu, or leave it */
         if (ui.menu) {
             menu_close();
@@ -1098,8 +948,6 @@ static void ui_input(void)
             break;
         }
     }
-    if (song.seq_mode && cur_page()->scope == SC_STEP)
-        seq_entry(notes);                                 /* (and the MIDI keyboard's: midi_entry) */
 
     if ((s = panel_enc(EN_PRESET)) != 0 && (ui.home || cur_page()->graph == GR_BROWSE || cur_fam() == FAM_TRK)) {
         /* PRESETS browses the selected part's presets (all engines, then user presets) on HOME, the PRESETS
@@ -1130,7 +978,7 @@ static void ui_input(void)
         int16_t *hv;
         if ((s = panel_enc(EN_K1 + k)) == 0)
             continue;
-        if (ui.home || pg->scope == SC_STEP || pg->scope == SC_TRK || page_desc(pg, k, &hv) ||
+        if (ui.home || pg->scope == SC_TRK || page_desc(pg, k, &hv) ||
             (pg->graph == GR_USER && k == 0u)) {     /* (not an empty column, nor "DRUM TRACK") */
             ui.hot_col = (uint8_t)k;
             ui.hot_t = 40;

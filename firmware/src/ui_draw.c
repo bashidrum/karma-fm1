@@ -228,15 +228,15 @@ static void graph_steps(const track_t *t, uint16_t c)
             cv_rect(x - 1, y + 16, 3, 3, C_WHITE);
     }
 }
-/* the 16 steps the boxes show: STEP, the cursor's; SEQ > GEN, the ones playing */
+/* the 16 steps the boxes show (SEQ > GEN): the ones playing, stopped the GRID's page */
 static uint32_t roll_bank(const track_t *t)
 {
-    return cur_page()->scope == SC_STEP || !song.playing ? ui.bank : t->seq_idx / 16u;
+    return !song.playing ? ui.bank : t->seq_idx / 16u;
 }
-/* STEP page: the cursor's 16-step bank as 2 rows of 8 boxes, each with its note, readable on the
+/* SEQ > GEN, HARMONY: a 16-step bank as 2 rows of 8 boxes, each with its note, readable on the
  * small screen. A note: filled in the track's colour (an ACC a white bar on top, a SLD an arrow on
  * to the next step, a chord "+n" small); a TIE: a band carried on from the note before; a rest: an
- * empty box. The cursor's box in a white frame, the step playing all white. */
+ * empty box. The step playing all white. */
 static void graph_roll(const track_t *t, uint16_t c)
 {
     uint32_t i, len = (uint32_t)t->p[P_SLEN], base = roll_bank(t) * 16u;
@@ -244,7 +244,7 @@ static void graph_roll(const track_t *t, uint16_t c)
         uint32_t si = base + i;
         const step_t *st = &t->step[si];
         int32_t x = 1 + (int32_t)(i % 8u) * 30, y = 2 + (int32_t)(i / 8u) * 46, w = 28, h = 42;
-        int play = song.playing && si == t->seq_idx, cur = si == ui.cursor && cur_page()->scope == SC_STEP;
+        int play = song.playing && si == t->seq_idx;
         uint16_t fill = play ? C_WHITE : c, ink = C_BLACK;
         char nm[8];
         if (si >= len) {                             /* past the pattern's end */
@@ -286,10 +286,6 @@ static void graph_roll(const track_t *t, uint16_t c)
             cv_rect(x + 5, y + 5, 2, 2, q);
             cv_rect(x + 4, y + 7, 2, 1, q);
             cv_rect(x + 4, y + 9, 2, 2, q);
-        }
-        if (cur) {                                   /* the step the knobs edit */
-            op_box(x - 1, y - 1, w + 2, h + 2, C_WHITE);
-            op_box(x - 2, y - 2, w + 4, h + 4, C_WHITE);
         }
     }
 }
@@ -963,41 +959,6 @@ static void draw_columns_set(void)
         draw_column(1, "LOAD", "--", "", used ? C_HI : C_DIM, -1, ICON_AUTO);
         draw_column(2, "ERASE", "--", "", used ? C_HI : C_DIM, -1, ICON_AUTO);
         draw_column(3, "SAVE", "--", "", C_HI, -1, ICON_AUTO);
-        return;
-    }
-    if (cur_page()->scope == SC_STEP) {
-        static const char *const TIME_N[3] = {"NOTE", "TIE", "REST"};
-        const step_t *st = &TSEL->step[ui.cursor];
-        char u[8];
-        if (st->n) {
-            note_name(val, st->note[0]);
-            u[0] = 0;
-            if (st->n > 1) {
-                str_cpy(u, "+", 8);
-                fmt_int(u + 1, st->n - 1);
-            }
-        } else {
-            str_cpy(val, "--", 12);
-            u[0] = 0;
-        }
-        {
-            static const char *const FLAG_N[4] = {"-", "ACC", "SLD", "A+S"};
-            char sn[8], sl[8];
-            fmt_int(sn, (int32_t)ui.cursor + 1);
-            str_cpy(sl, "/", 8);
-            fmt_int(sl + 1, TSEL->p[P_SLEN]);
-            draw_column(0, "STEP", sn, sl, VAL(0u), -1, ICON_AUTO);
-            draw_column(1, "NOTE", val, u, step_on(st) ? VAL(1u) : C_DIM, -1, ICON_AUTO);
-            if (step_on(st)) {                          /* a note: its LEN (2.6), steps with the TIEs after it */
-                char ln[8];
-                fmt_int(ln, (int32_t)note_len(TSEL, ui.cursor));
-                draw_column(2, "LEN", ln, "STEP", VAL(2u), -1, ICON_AUTO);
-            } else {
-                draw_column(2, "TIME", TIME_N[st->time % 3u], "", VAL(2u), -1, ICON_AUTO);
-            }
-            draw_column(3, "FLAG", FLAG_N[(st->flags & SF_ACCENT ? 1u : 0u) | (st->flags & SF_SLIDE ? 2u : 0u)], "",
-                        VAL(3u), -1, ICON_AUTO);
-        }
         return;
     }
     for (c = 0; c < 4u; c++) {

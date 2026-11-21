@@ -36,7 +36,7 @@ static void sg_cur_set(uint32_t c)
     if (is_drum(TSEL)) {
         drum_cursor = (uint8_t)c;
     } else {
-        ui.cursor = (uint8_t)c;                         /* (the STEP page's cursor: the same step there) */
+        ui.cursor = (uint8_t)c;
         ui.bank = (uint8_t)(c / 16u);
         ui.entry_open = 0;
     }
@@ -54,9 +54,10 @@ static int sg_on(const track_t *t, uint32_t idx)
 {
     return is_drum(t) ? dstep_has(&t->dstep[idx], drum_lane) : step_on(&t->step[idx]);
 }
+static uint32_t sg_sess;                                /* the undo session of the steps held (one hold: one undo) */
 static void sg_undo(track_t *t)
 {
-    undo_mark(t, ui.step_sess ? ui.step_sess : (ui.step_sess = (undo_sess += 4u) | 3u));
+    undo_mark(t, sg_held ? sg_sess : ui.step_sess ? ui.step_sess : (ui.step_sess = (undo_sess += 4u) | 3u));
 }
 /* a note moved d degrees of the track's scale (CHR: semitones), 1..127 */
 static int32_t sg_scale_move(const track_t *t, int32_t n, int32_t d)
@@ -184,6 +185,7 @@ static void grid_key(uint32_t k, uint32_t down)
     if (!sg_held) {
         sg_cur_set(idx);
         sg_trk = (uint8_t)song.sel;
+        sg_sess = (undo_sess += 4u) | 3u;               /* (the step set by this press, and every edit of the hold) */
     }
     sg_held |= (uint16_t)(1u << w);
     if (sg_on(t, idx))
@@ -251,6 +253,7 @@ static void sg_lock_turn(uint32_t id, int32_t s, uint32_t role)
     sk = accel(role, s, lock_desc(t, id)->max - lock_desc(t, id)->min);
     if (!locks_fit(t, sg_page(), sg_held, id))
         return;
+    sg_undo(t);
     fm1_irq_off();
     for (w = 0; w < 16u; w++) {
         uint32_t idx = sg_page() * 16u + w;
@@ -452,9 +455,9 @@ static int sg_input(uint32_t pressed)
     }
     if (sg_held && (pressed & (1u << panel.btn[B_ENV] | 1u << panel.btn[B_LFO])))
         sg_lock_open((pressed >> panel.btn[B_ENV]) & 1u ? FAM_ENV : FAM_LFO);
-    else if (!sg_held && !is_drum(TSEL) && (pressed & 1u << panel.btn[B_ENV]))
-        open_family(FAM_ENV);
-    else if (!sg_held && !is_drum(TSEL) && (pressed & 1u << panel.btn[B_LFO]))
+    else if (!sg_held && (pressed & 1u << panel.btn[B_ENV]))   /* (every track, as from HOME: the drums' ENV is the */
+        open_family(FAM_ENV);                                  /* sound's HEX AEG, their LFO says there is none) */
+    else if (!sg_held && (pressed & 1u << panel.btn[B_LFO]))
         open_family(FAM_LFO);
     if (!on_drum_page())
         return 1;
