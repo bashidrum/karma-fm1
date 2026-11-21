@@ -1,41 +1,26 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* SLOOP 2.4: the full-screen visualiser. On HOME (the TRACKS screen), HOME tapped opens it; HOME again or
- * any page closes it; SELECT steps through the twelve styles (the name shows a second); a layer held shows
- * its screen as ever, then the visualiser comes back. The keys, PLAY and REC work as always.
- *   1 OSCILLOSCOPE  2 SPECTRUM  3 SPECTROGRAM  4 LISSAJOUS  5 VU METERS  6 CIRCLE
- *   7 TAPE  8 LCD  9 BOUNCE  10 ORBIT  11 WIRES  12 DANCER
- * (KARMA 3.0: DANCER, a white silhouette dancing to the song on black, is first: HOME on HOME opens on her; the
- * oscilloscope moved to the last place, the SLOOP sail is gone)
- * It reads what the audio already leaves for the UI: the scope buffers (audio.c, the mix at 22 kHz, left and
- * right, as if MASTER were all the way up: the picture does not follow the volume knob, even at 0), the tracks' peaks (fx.c / drums.c, as the TRACKS meters read them), the notes that started
- * (voice.c vis_hit) and the transport clock. Everything is drawn in the main loop, every other frame, in two
- * bands of 120 rows (the canvas holds 124): no cost to the audio. */
-#define VIS_N 11u
-static const char *const VIS_NAME[VIS_N] = {"TAPE", "SPECTRUM", "SPECTROGRAM", "LISSAJOUS", "VU METERS",
-                                            "CIRCLE", "LCD", "BOUNCE", "ORBIT", "WIRES", "OSCILLOSCOPE"};
-/* vis_on, vis_shown_last, vis_name_t: ui_draw.c; vis_style: panel.c (kept with the settings) */
-#define VIS_FFT 512u
-#define VIS_SG_W 48u                                /* spectrogram: 48 columns of 5 px, 72 rows of 3 px */
-#define VIS_SG_H 72u
-static int16_t vis_re[VIS_FFT] __attribute__((section(".pool"))), vis_im[VIS_FFT] __attribute__((section(".pool")));
-static int16_t vis_l[VIS_FFT], vis_r[VIS_FFT];      /* this frame's scope snapshot */
-static uint8_t vis_sg[VIS_SG_H][VIS_SG_W] __attribute__((section(".pool")));
-static uint8_t vis_lj[3][256][2];                   /* Lissajous: the last three frames' points */
+/* The screensavers (PHEBUS, Ben, 21 Nov 2026: "Drop all 11, new only"). On HOME (the TRACKS screen), HOME tapped
+ * opens one; HOME again or any page closes it; SELECT steps through them (the name shows a second); a layer held
+ * shows its screen as ever, then the screensaver comes back. The keys, PLAY and REC work as always.
+ *   1 FLOW    liquid marble, wavy stripes and glitch tears, a band per voice
+ *   2 EYES    four watching eyes in a turning lattice, an eye per voice
+ *   3 DESERT  dunes in four strata under a ringed sun, a stratum per voice
+ *   4 THIRD EYE  the three fused: a great eye as the sun on the dunes, FLOW for a sky
+ * Ben: "acid psychedelic modern glitch art fused with ... psychedellic eyes and desert art vibe", "These but flowing
+ * and morphing"; the four voice colours only (plus black and a little white), "each driven by its own voice's level";
+ * no busier than the boot picture he set as "the limit". Original designs, not copies of anyone's artwork.
+ * Everything is computed into the canvas pixel by pixel (no pictures, no frame buffer), mostly in 2x2 blocks, from
+ * what the audio already leaves for the UI: the tracks' peaks (fx.c / drums.c, as the TRACKS meters read them), the
+ * notes that started and the kick (voice.c vis_hit). Drawn in the main loop every other frame, in two bands of 120
+ * rows: no cost to the audio. */
+static const char *const VIS_NAME[VIS_N] = {"FLOW", "EYES", "DESERT", "THIRD EYE"};
+/* vis_on, vis_shown_last, vis_name_t: ui_draw.c; vis_style, VIS_N: panel.c (kept with the settings) */
 static struct {
-    int32_t scale, ljscale, peak;                   /* auto-scales (smoothed peaks), this frame's peak */
-    int16_t bar[32], cap[32], capv[32];             /* spectrum: bars, caps and their fall speed (0..1000) */
-    int16_t vu[5], pk[5], pkt[5];                   /* VU: tracks + master, peak holds */
-    int16_t lvl[5];                                 /* the tracks' levels (0..1000) this frame, the master */
-    int16_t bh[4], bv[4];                           /* BOUNCE: height and speed (1/256 units) */
-    uint8_t flash[4], kick;                         /* frames since a note started (0 = none) / a kick, fading */
-    int16_t wamp[4];                                /* WIRES: each string's swing (0..1000) */
-    uint8_t wn[4];                                  /* its wave count (from the note) */
-    uint32_t free_q8, last_ms, wph;                 /* beats (1/256) when stopped; the wires' phase */
-    uint8_t lj_n;
+    uint16_t e[4];                                  /* each voice's level, smoothed: 0..256 (fast up, slow down) */
+    uint8_t flash[4], kick;                         /* a note started (8, counting down) / a kick, fading */
+    uint32_t tq, last_ms, rip;                      /* the clock (1/256: ~40 a second, faster when loud); the sun's rings */
 } vs;
-/* the spectrum's 32 bands: bins of the 512-point FFT at 22 050 Hz (43 Hz each), 40 Hz .. 10 kHz */
-static const uint8_t VIS_EDGE[33] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 21, 25, 29, 35,
-                                     41, 49, 58, 69, 82, 98, 116, 138, 164, 195, 232};
+static uint16_t vp[4][4];                           /* this picture's colours of each voice: dark, body, bright, hot */
 
 static int vis_shown(void) { return vis_on && !ui.home && !ui.menu && cur_page()->scope == SC_TRK; }
 static void vis_open(void)
@@ -66,159 +51,29 @@ static int32_t vis_lvl(int32_t a)
     v = lg * 8 + (((a << 3) >> lg) & 7);           /* 120 = 0 dB */
     return clamp((v - 56) * 1000 / 64, 0, 1000);
 }
-
-/* ---- drawing helpers (canvas coordinates; cv_oy picks the band) ---- */
-static void vis_ellipse(int32_t cx, int32_t cy, int32_t rx, int32_t ry, uint16_t c)
+static uint32_t vis_sqrt(uint32_t v)
 {
-    int32_t y;
-    if (rx < 1 || ry < 1)
-        return;
-    for (y = -ry; y <= ry; y++) {
-        int32_t w = 0;
-        while (w <= rx && (w * w) * (ry * ry) + (y * y) * (rx * rx) <= (rx * rx) * (ry * ry))
-            w++;
-        if (w)
-            cv_rect(cx - w + 1, cy + y, 2 * w - 1, 1, c);
-    }
-}
-static void vis_circle(int32_t cx, int32_t cy, int32_t r, uint16_t c)  /* an outline */
-{
-    int32_t x = r, y = 0, e = 1 - r;
-    while (x >= y) {
-        cv_pset(cx + x, cy + y, c), cv_pset(cx - x, cy + y, c), cv_pset(cx + x, cy - y, c), cv_pset(cx - x, cy - y, c);
-        cv_pset(cx + y, cy + x, c), cv_pset(cx - y, cy + x, c), cv_pset(cx + y, cy - x, c), cv_pset(cx - y, cy - x, c);
-        y++;
-        if (e < 0)
-            e += 2 * y + 1;
+    uint32_t r = 0, b = 1u << 30;
+    while (b > v)
+        b >>= 2;
+    while (b) {
+        if (v >= r + b)
+            v -= r + b, r = (r >> 1) + b;
         else
-            e += 2 * (y - --x) + 1;
+            r >>= 1;
+        b >>= 2;
     }
+    return r;
 }
-static void vis_thick(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint16_t c)   /* 2 px */
-{
-    cv_line(x0, y0, x1, y1, c);
-    cv_line(x0, y0 + 1, x1, y1 + 1, c);
-}
-/* a polygon, points in 1/16 px (n <= 8), filled by scan lines (even-odd) inside the band */
-static void vis_poly(const int32_t *px, const int32_t *py, uint32_t n, uint16_t c)
-{
-    int32_t y0 = 0x7FFFFFFF, y1 = -0x7FFFFFFF, y;
-    uint32_t i;
-    for (i = 0; i < n; i++) {
-        if (py[i] < y0) y0 = py[i];
-        if (py[i] > y1) y1 = py[i];
-    }
-    y0 = y0 >> 4;
-    y1 = (y1 + 15) >> 4;
-    if (y0 < -cv_oy) y0 = -cv_oy;
-    if (y1 > (int32_t)cv_h - cv_oy) y1 = (int32_t)cv_h - cv_oy;
-    for (y = y0; y < y1; y++) {
-        int32_t xs[8], m = 0, sy = y * 16 + 8, a, b;
-        for (i = 0; i < n && m < 8; i++) {
-            uint32_t j = (i + 1u) % n;
-            if ((py[i] <= sy && py[j] > sy) || (py[j] <= sy && py[i] > sy))
-                xs[m++] = px[i] + (sy - py[i]) * (px[j] - px[i]) / (py[j] - py[i]);
-        }
-        for (a = 1; a < m; a++)                     /* (a few points: insertion sort) */
-            for (b = a; b > 0 && xs[b - 1] > xs[b]; b--) {
-                int32_t t = xs[b]; xs[b] = xs[b - 1]; xs[b - 1] = t;
-            }
-        for (a = 0; a + 1 < m; a += 2)
-            cv_rect((xs[a] + 8) >> 4, y, ((xs[a + 1] + 8) >> 4) - ((xs[a] + 8) >> 4), 1, c);
-    }
-}
-/* a seven-segment digit, the unlit segments faintly there (an LCD) */
-static void vis_seg(int32_t x, int32_t y, int32_t w, int32_t h, int32_t t, int ch, uint16_t c)
-{
-    static const uint8_t SEG[10] = {0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F};   /* gfedcba */
-    uint32_t m = ch >= 0 && ch <= 9 ? SEG[ch] : 0u;
-    int32_t hh = h / 2;
-    uint16_t off = RGB(18, 18, 21);
-    cv_rect(x + t, y, w - 2 * t, t, m & 0x01 ? c : off);
-    cv_rect(x + w - t, y + t, t, hh - t, m & 0x02 ? c : off);
-    cv_rect(x + w - t, y + hh, t, hh - t, m & 0x04 ? c : off);
-    cv_rect(x + t, y + h - t, w - 2 * t, t, m & 0x08 ? c : off);
-    cv_rect(x, y + hh, t, hh - t, m & 0x10 ? c : off);
-    cv_rect(x, y + t, t, hh - t, m & 0x20 ? c : off);
-    cv_rect(x + t, y + hh - t / 2, w - 2 * t, t, m & 0x40 ? c : off);
-}
+static int32_t vis_abs(int32_t v) { return v < 0 ? -v : v; }
+static uint32_t vis_hash(uint32_t a, uint32_t b) { a = a * 2654435761u ^ b * 40503u; return (a ^ (a >> 15)) * 2246822519u; }
 
 /* ---- the frame's data ---- */
-/* beats since PLAY in 1/256 (stopped: a free count at the tempo, for what moves anyway) */
-static uint32_t vis_beat_q8(void)
-{
-    if (song.playing)
-        return clk_beat * 256u + clk_pos / (BEAT_U / 256u);
-    return vs.free_q8;
-}
-static void vis_fft(void)
-{
-    uint32_t i, j = 0, bit, len;
-    for (i = 0; i < VIS_FFT; i++) {                 /* Hann window */
-        int32_t w = (32768 - icos(i * 2u)) >> 1;
-        vis_re[i] = (int16_t)((vis_l[i] * w) >> 15);
-        vis_im[i] = 0;
-    }
-    for (i = 1; i < VIS_FFT; i++) {                 /* bit reversal */
-        for (bit = VIS_FFT >> 1; j & bit; bit >>= 1)
-            j ^= bit;
-        j ^= bit;
-        if (i < j) {
-            int16_t t = vis_re[i]; vis_re[i] = vis_re[j]; vis_re[j] = t;
-        }
-    }
-    for (len = 2; len <= VIS_FFT; len <<= 1) {      /* radix 2, halved each stage (no overflow) */
-        uint32_t half = len >> 1, k;
-        for (i = 0; i < VIS_FFT; i += len)
-            for (k = 0; k < half; k++) {
-                uint32_t a = i + k, b = a + half, ix = k * (1024u / len);
-                int32_t wr = icos(ix), wi = -isin(ix);
-                int32_t tr = (vis_re[b] * wr - vis_im[b] * wi) >> 15, ti = (vis_re[b] * wi + vis_im[b] * wr) >> 15;
-                int32_t ar = vis_re[a], ai = vis_im[a];
-                vis_re[b] = (int16_t)((ar - tr) >> 1);
-                vis_im[b] = (int16_t)((ai - ti) >> 1);
-                vis_re[a] = (int16_t)((ar + tr) >> 1);
-                vis_im[a] = (int16_t)((ai + ti) >> 1);
-            }
-    }
-}
-/* the 32 bands of the last FFT, 0..1000 (60 dB under a full-scale sine) */
-static void vis_bands(int16_t *out)
-{
-    uint32_t k, i;
-    for (k = 0; k < 32u; k++) {
-        int32_t m = 0, lg = 0, v;
-        for (i = VIS_EDGE[k]; i < VIS_EDGE[k + 1] && i < VIS_FFT / 2u; i++) {
-            int32_t a = vis_re[i] < 0 ? -vis_re[i] : vis_re[i], b = vis_im[i] < 0 ? -vis_im[i] : vis_im[i];
-            int32_t mag = a > b ? a + b / 2 : b + a / 2;
-            if (mag > m)
-                m = mag;
-        }
-        if (m < 2) {
-            out[k] = 0;
-            continue;
-        }
-        while ((m >> lg) > 1)
-            lg++;
-        v = lg * 8 + (((m << 3) >> lg) & 7);        /* a full-scale sine: ~104 */
-        out[k] = (int16_t)clamp((v - 24) * 1000 / 80, 0, 1000);
-    }
-}
-
 static void vis_update(void)
 {
-    uint32_t i, w, hit, now = fm1_ms;
-    int32_t pk[4], mpk = 0;
-    /* the scope: the last 512 frames (left, right) */
-    w = scope_w;
-    for (i = 0; i < VIS_FFT; i++) {
-        vis_l[i] = scope_buf[(w + i) & (SCOPE_N - 1u)];
-        vis_r[i] = scope_bufr[(w + i) & (SCOPE_N - 1u)];
-        if (vis_l[i] > mpk) mpk = vis_l[i];
-        if (-vis_l[i] > mpk) mpk = -vis_l[i];
-    }
-    /* the tracks' peaks since the last look (as the TRACKS meters take them) and the notes that started */
-    fm1_irq_off();
+    uint32_t i, hit, now = fm1_ms, dt, emax = 0;
+    int32_t pk[4];
+    fm1_irq_off();                                  /* the tracks' peaks since the last look, the notes that started */
     for (i = 0; i < NPART; i++) {
         pk[i] = trk[i].peak;
         trk[i].peak = 0;
@@ -233,437 +88,413 @@ static void vis_update(void)
     }
     fm1_irq_on();
     for (i = 0; i < 4u; i++) {
-        int32_t v = trk_level(i) && !trk[i].p[P_MUTE] ? vis_lvl(pk[i]) : 0;   /* (as the TRACKS meters) */
-        vs.lvl[i] = (int16_t)v;
-        if ((hit >> i) & 1u) {
-            vs.flash[i] = 8;
-            vs.wn[i] = (uint8_t)(2u + vis_note[i] % 12u / 2u);
-            if (vs.wamp[i] < 1000) vs.wamp[i] = 1000;
-            if (vs.bh[i] < 8 * 256)                 /* BOUNCE: a kick, unless already high up */
-                vs.bv[i] = (int16_t)(3 * 256 + 51 * (int32_t)i);
-        } else if (vs.flash[i]) {
-            vs.flash[i]--;
-        }
-        vs.wamp[i] = (int16_t)(vs.wamp[i] > v ? vs.wamp[i] - (vs.wamp[i] - v) / 6 - 4 : v);
-        if (vs.wamp[i] < 0) vs.wamp[i] = 0;
-        /* BOUNCE physics: gravity, a bounce off the floor */
-        vs.bv[i] = (int16_t)(vs.bv[i] - 56);
-        vs.bh[i] = (int16_t)clamp(vs.bh[i] + vs.bv[i], 0, 34 * 256);
-        if (!vs.bh[i] && vs.bv[i] < 0)
-            vs.bv[i] = (int16_t)(vs.bv[i] < -256 ? -vs.bv[i] * 35 / 100 : 0);
+        int32_t v = trk_level(i) && !trk[i].p[P_MUTE] ? vis_lvl(pk[i]) * 256 / 1000 : 0;   /* (as the TRACKS meters) */
+        vs.e[i] = (uint16_t)(v > vs.e[i] ? vs.e[i] + (v - vs.e[i]) / 2 : vs.e[i] - (vs.e[i] - v) / 12);
+        vs.flash[i] = (uint8_t)((hit >> i) & 1u ? 8u : vs.flash[i] ? vs.flash[i] - 1u : 0u);
+        if (vs.e[i] > emax)
+            emax = vs.e[i];
     }
-    vs.lvl[4] = (int16_t)vis_lvl(mpk);
     vs.kick = (uint8_t)(vs.kick > 20 ? vs.kick - 20 : 0);
-    /* the free beat count (stopped) */
-    {
-        uint32_t dt = now - vs.last_ms;
-        vs.last_ms = now;
-        if (dt > 200u) dt = 200u;
-        vs.free_q8 += dt * (uint32_t)song.g[G_BPM] * 256u / 60000u;
-    }
-    vs.wph += 37u;
-    vs.peak = mpk;
-    {                                               /* the wave's scale follows the peak */
-        int32_t target = mpk < 1600 ? 1600 : mpk;
-        vs.scale += (target - vs.scale) / 5;
-    }
-    switch (vis_style) {
-    case 1: case 2: {
-        int16_t b[32];
-        vis_fft();
-        vis_bands(b);
-        if (vis_style == 1) {
-            for (i = 0; i < 32u; i++) {
-                int32_t bar = vs.bar[i] - vs.bar[i] * 18 / 100;
-                vs.bar[i] = (int16_t)(b[i] > bar ? b[i] : bar);
-                if (vs.bar[i] >= vs.cap[i]) {
-                    vs.cap[i] = vs.bar[i];
-                    vs.capv[i] = 0;
-                } else {
-                    vs.capv[i] = (int16_t)(vs.capv[i] + 4);
-                    vs.cap[i] = (int16_t)(vs.cap[i] > vs.capv[i] ? vs.cap[i] - vs.capv[i] : 0);
-                }
-            }
-        } else {                                    /* spectrogram: the new row on top */
-            for (i = VIS_SG_H - 1u; i; i--)            /* (no memmove here: row by row, from the bottom) */
-                memcpy(vis_sg[i], vis_sg[i - 1u], VIS_SG_W);
-            for (i = 0; i < VIS_SG_W; i++) {
-                uint32_t p = i * 31u * 16u / (VIS_SG_W - 1u), k = p >> 4, f = p & 15u;
-                int32_t v = k < 31u ? (b[k] * (int32_t)(16u - f) + b[k + 1u] * (int32_t)f) / 16 : b[31];
-                vis_sg[0][i] = (uint8_t)(v * 255 / 1000);
-            }
-        }
-        break;
-    }
-    case 3: {                                       /* Lissajous: L-R across, L+R up; three frames kept */
-        int32_t m = 1;
-        uint8_t (*p)[2];
-        for (i = 0; i < VIS_FFT; i += 2u) {
-            int32_t s = vis_l[i] + vis_r[i];
-            if (s < 0) s = -s;
-            if (s > m) m = s;
-        }
-        if (m < 3000) m = 3000;
-        vs.ljscale += (m - vs.ljscale) / 5;
-        if (vs.ljscale < 1) vs.ljscale = 1;
-        vs.lj_n = (uint8_t)((vs.lj_n + 1u) % 3u);
-        p = vis_lj[vs.lj_n];
-        for (i = 0; i < 256u; i++) {
-            int32_t l = vis_l[i * 2u], r = vis_r[i * 2u];
-            p[i][0] = (uint8_t)clamp(120 + (l - r) * 170 / vs.ljscale, 0, 239);
-            p[i][1] = (uint8_t)clamp(120 - (l + r) * 95 / vs.ljscale, 0, 239);
-        }
-        break;
-    }
-    case 4:                                         /* VU: fall 3 % a frame, peaks held a second */
-        for (i = 0; i < 5u; i++) {
-            int32_t v = vs.lvl[i];
-            vs.vu[i] = (int16_t)(v > vs.vu[i] - 30 ? v : vs.vu[i] - 30);
-            if (v >= vs.pk[i]) {
-                vs.pk[i] = (int16_t)v;
-                vs.pkt[i] = 0;
-            } else if (++vs.pkt[i] > 30) {
-                vs.pk[i] = (int16_t)(vs.pk[i] > 20 ? vs.pk[i] - 20 : 0);
-            }
-        }
-        break;
-    case 0:                                         /* DANCER: her energy, the mix's and each track's level */
-        for (i = 0; i < 5u; i++) {                  /* (fast up, slow down) */
-            vs.vu[i] = (int16_t)(vs.lvl[i] > vs.vu[i] ? vs.vu[i] + (vs.lvl[i] - vs.vu[i]) / 3 : vs.vu[i] - 8);
-            if (vs.vu[i] < 0) vs.vu[i] = 0;
-        }
-        break;
-    default:
-        break;
+    dt = now - vs.last_ms;                          /* the clock: gentle when quiet, a little quicker when loud */
+    vs.last_ms = now;
+    if (dt > 200u)
+        dt = 200u;
+    vs.tq += dt * (40u * 256u + emax * 48u) / 1000u;
+    vs.rip += 1u + vs.kick / 40u;
+}
+/* the voices' colours for this picture, from their levels (a quiet voice breathes, dim, near black) */
+static void vis_palette(void)
+{
+    uint32_t i, t = vs.tq >> 8;
+    for (i = 0; i < 4u; i++) {
+        int32_t e = vs.e[i] + 24 + (isin(t * 6u + i * 256u) * 18 >> 15) + vs.flash[i] * 6;
+        if (e > 256) e = 256;
+        vp[i][0] = mix565(C_BLACK, TE_DIM[i], 150 + e * 106 / 256);
+        vp[i][1] = e < 128 ? mix565(TE_DIM[i], TE_MID[i], e * 2) : mix565(TE_MID[i], TE_COL[i], (e - 128) * 2);
+        vp[i][2] = mix565(TE_MID[i], TE_COL[i], 96 + e * 160 / 256);
+        vp[i][3] = mix565(TE_COL[i], C_WHITE, e > 150 ? (e - 150) * 150 / 106 : 0);
     }
 }
 
-/* ---- the styles (each draws the whole screen; called once per band) ---- */
-static void vis_scope(void)
+/* ---- painting: each piece paints the band of the canvas (screen rows y0..y0+119) row pair by row pair, in 2x2
+ * blocks (the top row worked out, the bottom row a copy), every pixel only where detail shows (the eyes) ---- */
+static void vis_canvas(void)                        /* (cv_begin without the clear: every pixel is painted) */
 {
-    uint32_t i0 = 0, i;
-    int32_t py = 0;
-    for (i = 1; i + 240u < VIS_FFT; i++)            /* a rising zero crossing: the wave stands still */
-        if (vis_l[i - 1u] < 0 && vis_l[i] >= 0) {
-            i0 = i;
-            break;
+    lcd_sync();
+    cv_w = 240u;
+    cv_h = 120u;
+    cv_oy = 0;
+}
+#define VIS_ROW2(q) memcpy((q) + 240, (q), 240u * sizeof(uint16_t))
+#define VIS_KEEP 0x0821u                            /* (eyes_px: no eye here, what is under it stays) */
+
+/* ---- FLOW's field: the boot's ripples of warped sines cut into bands, a band per voice with black between. A voice
+ * playing swells its band (pushing the others aside), brightens it and, loud, lights a white vein in it; a quiet
+ * voice thins to a dim line. Every 15 s or so it morphs to the next kind (a wipe down the screen): liquid marble,
+ * wavy stripes, marble torn sideways in rows; a kick tears a few rows in any kind. At the boot's broadest scale
+ * (x2): never busier than Ben's limit. */
+static uint16_t fl_lut[256];                        /* the bands along one turn of the field (byte-swapped) */
+static uint32_t fl_t, fl_cyc, fl_wipe;
+static void flow_prep(void)
+{
+    uint32_t T = vs.tq >> 8, j, p = 0, w[4], sum = 0, rot;
+    fl_t = T;
+    fl_cyc = T / 600u;
+    rot = fl_cyc / 3u;
+    fl_wipe = T % 600u < 40u ? T % 600u * 6u : 999u;   /* the morph: the new kind above a line going down (a second) */
+    for (j = 0; j < 4u; j++)
+        sum += w[j] = 26u + vs.e[(j + rot) & 3u] * 30u / 256u;
+    for (j = 0; j < 4u; j++) {
+        uint32_t i = (j + rot) & 3u, q, edge = w[j] / 6u + 1u, hot = vs.e[i] > 170u ? (vs.e[i] - 170u) / 22u : 0u;
+        for (q = 0; q < w[j]; q++)
+            fl_lut[(p + q) & 255u] = swap16(q < edge || q >= w[j] - edge ? vp[i][0]
+                                            : (q >= w[j] / 2u - hot && q < w[j] / 2u + hot) ? vp[i][3] : vp[i][1]);
+        p += w[j];
+        for (q = 0; q < (256u - sum) / 4u; q++)     /* black between */
+            fl_lut[(p + q) & 255u] = C_BLACK;
+        p += (256u - sum) / 4u;
+    }
+    for (; p < 256u; p++)
+        fl_lut[p] = C_BLACK;
+}
+static void flow_row(uint16_t *q, uint32_t sy, uint32_t xa, uint32_t xb)   /* (columns xa..xb-1 left: covered) */
+{
+    uint32_t T = fl_t, kind = sy < fl_wipe ? fl_cyc % 3u : (fl_cyc + 2u) % 3u, h = vis_hash(sy >> 2, (T >> 3) + kind) >> 24, x;
+    int32_t ra = (isin(sy * 5u + T * 3u) * 150) >> 15, tear = (kind == 2u && h < 14u) || h < vs.kick / 24u ? (int32_t)(h * 4u % 56u) - 28 : 0;
+    for (x = 0; x < 240u; x += 2u) {
+        int32_t a, b, v;
+        if (x == xa)
+            x = xb;
+        a = ((int32_t)x + tear) * 2 + ra;
+        b = (int32_t)sy * 2 + ((isin((uint32_t)a + T * 2u) * 110) >> 15);
+        a += (isin((uint32_t)b + T * 5u) * 90) >> 15;
+        v = kind == 1u ? a * 2 + b : (isin((uint32_t)a) + isin((uint32_t)(b + (a >> 1)))) >> 6;
+        q[x] = q[x + 1u] = fl_lut[((uint32_t)(v + (int32_t)(T * 4u)) >> 2) & 255u];
+    }
+    if (sy - fl_wipe < 2u)                          /* (the morph's edge: a white line) */
+        for (x = 0; x < 240u; x++)
+            q[x] = C_WHITE;
+}
+
+/* ---- the eyes: almond eyes, each the lens where two circles cross, outlined, with two echo contours round it; an
+ * iris of rings flowing outward (faster when loud), a pupil that opens with the level, a glint ---- */
+static struct {
+    int32_t x, y, c, r2, o2, c0, k1, k1e, k2, k2e, gx, gy, rp2, ri2, fi2, th[12];
+    uint16_t ic[13], sc, lid, e1, e2, ph, rw;      /* (rw: the iris rings' width, 1/256 px; 3 px or more: drawn in blocks) */
+} ey[4];
+static uint32_t ey_n;
+/* eye i at x, y: half width hw, half height open hh0 and now hh; its colours voice v's (4: the four voices in turn) */
+static void eye_set(uint32_t i, int32_t x, int32_t y, int32_t hw, int32_t hh0, int32_t hh, uint32_t v, int32_t rp, int32_t ri, uint32_t e)
+{
+    static const uint8_t RC[4] = {2, 1, 0, 3};      /* the iris rings: bright, body, dark, hot */
+    int32_t r = (hh * hh + hw * hw) / (2 * hh), r0 = (hh0 * hh0 + hw * hw) / (2 * hh0), g = hw / 5, off;
+    uint32_t j;
+    ey[i].x = x, ey[i].y = y;
+    ey[i].c = r - hh;                               /* the lids: circles r, their centres c below and above */
+    ey[i].r2 = r * r;
+    ey[i].o2 = (r + 2) * (r + 2);
+    ey[i].c0 = r0 - hh0;                            /* the echoes: the open lens grown by g and 2g, 3 px wide */
+    ey[i].k1 = (r0 + g) * (r0 + g), ey[i].k1e = ey[i].k1 + 6 * (r0 + g);
+    ey[i].k2 = (r0 + 2 * g) * (r0 + 2 * g), ey[i].k2e = ey[i].k2 + 6 * (r0 + 2 * g);
+    ey[i].rp2 = rp * rp;
+    ey[i].ri2 = ri * ri;
+    ey[i].fi2 = ey[i].rw < 768u ? ri * ri + 30 : (rp + 5) * (rp + 5);   /* (every pixel: the iris, or round the pupil) */
+    ey[i].ph = (uint16_t)((ey[i].ph + (ey[i].rw >> 8) * (3u + e / 20u) / 2u) % (4u * ey[i].rw));
+    off = (int32_t)ey[i].rw * 8 - (int32_t)ey[i].ph;   /* the bounds: where r*256 + off hits a multiple of rw */
+    for (j = 0; j < 12u; j++) {                     /* (the bounds squared, in 1/16 px^2) */
+        int32_t k = (rp * 256 + off) / (int32_t)ey[i].rw + 1 + (int32_t)j, b = ((int32_t)ey[i].rw * k - off) / 64;
+        ey[i].th[j] = b * b;
+        ey[i].ic[j] = v < 4u ? vp[v][RC[(k - 1) & 3]] : vp[(k - 1) & 3][(k & 4) ? 1 : 2];
+    }
+    ey[i].ic[12] = ey[i].ic[11];
+    v &= 3u;
+    ey[i].sc = mix565(C_BLACK, TE_DIM[v], 90);
+    ey[i].lid = vp[v][2], ey[i].e1 = vp[v][1], ey[i].e2 = vp[v][0];
+}
+static inline __attribute__((always_inline)) uint16_t eyes_px(uint32_t k, int32_t x, int32_t y)   /* (near eye k) */
+{
+    int32_t dx = x - ey[k].x, dy = y - ey[k].y, ay = dy < 0 ? -dy : dy, f = dx * dx + (ay + ey[k].c) * (ay + ey[k].c);
+    if (f <= ey[k].r2) {                            /* in the eye */
+        int32_t ix = dx - ey[k].gx, iy = dy - ey[k].gy, r2 = ix * ix + iy * iy, j = 0;
+        if ((ix + 5) * (ix + 5) + (iy + 5) * (iy + 5) < 6)
+            return C_WHITE;                         /* the glint */
+        if (r2 < ey[k].rp2)
+            return C_BLACK;
+        if (r2 < ey[k].ri2) {                       /* the iris */
+            r2 <<= 4;
+            while (j < 12 && r2 >= ey[k].th[j])
+                j++;
+            return ey[k].ic[j];
         }
-    cv_rect(0, 120, 240, 1, C_LINE);
-    for (i = 0; i < 240u; i += 40u)
-        cv_rect((int32_t)i, 116, 1, 9, C_LINE);
-    for (i = 0; i < 240u; i++) {
-        int32_t y = 120 - vis_l[i0 + i] * 100 / (vs.scale ? vs.scale : 1);
-        y = clamp(y, 2, 237);
-        if (i) {
-            cv_line((int32_t)i - 1, py - 1, (int32_t)i, y - 1, TE_G2);
-            cv_line((int32_t)i - 1, py + 2, (int32_t)i, y + 2, TE_G2);
-            vis_thick((int32_t)i - 1, py, (int32_t)i, y, TE_G4);
+        return r2 < ey[k].ri2 + 30 ? C_BLACK : ey[k].sc;
+    }
+    if (f <= ey[k].o2)
+        return ey[k].lid;                           /* the lid's line */
+    f = dx * dx + (ay + ey[k].c0) * (ay + ey[k].c0);
+    if (f >= ey[k].k1 && f < ey[k].k1e)
+        return ey[k].e1;                            /* the echoes */
+    if (f >= ey[k].k2 && f < ey[k].k2e)
+        return ey[k].e2;
+    return VIS_KEEP;
+}
+static void eyes_own(uint8_t *own, uint32_t k, int32_t a, int32_t b)   /* columns a..b near eye k (the nearer eye wins) */
+{
+    int32_t c;
+    for (c = a < 0 ? 0 : a >> 1; c <= b >> 1 && c < 120; c++)
+        if (own[c] == 4u || vis_abs(c * 2 - ey[k].x) < vis_abs(c * 2 - ey[own[c]].x))
+            own[c] = (uint8_t)k;
+}
+static void eyes_over(uint16_t *q, int32_t sy)      /* the eyes over row sy (painted), then its copy below */
+{
+    int32_t fx[24];
+    uint32_t nf = 0, k, x, j;
+    uint8_t own[120];                               /* which eye each column pair shows (4: none) */
+    memset(own, 4, sizeof own);
+    for (k = 0; k < ey_n; k++) {
+        int32_t a0 = vis_abs(sy - ey[k].y), a1 = vis_abs(sy + 1 - ey[k].y), ay, w2, A = (a0 + ey[k].c0) * (a0 + ey[k].c0);
+        for (j = 0; j < 2u; j++) {                  /* the columns where the echoes cross this row */
+            int32_t lo = j ? ey[k].k2 : ey[k].k1, hi = j ? ey[k].k2e : ey[k].k1e, wo, wi;
+            if (hi <= A)
+                continue;
+            wo = (int32_t)vis_sqrt((uint32_t)(hi - A)) + 1;
+            wi = lo > A ? (int32_t)vis_sqrt((uint32_t)(lo - A)) - 1 : 0;
+            eyes_own(own, k, ey[k].x - wo, ey[k].x - wi);
+            eyes_own(own, k, ey[k].x + wi, ey[k].x + wo);
         }
-        py = y;
-    }
-}
-static void vis_spectrum(void)
-{
-    uint32_t k;
-    for (k = 0; k < 32u; k++) {
-        int32_t x0 = 4 + (int32_t)k * 7, h = vs.bar[k] * 210 / 1000, y, cy = 232 - vs.cap[k] * 210 / 1000;
-        for (y = 232; y > 232 - h; y -= 4)          /* LED segments */
-            cv_rect(x0, y - 2, 5, 3, TE_G4);
-        cv_rect(x0, cy - 1, 5, 2, C_WHITE);
-    }
-}
-static uint16_t vis_heat(uint32_t v)               /* 0..255: black, blue, green, yellow, white */
-{
-    static const uint16_t ST[5] = {RGB(0, 0, 0), RGB(54, 54, 60), RGB(118, 118, 126), RGB(196, 196, 204), RGB(255, 255, 255)};
-    static const uint8_t AT[5] = {0, 77, 140, 204, 255};
-    uint32_t k;
-    v = (v + ((v * v) >> 8)) >> 1;                  /* (quiet parts a little darker: about v^1.4) */
-    for (k = 1; k < 5u && v > AT[k]; k++)
-        ;
-    if (k >= 5u)
-        return ST[4];
-    return mix565(ST[k - 1u], ST[k], (int32_t)((v - AT[k - 1u]) * 256u / (AT[k] - AT[k - 1u])));
-}
-static void vis_spectrogram(void)
-{
-    uint32_t r, c;
-    for (r = 0; r < VIS_SG_H; r++) {
-        int32_t y = 24 + (int32_t)r * 3;
-        if (y + 3 <= -cv_oy || y >= (int32_t)cv_h - cv_oy)
-            continue;
-        for (c = 0; c < VIS_SG_W; c++)
-            if (vis_sg[r][c] > 8u)
-                cv_rect((int32_t)c * 5, y, 5, 3, vis_heat(vis_sg[r][c]));
-    }
-    cv_text(2, 2, &FONT_S, "40", C_DIM);
-    cv_text(30, 2, &FONT_S, "200", C_DIM);
-    cv_text(132, 2, &FONT_S, "1k", C_DIM);
-    cv_text(196, 2, &FONT_S, "4k", C_DIM);
-}
-static void vis_lissajous(void)
-{
-    uint32_t f, i;
-    static const uint16_t COLS[3] = {RGB(54, 54, 60), RGB(118, 118, 126), RGB(196, 196, 204)};
-    cv_rect(120, 30, 1, 180, C_LINE);
-    cv_rect(30, 120, 180, 1, C_LINE);
-    for (f = 0; f < 3u; f++) {                      /* the oldest first, dimmest */
-        const uint8_t (*p)[2] = vis_lj[(vs.lj_n + 1u + f) % 3u];
-        for (i = 0; i < 256u; i++)
-            cv_pset(p[i][0], p[i][1], COLS[f]);
-    }
-    cv_text(116, 4, &FONT_S, "M", C_DIM);
-    cv_text(6, 112, &FONT_S, "L", C_DIM);
-    cv_text(226, 112, &FONT_S, "R", C_DIM);
-}
-static void vis_meters(void)
-{
-    uint32_t i, k;
-    for (i = 0; i < 5u; i++) {
-        int32_t x0 = 10 + (int32_t)i * 46, on = vs.vu[i] * 24 / 1000, pk = vs.pk[i] * 24 / 1000;
-        uint16_t c = i < 4u ? TE_COL[i] : C_WHITE;
-        char lab[2] = {(char)(i < 4u ? '1' + i : 'M'), 0};
-        for (k = 0; k < 24u; k++) {
-            int32_t y = 206 - (int32_t)k * 8;
-            uint16_t col = (int32_t)k < on ? (k < 18u ? c : k < 22u ? C_WHITE : RGB(255, 44, 52)) : TE_G1;
-            if ((int32_t)k == pk && pk > 0)
-                col = C_WHITE;
-            cv_rect(x0, y - 5, 35, 6, col);
+        ay = (a0 < a1 ? a0 : a1) + ey[k].c;         /* the eye itself, and every pixel on its lids' line and iris */
+        w2 = ey[k].o2 - ay * ay;
+        if (w2 > 0) {
+            int32_t w = (int32_t)vis_sqrt((uint32_t)w2) + 1, wi, ai = (a0 > a1 ? a0 : a1) + ey[k].c, iy;
+            eyes_own(own, k, ey[k].x - w, ey[k].x + w);
+            w2 = ey[k].r2 - ai * ai;
+            wi = w2 > 0 ? (int32_t)vis_sqrt((uint32_t)w2) - 1 : 0;
+            fx[nf++] = (ey[k].x - w) & ~1, fx[nf++] = ey[k].x - wi + 1;
+            fx[nf++] = (ey[k].x + wi - 1) & ~1, fx[nf++] = ey[k].x + w + 1;
+            a0 = vis_abs(sy - ey[k].y - ey[k].gy), a1 = vis_abs(sy + 1 - ey[k].y - ey[k].gy);
+            iy = a0 < a1 ? a0 : a1;
+            w2 = ey[k].fi2 - iy * iy;              /* (the iris and the black ring round it) */
+            if (w2 > 0) {
+                w2 = (int32_t)vis_sqrt((uint32_t)w2) + 2;
+                fx[nf++] = (ey[k].x + ey[k].gx - w2) & ~1, fx[nf++] = ey[k].x + ey[k].gx + w2;
+            }
         }
-        cv_text(x0 + 13, 216, &FONT_S, lab, c);
     }
-}
-static void vis_ring(void)
-{
-    int32_t k = vs.kick, r0 = 52 + k * 18 / 255, rc = r0 * 6 / 10, sc = vs.peak > vs.scale ? vs.peak : vs.scale;
-    int32_t px = 0, py = 0, i;
-    vis_ellipse(120, 120, rc, rc, RGB(40 + 140 * k / 255, 40 + 140 * k / 255, 44 + 144 * k / 255));
-    for (i = 0; i <= 180; i++) {                    /* the wave round the ring, 2 degrees a point */
-        uint32_t a = (uint32_t)(i % 180) * 1024u / 180u, j = 20u + (uint32_t)(i % 180) * 2u;
-        int32_t s = (vis_l[j - 2u] + vis_l[j - 1u] + vis_l[j] + vis_l[j + 1u] + vis_l[j + 2u]) / 5;
-        int32_t rr = r0 + s * 20 / (sc > 1600 ? sc : 1600), x = 120 + ((icos(a) * rr) >> 15), y = 120 + ((isin(a) * rr) >> 15);
-        if (i) {
-            cv_line(px, py - 1, x, y - 1, RGB(54, 54, 60));
-            cv_line(px, py + 2, x, y + 2, RGB(54, 54, 60));
-            vis_thick(px, py, x, y, TE_G4);
+    for (x = 0; x < 240u; x += 2u)
+        if (own[x >> 1] < 4u) {
+            uint16_t c = eyes_px(own[x >> 1], (int32_t)x, sy);
+            if (c != VIS_KEEP)
+                q[x] = q[x + 1u] = swap16(c);
         }
-        px = x, py = y;
+    VIS_ROW2(q);
+    for (k = 0; k < nf; k += 2u) {
+        int32_t a = fx[k] < 0 ? 0 : fx[k], b = fx[k + 1u] > 240 ? 240 : fx[k + 1u], i;
+        for (i = a; i < b; i += 2) {
+            uint32_t o = own[i >> 1] & 3u;
+            uint16_t c = eyes_px(o, i + 1, sy), d = eyes_px(o, i, sy + 1), e = eyes_px(o, i + 1, sy + 1);
+            if (c != VIS_KEEP) q[i + 1] = swap16(c);
+            if (d != VIS_KEEP) q[i + 240] = swap16(d);
+            if (e != VIS_KEEP) q[i + 241] = swap16(e);
+        }
     }
 }
-static void vis_lcd(void)
+static uint32_t eye_blink(uint32_t T, uint32_t i, int32_t hh)   /* the lids now: a blink now and then */
 {
-    uint32_t bpm = (uint32_t)song.g[G_BPM], beat = song.playing ? clk_beat : 0u, bar = beat / 4u + 1u, k, i;
-    vis_seg(18, 30, 44, 76, 7, bpm >= 100u ? (int)(bpm / 100u) : -1, C_WHITE);
-    vis_seg(74, 30, 44, 76, 7, (int)(bpm / 10u % 10u), C_WHITE);
-    vis_seg(130, 30, 44, 76, 7, (int)(bpm % 10u), C_WHITE);
-    cv_text(190, 90, &FONT_S, "bpm", C_DIM);
-    vis_seg(18, 124, 26, 46, 5, bar >= 10u ? (int)(bar / 10u % 10u) : -1, TE_G4);
-    vis_seg(52, 124, 26, 46, 5, (int)(bar % 10u), TE_G4);
-    cv_rect(88, 164, 5, 6, TE_G4);
-    vis_seg(100, 124, 26, 46, 5, (int)(beat % 4u + 1u), TE_G4);
-    for (k = 0; k < 4u; k++)
-        vis_ellipse(154 + (int32_t)k * 22, 144, 8, 8, song.playing && beat % 4u == k ? TE_G4 : RGB(40, 40, 46));
+    uint32_t bt = (T + i * 537u) % (170u + i * 41u);
+    return (uint32_t)(bt < 8u ? 1 + (hh - 1) * (int32_t)(bt < 4u ? 4u - bt : bt - 4u) / 4 : hh);
+}
+
+/* ---- 2 EYES: four eyes on a slowly turning, breathing square lattice, all looking at the same wandering point;
+ * behind them octagonal rings flowing outward, a voice's dim colour each in turn. Each eye is a voice (its iris,
+ * pupil and lines in the voice's colour, brighter as it plays); a white star at the centre jumps on the kick. */
+#define EYE_HW 31                                   /* half the width of an eye, half its height open */
+#define EYE_HH 17
+static uint16_t ey_bg[4];                           /* the rings behind */
+static int32_t ey_star, ey_ring;
+static void eyes_prep(void)
+{
+    uint32_t T = vs.tq >> 8, i, ang = T * 3u / 7u;
+    int32_t R = 64 + (isin(T * 4u) * 5 >> 15), tx = 120 + (isin(T * 5u) * 70 >> 15), ty = 120 + (isin(T * 7u + 300u) * 50 >> 15);
+    ey_star = 6 + vs.kick / 32;
+    ey_ring = (int32_t)((vs.tq >> 9) & 15u);
+    ey_n = 4;
+    for (i = 0; i < 4u; i++) {
+        ey[i].rw = 512;                             /* (rings 2 px) */
+        int32_t e = vs.e[i], x = 120 + (icos(ang + i * 256u) * R >> 15), y = 120 + (isin(ang + i * 256u) * R >> 15);
+        eye_set(i, x, y, EYE_HW, EYE_HH, (int32_t)eye_blink(T, i, EYE_HH), i, 3 + e * 5 / 256 + vs.flash[i] / 4, 13 + e * 2 / 256, (uint32_t)e);
+        ey[i].gx = clamp((tx - x) / 6, -9, 9);
+        ey[i].gy = clamp((ty - y) / 9, -4, 4);
+        ey_bg[i] = mix565(C_BLACK, TE_DIM[i], 130 + e / 2);
+    }
+}
+static void eyes_back_row(uint16_t *q, int32_t sy)   /* the rings and the star, worked out where they cross the row */
+{
+    int32_t aw = vis_abs(sy - 120), n, a, b, x;
+    memset(q, 0, 240u * sizeof(uint16_t));
+    for (n = 2; n < 12; n++) {                      /* ring n: the octagonal distance d - ey_ring in [16n, 16n + 2) */
+        int32_t lo = 16 * n + ey_ring, hi = lo + 2, seg;
+        uint16_t c = swap16(ey_bg[n & 3]);
+        for (seg = 0; seg < 2; seg++) {
+            if (!seg)                               /* ax < aw: d = aw + ax * 3 / 8 */
+                a = (8 * (lo - aw) + 2) / 3, b = (8 * (hi - aw) + 2) / 3, a = a < 0 ? 0 : a, b = b > aw ? aw : b;
+            else                                    /* ax >= aw: d = ax + aw * 3 / 8 */
+                a = lo - aw * 3 / 8, b = hi - aw * 3 / 8, a = a < aw ? aw : a;
+            for (x = a; x < b && x <= 120; x++) {
+                if (120 + x < 240)
+                    q[120 + x] = c;
+                q[120 - x] = c;
+            }
+        }
+    }
+    for (x = 0; x < ey_star - aw; x++)              /* the star */
+        q[120 + x] = q[120 - x] = C_WHITE;
+}
+
+/* ---- 3 DESERT: a horizon at dusk. A ringed sun half set on it, its rings flowing outward (a kick pushes a ripple
+ * through them) and a faint halo; a few stars; four strata of dunes drifting at their own speeds (the nearer, the
+ * faster), lit on the faces turned to the low sun, with a bright crest and a contour under it; heat shimmer near the
+ * horizon and, now and then (and on a kick), a glitch scanline torn sideways. The sun's rings and the strata are the
+ * voices, purple farthest, coral nearest: a voice playing raises its dunes and brightens them and its rings. */
+#define DS_HOR 116
+static uint8_t ds_r[4][121];                        /* each stratum's crest, every 2 columns (bit 0: the face is lit) */
+static uint16_t ds_sh[4];                           /* each stratum's shadow */
+static uint8_t ds_top[4];                           /* each stratum's highest crest */
+static void desert_prep(void)
+{
+    static const uint8_t BASE[4] = {DS_HOR + 8, DS_HOR + 30, DS_HOR + 62, DS_HOR + 100}, SP[4] = {1, 2, 4, 7};
+    uint32_t T = vs.tq >> 8, s, i;
+    for (s = 0; s < 4u; s++) {
+        int32_t amp = 5 + (int32_t)s * 3 + (int32_t)vs.e[s] * (6 + (int32_t)s * 3) / 256;
+        ds_sh[s] = mix565(vp[s][0], vp[s][1], 100);
+        ds_top[s] = 255;
+        for (i = 0; i <= 120u; i++) {
+            uint32_t ph = i * (9u - s) + T * SP[s] / 2u + s * 300u, p2 = ph * 2u + 170u + T / 3u;
+            int32_t y = (BASE[s] * 32 - (isin(ph) * amp >> 10) - (isin(p2) * amp >> 11) - amp * 16 + 32) >> 6 << 1;   /* (even, rounded once: no jitter) */
+            int32_t dy = -(icos(ph) * 2 + icos(p2) * 2);   /* (the slope: going down to the right when > 0) */
+            y = clamp(y, DS_HOR, 238);
+            ds_r[s][i] = (uint8_t)(y | (dy > 0));   /* lit: the faces turned to the left, the sun low there */
+            if (y < ds_top[s])
+                ds_top[s] = (uint8_t)y;
+        }
+    }
+}
+static void desert_row(uint16_t *q, int32_t sy, int sky)   /* (sky 0: the sky left black, no sun or stars) */
+{
+    uint32_t T = vs.tq >> 8, x, h = vis_hash((uint32_t)sy / 3u, T / 5u) >> 24;
+    int32_t rs = 44 + vs.kick / 40, rh = rs + 22, rip = (int32_t)(vs.rip % 96u) / 4, dh = sy - DS_HOR, dx = 0, r = 0, xs, s0 = 3;
+    while (s0 >= 0 && sy < ds_top[s0])            /* (the strata that reach up to this row) */
+        s0--;
+    if (dh > -14 && dh < 24)                        /* the shimmer, the glitch scanlines */
+        dx = isin((uint32_t)sy * 90u + T * 24u) * 2 >> 15;
+    if (h < 4u + vs.kick / 28u)
+        dx += (int32_t)(h * 37u % 48u) - 24;
+    for (x = 0; x < 240u; x += 2u) {
+        int32_t sx = dx ? clamp((int32_t)x + dx, 0, 239) : (int32_t)x, s = s0, cx = sx - 120;
+        uint32_t xi = (uint32_t)sx >> 1;
+        uint16_t c = C_BLACK;
+        for (; s >= 0; s--)                         /* the nearest stratum whose crest is above */
+            if (sy >= (ds_r[s][xi] & ~1)) {
+                int32_t d = sy - (ds_r[s][xi] & ~1);
+                uint32_t xl = xi + (uint32_t)d / 2u;   /* (the shadow's edge slants down from each crest) */
+                c = d < 2 ? vp[s][3] : d >= 8 + s * 3 && d < 10 + s * 3 ? vp[s][0] : (ds_r[s][xl < 120u ? xl : 120u] & 1u) ? vp[s][1] : ds_sh[s];
+                break;
+            }
+        if (s < 0 && sky) {                         /* the sky: the sun, its halo, the stars */
+            int32_t r2 = cx * cx + dh * dh;
+            if (r2 < rh * rh) {
+                if (!r)                             /* (the radius followed along the row) */
+                    r = (int32_t)vis_sqrt((uint32_t)r2);
+                while (r * r > r2)
+                    r--;
+                while ((r + 1) * (r + 1) <= r2)
+                    r++;
+                xs = r - rip + 48;
+                c = r < 7 ? C_WHITE : r < rs ? (xs % 6 == 5 ? C_BLACK : vp[(xs / 6) & 3][1 + ((xs / 6) & 1)])
+                                    : xs % 6 < 2 ? vp[(xs / 6) & 3][0] : C_BLACK;
+            } else if (sy < DS_HOR - 6) {
+                uint32_t hs = vis_hash(xi, (uint32_t)sy >> 1);
+                if ((hs >> 24) < 2u)
+                    c = ((hs >> 8) + T) % 40u < 4u ? C_WHITE : vp[hs & 3u][2];
+            }
+        }
+        q[x] = q[x + 1u] = swap16(c);
+    }
+}
+
+/* ---- 4 THIRD EYE (the three fused): one great eye as the sun on the desert's horizon, the flowing field for a sky.
+ * The sky is FLOW (its bands the voices), the dunes DESERT's (a stratum per voice), the eye's iris rings the four
+ * voices in turn, its pupil opening with the loudest; its lines and echoes cut black through the sky. */
+static void third_prep(void)
+{
+    uint32_t T = vs.tq >> 8, i;
+    int32_t emax = 0;
+    flow_prep();
+    desert_prep();
     for (i = 0; i < 4u; i++)
-        for (k = 0; k < 14u; k++)
-            cv_rect(18 + (int32_t)k * 15, 186 + (int32_t)i * 12, 13, 9,
-                    (int32_t)k < vs.lvl[i] * 14 / 1000 + (vs.lvl[i] > 0) ? TE_COL[i] : RGB(30, 30, 34));
-}
-static void vis_bounce(void)
-{
-    uint32_t i;
-    for (i = 0; i < 4u; i++) {
-        int32_t x = 36 + (int32_t)i * 56, h = vs.bh[i], y = 196 - h * 45 / 2560, sh = 16 - h / 512;
-        int32_t sq = h < 512 && vs.bv[i] < 0 ? 4 : 0;   /* squashed as it lands */
-        vis_ellipse(x, 205, sh < 4 ? 4 : sh, 3, RGB(30, 30, 34));
-        vis_ellipse(x, y, 16 + sq, 16 - sq, TE_COL[i]);
-        {
-            char lab[2] = {(char)('1' + i), 0};
-            cv_text(x - 4, 220, &FONT_S, lab, TE_COL[i]);
-        }
-    }
-    cv_rect(8, 212, 224, 2, C_LINE);
-}
-static void vis_orbit(void)
-{
-    static const uint8_t RAD[4] = {42, 62, 82, 102}, PER[4] = {1, 2, 4, 8};
-    uint32_t bq = vis_beat_q8(), i, k;
-    int32_t rs = 14 + vs.lvl[4] * 22 / 1000;
-    for (i = 0; i < 4u; i++) {
-        uint32_t a = (bq * 4u / PER[i]) - 256u;     /* a turn = 1024: per beats, from the top */
-        int32_t pr = 4 + vs.lvl[i] * 8 / 1000;
-        vis_circle(120, 120, RAD[i], RGB(36, 36, 42));
-        for (k = 1; k < 7u; k++) {                  /* its trail */
-            uint32_t ak = a - k * 13u;
-            vis_ellipse(120 + ((icos(ak) * RAD[i]) >> 15), 120 + ((isin(ak) * RAD[i]) >> 15), 2, 2,
-                        mix565(TE_COL[i], 0, (int32_t)(60u + k * 196u / 7u)));
-        }
-        vis_ellipse(120 + ((icos(a) * RAD[i]) >> 15), 120 + ((isin(a) * RAD[i]) >> 15), pr, pr, TE_COL[i]);
-    }
-    vis_ellipse(120, 120, rs, rs, C_WHITE);
-}
-static void vis_wires(void)
-{
-    uint32_t i, x;
-    for (i = 0; i < 4u; i++) {
-        int32_t y0 = 40 + (int32_t)i * 52, amp = vs.wamp[i] * 22 / 1000, py = y0;
-        char lab[2] = {(char)('1' + i), 0};
-        for (x = 0; x < 240u; x += 2u) {           /* a standing wave: the string's shape x its swing */
-            uint32_t a = x * 512u / 240u, cyc = i == 3u ? 8u : vs.wn[i] ? vs.wn[i] : 2u;   /* sin(pi x / L) */
-            int32_t env = isin(a), wv = isin(x * cyc * 1024u / 240u + vs.wph * (3u + i));
-            int32_t y = y0 - (((env * wv) >> 15) * amp >> 15);
-            if (x)
-                vis_thick((int32_t)x - 2, py, (int32_t)x, y, TE_COL[i]);
-            py = y;
-        }
-        vis_ellipse(4, y0, 4, 4, C_WHITE);
-        vis_ellipse(236, y0, 4, 4, C_WHITE);
-        cv_text(10, y0 - 22, &FONT_S, lab, TE_COL[i]);
-    }
-}
-/* the logo (tools/gen_logo.py at 0.86, centred on 120, 112), alive: the dial is the master, the sail's four
- * bands the tracks (growing with their level, flashing on a note), the boat rocks on the master's wave */
-/* TAPE (KARMA 3.0; 2026-10-27, Ariel: the deck on top of the home screen, big, instead of the dancer): the bar in
- * large digits, KARMA, the song's sections A..D (the one playing filled); the two reels turning while it plays, the
- * tape going from the left one to the right one over the selected track's loop, past the head (still when it
- * stops); under the deck two VU meters, the stereo out left and right (2026-10-27, Ariel): a needle on a VU scale
- * (-20 .. +3, red past 0; its marks where a VU meter has them, the needle following the level's amplitude, not
- * its dB), at 0 VU an RMS of 18000 (-5 dBFS: the mix runs hot, so loud parts touch the red), rising in a third of
- * a picture's way and falling slower; the level in dB under it; a lamp for the peaks (near full scale). Silence: the
- * needles rest at the left */
-static const uint32_t KARMA_ROW[7] = {0x1C93BD27u, 0x02948529u, 0x02948529u, 0x0C939DE7u, 0x10948521u, 0x10948521u, 0x0E63BD21u};   /* PHEBUS (Ben, 20 Nov 2026): 4x7 letters, a bit a cell; tools/gen_logo.py */
-static const uint16_t KARMA_COL[5] = {RGB(140, 118, 240), RGB(40, 160, 245), RGB(228, 228, 236), RGB(20, 196, 170),
-                                      RGB(255, 128, 108)};       /* (a letter each) */
-#define VU_REF 18000                                            /* the RMS at 0 VU */
-static int32_t vu_amp[2];                                       /* the needles: the RMS, with the meter's ballistics */
-static uint8_t vu_lamp[2];                                      /* pictures the peak lamp stays lit */
-static const uint16_t VU_DB[47] = {180, 202, 227, 254, 285, 320, 359, 403, 452, 507, 569, 639, 717, 804, 902, 1012, 1136, 1274, 1430, 1604, 1800, 2020, 2266, 2543, 2853, 3201, 3591, 4030, 4521, 5073, 5692, 6387, 7166, 8040, 9021, 10122, 11357, 12743, 14298, 16043, 18000, 20196, 22661, 25426, 28528, 32009, 35915};   /* VU_REF at -40 .. +6 dB */
-static uint32_t vu_sqrt(uint32_t v)
-{
-    uint32_t r = 0, b = 1u << 30;
-    while (b > v)
-        b >>= 2;
-    while (b) {
-        if (v >= r + b)
-            v -= r + b, r = (r >> 1) + b;
-        else
-            r >>= 1;
-        b >>= 2;
-    }
-    return r;
-}
-/* one meter: frame, scale, marks, the needle (pos 0..1000 along the scale), its dB, the lamp */
-static void vu_meter(int32_t x0, const char *ch, int32_t amp, int lamp)
-{
-    static const int16_t MARK[11] = {0, 165, 264, 352, 463, 529, 603, 686, 779, 883, 1000};   /* -20 -10 -7 -5 -3 -2 -1 0 1 2 3 */
-    static const char *const LAB[11] = {"20", "", "7", "", "3", "", "", "0", "", "", "3"};
-    int32_t cx = x0 + 56, py = 262, k, pos, d;
-    uint32_t a;
-    char b[8];
-    op_box(x0, 176, 112, 62, OP_PUR);
-    for (a = 654u; a < 882u; a += 6u) {                         /* the scale: 768 is straight up, 40 degrees a side */
-        uint32_t a1 = a + 6u > 882u ? 882u : a + 6u;
-        uint16_t c = a >= 654u + 686u * 228u / 1000u ? TE_RED : OP_PUR;
-        cv_line(cx + ((icos(a) * 70) >> 15), py + ((isin(a) * 70) >> 15), cx + ((icos(a1) * 70) >> 15), py + ((isin(a1) * 70) >> 15), c);
-        cv_line(cx + ((icos(a) * 69) >> 15), py + ((isin(a) * 69) >> 15), cx + ((icos(a1) * 69) >> 15), py + ((isin(a1) * 69) >> 15), c);
-    }
-    for (k = 0; k < 11; k++) {
-        uint32_t m = 654u + (uint32_t)MARK[k] * 228u / 1000u;
-        int32_t r1 = LAB[k][0] ? 77 : 74;
-        uint16_t c = k > 7 ? TE_RED : k == 7 ? C_WHITE : OP_PUR;
-        cv_line(cx + ((icos(m) * 70) >> 15), py + ((isin(m) * 70) >> 15), cx + ((icos(m) * r1) >> 15), py + ((isin(m) * r1) >> 15), c);
-        if (LAB[k][0])
-            cv_text(cx + ((icos(m) * 58) >> 15) - text_w(&FONT_S, LAB[k]) / 2, py + ((isin(m) * 58) >> 15) - 6, &FONT_S, LAB[k], c);
-    }
-    cv_text(x0 + 5, 222, &FONT_S, ch, TE_G3);
-    cv_text(cx - text_w(&FONT_S, "VU") / 2, 212, &FONT_S, "VU", TE_G3);
-    for (d = 46; d > 0 && amp < VU_DB[d]; d--)                  /* the level, to the dB */
-        ;
-    if (amp < VU_DB[0])
-        str_cpy(b, "--", sizeof b);
-    else
-        fmt_int(b, d - 40);
-    str_cpy(b + str_len(b), "dB", 3);
-    cv_text(x0 + 107 - text_w(&FONT_S, b), 222, &FONT_S, b, amp >= VU_REF ? TE_RED : TE_G4);
-    if (lamp)
-        vis_ellipse(x0 + 102, 186, 3, 3, TE_RED);
-    else
-        vis_circle(x0 + 102, 186, 3, OP_PUR_D);
-    pos = clamp((amp * 1000 / VU_REF - 100) * 1000 / 1313, -20, 1040);   /* (the amplitude's own scale; a little past the ends) */
-    a = (uint32_t)(654 + pos * 228 / 1000) & 1023u;
-    cv_line(cx + ((icos(a) * 28) >> 15), py + ((isin(a) * 28) >> 15), cx + ((icos(a) * 74) >> 15), py + ((isin(a) * 74) >> 15), C_WHITE);
-    cv_line(cx + 1 + ((icos(a) * 28) >> 15), py + ((isin(a) * 28) >> 15), cx + 1 + ((icos(a) * 74) >> 15), py + ((isin(a) * 74) >> 15), C_WHITE);
-}
-static void vis_reel(void)
-{
-    track_t *ts = TSEL;
-    uint32_t s, x, y, i, playing = song.playing, slen = trk_len(ts), spos = ts->seq_idx % slen, ready = arrangement_ready();
-    uint32_t bar = playing ? spos / 16u + 1u : 1u, a = playing ? (ui.frame * 12u) & 1023u : 0u;
-    int32_t done = playing ? (int32_t)(spos * 1000u / slen) : 0, pack[2];
-    uint16_t lit = playing ? C_WHITE : TE_G3;
-    te_digit(8, 10, 20, 40, 4, bar / 10u, lit);                 /* the bar (a 1: a bar) */
-    te_digit(34, 10, bar % 10u == 1u ? 8 : 20, 40, 4, bar % 10u, lit);
-    cv_text(bar % 10u == 1u ? 48 : 60, 36, &FONT_S, "BAR", TE_G3);
-    for (y = 0; y < 7u; y++)                                    /* KARMA */
-        for (x = 0; x < 29u; x++)
-            if ((KARMA_ROW[y] >> x) & 1u)
-                cv_rect(83 + (int32_t)(x * 2u), 30 + (int32_t)(y * 2u), 2, 2, C_WHITE);
-    for (i = 0; i < 4u; i++) {                                  /* the sections */
-        char ch[2] = {(char)('A' + i), 0};
-        int32_t sx = 144 + (int32_t)i * 24;
-        int on = live_sec == (int8_t)i, used = (ready >> i) & 1u;
-        if (on)
-            cv_rect(sx, 10, 20, 40, C_WHITE);
-        else
-            op_box(sx, 10, 20, 40, used ? OP_PUR : OP_PUR_D), op_box(sx + 1, 11, 18, 38, used ? OP_PUR : OP_PUR_D);
-        cv_text(sx + (20 - text_w(&FONT_L, ch)) / 2, 18, &FONT_L, ch, on ? C_BLACK : used ? OP_PUR : OP_PUR_D);
-    }
-    /* the reels: the tape from the left one to the right one over the loop */
-    pack[0] = 36 - done * 22 / 1000, pack[1] = 14 + done * 22 / 1000;
-    for (s = 0; s < 2u; s++) {
-        int32_t cx = s ? 176 : 64, cy = 106, sp;
-        op_ell(cx, cy, 46, 46, OP_PUR);
-        op_ell(cx, cy, 45, 45, OP_PUR);
-        op_ell(cx, cy, pack[s], pack[s], TE_G4);            /* the tape on this reel */
-        op_ell(cx, cy, pack[s] - 1, pack[s] - 1, TE_G4);
-        op_ell(cx, cy, 8, 8, OP_PUR);
-        op_ell(cx, cy, 7, 7, OP_PUR);
-        for (sp = 0; sp < 3; sp++) {                            /* three spokes */
-            uint32_t an = (a + (uint32_t)sp * 341u) & 1023u;
-            vis_thick(cx + ((icos(an) * 11) >> 15), cy + ((isin(an) * 11) >> 15),
-                      cx + ((icos(an) * 41) >> 15), cy + ((isin(an) * 41) >> 15), OP_PUR);
-        }
-    }
-    vis_thick(30, 140, 86, 162, TE_G4);                     /* the tape, past the head */
-    vis_thick(86, 162, 154, 162, TE_G4);
-    vis_thick(154, 162, 210, 140, TE_G4);
-    cv_rect(107, 154, 26, 16, C_BLACK);
-    op_box(107, 154, 26, 16, lit);
-    op_box(108, 155, 24, 14, lit);
-    /* the VU meters (their needles moved once a picture, at the top band) */
-    if (cv_oy == 0) {
-        for (s = 0; s < 2u; s++) {
-            const int16_t *w = s ? vis_r : vis_l;
-            uint32_t q = 0, pk = 0, v;
-            int32_t rms;
-            for (i = 0; i < VIS_FFT; i++) {
-                int32_t t = w[i] >> 4;
-                q += (uint32_t)(t * t);
-                v = (uint32_t)(w[i] < 0 ? -w[i] : w[i]);
-                if (v > pk)
-                    pk = v;
-            }
-            rms = (int32_t)vu_sqrt(q / VIS_FFT) * 16;
-            vu_amp[s] += (rms - vu_amp[s]) * (rms > vu_amp[s] ? 3 : 1) / (rms > vu_amp[s] ? 10 : 6);
-            vu_lamp[s] = pk >= 31000u ? 12u : vu_lamp[s] ? (uint8_t)(vu_lamp[s] - 1u) : 0u;
-        }
-    }
-    vu_meter(4, "L", vu_amp[0], vu_lamp[0] != 0);
-    vu_meter(124, "R", vu_amp[1], vu_lamp[1] != 0);
+        if (vs.e[i] > emax)
+            emax = vs.e[i];
+    ey_n = 1;
+    ey[0].rw = 768;                                 /* (rings 3 px, in blocks) */
+    eye_set(0, 120, 100, 64, 30, (int32_t)eye_blink(T / 2u, 3u, 30), 4u, 5 + emax * 8 / 256 + vs.kick / 64, 25, (uint32_t)emax);
+    ey[0].gx = isin(T * 5u) * 14 >> 15;
+    ey[0].gy = isin(T * 3u + 200u) * 5 >> 15;
+    ey[0].sc = C_BLACK;
+    ey[0].lid = C_WHITE;
+    ey[0].e1 = ey[0].e2 = C_BLACK;
 }
 
-/* the visualiser, every other frame: the update, then both bands */
+/* the screensaver, every other frame: the update, then both bands */
+static void vis_paint(void)
+{
+    uint32_t pass, st = vis_style % VIS_N, y;
+    vis_palette();
+    if (st == 0u)
+        flow_prep();
+    else if (st == 1u)
+        eyes_prep();
+    else if (st == 2u)
+        desert_prep();
+    else
+        third_prep();
+    for (pass = 0; pass < 2u; pass++) {
+        vis_canvas();
+        for (y = 0; y < 120u; y += 2u) {
+            uint16_t *q = &cv_px[y * 240u];
+            int32_t sy = (int32_t)(pass * 120u + y);
+            if (st == 0u)
+                flow_row(q, (uint32_t)sy, 1u, 1u), VIS_ROW2(q);
+            else if (st == 1u)
+                eyes_back_row(q, sy), eyes_over(q, sy);
+            else if (st == 2u)
+                desert_row(q, sy, 1), VIS_ROW2(q);
+            else {
+                if (sy < DS_HOR) {                  /* (not under the eye's black) */
+                    int32_t ay = vis_abs(sy - ey[0].y) + ey[0].c, w2 = ey[0].r2 - (ay + 1) * (ay + 1), w;
+                    w = w2 > 0 ? (int32_t)vis_sqrt((uint32_t)w2) - 2 : 0;
+                    w = w > 0 ? w : 0;
+                    flow_row(q, (uint32_t)sy, (uint32_t)(ey[0].x - w + 1) & ~1u, (uint32_t)(ey[0].x + w) & ~1u);
+                }
+                else
+                    desert_row(q, sy, 0);
+                eyes_over(q, sy);
+            }
+        }
+        if (!pass && (vis_name_t || ui.msg_t)) {    /* the piece's name a second (or a message) */
+            char n[8];
+            const char *s = ui.msg_t ? ui.msg : VIS_NAME[st];
+            cv_rect(0, 0, 240, 20, C_BLACK);
+            cv_text(120 - text_w(&FONT_S, s) / 2, 2, &FONT_S, s, C_WHITE);
+            if (!ui.msg_t) {
+                fmt_int(n, (int32_t)st + 1);
+                str_cpy(n + str_len(n), "/", 2);
+                fmt_int(n + str_len(n), (int32_t)VIS_N);
+                cv_text(4, 2, &FONT_S, n, C_DIM);
+            }
+        }
+        cv_blit(0, pass * 120u);
+    }
+}
 static void vis_draw(void)
 {
-    uint32_t pass;
     if (!vis_shown_last || ui.force) {
         vis_shown_last = 1;
         lcd_fill(0, 0, 240, 240, C_BLACK);
@@ -671,40 +502,11 @@ static void vis_draw(void)
         return;
     }
     vis_update();
-    for (pass = 0; pass < 2u; pass++) {
-        cv_begin(240, 120, C_BLACK);
-        cv_oy = -(int32_t)(pass * 120u);
-        switch (vis_style % VIS_N) {
-        case 0: vis_reel(); break;
-        case 1: vis_spectrum(); break;
-        case 2: vis_spectrogram(); break;
-        case 3: vis_lissajous(); break;
-        case 4: vis_meters(); break;
-        case 5: vis_ring(); break;
-        case 6: vis_lcd(); break;
-        case 7: vis_bounce(); break;
-        case 8: vis_orbit(); break;
-        case 9: vis_wires(); break;
-        default: vis_scope(); break;
-        }
-        if (!pass && (vis_name_t || ui.msg_t)) {    /* the style's name a second (or a message) */
-            char n[8];
-            const char *s = ui.msg_t ? ui.msg : VIS_NAME[vis_style % VIS_N];
-            cv_rect(0, 0, 240, 20, C_BLACK);
-            cv_text(120 - text_w(&FONT_S, s) / 2, 2, &FONT_S, s, C_WHITE);
-            if (!ui.msg_t) {
-                fmt_int(n, (int32_t)(vis_style % VIS_N) + 1);
-                str_cpy(n + str_len(n), "/11", 4);
-                cv_text(4, 2, &FONT_S, n, C_DIM);
-            }
-        }
-        cv_oy = 0;
-        cv_blit(0, pass * 120u);
-    }
+    vis_paint();
     if (vis_name_t)
         vis_name_t--;
 }
-/* SELECT on the visualiser: the next / previous style (round) */
+/* SELECT on the screensaver: the next / previous one (round) */
 static void vis_select(int32_t s)
 {
     vis_style = (uint8_t)((vis_style + (s > 0 ? 1u : VIS_N - 1u)) % VIS_N);
@@ -713,9 +515,10 @@ static void vis_select(int32_t s)
     settings_later = 1;                                 /* (kept with the settings, once stopped) */
 }
 
-/* ---- FLOW (Ben, 20 Nov 2026: "acid psychedelic modern glitch art ... flowing and morphing"; the four voices' colours
- * only): a field of warped sines, posterised into bands of the voices' colours and black. Three kinds by the seed:
- * 0 liquid marble, 1 wavy stripes (two voices), 2 marble torn sideways in rows (glitch). Drawn in 2x2 blocks. */
+/* ---- the boot's FLOW (Ben, 20 Nov 2026: "acid psychedelic modern glitch art ... flowing and morphing"; the four voices'
+ * colours only): a field of warped sines, posterised into bands of the voices' colours and black. Three kinds by the
+ * seed: 0 liquid marble, 1 wavy stripes (two voices), 2 marble torn sideways in rows (glitch). The boot draws it at
+ * full resolution (Ben: "Keep 3 s full detail"); the FLOW screensaver above is its voice-driven cousin. */
 static uint32_t flow_seed;
 static uint8_t flow_lit;                                /* 1: no black here (behind the black wordmark): dim voices instead */
 static uint16_t flow_px(int32_t x, int32_t y, uint32_t t)

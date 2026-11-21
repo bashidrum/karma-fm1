@@ -1094,8 +1094,8 @@ int main(int argc, char **argv)
         check(t->step[2].n == 1u && t->step[2].note[0] % 12u == 0u, "STEP page, no chord mode: one note");
         steps_clear(t); song.sel = 0; go_home(); frames(4);
     }
-    {   /* the visualiser (2.4): HOME on HOME opens it, SELECT its 12 styles, HOME / a page closes it; a layer
-         * shows its screen over it; the style is kept with the settings */
+    {   /* the screensavers (PHEBUS: FLOW, EYES, DESERT, THIRD EYE): HOME on HOME opens one, SELECT steps through them, HOME / a
+         * page closes it; a layer shows its screen over it; the choice is kept with the settings */
         uint32_t st, j, x, lit, k;
         static const uint8_t BASS[2] = {38, 34};
         song.playing = 0; song.sel = 0;
@@ -1126,8 +1126,8 @@ int main(int argc, char **argv)
             snprintf(nm, sizeof nm, "vis-%02u-%s", st + 1u, VIS_NAME[st]);
             for (x = 0; nm[x]; x++) if (nm[x] == ' ') nm[x] = '-';
             ppm(nm);
-            snprintf(nm, sizeof nm, "visualiser %2u %-12s draws (%u px lit)", st + 1u, VIS_NAME[st], lit);
-            check(lit > (st == 3u ? 400u : 1500u) && vis_style == st, nm);   /* (Lissajous: points) */
+            snprintf(nm, sizeof nm, "screensaver %u %-9s draws (%u px lit)", st + 1u, VIS_NAME[st], lit);
+            check(lit > 1500u && vis_style == st, nm);
             encs[panel.enc[EN_SELECT]] = 1; frame();
         }
         {   /* MASTER at 0: silence out, the picture as if MASTER were all the way up */
@@ -1141,11 +1141,48 @@ int main(int argc, char **argv)
             check(op < 64u && pk > 2000u && lit > 1500u, "visualiser: MASTER at 0: no sound, the picture as at full volume");
             song.master_q12 = m0; frames(4);
         }
-        check(vis_style == 0u, "visualiser: SELECT goes round (11 -> 1)");
+        check(vis_style == 0u, "visualiser: SELECT goes round (THIRD EYE -> FLOW)");
         encs[panel.enc[EN_SELECT]] = -1; frames(2);
-        check(vis_style == 10u && (lights_word() >> 17 & 15u) == 10u, "visualiser: SELECT left: OSCILLOSCOPE (11), kept in the settings word");
+        check(vis_style == VIS_N - 1u && (lights_word() >> 17 & 15u) == VIS_N - 1u, "visualiser: SELECT left: THIRD EYE (4), kept in the settings word");
         lights_from_word(lights_word());
-        check(vis_style == 10u, "visualiser: the style read back");
+        check(vis_style == VIS_N - 1u, "visualiser: the style read back");
+        {   /* each screensaver follows each voice: silent, one voice loud (each in turn), all loud with a kick; the
+             * pictures at several moments (ss-NAME-STATE) */
+            static const char *const SN[6] = {"silent", "v1", "v2", "v3", "v4", "all"};
+            uint32_t q, v, pix[6], diff;
+            char nm[64];
+            uint8_t st0 = vis_style;
+            static uint16_t ref[240 * 240];
+            for (st = 0; st < VIS_N; st++) {
+                vis_style = (uint8_t)st;
+                for (q = 0; q < 6u; q++) {
+                    for (v = 0; v < 4u; v++) {
+                        vs.e[v] = (uint16_t)(q == 5u || q == v + 1u ? 250u : 0u);
+                        vs.flash[v] = 0;
+                    }
+                    vs.kick = q == 5u ? 200u : 0u;
+                    vs.tq = (st * 1700u + q * 260u + 80u) << 8;
+                    vs.rip = q * 9u;
+                    memset(ey, 0, sizeof ey);
+                    vis_paint();
+                    for (pix[q] = 0, x = 0; x < 240u * 240u; x++)
+                        pix[q] += (uint32_t)((swap16(screen[x]) >> 11) + ((swap16(screen[x]) >> 5) & 63u) / 2u + (swap16(screen[x]) & 31u));
+                    snprintf(nm, sizeof nm, "ss-%s-%s", VIS_NAME[st], SN[q]);
+                    for (x = 0; nm[x]; x++) if (nm[x] == ' ') nm[x] = '-';
+                    ppm(nm);
+                }
+                snprintf(nm, sizeof nm, "screensaver %s: each voice brightens it, all four most", VIS_NAME[st]);
+                check(pix[1] > pix[0] && pix[2] > pix[0] && pix[3] > pix[0] && pix[4] > pix[0] && pix[5] > pix[1] &&
+                      pix[5] > pix[4], nm);
+                vs.e[0] = vs.e[1] = vs.e[2] = vs.e[3] = 0; vs.kick = 0;   /* it moves while nothing plays */
+                vs.tq = 4000u << 8; vis_paint(); memcpy(ref, screen, sizeof ref);
+                vs.tq = 4012u << 8; vis_paint();
+                for (diff = 0, x = 0; x < 240u * 240u; x++) diff += screen[x] != ref[x];
+                snprintf(nm, sizeof nm, "screensaver %s: flows while silent (%u px changed)", VIS_NAME[st], diff);
+                check(diff > 2000u, nm);
+            }
+            vis_style = st0; ui.force = 1; frames(2);
+        }
         { int16_t bpm = song.g[G_BPM], lv = trk[0].p[P_LEVEL];
           encs[panel.enc[EN_K2]] = 5; frame();
           check(trk[0].p[P_LEVEL] == lv && song.g[G_BPM] == bpm, "visualiser: KNOB 2 (the hidden TRACKS screen) edits nothing, SELECT is not the tempo"); }
