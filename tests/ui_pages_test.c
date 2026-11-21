@@ -542,6 +542,11 @@ int main(int argc, char **argv)
     check(!on_song_page() && saves == 0, "SAVE held and let go: no song page, no save");
     tap(B_SAVE); check(on_song_page(), "SAVE tapped on TRACKS: the song page");
     ui.force = 1; frame(); ppm("page-song");
+    {   /* (PHEBUS, 21 Nov) the song / loop switch (OCT-) is named on the screen, above the mode */
+        uint32_t x, y, lit = 0;
+        for (y = 4; y < 16; y++) for (x = 76; x < 150; x++) lit += screen[y * 240 + x] != 0;
+        check(lit > 40u, "SONG: OCT-'s song / loop switch has its hint");
+    }
     {   /* 3.0.5: on the SONG screen SAVE shows the saved songs (KNOB 1 the song, 2 ERASE, 3 LOAD, 4 SAVE: twice), SAVE
          * again goes back; EDIT twice erases the part at the cursor (SAVE > PROJECT did) */
         uint32_t sv = song_ops[2], ld = song_ops[1], e0 = erases;
