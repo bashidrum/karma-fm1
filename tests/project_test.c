@@ -489,6 +489,61 @@ int main(void)
     bad += check("no stop: as before, 2.5 s untouched and 20 s apart (a tail does not block it)",
                  !autosave_due(0, 1, 1, 1000, 99999) && !autosave_due(0, 1, 1, 9999, 10000) &&
                  autosave_due(0, 0, 1, AUTOSAVE_IDLE, AUTOSAVE_GAP) && autosave_due(1, 0, 1, AUTOSAVE_IDLE, AUTOSAVE_GAP));
+    {   /* PHEBUS (21 Nov 2026): the STUTTER lane (punch.c stl) rides in the drum track's unused bytes (project.c stl_put):
+         * saved and loaded with a project and a section, the format and its size unchanged; a project without it (every
+         * project before, and any KARMA / SLOOP wrote: the drum track's engine byte 0) loads with an empty lane; the
+         * project as KARMA reads it: every other value the same, the drum track's unused LFO / voice parameters only */
+        static project_t a, b;
+        uint8_t was[sizeof stl];
+        uint32_t k, same = 1;
+        host_tracks_init();
+        memset(&stl, 0, sizeof stl);
+        stl.len = 32, stl.act = 0;
+        for (k = 0; k < 64u; k += 3u) {
+            stl.on[k >> 3] |= (uint8_t)(1u << (k & 7u));
+            stl.lc[k >> 2] |= (uint8_t)((k % 4u) << 2u * (k & 3u));
+        }
+        stl.on[7] |= 0x80u;
+        stl.lc[15] |= 0xC0u;                                /* (step 64 lit at 1/32: the last bits) */
+        memcpy(was, &stl, sizeof stl);
+        proj_capture(&a);
+        bad += check("STUTTER: in a project: format 7, 3840 bytes, its sum good, the drum track's byte says so",
+                     proj_ok(&a) && a.size == 3840u && a.magic == PROJ_MAGIC && a.t[TRK_DRUM].engine == 0x53u);
+        memset(&stl, 0, sizeof stl);
+        proj_apply(&a, 1);
+        bad += check("STUTTER: a load: every step, length, the lane's length (32) and OFF back", !memcmp(was, &stl, sizeof stl));
+        memset(&stl, 0, sizeof stl);
+        proj_apply(&a, 0);
+        bad += check("STUTTER: a section (proj_apply 0): its lane back too", !memcmp(was, &stl, sizeof stl));
+        proj_capture(&a);                                   /* (the tracks as a load leaves them: values in range) */
+        memset(&stl, 0, sizeof stl);
+        proj_apply(&a, 1);
+        proj_capture(&b);
+        bad += check("STUTTER: loaded and saved again: the same bytes", !memcmp(&a, &b, sizeof a));
+        memset(&stl, 0, sizeof stl);
+        b = a;
+        b.t[TRK_DRUM].engine = 0;                           /* (KARMA wrote it: no lane) */
+        b.sum = proj_sum(&b);
+        stl.on[0] = 0xFF;
+        proj_apply(&b, 1);
+        bad += check("STUTTER: a project without the lane: an empty one, 16 steps, ON",
+                     !stl.on[0] && !stl.on[7] && stl.len == 16u && stl.act == 1u);
+        memcpy(&stl, was, sizeof stl);
+        proj_capture(&a);
+        memset(&stl, 0, sizeof stl);
+        proj_capture(&b);
+        for (k = 0; k < sizeof a; k++) {                    /* what differs with a lane: only its own bytes */
+            uint32_t o = k - (uint32_t)offsetof(project_t, t[TRK_DRUM]);
+            int lane = o < sizeof(proj_trk_t) &&
+                       ((o >= offsetof(proj_trk_t, p[P_LRATE]) && o < offsetof(proj_trk_t, p[P_LD_AMP + 1])) ||
+                        (o >= offsetof(proj_trk_t, p[P_GLMODE]) && o < offsetof(proj_trk_t, p[P_DETUNE + 1])) ||
+                        o == offsetof(proj_trk_t, preset));
+            if (k >= offsetof(project_t, sum))
+                break;
+            same &= lane || ((const uint8_t *)&a)[k] == ((const uint8_t *)&b)[k];
+        }
+        bad += check("STUTTER: a project with a lane and one without differ in the lane's bytes only", same);
+    }
     printf("%s\n", bad ? "PROJECT FORMAT TEST FAILED" : "project format test passed");
     return bad != 0;
 }

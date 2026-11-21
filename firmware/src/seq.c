@@ -2930,6 +2930,7 @@ static void events_block(uint32_t n)
     PC_MARK(PC_EV_MIDI);
     for (i = 0; i < NTRK; i++)
         seq_tick(&trk[i], adv);
+    stl_tick();                                       /* (PHEBUS) the STUTTER lane's step (punch.c) */
     click_tick();
     roll_block(adv);
     PC_MARK(PC_EV_SEQ);

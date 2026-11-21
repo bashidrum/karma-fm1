@@ -25,6 +25,8 @@ static uint8_t sg_alt;                                  /* a synth step held: 0 
 static uint8_t sg_lpage = 0xFF;                         /* a step held + ENV / LFO / FX / EDIT: the page that locks */
 static uint8_t sg_trk;                                  /* the track the steps held are on (from the first key down) */
 static void lock_par_step(int32_t s);                   /* (ui_layers.c) */
+static void stl_key(uint32_t k, uint32_t down);         /* (ui_stut.c) */
+static uint32_t stl_keys_lit(uint32_t blink);
 static const char *const SG_COND[4] = {"-", "FILL", "NOFL", "CHNC"};
 static const char *const SG_COND_L[4] = {"", "FILL ONLY", "NO FILL", "CHANCE"};
 static const char *const SG_FLAG[4] = {"-", "ACC", "SLD", "A+S"};
@@ -205,6 +207,10 @@ static void grid_key(uint32_t k, uint32_t down)
     track_t *t = TSEL;
     uint32_t len = trk_len(t), idx;
     int32_t w = punch_key(k);
+    if (stl_view && song.sel == TRK_DRUM) {             /* (PHEBUS) the STUTTER lane's (ui_stut.c) */
+        stl_key(k, down);
+        return;
+    }
     if (w < 0) {
         if (!down || sg_held || k >= 12u || PG[k] < 0)
             return;
@@ -582,6 +588,8 @@ static uint32_t grid_keys_lit(uint32_t blink)
 {
     const track_t *t = TSEL;
     uint32_t i, m = 0, len = trk_len(t), b0 = sg_page() * 16u;
+    if (stl_view && song.sel == TRK_DRUM)
+        return stl_keys_lit(blink);                     /* (PHEBUS) the STUTTER lane's (ui_stut.c) */
     for (i = 0; i < 16u; i++) {
         uint32_t idx = b0 + i, on;
         if (idx >= len)

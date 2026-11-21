@@ -247,6 +247,17 @@ static int undo_swap(int redo)
     int16_t len;
     if (!undo.valid || (uint32_t)!!redo != undo.undone)
         return 0;
+    if (undo.trk >= NTRK) {                           /* (PHEBUS) the STUTTER lane's (ui_stut.c stl_mark) */
+        uint8_t x[sizeof stl];
+        fm1_irq_off();
+        memcpy(x, &stl, sizeof stl);
+        memcpy(&stl, undo.st, sizeof stl);
+        memcpy(undo.st, x, sizeof stl);
+        undo.undone = (uint8_t)!redo;
+        fm1_irq_on();
+        ui.force = 1;
+        return 1;
+    }
     t = &trk[undo.trk % NTRK];
     fm1_irq_off();
     {
@@ -517,6 +528,16 @@ static void apply_preset_to(track_t *t, uint32_t pi)
     }
 }
 
+static void set_engine_of(track_t *t, uint32_t ei);
+/* (PHEBUS, 21 Nov 2026, Ben: "I don't like having fx on by default") a part's power-on / TOOLS > NEW sound (TRK_DEF),
+ * dry: no send to the chorus, delay or reverb, no DIST (a factory preset loaded later still brings its own sends) */
+static void trk_def_sound(track_t *t, uint32_t i)
+{
+    set_engine_of(t, TRK_DEF[i % NPART][0]);
+    apply_preset_to(t, TRK_DEF[i % NPART][1]);
+    t->p[P_DIST] = t->p[P_CHOR] = t->p[P_DLY] = t->p[P_REV] = 0;
+}
+
 /* the engine's defaults and its first preset. With the audio IRQ off: the ISR sees the old engine with
  * its values or the new one with its own (voice.c engine_block), never one with the other's */
 static void set_engine_of(track_t *t, uint32_t ei)
@@ -759,6 +780,7 @@ static void track_select(uint32_t i)
     if (i >= NTRK || i == song.sel)
         return;
     song.sel = (uint8_t)i;
+    stl_view = 0;                                    /* (PHEBUS: the GRID's STUTTER lane, after DRUM) */
     rec_follow(i);                                   /* LIVE: recording follows the selected track */
     ui.entry_open = 0;
     ui.cursor = 0;

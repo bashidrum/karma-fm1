@@ -294,6 +294,8 @@ static void project_new(void)
     memset(drum_send, 0, sizeof drum_send);             /* (every drum sound dry again) */
     memset(cloud_send, 0, sizeof cloud_send);           /* .. and nothing sent to the CLOUD */
     memset(drum_cloud, 0, sizeof drum_cloud);
+    memset(&stl, 0, sizeof stl);                        /* (PHEBUS) the STUTTER lane empty, ON, 16 steps */
+    stl.len = 16, stl.act = 1;
     cloud_resync = 1;
     transport_req = 2;
     panic_req = (1u << NTRK) - 1u;
@@ -308,10 +310,8 @@ static void project_new(void)
         if (i < NPART)
             sound_change(t);                            /* (2.6: what sounds fades out with its own sound) */
         track_defaults(t);
-        if (i < NPART) {
-            set_engine_of(t, TRK_DEF[i][0]);
-            apply_preset_to(t, TRK_DEF[i][1]);
-        }
+        if (i < NPART)
+            trk_def_sound(t, i);                        /* (dry: ui.c) */
         fm1_irq_on();
     }
     TDRUM->p[P_E0] = DRUM_DEFAULT_KIT;
