@@ -1310,6 +1310,15 @@ int main(int argc, char **argv)
         go_home(); tap(B_EDIT); tap(B_EDIT); SEL(1);
         check(!strcmp(PT(), "FILTER 2"), "EDIT, EDIT: FILTER; SELECT: FILTER 2 (ACID: the track FILTER)");
         TSEL->p[P_TFLT] = -32; ui.force = 1; frames(2); ppm("page-filter");
+        {   /* Ben, 21 Nov ("Keep, name the pages"): the strip's FILT stage holds the page's name, its place at the right */
+            uint32_t box = px_count(0, OP_CHAIN_Y + OP_CHAIN_H - 1, 240, 1, TE_COL[0]);
+            check(box == text_w(&FONT_S, "FILTER 2") + 4u && px_count(200, OP_CHAIN_Y, 40, OP_CHAIN_H, TE_MID[0]) > 10u,
+                  "strip: the stage shown holds the page's name (FILTER 2), 2/2 at the right");
+            SEL(-1); ui.force = 1; frames(2);
+            check(px_count(0, OP_CHAIN_Y + OP_CHAIN_H - 1, 240, 1, TE_COL[0]) == text_w(&FONT_S, "FILTER") + 4u,
+                  "strip: back a page, FILTER (the name follows the page)");
+            SEL(1); frames(2);
+        }
         check(!strcmp(ui.big_l[0], "FILT") && !strcmp(ui.big_v[0], "LP50") && !ui.big_l[1][0],
               "FILTER page: its one value drawn large (LP50 %)");
         {   /* the value large in the knob band (ui_op.c): pixels lit under KNOB 1's label */
