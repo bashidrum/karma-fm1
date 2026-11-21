@@ -289,9 +289,9 @@ The drum voice (coral, the snake) has 16 sounds on the 16 white keys:
 
 (The closed hat cuts the open hat.)
 
-### The drum GRID: the snake view
+### The drum GRID
 
-Tap **SEQ** with the drum voice selected. The default view is the **snake**: the steps wind round the screen as a snake would. **SELECT** right shows the **full grid**: up to seven rows, the sounds in use plus the one you picked. **SELECT** left goes back to the snake.
+Tap **SEQ** with the drum voice selected. The GRID shows up to seven rows: the sounds in use plus the one you picked, 16 steps of the page across. Hold a step to see its sound's 16 steps at the top and what the step holds under them.
 
 | Control | Does |
 | --- | --- |
@@ -822,7 +822,6 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 | step keys | as on a synth voice, with the sound KNOB 1 picks |
 | hold a step + KNOB 1 to 4 | LEVEL, RATCH, NUDGE, COND |
 | KNOB 1 to 4 (nothing held) | SOUND, STEP, HIT, LEVEL |
-| SELECT right or left | full grid, or back to the snake |
 | PRESETS | the kit |
 | tap SEQ | KIT, then back to the GRID |
 | EDIT + black key | erase or mute mode |

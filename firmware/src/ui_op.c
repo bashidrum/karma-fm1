@@ -234,12 +234,6 @@ static uint32_t op_dance(int *flip)
     return b & 1u ? 2u : 1u;
 }
 
-/* ---------------------------------------------------------------- DRUMS --- */
-/* the GRID page: the snake dancing to the beat (the floor flashes white on the kick), the step in large digits,
- * the 16 x 16 steps of this page in small at the right, then the 16 steps of KNOB 1's sound as the 16 white keys. */
-#define OP_SCENE_H 96
-#define OP_STEPS_H 36
-
 /* an arc of an ellipse, a0 .. a1 in 1/1024 turns (0 = right, 256 = down), as 2 px chords */
 static void op_arc(int32_t cx, int32_t cy, int32_t rx, int32_t ry, uint32_t a0, uint32_t a1, uint16_t c)
 {
@@ -258,53 +252,13 @@ static void op_arc(int32_t cx, int32_t cy, int32_t rx, int32_t ry, uint32_t a0, 
     }
 }
 static void op_ell(int32_t cx, int32_t cy, int32_t rx, int32_t ry, uint16_t c) { op_arc(cx, cy, rx, ry, 0, 1024, c); }
-static void op_drum_scene(uint32_t bank, uint32_t len)
-{
-    uint32_t i, j, n, pose;
-    int flip;
-    uint16_t c;
-#define LIT(a) (pad_lit[a] != 0)
-#define SEL(a) (drum_lane == (a))
-    cv_begin(240, OP_SCENE_H, C_BLACK);
-    for (i = 40; i < 188u; i += 4u)
-        cv_pset((int32_t)i, 93, LIT(0) || LIT(1) ? C_WHITE : OP_PUR_D);
-    /* the step: the one that plays (white), stopped the one of KNOB 2 (green) */
-    n = (song.playing ? TDRUM->seq_idx % len : drum_cursor) + 1u;
-    c = song.playing ? C_WHITE : TE_COL[3];
-    te_digit(4, 4, 14, 30, 2, n / 10u, c);
-    te_digit(22, 4, 14, 30, 2, n % 10u, c);
-    cv_text(4, 38, &FONT_S, "STEP", TE_G3);
-    /* the snake, standing on the floor */
-    pose = op_dance(&flip);
-    op_char(TRK_DRUM, pose, flip, 58, -10);
-    /* this page of steps in small: 16 sounds down, 16 steps across, the column that plays framed */
-    for (i = 0; i < DRUM_LANES; i++)
-        for (j = 0; j < 16u; j++) {
-            uint32_t p = bank * 16u + j;
-            if (p >= len)
-                continue;
-            cv_rect(190 + (int32_t)j * 3, 4 + (int32_t)i * 3, 2, 2,
-                    dstep_has(&TDRUM->dstep[p], i) ? (SEL(i) ? TE_COL[3] : OP_PUR) : SEL(i) ? TE_DIM[3] : RGB(30, 32, 38));
-        }
-    if (song.playing && TDRUM->seq_idx % len / 16u == bank)
-        op_box(189 + (int32_t)(TDRUM->seq_idx % len % 16u) * 3, 3, 4, 50, C_WHITE);
-    for (i = 0; i < 4u; i++) {                          /* the four page slots: this one filled, the others in use
-                                                         * grey, the unused ones dim (OCT+ past the last adds one) */
-        if (i == bank)
-            cv_rect(190 + (int32_t)i * 8, 58, 6, 6, C_WHITE);
-        else
-            op_box(190 + (int32_t)i * 8, 58, 6, 6, i * 16u < len ? OP_PUR : OP_PUR_D);
-    }
-#undef LIT
-#undef SEL
-    cv_blit(0, OP_BODY_Y);
-}
+
+/* ---------------------------------------------------------------- DRUMS --- */
+#define OP_STEPS_H 36
 
 /* the 16 steps of KNOB 1's sound: a hit filled in its level's colour (a notch per ratchet), the cursor
  * framed white, the step that plays underlined */
-static uint8_t op_steps_y = OP_BODY_Y + OP_SCENE_H;     /* where: under the snake; a step held: at the top, as on a
-                                                         * synth's GRID (review 19) */
-static void op_drum_steps(uint32_t bank, uint32_t len)
+static void op_drum_steps(uint32_t bank, uint32_t len)   /* (a step held: at the top, as on a synth's GRID, review 19) */
 {
     uint32_t j, r;
     cv_begin(240, OP_STEPS_H, C_BLACK);
@@ -326,7 +280,7 @@ static void op_drum_steps(uint32_t bank, uint32_t len)
         if (song.playing && p == TDRUM->seq_idx % len)
             cv_rect(x, 31, 12, 2, C_WHITE);
     }
-    cv_blit(0, (uint32_t)op_steps_y);
+    cv_blit(0, OP_BODY_Y);
 }
 
 /* ---------------------------------------------------------------- SYNTH --- */

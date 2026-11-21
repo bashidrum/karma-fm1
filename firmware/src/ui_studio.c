@@ -12,9 +12,7 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
 static void op_knobs(const char *const lab[4], const char *const val[4], const char *const *unit, const int32_t ratio[4],
                      uint32_t dim, uint32_t sig, uint32_t *cache);
 static void op_trackbar(uint32_t *cache);
-static void op_drum_scene(uint32_t bank, uint32_t len);
-static void op_drum_steps(uint32_t bank, uint32_t len);
-static uint8_t op_steps_y;                              /* (ui_op.c) */
+static void op_drum_steps(uint32_t bank, uint32_t len);   /* (ui_op.c) */
 static void op_home_body(void);
 static void op_box(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c);
 static int on_drum_page(void) { return !ui.home && cur_page()->scope == SC_DRUM; }
@@ -455,10 +453,9 @@ static void pads_tick(void)                             /* once a frame: the hit
 #include "ui_grid.c"               /* the step GRID on every track (Elektron style) */
 #include "ui_stut.c"               /* (PHEBUS) the GRID's STUTTER lane, after DRUM */
 
-/* the drum GRID's full view (SELECT right; left: the snake again. REVIEW.md 5, 21 Nov 2026): a row a sound, 16 steps
- * of the page across. The sounds the pattern uses and the one KNOB 1 picks (white), up to 7, the picked one always in
+/* the drum GRID (the full view, REVIEW.md 5, 21 Nov 2026; the only one since KARMA's snake view is cut): a row a
+ * sound, 16 steps of the page across. The sounds the pattern uses and the one KNOB 1 picks (white), up to 7, the picked one always in
  * view; a hit in its level's colour, the cursor framed white, the step playing underlined, the four page slots */
-static uint8_t drum_full;
 static uint32_t dg_rows(uint8_t *row)
 {
     uint32_t used = 1u << drum_lane, i, l, n = 0, sel = 0, len = trk_len(TDRUM), st;
@@ -546,8 +543,8 @@ static void drum_screen_draw(void)
         pat = pat * 31u + s->rat[0] + s->rat[1] * 7u + s->rat[2] * 49u + s->rat[3] * 343u;
     }
     sig = pat * 31u + drum_lane * 977u + drum_cursor * 101u + len * 3u + (song.playing ? TDRUM->seq_idx + 1u : 0u) * 71u;
-    if (!drum_page) {                                  /* GRID: the snake dancing, then the 16 steps (ui_op.c) */
-        if (sg_held) {                                 /* a step held: all it holds, where the snake was */
+    if (!drum_page) {                                  /* GRID: every sound in use, a row each */
+        if (sg_held) {                                 /* a step held: its sound's 16 steps at the top, all it holds under them */
             uint32_t ls = 0;
             for (i = 0; i < NLOCK; i++)
                 ls = ls * 31u + TDRUM->lock[i].step + TDRUM->lock[i].param * 257u + (uint32_t)TDRUM->lock[i].val * 65537u;
@@ -556,7 +553,7 @@ static void drum_screen_draw(void)
                 scene_sig = ls * 131u + 1u;
                 sg_detail_draw(SG_BODY_Y + 36u, SG_SCENE_H, (uint32_t)sg_first(), 1);   /* (the steps above it) */
             }
-        } else if (drum_full) {                        /* the full view: every sound in use, a row each */
+        } else {
             if (ui.force || sig * 131u + 2u != scene_sig) {
                 uint8_t row[DRUM_LANES];
                 uint32_t n = dg_rows(row);
@@ -564,14 +561,10 @@ static void drum_screen_draw(void)
                 dg_band(SG_BODY_Y, SG_SCENE_H, row, 0, n < 6u ? n : 6u, bank, len, 0);
                 dg_band(SG_BODY_Y + SG_SCENE_H, SG_KNOB_Y - SG_BODY_Y - SG_SCENE_H, row, 6, n, bank, len, 1);
             }
-            steps_sig = sig + 1u;                      /* (the steps strip: drawn again when it comes back) */
-        } else if (ui.force || sig * 131u + lit + (op_strike[TRK_DRUM] ? 977u : 0u) != scene_sig) {   /* (the snake's STRIKE) */
-            scene_sig = sig * 131u + lit + (op_strike[TRK_DRUM] ? 977u : 0u);
-            op_drum_scene(bank, len);
+            steps_sig = sig + 1u;                      /* (the steps strip: drawn again when a step is held) */
         }
-        if ((!drum_full || sg_held) && (ui.force || sig + (sg_held != 0) * 7u != steps_sig)) {
-            steps_sig = sig + (sg_held != 0) * 7u;
-            op_steps_y = (uint8_t)(sg_held ? SG_BODY_Y : SG_BODY_Y + SG_SCENE_H);
+        if (sg_held && (ui.force || sig + 7u != steps_sig)) {
+            steps_sig = sig + 7u;
             op_drum_steps(bank, len);
         }
         body_sig = 0;
@@ -672,16 +665,11 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
     }
     if (!drum_page && sg_input(pressed))                /* (a step held: its knobs; OCT- / OCT+, ENV, LFO) */
         return;
-    if ((s = panel_enc(EN_SELECT)) != 0) {              /* SELECT: GRID: right the full view, left the snake (REVIEW.md
-                                                         * 5); KIT: left back to the GRID. (SEQ: GRID -> KIT) */
-        if (drum_page ? s < 0 : (uint32_t)(s > 0) != drum_full) {
-            if (drum_page)
-                drum_page = 0;
-            else
-                drum_full = (uint8_t)(s > 0);
-            ui.msg_t = 0;
-            ui.force = 1;
-        }
+    if ((s = panel_enc(EN_SELECT)) != 0 && drum_page && s < 0) {   /* SELECT: KIT: left back to the GRID; on the
+                                                         * GRID nothing (it was the snake / full view; SEQ: GRID -> KIT) */
+        drum_page = 0;
+        ui.msg_t = 0;
+        ui.force = 1;
     }
     if ((s = panel_enc(EN_PRESET))) TDRUM->p[P_E0] = drum_kit_step(TDRUM->p[P_E0], s);
     if (drum_page)                                      /* KIT: a key played picks its sound (KNOB 3, 4: its sends) */

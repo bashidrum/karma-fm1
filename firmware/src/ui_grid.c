@@ -15,7 +15,7 @@
  *   black keys 1..4  the page of steps (1-16 .. 49-64); OCT- / OCT+ (no step held) the page before / after
  * The screen shows the steps in the track's colour, the playhead, the page, and what the step held (or under the
  * cursor) holds: its notes, length, velocity, flags, condition, nudge and every lock. */
-/* (the bands of ui_op.c, included after this: OP_BODY_Y, OP_KNOB_Y, OP_SCENE_H) */
+/* (the bands of ui_op.c, included after this: OP_BODY_Y, OP_KNOB_Y) */
 #define SG_BODY_Y 22u
 #define SG_KNOB_Y 154u
 #define SG_SCENE_H 96u
