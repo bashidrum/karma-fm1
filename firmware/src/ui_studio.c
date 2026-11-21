@@ -141,12 +141,6 @@ static void te_dials(int32_t y0, const char *const lab[4], const char *const val
 static void studio_open(uint32_t scope)
 {
     uint32_t i;
-    if (scope == SC_SONG && rec_wait)
-        rec_wait = 0;                                   /* (an arm does not follow into the song page) */
-#if FELUCCA_ARRANGER
-    if (scope == SC_SONG)
-        song_bank = 0;                                  /* (3.0.5) the song first, its saved songs a SAVE away */
-#endif
     for (i = 0; i < NPAGES; i++) if (PAGES[i].scope == scope) {
         ui.page = (uint8_t)i; ui.home = 0; song.seq_mode = 0; ui.force = 1;
         ui.msg_t = 0; ui.entry_open = 0; return;
@@ -160,17 +154,12 @@ static void rec_toggle(void)
 {
     if (ft_owns_press())
         return;
-    if (song.playing && arrangement_enabled) {
-        ui_message("STOP FIRST");
-        return;
-    }
     if (song.rec || rec_wait) {
         song.rec = 0;
         rec_wait = 0;
         ui_message("REC OFF");
         return;
     }
-    arrangement_enabled = 0;
     if (song.playing)
         rec_begin();                    /* playing: record now */
     else
@@ -195,7 +184,7 @@ static void te_header(const char *title, uint16_t tc, uint32_t *cache)
     uint32_t beat = clk_beat, k, playing = song.playing;
     uint32_t sig = studio_hash((uint32_t)song.g[G_BPM] * 7u + playing * 3u + (song.rec != 0) * 1999u +
                                (playing ? beat * 131u + TSEL->seq_idx * 7919u : 0u) + (uint32_t)song.g[G_CLOCK] * 77u +
-                               arrangement_enabled * 5u + (ui.bpm_t != 0) * 104729u + song.solo * 37u, title);
+                               (ui.bpm_t != 0) * 104729u + song.solo * 37u, title);
     sig = sig * 31u + tc;
     if (!ui.force && sig == *cache)
         return;
@@ -208,8 +197,6 @@ static void te_header(const char *title, uint16_t tc, uint32_t *cache)
     if (playing) {                                     /* bar.beat in the selected track's loop */
         loop_pos(TSEL, b);
         cv_text(122, 5, &FONT_S, b, C_WHITE);
-    } else {
-        cv_text(122, 5, &FONT_S, arrangement_enabled ? "song" : "loop", TE_G3);
     }
     for (k = 0; k < 4u; k++)                           /* the four beats of the bar */
         cv_rect(104 + (int32_t)k * 9, 26, 7, 7, playing && beat % 4u == k ? (k || !song.rec ? C_WHITE : TE_RED) : TE_G2);   /* (red: recording only) */
@@ -264,7 +251,7 @@ static int16_t *home_knob(uint32_t k, const param_desc_t **d)
 static void studio_tracks_draw(void)
 {
     static uint32_t head, footer, bar;
-    op_header("HOME", TE_G3, arrangement_enabled ? "song" : "loop", &head);
+    op_header("HOME", TE_G3, "", &head);
     op_home_body();                                    /* the deck, the selected track, the four lanes (ui_op.c) */
     {   /* KNOB 1 cutoff, 2 decay of the selected voice, 3 the STUTTER lane on / off (everyone's), 4 the voice's level */
         track_t *t = TSEL;
@@ -847,11 +834,7 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
         b = k;
         if (b == B_PLAY) {
             if (ft_owns_press()) ;
-            else if (!song.playing && arrangement_enabled && !arr_valid(&arrangement, arrangement_ready())) ui_message("EMPTY SECTION: REC");
             else transport_req = song.playing ? 2 : 1;
-        } else if (b == B_SAVE) {
-            studio_open(SC_SONG);
-            return;
         }
     }
     if (!sg_held && !stl_held && (s = panel_enc(EN_ALGO)) && !ft_on && !stl_algo(s))   /* the track: the GRID stays, on
@@ -902,7 +885,6 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
                 drum_cursor = c;
             }
             if (k >= 2) {
-                if (song.playing && arrangement_enabled) { ui_message("STOP FIRST"); continue; }
                 undo_mark(TDRUM, ui.step_sess ? ui.step_sess : (ui.step_sess = (undo_sess += 4u) | 3u));
                 fm1_irq_off();
                 if (k == 2) {

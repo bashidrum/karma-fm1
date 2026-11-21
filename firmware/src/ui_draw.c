@@ -401,7 +401,7 @@ static uint32_t str_hash(uint32_t h, const char *s)
 /* a page drawn with its values large (graph_big) */
 static int big_page(const page_t *pg)            /* (2.6: the INSERT pages too: their middle stayed empty) */
 {
-    return (pg->graph == GR_NONE || pg->graph == GR_INS) && pg->scope != SC_SONG && pg->scope != SC_DRUM;
+    return (pg->graph == GR_NONE || pg->graph == GR_INS) && pg->scope != SC_DRUM;
 }
 static uint32_t graph_signature(void)
 {
@@ -914,7 +914,7 @@ static void draw_columns(void)                         /* the four knobs of the 
         uint32_t sc = cur_page()->scope;
         knob_tint_all(cur_page()->graph == GR_HEX && !ui.home ? TRK_DRUM   /* (the drum voice's sound: its colour) */
                       : drums_page(cur_page()) ? TRK_DRUM
-                      : sc == SC_GLOBAL || sc == SC_SONG ? TINT_NEUTRAL : sc == SC_DRUM ? TRK_DRUM : song.sel);
+                      : sc == SC_GLOBAL ? TINT_NEUTRAL : sc == SC_DRUM ? TRK_DRUM : song.sel);
         if (!ui.home && cur_page()->id[0] == G_CLSEND && sc == SC_GLOBAL)
             knob_tint[0] = (uint8_t)song.sel;           /* CLOUD's SEND is the selected track's (review 16b) */
     }
@@ -1085,7 +1085,7 @@ static void ui_draw(void)
         lcd_fill(0, 0, 240, 240, C_BLACK);
         ui.force = 1;
     }
-    if ((rec_wait || ft_on) && !ui.menu && !on_song_page()) {   /* armed / free take */
+    if ((rec_wait || ft_on) && !ui.menu) {              /* armed / free take */
         rec_screen_draw();
         ui_timers();
         ui.force = 0;
@@ -1096,14 +1096,6 @@ static void ui_draw(void)
         lcd_fill(0, 0, 240, 240, C_BLACK);
         ui.force = 1;
     }
-#if FELUCCA_ARRANGER
-    if (!ui.menu && on_song_page()) {
-        song_screen_draw();
-        ui_timers();
-        ui.force = 0;
-        return;
-    }
-#endif
     if (ui.menu) {
         draw_menu();
         ui_timers();

@@ -35,18 +35,10 @@ mkdir -p build/gen
 
 $CC -o "$OUT/storage_test" tests/storage_test.c
 run "flash storage (A/B, torn writes)" "$OUT/storage_test"
-$CC -o "$OUT/lz_test" tests/lz_test.c -Ifirmware/src
-run "saved songs: LZ4 blocks round-trip, never overrun (3.0.5)" "$OUT/lz_test"
 
 $CC -o "$OUT/recovery_test" tests/recovery_test.c
 run "application USB recovery and boot-loop guard" "$OUT/recovery_test"
 
-$CC -o "$OUT/arranger_test" tests/arranger_test.c
-run "song order, timing, repeats and missing scenes" "$OUT/arranger_test"
-$CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/song_audio_test" tests/song_audio_test.c $PLX -lm
-run "song: four simultaneous tracks, scene transition and stop" "$OUT/song_audio_test" "$OUT/song-demo.wav"
-$CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/song_ui_test" tests/song_ui_test.c $PLX -lm
-run "song screen: commands, load (OCT+ twice), display bounds" "$OUT/song_ui_test" "$OUT/song-screen.ppm"
 
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/studio_drums_test" tests/studio_drums_test.c $PLX -lm
 run "drum lanes, kit audio, metronome, record arm, free take" "$OUT/studio_drums_test" "$OUT/drum-styles.wav"
@@ -68,7 +60,7 @@ run "SEQ > GEN: a loop that changes as it plays (CHANGE, SCALE, RANGE, ON per tr
 $CC -O1 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/drum_send_test" tests/drum_send_test.c $PLX -lm
 run "drums: each sound's sends and the kit through a project (load, power-on, section)" "$OUT/drum_send_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/seq2_test" tests/seq2_test.c $PLX -lm
-run "sequencer 2.0: no drift, ratchets, roll, erase / undo, ghost / hard, chords, mute / solo, nudge, locks" "$OUT/seq2_test"
+run "sequencer 2.0: no drift, ratchets, roll, erase / undo, ghost / hard, chords, mute / solo, nudge, locks, sections" "$OUT/seq2_test"
 
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/drumkit_test" tests/drumkit_test.c $PLX -lm
 run "synthesised drum kits: every kit x sound bounded, audible, finite, levels, cost" "$OUT/drumkit_test" "$OUT/drum-kits.wav" "$OUT/drum-kits.txt"

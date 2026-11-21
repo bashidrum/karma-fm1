@@ -6,7 +6,7 @@
  *
  * Time: the transport clock of fx.c (clk_beat, clk_pos, in units of a sample at 1 BPM). Every track
  * reads its step from it (trk_grid): the step is the clock divided by the track's DIV, swung, modulo
- * its LEN. So the tracks, the click, the arp, the rolls and the song arranger never drift apart, a
+ * its LEN. So the tracks, the click, the arp, the rolls and the sections never drift apart, a
  * tempo or DIV change plays at most one step a block, and a polymeter (any LEN) stays in phase.
  *
  * Four tracks: tracks 1..3 are synth parts (steps of up to 4 notes), track 4 the drum track (steps
@@ -969,9 +969,6 @@ static void ft_close(void)
     t->seq_active = 1;
     song.g[G_BPM] = (int16_t)bpm;
     ft_bars = (uint8_t)bars;
-#if FELUCCA_ARRANGER
-    arrangement_enabled = 0;
-#endif
     seq_start();                                      /* this is the downbeat: the loop plays */
 }
 
@@ -1238,9 +1235,6 @@ static void arm_start(track_t *t)
     } else if (rec_count) {
         return;                                   /* COUNT: PLAY counts in; a note only sounds */
     } else {
-#if FELUCCA_ARRANGER
-        arrangement_enabled = 0;
-#endif
         seq_start();                              /* the note is the downbeat */
         if (song.playing)
             rec_begin();
@@ -1798,81 +1792,20 @@ static void click_tick(void)
 /* -------------------------------------------------------- sequencer --- */
 #if FELUCCA_ARRANGER
 /* ---- LIVE SECTIONS (SAVE held + key, ui_layers.c): a section asked for while playing starts on the
- * next bar, every track from its step 0 (as the song does). SONG REC writes the order you play into the
- * song chain (arrangement): each section with the bars it played, from the bar after the arm. */
+ * next bar, every track from its step 0 */
+static uint32_t arrangement_ready(void);           /* project.c (arranger_scene.c): the sections stored, a bit each */
+static void arrangement_apply(uint32_t scene);     /* .. one into the tracks */
 static volatile int8_t live_req = -1;              /* section asked for (UI), applied on the next bar */
 static volatile int8_t live_sec = -1;              /* the section playing: last jumped to, loaded or stored */
 static volatile int8_t sec_fresh = -1;             /* (3.0.5, issue #3) the part just stored (SAVE + 5..8): edits do
                                                     * not stick to it until a part is picked or played again */
-static uint32_t live_bar = 0xFFFFFFFFu;            /* clk_beat / 4 of the last bar seen (= bars the section played) */
-/* QUICK CHAIN (SAVE held, two or more section keys tapped): the sections in order, looped, each for the bars its
- * longest pattern takes (section_bars); the UI writes it whole with the IRQ off, chain_n last (0 = none) */
-#define CHAIN_MAX 8u
-static volatile uint8_t chain_sec[CHAIN_MAX];
-static volatile uint8_t chain_n, chain_i;          /* entries; the one playing (or asked for) */
-static volatile uint8_t chain_bars;                /* the bars it plays */
-static uint32_t section_bars(uint32_t s);         /* project.c (arranger_scene.c) */
-static volatile uint8_t srec;                      /* SONG REC: 0 off, 1 armed (from the next bar), 2 recording */
-static arr_entry_t srec_e[ARR_STEPS];
-static volatile uint8_t srec_n;                    /* entries so far (the last one still growing) */
-static volatile uint8_t srec_done;                 /* the chain was written: n parts (0xFF: nothing played) */
-
-static void srec_finish(void)                      /* (audio ISR, or the UI with the IRQ off) */
-{
-    uint32_t i, n = 0;
-    for (i = 0; i < srec_n; i++)
-        if (srec_e[i].bars)
-            srec_e[n++] = srec_e[i];
-    if (n) {
-        arrangement.count = (uint8_t)n;
-        arrangement.loop = 0;
-        for (i = 0; i < n; i++)
-            arrangement.entry[i] = srec_e[i];
-    }
-    srec_done = (uint8_t)(n ? n : 0xFFu);
-    srec = 0;
-    srec_n = 0;
-}
-static void srec_add(uint32_t s)
-{
-    if (srec_n >= ARR_STEPS) {
-        srec_finish();                              /* the chain is full: what was played so far */
-        return;
-    }
-    srec_e[srec_n].scene = (uint8_t)s;
-    srec_e[srec_n].bars = 0;
-    srec_n++;
-}
-/* STOP (or SONG REC pressed again): the bar playing counts if it had begun */
-static void srec_stop(void)
-{
-    if (srec == 2u && srec_n && srec_e[srec_n - 1u].bars < 64u &&
-        ((!(clk_beat & 3u) && (clk_beat >> 2) != live_bar) || (clk_beat & 3u)))
-        srec_e[srec_n - 1u].bars++;
-    if (srec == 2u)
-        srec_finish();
-    srec = 0;
-}
+static uint32_t live_bar = 0xFFFFFFFFu;            /* clk_beat / 4 of the last bar seen */
 static void seq_reset_tracks(uint32_t pos);
-static void live_block(void)                       /* once a block while playing a loop (not the song) */
+static void live_block(void)                       /* once a block while playing */
 {
     if ((clk_beat & 3u) || (clk_beat >> 2) == live_bar)
         return;
     live_bar = clk_beat >> 2;                       /* a new bar */
-    if (srec == 2u && srec_n) {
-        arr_entry_t *e = &srec_e[srec_n - 1u];
-        if (e->bars < 64u) {
-            e->bars++;
-        } else {                                    /* (64 bars of one section: it goes on in the next entry) */
-            srec_add(e->scene);
-            if (srec == 2u)
-                srec_e[srec_n - 1u].bars = 1;
-        }
-    }
-    if (chain_n && live_req < 0 && live_bar >= chain_bars) {   /* the chain: this entry has played its bars */
-        chain_i = (uint8_t)((chain_i + 1u) % (chain_n < CHAIN_MAX ? chain_n : CHAIN_MAX));
-        live_req = (int8_t)(chain_sec[chain_i] & 3u);
-    }
     if (live_req >= 0) {
         uint32_t s = (uint32_t)live_req;
         live_req = -1;
@@ -1880,25 +1813,15 @@ static void live_block(void)                       /* once a block while playing
             arrangement_apply(s);
             song.rec = 0;                           /* (a take does not run on into another section) */
             live_sec = (int8_t)s;
-            sec_fresh = -1;                         /* (a part picked, or the chain moved on) */
+            sec_fresh = -1;                         /* (a part picked) */
             seq_reset_tracks(clk_pos);              /* on the bar: every track from its step 0 */
             live_bar = 0;
-            if (chain_n)
-                chain_bars = (uint8_t)section_bars(chain_sec[chain_i % CHAIN_MAX]);
-            if (srec == 2u)
-                srec_add(s);
         }
-    }
-    if (srec == 1u && live_sec >= 0) {
-        srec = 2;
-        srec_n = 0;
-        srec_add((uint32_t)live_sec);
     }
 }
 #endif
 
-/* every track from its step 0, together, at pos units into beat 0 (a song section: the arranger's
- * remainder, so the new section starts exactly on its bar) */
+/* every track from its step 0, together, at pos units into beat 0 (a section: on its bar) */
 static void seq_reset_tracks(uint32_t pos)
 {
     uint32_t i;
@@ -1917,7 +1840,7 @@ static void seq_reset_tracks(uint32_t pos)
     clk_beat = 0;
     clk_pos = pos;
 #if FELUCCA_ARRANGER
-    live_bar = 0xFFFFFFFFu;                        /* (bar 0 is a new bar: SONG REC can start on it) */
+    live_bar = 0xFFFFFFFFu;                        /* (bar 0 is a new bar) */
 #endif
     fill_last_bar = 0xFFFFFFFFu;                   /* (the same for an armed fill bar) */
     click_last = SEQ_NONE;
@@ -1926,22 +1849,10 @@ static void seq_reset_tracks(uint32_t pos)
     slicer_start(pos);                             /* slicer.c: its step 0 with the sequencer's */
 }
 
-
-static void song_backup(void);                     /* project.c: song mode keeps the loop you made */
-static void song_restore(void);
-
 static void seq_start(void)
 {
     if (!song.playing)
         guard_start();                             /* (3.1.5 test 11) the overload guard as STOP left it */
-#if FELUCCA_ARRANGER
-    if (arrangement_enabled && !song.playing) {
-        rec_wait = 0;                              /* song mode plays, it does not record */
-        song_backup();
-        chain_n = 0;                               /* (the song, not a quick chain) */
-    }
-    if (!arrangement_start()) return;
-#endif
     seq_reset_tracks(0);
 }
 
@@ -1963,10 +1874,7 @@ static void seq_stop(void)
 {
     uint32_t i;
 #if FELUCCA_ARRANGER
-    if (song.playing)
-        srec_stop();                                /* SONG REC: the order played so far is the song */
     live_req = -1;
-    chain_n = 0;
 #endif
     if (song.playing)
         guard_stop();                               /* (3.1.5 test 11) how far the overload guard had trimmed */
@@ -1980,12 +1888,6 @@ static void seq_stop(void)
         trk[i].rh_n = 0;                           /* a recorded note held over the stop: as far as it got */
     }
     seq_out_all_off();
-#if FELUCCA_ARRANGER
-    if (arrangement_clock.running) {
-        arrangement_clock.running = 0;
-        song_restore();                            /* back to the loop you were making */
-    }
-#endif
 }
 
 /* the velocity of note i of synth step s */
@@ -2515,37 +2417,13 @@ static int mclk_on(void)                          /* the clock drives the sequen
     return song.g[G_SYNC] && mclk.alive && fm1_ms - mclk.last_ms < 500u;
 }
 
-/* Song Position Pointer (KARMA 3.0; 2026-10-28, Ariel: Ableton loops 16 bars, the FM-1's song ran on and ended): the
- * master's position in 16ths. Playing: every track, and in song mode the song (its section, its bar), jumps there
- * at once. Stopped: the next CONTINUE starts from there; stopped because the song ended while the clock ran on:
- * it starts again there (the master looped back). Past the song's end: the song has ended */
-static uint8_t spp_pend, song_end_ext;
+/* Song Position Pointer (KARMA 3.0; 2026-10-28, Ariel: Ableton loops 16 bars): the master's position in 16ths.
+ * Playing: every track jumps there at once. Stopped: the next CONTINUE starts from there */
+static uint8_t spp_pend;
 static uint16_t spp_pos;
 static void seq_jump(uint32_t pos16)
 {
     uint32_t bar = pos16 / 16u, in = (pos16 % 16u) * (BEAT_U / 4u), i;
-#if FELUCCA_ARRANGER
-    if (arrangement_clock.running) {
-        uint32_t k, n = arrangement.count > ARR_STEPS ? ARR_STEPS : arrangement.count;
-        for (k = 0; k < n; k++) {
-            uint32_t nb = arr_entry_bars(&arrangement, k);
-            if (bar < nb)
-                break;
-            bar -= nb;
-        }
-        if (k >= n) {
-            seq_stop();                             /* (song_restore: the loop you made is back) */
-            song_end_ext = 1;
-            return;
-        }
-        if (k != arrangement_clock.index) {
-            arrangement_clock.index = (uint8_t)k;
-            arrangement_apply(arrangement.entry[k].scene);
-        }
-        arrangement_clock.bar = (uint8_t)bar;
-        arrangement_clock.phase = in;
-    }
-#endif
     for (i = 0; i < NTRK; i++)
         seq_release(&trk[i]);
     seq_reset_tracks(in % BEAT_U);
@@ -2564,10 +2442,6 @@ static void mclk_event(uint32_t st, uint32_t src, uint32_t val)   /* a realtime 
         } else {
             spp_pos = (uint16_t)val;
             spp_pend = 1;
-            if (song_end_ext && mclk_on()) {
-                song_end_ext = 0;
-                transport_req = 3;                 /* (the master looped back: the song again, from there) */
-            }
         }
         return;
     }
@@ -2582,7 +2456,6 @@ static void mclk_event(uint32_t st, uint32_t src, uint32_t val)   /* a realtime 
             song.g[G_BPM] = mclk.mbpm;
         mclk.pos = mclk.done = 0;
         mclk.have = 0;
-        song_end_ext = 0;
         if (st == 0xFAu) {
             spp_pend = 0;
             transport_req = 3;                     /* (not 1: the master counts, never a count-in) */
@@ -2595,7 +2468,6 @@ static void mclk_event(uint32_t st, uint32_t src, uint32_t val)   /* a realtime 
     }
     if (st == 0xFCu) {                             /* STOP */
         transport_req = 2;
-        song_end_ext = 0;
         return;
     }
     if (st != 0xF8u)
@@ -2718,7 +2590,6 @@ static void events_block(uint32_t n)
             if (ext && spp_pend && song.playing)
                 seq_jump(spp_pos);                  /* (a CONTINUE after a SONG POSITION: from there) */
             spp_pend = 0;
-            song_end_ext = 0;
             if (rec_wait && song.playing)
                 rec_begin();                        /* PLAY while armed: record from the top */
         }
@@ -2755,28 +2626,8 @@ static void events_block(uint32_t n)
     adv = mclk_on() && song.playing ? mclk_adv(n) : n * (uint32_t)song.g[G_BPM];   /* (after a START) */
     ft_block();
 #if FELUCCA_ARRANGER
-    if (song.playing && arrangement_clock.running) {
-        int scene = arr_next(&arrangement_clock, &arrangement, FS);
-        if (scene == ARR_DONE) {
-            arrangement_clock.running = 1;          /* (arr_next cleared it: seq_stop brings the loop back) */
-            if (mclk_on()) {
-                /* (3.0.2; 2026-10-31, Ariel: Ableton's loop came back to bar 1, the FM-1 played on and stopped) the
-                 * master runs on: the song again from its top, on the bar (below). Ableton sends no SONG POSITION
-                 * at its loop's wrap (measured: 112 bars, only START and STOP), so a song as long as the loop stays
-                 * with it; a SONG POSITION still moves it */
-                arrangement_clock.index = 0;
-                scene = arrangement.entry[0].scene;
-            } else {
-                seq_stop();
-            }
-        }
-        if (scene >= 0) {
-            arrangement_apply((uint32_t)scene);
-            seq_reset_tracks(arrangement_clock.phase);   /* (the remainder: exactly on the bar) */
-        }
-    } else if (song.playing) {
+    if (song.playing)
         live_block();
-    }
 #endif
     if (song.playing && !(clk_beat & 3u) && (clk_beat >> 2) != fill_last_bar) {   /* a new bar: the armed fill bar
                                                                                     * (after a section: its bar 0) */
@@ -2976,9 +2827,6 @@ static void events_block(uint32_t n)
             clk_pos -= BEAT_U;
             clk_beat++;
         }
-#if FELUCCA_ARRANGER
-        arr_elapse(&arrangement_clock, adv, 1u);   /* (units: n x BPM, or the MIDI clock) */
-#endif
     }
     PC_MARK(PC_EV_ARP);
 }

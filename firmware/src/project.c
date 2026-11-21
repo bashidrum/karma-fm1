@@ -674,7 +674,7 @@ static int autosave_due(uint32_t stop, uint32_t stop_quiet, uint32_t quiet, uint
 #if FELUCCA_ARRANGER
 #include "arranger_scene.c"
 #endif
-static uint8_t sec_dirty, song_dirty;           /* live sections / the song: in RAM, not yet in flash */
+static uint8_t sec_dirty, song_dirty;           /* live sections / the settings: in RAM, not yet in flash */
 #if FELUCCA_FLASH
 /* slot from flash into RAM (format 5, or an old one converted) */
 static union {
@@ -722,8 +722,7 @@ static void project_save(uint32_t slot)
 
 /* SAVE > PROJECT > ERASE (SLOOP 2.6, after a YouTube comment): the slot (section A..D) empty again. In flash as the
  * editor's restore leaves an empty slot (project_restore): an object of no bytes, which proj_fetch (older SLOOP too)
- * reads as no project. The song's steps that played that section are taken out (the default song if none is left),
- * so song mode still plays. Stopped only: a flash erase stops the audio ~50 ms */
+ * reads as no project. Stopped only: a flash erase stops the audio ~50 ms */
 static void project_erase(uint32_t slot)
 {
     slot &= 3u;
@@ -745,10 +744,6 @@ static void project_erase(uint32_t slot)
     sec_dirty &= (uint8_t)~(1u << slot);
     if (live_sec == (int8_t)slot)
         live_sec = -1;
-#if FELUCCA_ARRANGER
-    if (arr_drop_scene(&arrangement, slot))
-        song_dirty = 1;                                     /* (saved with the settings, when quiet) */
-#endif
     fm1_irq_on();
     ui_message("ERASED");
 }
@@ -828,17 +823,13 @@ static int out_silent(void)                    /* (PHEBUS) the last 512 samples 
 
 /* (PHEBUS) the header's unsaved dot (ui_op.c proj_unsaved): the working project as it is now against the one in flash,
  * twice a second; a lock in force counts as its base (seq.c lk_*: the knob's value, not the step's); the live sections,
- * the song order and an edited kit not yet in flash count too. A song playing: the tracks hold a section, kept as was */
+ * the settings and an edited kit not yet in flash count too */
 static void unsaved_tick(void)
 {
     uint32_t i, k;
     if (!flash_ok || fm1_ms - unsaved_ms < 500u)
         return;
     unsaved_ms = fm1_ms;
-#if FELUCCA_ARRANGER
-    if (arrangement_clock.running)
-        return;
-#endif
     proj_capture(&autosave_buf);
     for (i = 0; i < NTRK; i++)
         for (k = 0; k < trk[i].lk_n && k < NLOCK; k++)
@@ -907,36 +898,22 @@ static void autosave_resume(void)              /* power-on: the project as it wa
 typedef struct {
     uint32_t magic, palette, lowcut, zoom;
     panel_t panel;
-#if FELUCCA_ARRANGER
-    arr_config_t arrangement;
-#endif
+    uint8_t song_rsv[36];                          /* (PHEBUS wave 1) where the song order was (KARMA's SONG screen, cut):
+                                                    * kept so the layout stays; read and written as zeros, ignored */
     uint32_t lights;                               /* SLOOP 2.3: the backlight (panel.c lights_word); appended,
                                                     * so 2.2 still reads its part (st_load cuts at its size) */
 } persist_t;
 #define PERSIST_SIZE_V22 __builtin_offsetof(persist_t, lights)   /* the settings as 2.2 wrote them (no lights) */
 _Static_assert(sizeof(persist_t) == PERSIST_SIZE_V22 + 4u, "lights: the last word, no padding before it");
-#if FELUCCA_ARRANGER
-_Static_assert(__builtin_offsetof(persist_t, arrangement) == 48u && sizeof(arr_config_t) == 36u,
-               "the web editor's Song page edits bytes 48..83 of the settings (web/editor.html ARR)");
-#endif
-#if FELUCCA_ARRANGER
-#define PERSIST_MAGIC 0x50455233u                  /* "PER3": includes the song order */
-#else
-#define PERSIST_MAGIC 0x50455232u
-#endif
+_Static_assert(__builtin_offsetof(persist_t, song_rsv) == 48u, "the old song order: bytes 48..83 of the settings");
+#define PERSIST_MAGIC 0x50455233u                  /* "PER3" (with the old song order's 36 bytes) */
 #if FELUCCA_FLASH
 static persist_t persist_saved;
 static void dsu_boot(void);
-#if FELUCCA_ARRANGER
-static void songs_boot(void);
-#endif
 #endif
 
 static void persist_boot(void)                    /* before settings_init / panel_init */
 {
-#if FELUCCA_ARRANGER
-    arr_defaults(&arrangement);
-#endif
 #if FELUCCA_FLASH
     persist_t p;
     uint32_t f = irq_save();
@@ -956,11 +933,8 @@ static void persist_boot(void)                    /* before settings_init / pane
         int n = st_load(OBJ_SETTINGS, &p, sizeof p);
         if (n == (int)PERSIST_SIZE_V22 && p.magic == PERSIST_MAGIC)
             p.lights = 0;                          /* from 2.2: backlight off */
-        if (((n == (int)sizeof p || n == (int)PERSIST_SIZE_V22) && p.magic == PERSIST_MAGIC)
-#if FELUCCA_ARRANGER
-            || (n == (int)(16u + sizeof(panel_t)) && p.magic == 0x50455232u)
-#endif
-            ) {
+        if (((n == (int)sizeof p || n == (int)PERSIST_SIZE_V22) && p.magic == PERSIST_MAGIC) ||
+            (n == (int)(16u + sizeof(panel_t)) && p.magic == 0x50455232u)) {
             settings.magic = SETTINGS_MAGIC;
             settings.palette = p.palette;
             settings.lowcut = p.lowcut;
@@ -971,12 +945,7 @@ static void persist_boot(void)                    /* before settings_init / pane
                 lights_from_word(p.lights);
             else
                 p.lights = 0;
-#if FELUCCA_ARRANGER
-            if (p.magic == PERSIST_MAGIC && arr_valid(&p.arrangement, 15u))
-                arrangement = p.arrangement;
-            else
-                p.arrangement = arrangement;
-#endif
+            memset(p.song_rsv, 0, sizeof p.song_rsv);   /* (an old song order: ignored, cleared at the next save) */
             persist_saved = p;
         } else if (n == (int)(8u + sizeof(panel_t)) && p.magic == 0x50455231u) {   /* "PER1": palette, panel */
             const uint32_t *w = (const uint32_t *)&p;
@@ -1005,9 +974,6 @@ static void persist_boot(void)                    /* before settings_init / pane
     }
     dsu_boot();                                    /* SLOOP 2.5: the SYN kits (after the settings) */
     up_boot();                                     /* user presets */
-#if FELUCCA_ARRANGER
-    songs_boot();                                  /* (3.0.5) SAVE > SONGS */
-#endif
 #endif
 }
 
@@ -1163,9 +1129,6 @@ static void persist_fill(persist_t *p)              /* the settings as they are 
     p->zoom = settings.zoom;
     p->panel = panel;
     p->lights = lights_word();
-#if FELUCCA_ARRANGER
-    p->arrangement = arrangement;
-#endif
 }
 
 static void settings_save(void)
@@ -1192,7 +1155,7 @@ static void settings_save(void)
 _Static_assert(sizeof(project_t) <= ST_PAYLOAD_MAX, "project does not fit one flash sector");
 
 /* ---- backup restore (editor.c BK_PUT): each object checked as a load checks it, then written through the
- * same A/B commit as a save. rc: 0 ok, 2 not a valid object, 3 stop the song first, 4 flash */
+ * same A/B commit as a save. rc: 0 ok, 2 not a valid object, 3 stop first, 4 flash */
 static int panel_valid(const panel_t *q)           /* a permutation of the buttons and of the knobs */
 {
     uint32_t i, b = 0, e = 0;
@@ -1220,12 +1183,7 @@ static uint32_t settings_restore(const void *raw, uint32_t n)
     memcpy(&p, raw, n);
     if (p.magic != PERSIST_MAGIC || p.palette >= NPALETTES || p.lowcut > 1u || p.zoom > 1u || !panel_valid(&p.panel))
         return 2;
-#if FELUCCA_ARRANGER
-    if (!arr_valid(&p.arrangement, 15u))
-        return 2;
-    if ((song.playing || transport_req) && memcmp(&p.arrangement, &arrangement, sizeof arrangement))
-        return 3;                                    /* SLOOP 2.5: a new song order only when stopped (as on the SONG screen) */
-#endif
+    memset(p.song_rsv, 0, sizeof p.song_rsv);       /* (a backup's old song order: ignored) */
     if (!flash_ok || settings_write(&p))
         return 4;
     persist_saved = p;
@@ -1233,9 +1191,6 @@ static uint32_t settings_restore(const void *raw, uint32_t n)
     settings.lowcut = p.lowcut;
     settings.zoom = p.zoom;
     panel = p.panel;
-#if FELUCCA_ARRANGER
-    arrangement = p.arrangement;
-#endif
     lights_from_word(p.lights);
     song.g[G_SYNC] = (int16_t)lights_sync;
     song.g[G_MIDI] = (int16_t)lights_mout;
@@ -1273,22 +1228,9 @@ static uint32_t project_restore(uint32_t slot, const void *raw, uint32_t n)
 }
 #endif
 #if FELUCCA_ARRANGER
-static void arrangement_save(void)
-{
-    if (song.playing || transport_req) { ui_message("STOP BEFORE SAVE"); return; }
-    settings_save();
-#if FELUCCA_FLASH
-    if (flash_ok) {
-        ui_message(memcmp(&persist_saved.arrangement, &arrangement, sizeof arrangement) ? "SAVE ERROR" : "SONG SAVED");
-        return;
-    }
-#endif
-    ui_message("SONG IN RAM ONLY");
-}
-
 /* ---- live sections (SAVE + key, ui_layers.c). A section is a project slot (A..D = 1..4): stored into RAM
  * at once (playing too), written to flash once the transport is stopped and nothing sounds (an erase
- * stops the audio for ~50 ms); a song recorded with SONG REC is saved the same way. */
+ * stops the audio for ~50 ms). */
 static void section_store(uint32_t s)
 {
     s &= 3u;
@@ -1306,7 +1248,7 @@ static void section_load(uint32_t s)                    /* stopped: the section 
     live_sec = (int8_t)s;
     sec_fresh = -1;                                     /* (picked: edits stick to it again) */
 }
-static void sections_write(void)                        /* the dirty sections and song into flash */
+static void sections_write(void)                        /* the dirty sections and the settings into flash */
 {
     uint32_t i;
 #if FELUCCA_FLASH
@@ -1324,16 +1266,12 @@ static void sections_write(void)                        /* the dirty sections an
     }
 }
 /* before an intentional reset (an update, UPDATE MODE, UBOOT from the host): the audio is stopped, so
- * whatever is only in RAM goes to flash now: the live sections, the song, the working project */
+ * whatever is only in RAM goes to flash now: the live sections, the settings, the working project */
 static void persist_flush_now(void)
 {
-#if FELUCCA_FLASH
-    if (flash_ok && memcmp(&persist_saved.arrangement, &arrangement, sizeof arrangement))
-        song_dirty = 1;                                 /* (3.0.5) an edited song order, unsaved: before the reset too */
-#endif
     sections_write();
 #if FELUCCA_FLASH
-    if (flash_ok && !arrangement_clock.running) {     /* (a song playing: the tracks hold a section) */
+    if (flash_ok) {
         proj_capture(&autosave_buf);
         if (autosave_buf.sum != autosave_hash && st_save(OBJ_AUTOSAVE, &autosave_buf, sizeof autosave_buf) == 0)
             autosave_hash = autosave_buf.sum;
@@ -1343,17 +1281,6 @@ static void persist_flush_now(void)
 static void sections_flush(void)                        /* main loop */
 {
     static uint32_t tried;
-    if (srec_done) {
-        song_dirty = srec_done != 0xFFu;
-        if (song_dirty) {
-            char b[8];
-            fmt_int(b, srec_done);
-            ui_say("SONG ENTRIES ", b);
-        } else {
-            ui_message("NO SONG");
-        }
-        srec_done = 0;
-    }
     if ((uint32_t)song.g[G_SYNC] != lights_sync) {      /* GLO > SYSTEM > SYNC: kept with the settings */
         lights_sync = (uint8_t)song.g[G_SYNC];
         settings_later = 1;
@@ -1387,14 +1314,8 @@ static void sections_flush(void)                        /* main loop */
     }
     if (settings_later) {                               /* the menu closed while playing */
         settings_later = 0;
-        song_dirty = 1;                                 /* (settings_save when quiet, with the song) */
+        song_dirty = 1;                                 /* (settings_save when quiet) */
     }
-#if FELUCCA_FLASH
-    if (flash_ok && memcmp(&persist_saved.arrangement, &arrangement, sizeof arrangement))
-        song_dirty = 1;                                 /* (3.0.5; 2026-11-08, Ariel: a 3-part song came back as 1 after an
-                                                         * update) the song order edited on the SONG screen: kept when
-                                                         * quiet, as the other settings, no SAVE needed */
-#endif
 #if FELUCCA_ARRANGER
     section_keep_ui(fm1_ms, ui_input_ms);              /* edits stick (arranger_scene.c) */
     if (sec_kept) {                                     /* sections that kept edits while they played (the ISR) */
@@ -1412,188 +1333,5 @@ static void sections_flush(void)                        /* main loop */
     if (sec_dirty)
         ui_message("SAVE ERROR: RETRYING");
 }
-#if FELUCCA_FLASH
-/* ---- saved songs (KARMA 3.0.5; 2026-11-08, Ariel: "you should be able to save different projects"). SAVE > SONGS
- * keeps NSONG songs besides the one on the FM-1. A song is what makes it: the four parts (slots 1..4), the song order
- * and the loop you are on. Each is stored as its difference from the one before (the parts mostly match: Ariel's
- * differ in 0..170 of 3840 bytes), LZ4-packed (lz.h): ~1 KB a song, one flash sector each (storage.c). LOAD puts it
- * all back, in RAM and in flash, as if it had never left. Stopped only (the flash erases silence the audio) */
-#include "lz.h"
-#define SONG_MAGIC 0x31474E53u                  /* "SNG1" */
-#define SONG_BLOBS 5u                           /* parts 1..4, then the working loop */
-typedef struct {
-    uint32_t magic;
-    uint8_t parts, rsv[3];                      /* the parts in use: bit per slot */
-    arr_config_t arr;                           /* the song order */
-    uint16_t len[SONG_BLOBS];                   /* each packed difference (0: an empty part) */
-    uint16_t rsv2;
-} song_hdr_t;
-_Static_assert(sizeof(song_hdr_t) == 56u && sizeof(project_t) == ST_PAYLOAD_MAX, "a song's header; a part fills a payload");
-static uint8_t song_info[NSONG];                /* 0 empty, else 0x80 | its parts */
-
-static void song_scan(uint32_t k)
-{
-    song_hdr_t h;
-    int n = st_load(OBJ_SONG0 + k, &h, sizeof h);
-    song_info[k] = (uint8_t)(n == (int)sizeof h && h.magic == SONG_MAGIC ? 0x80u | (h.parts & 15u) : 0u);
-}
-static void songs_boot(void)                    /* persist_boot */
-{
-    uint32_t k;
-    for (k = 0; k < NSONG; k++)
-        song_scan(k);
-}
-static uint32_t song_info_of(uint32_t k) { return k < NSONG ? song_info[k] : 0u; }
-
-/* blob i of a song's payload into dst, the difference undone against prev (0: none): 0 ok */
-static int song_blob(const uint8_t *pay, const song_hdr_t *h, uint32_t i, uint8_t *dst, const uint8_t *prev)
-{
-    uint32_t off = sizeof *h, j;
-    for (j = 0; j < i; j++)
-        off += h->len[j];
-    if (lz_unpack(pay + off, h->len[i], dst, sizeof(project_t)) != (int)sizeof(project_t))
-        return -1;
-    if (prev)
-        for (j = 0; j < sizeof(project_t); j++)
-            dst[j] ^= prev[j];
-    return proj_ok((const project_t *)dst) ? 0 : -1;
-}
-
-static void song_save(uint32_t k)
-{
-    uint8_t *out = (uint8_t *)&autosave_buf, *dl = (uint8_t *)&proj_tmp;   /* (scratch: both refilled before use) */
-    const uint8_t *prev = 0;
-    uint16_t ht[LZ_HT];                         /* (2 KiB of the main loop's 24 KiB stack) */
-    song_hdr_t h;
-    uint32_t i, j, pos = sizeof h;
-    memset(&h, 0, sizeof h);
-    h.magic = SONG_MAGIC;
-    h.arr = arrangement;
-    proj_capture(&song_keep);                   /* the loop you are on (stopped: song mode keeps nothing there now) */
-    for (i = 0; i < SONG_BLOBS; i++) {
-        const uint8_t *p = i < 4u ? (const uint8_t *)&proj_slot[i] : (const uint8_t *)&song_keep;
-        uint32_t n;
-        if (i < 4u && !proj_ok(&proj_slot[i]))
-            continue;
-        if (i < 4u)
-            h.parts |= (uint8_t)(1u << i);
-        for (j = 0; j < sizeof(project_t); j++)
-            dl[j] = (uint8_t)(p[j] ^ (prev ? prev[j] : 0u));
-        n = lz_pack(dl, sizeof(project_t), out + pos, ST_PAYLOAD_MAX - pos, ht);
-        if (!n) {
-            ui_message("SONG TOO BIG");
-            return;
-        }
-        h.len[i] = (uint16_t)n;
-        pos += n;
-        prev = p;
-    }
-    memcpy(out, &h, sizeof h);
-    if (st_save(OBJ_SONG0 + k, out, pos)) {
-        ui_message("SAVE ERROR");
-        return;
-    }
-    song_scan(k);
-    {
-        char b[4] = {(char)('1' + k), 0};
-        ui_say(song_info[k] ? "SAVED SONG " : "SAVE ERROR ", b);
-    }
-}
-
-static void song_load(uint32_t k)
-{
-    const uint8_t *pay = (const uint8_t *)&autosave_buf;
-    uint8_t *a = (uint8_t *)&proj_tmp, *b = (uint8_t *)&song_keep, *cur;
-    const uint8_t *prev = 0;
-    song_hdr_t h;
-    uint32_t i, tot = sizeof h;
-    int n = st_load(OBJ_SONG0 + k, &autosave_buf, sizeof autosave_buf);
-    if (n < (int)sizeof h) {
-        ui_message("EMPTY SONG");
-        return;
-    }
-    memcpy(&h, pay, sizeof h);
-    for (i = 0; i < SONG_BLOBS; i++)
-        tot += h.len[i];
-    if (h.magic != SONG_MAGIC || tot != (uint32_t)n || (h.parts & ~15u) || !h.len[4] ||
-        !arr_valid(&h.arr, 15u)) {               /* (an order over empty parts: as one edited on the SONG screen) */
-        ui_message("SONG UNREADABLE");
-        return;
-    }
-    for (i = 0; i < SONG_BLOBS; i++) {          /* every part checked first: a bad one leaves the FM-1 as it was */
-        if (i < 4u && !((h.parts >> i) & 1u))
-            continue;
-        cur = prev == a ? b : a;
-        if (song_blob(pay, &h, i, cur, prev)) {
-            ui_message("SONG UNREADABLE");
-            return;
-        }
-        prev = cur;
-    }
-    prev = 0;                                   /* then for real: the parts into the slots */
-    for (i = 0; i < 4u; i++) {
-        uint8_t *dst = (uint8_t *)&proj_slot[i];
-        if (!((h.parts >> i) & 1u)) {
-            memset(dst, 0, sizeof proj_slot[i]);
-            continue;
-        }
-        (void)song_blob(pay, &h, i, dst, prev);
-        prev = dst;
-    }
-    (void)song_blob(pay, &h, 4u, a, prev);      /* the loop */
-    arrangement = h.arr;
-    project_apply((const project_t *)a);
-    live_sec = -1;
-    sec_dirty = 0;
-    for (i = 0; i < 4u; i++)                    /* the slots into flash now (stopped: ~50 ms of silence each) */
-        if (st_save(OBJ_PROJECT0 + i, &proj_slot[i], (h.parts >> i) & 1u ? sizeof proj_slot[i] : 0u) &&
-            ((h.parts >> i) & 1u))
-            sec_dirty |= (uint8_t)(1u << i);    /* (a failed write: again when quiet) */
-    song_dirty = 1;
-    persist_flush_now();                        /* the song order and the loop too */
-    {
-        char s[4] = {(char)('1' + k), 0};
-        ui_say("LOADED SONG ", s);
-    }
-}
-
-static void song_erase(uint32_t k)
-{
-    if (!song_info[k]) {
-        ui_message("EMPTY SONG");
-        return;
-    }
-    if (st_save(OBJ_SONG0 + k, &autosave_buf, 0)) {
-        ui_message("ERASE ERROR");
-        return;
-    }
-    song_scan(k);
-    ui_message("SONG ERASED");
-}
-
-static void song_go(uint32_t op, uint32_t k)    /* SAVE > SONGS: 0 ERASE, 1 LOAD, 2 SAVE */
-{
-    if (k >= NSONG)
-        return;
-    if (song.playing || transport_req) {
-        ui_message("STOP FIRST");
-        return;
-    }
-    if (!flash_ok) {
-        ui_message("NO FLASH");
-        return;
-    }
-    if (op == 0u)
-        song_erase(k);
-    else if (op == 1u)
-        song_load(k);
-    else
-        song_save(k);
-}
-#else
-static void songs_boot(void) {}
-static uint32_t song_info_of(uint32_t k) { (void)k; return 0; }
-static void song_go(uint32_t op, uint32_t k) { (void)op; (void)k; ui_message("NO FLASH"); }
-#endif
 #endif
 #endif /* PROJ_HOST */

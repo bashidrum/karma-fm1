@@ -6,14 +6,10 @@
 #define FELUCCA_VERSION "KARMA 3.1.5"  /* (3.1.5: USB STEMS without dropouts in steady play (the ring in RAM, a bigger cushion, TIMER5 from RAM), the effects in CPU0's wait for CPU1, the split from the cores' measured finish times, PLAY after a short stop at the load it had (the guard gives nothing back for ~10 s), the HEX drums on CPU1 again (the effects stay on CPU0), each track its own envelope steps (a race between the cores), ACID GEN settings per track and remembered; 3.1.4: the HEX drums and the effects back on CPU0 (on CPU1 an FM-1 distorted after a while); 3.1.3: heavy patches cleaner: the HEX drums and the effects on the second core, a muted track costs nothing, the overload guard in two steps (effects and quiet tails from 85 %, notes only near a dropout), PLAITS MODAL lighter under load, OMEN BELL removed (too heavy); the screen reader says GLO's mixer, SAVE's song layer, the SONG screen's entry and the saved songs (#2); ALL NOTES OFF / ALL SOUND OFF / RESET ALL CONTROLLERS; 3.1.2: HEX drums: the reverb, delay and CLOUD sends fade with a cut hit (no click in the echo), MY HEX kits as loud as the HEX kit they came from, ATK / DEC 127 end, WAVE back to SIN plays a sine; the ABOUT screen credits KARMA's sources; 3.1.1: the screen reader says HOME's knobs and the tempo (#2); 3.1: the screen reader, for Charles Vestal's FM-1 Screen Reader (#2); 3.0.5: three saved songs on the SONG screen, the song order kept by itself, SAVE + 5..8 then the loop (#3), ELEMENTS / PLAITS lighter, no crash browsing PLAITS, SWARM clean; 3.0.4: no overload with ELEMENTS BOW / BLOW (half rate) and a steady split of the cores; the new flash chip (UC25HQ80); clean fades, no stuck MIDI notes, kicks kept (after SLOOP 2.8.3 to 2.8.5); 3.0.3: a project loaded from the menu never overwrites another slot; 3.0.2: SYNC tempo steady; 3.0.1: the PLAITS song-mode crash fixed)  KARMA, free firmware for the FM-1: after SLOOP 2.6, based on Felucca (3.0: the editor reads the number, 2.5.1 and later) */
 #endif
 static void project_save(uint32_t slot);
-static void arrangement_save(void);
 static void panel_setup(void);
 static void project_load(uint32_t slot);
 static void project_erase(uint32_t slot);        /* SAVE > PROJECT > ERASE (2.6) */
 static int project_used(uint32_t slot);
-#define NSONG 3u                                 /* SAVE > SONGS (3.0.5): saved songs besides the one on the FM-1 */
-static void song_go(uint32_t op, uint32_t k);    /* project.c: 0 ERASE, 1 LOAD, 2 SAVE */
-static uint32_t song_info_of(uint32_t k);        /* 0 empty, else 0x80 | its parts */
 static int up_used(uint32_t k);              /* user presets: upreset.c */
 static int up_load(uint32_t k);
 static int up_load_to(track_t *t, uint32_t k);
@@ -67,7 +63,6 @@ static struct {
     uint8_t confirm;             /* 1 = "clear the sequence?" (REC held on SEQ / ARP), 2 = "clear track n?" (TRACKS) */
     uint8_t confirm_trk;         /* the track the dialog clears */
     uint8_t uslot;               /* SAVE > USER: the selected user preset slot */
-    uint8_t sslot;               /* SAVE > SONGS (3.0.5): the selected song */
     /* layers (ui_layers.c): a function button held, the keys and knobs do something else */
     uint8_t layer;               /* the layer drawn (LY_*), LY_PLAY = none */
     uint8_t layer_btn;           /* its button (B_*), NB = none */
@@ -399,13 +394,13 @@ static int page_walk(int32_t s)
     uint32_t i, fam = pg->fam, n = 0;
     int32_t cur = -1, to;
     uint8_t idx[40];                                    /* (the chain: about 20) */
-    if (ui.home || pg->scope == SC_SONG || pg->scope == SC_DRUM)
+    if (ui.home || pg->scope == SC_DRUM)
         return 0;
     if (on_chain())
         n = chain_list(idx, sizeof idx);
     else
         for (i = 0; i < NPAGES && n < sizeof idx; i++) {
-            if (PAGES[i].fam != fam || PAGES[i].scope == SC_SONG || PAGES[i].scope == SC_DRUM || !page_shown(&PAGES[i]))
+            if (PAGES[i].fam != fam || PAGES[i].scope == SC_DRUM || !page_shown(&PAGES[i]))
                 continue;
             idx[n++] = (uint8_t)i;
         }

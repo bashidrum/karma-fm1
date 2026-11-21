@@ -21,9 +21,8 @@
  * (upreset.c); the working project (autosave, project.c): copy A 0x9F000, copy B 0xFE000 (the two sectors
  * left: A/B needs no two neighbours); the FM6 patch bank (fm6_bank.c, SLOOP 2.4): 0xE5000 / 0xE6000, the first
  * two sectors of the free 0xE5000..0xFBFFF after the update staging (FL_FM6, fm1_flash.h) */
-/* KARMA 3.0.5: the saved songs (project.c, SAVE > SONGS), one sector each (no A/B: an interrupted save loses that saved
- * song only): SONG 1, 2 in the FM6 bank's sectors (FM6 is gone; an old bank there has another type: reads as empty),
- * SONG 3 at 0xFB000 */
+/* KARMA 3.0.5: the saved songs (SAVE > SONGS), one sector each: SONG 1, 2 in the FM6 bank's sectors, SONG 3 at 0xFB000.
+ * (PHEBUS wave 1: the saved songs are cut; the objects stay in the layout, nothing reads or writes them) */
 enum { OBJ_SETTINGS, OBJ_PROJECT0, OBJ_UPRESET0 = OBJ_PROJECT0 + 4, OBJ_AUTOSAVE = OBJ_UPRESET0 + 2, OBJ_FM6BANK, OBJ_SONG0,
        OBJ_COUNT = OBJ_SONG0 + 3 };
 

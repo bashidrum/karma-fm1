@@ -69,8 +69,7 @@
 #if FELUCCA_UART
 #include "midi_uart.c"
 #endif
-#define FELUCCA_ARRANGER 1
-#include "arranger.c"
+#define FELUCCA_ARRANGER 1      /* the sections A..D (SAVE held + keys 1..8) */
 #include "seq.c"
 #include "audio.c"
 #include "panel.c"
@@ -84,7 +83,6 @@
 #define ANN_MAX 160u             /* a SAY in the SysEx queue as it is (SXQ 64 packets: (160 + 9) / 3 = 56) */
 #include "announce.c"
 #endif
-#include "ui_song.c"
 #include "ui_studio.c"
 #include "ui_op.c"            /* the bands the LIVE screens share: header, knob readouts, track bar */
 #include "icons.c"           /* parameter icons (FELUCCA_ICONS), used by ui_draw.c */

@@ -154,10 +154,6 @@ static void sg_page_add(track_t *t)
         ui_message("64 STEPS: THE MOST");
         return;
     }
-    if (song.playing && arrangement_enabled) {
-        ui_message("STOP FIRST");
-        return;
-    }
     sg_undo(t);
     fm1_irq_off();
     for (i = len; i < dst; i++) {                       /* (the short last page made whole: empty steps) */
@@ -245,10 +241,6 @@ static void grid_key(uint32_t k, uint32_t down)
     idx = sg_page() * 16u + (uint32_t)w;
     if (idx >= len)
         return;
-    if (song.playing && arrangement_enabled) {
-        ui_message("STOP FIRST");
-        return;
-    }
     if (!sg_held) {
         sg_cur_set(idx);
         sg_trk = (uint8_t)song.sel;
@@ -452,10 +444,6 @@ static void sg_free_knob(uint32_t k, int32_t s)
     }
     if (k == 1u) {
         sg_cur_set((uint32_t)clamp((int32_t)c + s, 0, (int32_t)len - 1));
-        return;
-    }
-    if (song.playing && arrangement_enabled) {
-        ui_message("STOP FIRST");
         return;
     }
     if (k == 2u) {

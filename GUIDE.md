@@ -38,7 +38,7 @@ The FM-1 has these controls: the buttons PLAY, REC, SAVE, HOME, ENV, LFO, FX, SE
 7. [Sound design along the chain](#7-sound-design-along-the-chain)
 8. [Performance effects and global effects](#8-performance-effects-and-global-effects)
 9. [Mixer, mute and solo](#9-mixer-mute-and-solo)
-10. [Sections, chains and songs](#10-sections-chains-and-songs)
+10. [Sections](#10-sections)
 11. [Recording live, erasing and clearing](#11-recording-live-erasing-and-clearing)
 12. [Saving](#12-saving)
 13. [Tempo, swing, key and scale](#13-tempo-swing-key-and-scale)
@@ -78,7 +78,7 @@ Each voice is a character with its own colour:
 | SEQ | STEPS | pattern time: division, swing, length |
 | SEL | KEY | key, scale and chord |
 | GLO | MIX | levels, mute, solo, fills, tap tempo |
-| SAVE | SONG | sections A to D, chains |
+| SAVE | SECTION | sections A to D |
 
 A layer shows its name in the header ("FX: PUNCH") once you have held it for a moment. To keep a layer open without holding it, hold its button and tap HOME. Any other button lets it go again, except PLAY, REC, OCT- and OCT+. If you hold GLO for about 0.7 seconds without touching anything else and then let go, the mixer stays open.
 
@@ -531,62 +531,20 @@ A muted voice fades out in a few milliseconds and plays no new notes, but its pa
 
 ---
 
-## 10. Sections, chains and songs
+## 10. Sections
 
-A **section** is a stored loop: all four voices' sounds, patterns and kit. There are four, **A to D**. A song plays sections in order.
+A **section** is a stored loop: all four voices' sounds, patterns and kit. There are four, **A to D**.
 
 ### The SAVE layer (hold SAVE)
 
 | Control | Does |
 | --- | --- |
-| **keys 1 to 4** | play section A to D. While playing, it starts on the next bar (the message says "NEXT: A"). Stopped, it is loaded as the loop ("LOADED A"). An empty section says "EMPTY A". While the arranger runs the message says "SONG PLAYS" |
-| **two or more taps** of keys 1 to 4 | make a **chain** (sub line "chain A B B C"). It plays on release, in a loop, each section for its pattern's bars. A single tap ends the chain |
+| **keys 1 to 4** | play section A to D. While playing, it starts on the next bar (the message says "NEXT: A"; the sub line reads "next bar"). A second tap in the same hold asks for that one instead. Stopped, it is loaded as the loop ("LOADED A"). An empty section says "EMPTY A" |
 | **keys 5 to 8** | store the loop into A to D. Over a used section, press again within 3 seconds ("AGAIN: A", then "SAVED A") |
-| **key 13** | switch between loop and song ("SONG MODE" or "LOOP MODE") |
-| **key 14** | SONG REC ("PICK A SECTION", then "REC: NEXT BAR"). Says "STOP FIRST" while the arranger runs |
-| **key 16** | open the SONG screen |
 
-Holding and releasing SAVE with nothing else does not save anything. Tap **SAVE** on its own for the screens below.
+While a section plays, what you change in it is kept in it a moment after you stop touching the panel.
 
-### The SONG screen
-
-Open it by tapping **SAVE** on HOME or on a GRID, or with SAVE + key 16. It shows entries 1 to 16, each with a section tile (A to D), a bar-length bar and "N bars" or "loop Nb". The header tag reads SONG.
-
-| Control | Does |
-| --- | --- |
-| KNOB 1 | the entry (cursor) |
-| KNOB 2 | that entry's section |
-| KNOB 3 | its bars: 0 is LOOP (the section's own length), up to 64 |
-| KNOB 4 | how many entries the song has (1 to 16) |
-| **white keys** | silent; key n is entry n. Pressing one moves the cursor to it |
-| **hold an entry's key + OCT+** | **inserts** a copy of that entry ("INSERTED n"). Past the end, it adds a copy of the cursor's entry |
-| **hold an entry's key + OCT-** | **deletes** it ("DELETED n"). Messages: "NO ENTRY n", "SONG NEEDS ONE", "SONG FULL (16)" |
-| **OCT-** (no key held) | switch between song and loop mode (hint "oct-: mode") |
-| **OCT+ twice** | loads the section at the cursor (the second press within 3 seconds: "AGAIN: LOAD") |
-| **REC** | stores the loop into the cursor's section ("AGAIN: REPLACE" over a used one) |
-| **EDIT twice** | erases the section at the cursor ("AGAIN: ERASE B", then "EMPTY SECTION") |
-| **PLAY** | play or stop |
-| **SAVE** | open SONGS |
-| **SEQ** | open the SEQ pages |
-| **HOME** | back |
-
-Edits to the song are refused while it plays ("STOP FIRST").
-
-### The SONGS bank
-
-Tap **SAVE** on the SONG screen. There are three saved songs.
-
-| Control | Does |
-| --- | --- |
-| KNOB 1 | picks SONG 1 to 3 |
-| KNOB 2 | **ERASE** |
-| KNOB 3 | **LOAD** |
-| KNOB 4 | **SAVE** |
-| **SAVE** | back to the SONG screen |
-
-Each of ERASE, LOAD and SAVE needs a second click within about 1.5 seconds ("AGAIN: ...").
-
-**To play a song back:** in song mode, **PLAY** plays the whole song. To **record a song as you play it**, use SAVE + key 14.
+Holding and releasing SAVE with nothing else does not save anything. Tap **SAVE** on its own for the SAVE pages (PRESETS, USER, TOOLS), on every screen.
 
 ---
 
@@ -601,7 +559,6 @@ Each of ERASE, LOAD and SAVE needs a second click within about 1.5 seconds ("AGA
 | **Tap REC again** | cancels ("REC OFF") |
 | **Tap REC on an empty project** | a **free take**: it records without a tempo, and REC closes it |
 | **Hold REC** (about 0.7 s, then the ring fills over about 1.3 s more) | **clears the selected voice** ("TRACK 1 CLEARED"). Let go before the ring is full and nothing happens. EDIT + OCT- brings it back |
-| **REC in song mode** | waits ("STOP FIRST") |
 
 On the REC screen: KNOB 1 **MODE** (on an empty project), KNOB 2 the length (1, 2 or 4 bars), KNOB 3 **START** (on a note, or with a count-in). The click setting is GLO > GLOBAL > CLICK (OFF, REC, ON). The beat lights turn red on beat 1 only while recording.
 
@@ -641,9 +598,9 @@ Hold **ARP** and a key for a note-repeat roll. KNOB 1 sets the rate (1/8, 1/16, 
   - after you stop playing: 0.3 seconds after your last input, once the output is silent (under -60 dB), and at most every 5 seconds;
   - as a fallback: after 2.5 seconds with no input, at most every 20 seconds.
 - **At power-on**, the working project comes back as you left it.
-- **Saved only when you ask:** the sections A to D, the song order and the three SONGS (see [section 10](#10-sections-chains-and-songs)), and your user presets (SAVE > USER).
+- **Saved only when you ask:** the sections A to D (see [section 10](#10-sections)) and your user presets (SAVE > USER).
 - **Not part of a project** (they belong to the FM-1): SYNC, MIDI settings, the lights, the menu settings, the REC screen's MODE and START.
-- **Presets and projects are written to flash only while the song is stopped.**
+- **Presets and projects are written to flash only while stopped.**
 
 ---
 
@@ -801,13 +758,13 @@ Where they come from: ACID is Charles Vestal's TB-303 voice from X0X (after Open
 - Try the editor without hardware by adding `?mock=1` to its address. Its protocol is in [web/EDITOR_PROTOCOL.md](web/EDITOR_PROTOCOL.md).
 - The browser simulator and its cheat sheet are in `web/emu/`.
 
-A backup holds the music you are working on, the four projects, the 32 user presets, the MY HEX kits, the samples and the settings. The three saved songs are not in it. Save a backup before you flash anything.
+A backup holds the music you are working on, the four projects, the 32 user presets, the MY HEX kits, the samples and the settings. Save a backup before you flash anything.
 
 ---
 
 ## 19. Every button gesture, screen by screen
 
-Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_grid.c`, `ui_stut.c`, `ui_song.c`, `ui_studio.c`, `ui_menu.c`). "Twice" means two taps or two clicks within the stated time.
+Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_grid.c`, `ui_stut.c`, `ui_studio.c`, `ui_menu.c`). "Twice" means two taps or two clicks within the stated time.
 
 ### Anywhere
 
@@ -820,7 +777,7 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 | hold HOME 0.7 s | the menu |
 | tap ENV, LFO, FX, EDIT, ARP, SEL, GLO | open that button's pages |
 | tap SEQ | the GRID (on the GRID: the SEQ pages; on a SEQ page: back to the GRID) |
-| tap SAVE | SONG screen from HOME or a GRID; SAVE pages elsewhere; SONGS from the SONG screen |
+| tap SAVE | the SAVE pages (PRESETS, USER, TOOLS), on every screen |
 | hold a layer button, then tap HOME | lock that layer open |
 | ALGORITHM | choose the voice (not during a free take or in the menu) |
 | PRESETS | the sound list (drums: the kit) |
@@ -867,7 +824,6 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 | PRESETS or SELECT (nothing held) | the sound, or the tempo |
 | ALGORITHM | change voice and stay on the GRID (past DRUM: STUTTER) |
 | tap SEQ | the SEQ pages |
-| tap SAVE | the SONG screen |
 | tap REC, stopped | STEP REC on or off |
 | tap REC, playing | record live (the keys play notes) |
 | STEP REC: keys | a note, or a chord (keys held together), on the red step; the cursor moves on |
@@ -922,23 +878,8 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 | GLO | keys 9, 10, 16 | fill while held, fill next bar, tap tempo |
 | GLO | key 11 | the knobs set the pans (again: levels) |
 | GLO | F#3 | MIDI LEARN |
-| SAVE | keys 1 to 4 | play A to D (several taps: chain) |
+| SAVE | keys 1 to 4 | play A to D (playing: on the next bar) |
 | SAVE | keys 5 to 8 | store into A to D |
-| SAVE | keys 13, 14, 16 | loop or song, SONG REC, SONG screen |
-
-### SONG screen and SONGS
-
-| Gesture | Does |
-| --- | --- |
-| KNOB 1 to 4 | entry, section, bars, entry count |
-| a white key | move to that entry |
-| hold a white key + OCT+ or OCT- | insert or delete that entry |
-| OCT- (no key held) | loop or song mode |
-| OCT+ twice | load the section |
-| REC | store the loop into the section |
-| EDIT twice | erase the section |
-| SAVE | open or close SONGS |
-| SONGS: KNOB 1 to 4 | pick, ERASE, LOAD, SAVE (each needs a second click) |
 
 ### REC screen
 

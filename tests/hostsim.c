@@ -40,9 +40,6 @@ static void fm1_irq_on(void) {}
 static void fm1_delay_ms(uint32_t ms) { (void)ms; }
 #include "../firmware/src/usb.c"
 #include "../firmware/src/midi_uart.c"                /* TRS MIDI IN: its parser (um_byte) feeds midi_in_q */
-#if FELUCCA_ARRANGER
-#include "../firmware/src/arranger.c"
-#endif
 #include "../firmware/src/seq.c"
 #define inst (trk[0])                   /* the single-part renders below: part 1 */
 

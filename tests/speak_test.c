@@ -2,7 +2,7 @@
 /* The screen reader (ui_speak.c + announce.c, fm1-reader's protocol): a reader says HELLO, then the UI is used
  * as on the FM-1 (ui_pages_test.c's harness) and what KARMA sends is checked: the whole screen first, a sound
  * picked with PRESETS and its place in the list, a page and its knobs, a knob turning, play / stop, the octave,
- * a message, GLO's MIX layer, SAVE's song layer, the SONG and SONGS screens (3.1.3); nothing at all before a HELLO. SPEAK_LOG=1 prints every SAY. */
+ * a message, GLO's MIX layer, SAVE's sections layer (3.1.3); nothing at all before a HELLO. SPEAK_LOG=1 prints every SAY. */
 #define KARMA_ANN 1
 #define UI_PAGES_HARNESS_ONLY 1
 #include "ui_pages_test.c"
@@ -120,7 +120,7 @@ int main(void)
     clear();
     ui_message("SAVED"); sframes(4);
     check(heard("SAVED"), "a message on the screen is said (\"SAVED\")");
-    /* (3.1.3, issue #2: Joao's NVDA tests) GLO's MIX layer, SAVE's song layer, the SONG and SONGS screens */
+    /* (3.1.3, issue #2: Joao's NVDA tests) GLO's MIX layer, SAVE's sections layer */
     go_home(); sframes(20); clear();
     press(B_GLO); sframes(80);
     check(heard("mix. track 1, ") && heard("drums, ") && heard("knobs: levels."), "GLO held: the mixer, each track and its keys, in one message (not cut)");
@@ -141,30 +141,11 @@ int main(void)
     release(B_GLO); sframes(20);
     clear();
     press(B_SAVE); sframes(80);
-    check(heard("song. loop mode. part A") && heard("16: the song screen."), "SAVE held: the song layer, its parts and keys (not cut)");
+    check(heard("section. part A") && heard("5 to 8: save to a part."), "SAVE held: the sections layer, its parts and keys (not cut)");
     release(B_SAVE); sframes(20);
     go_home(); sframes(20); clear();
-    tap(B_SAVE); sframes(20);
-    check(on_song_page() && heard("song. ") && heard("entry 1 of "), "SAVE on HOME: the SONG screen, with the entry at the cursor");
-    clear();
-    encs[panel.enc[EN_K2]] = 1; frame(); sframes(20);
-    check(heard("entry 1 of ") && heard("part B"), "SONG + KNOB 2: the entry's new part");
-    encs[panel.enc[EN_K2]] = -1; frame(); sframes(20);
-    clear();
-    tap(B_SAVE); sframes(20);
-    check(heard("songs. song 1 selected") && heard("song 2: ") && heard("SAVE: back."), "SAVE on SONG: the saved songs, each one, in one message (not cut)");
-    clear();
-    encs[panel.enc[EN_K1]] = 1; frame(); sframes(20);
-    check(heard("song 2, "), "SONGS + KNOB 1: the song selected");
-    if (getenv("SPEAK_LOG")) printf("    (songs: %s)\n", said[0]);
-    {   /* (3.1.3, found on the FM-1: "knobs: t", "SAVE: bac") the longest cases fit one message: three full songs; four
-         * tracks muted, soloed, at 100 % */
-        uint32_t k2, n1, n2;
-        sp.cols = 0; sp_screen(0); n1 = str_len(sp_buf);     /* (the harness has no flash: no saved song; three full ones add
-                                                         * 3 x "A, B, C, D" = 30 characters to this) */
-        check(n1 + 30u < ANN_MAX - 4u && sp_buf[n1 - 1u] == '.', "the saved songs, all three full: one message, not cut");
-        if (getenv("SPEAK_LOG")) printf("    (%u + 30: %s)\n", n1, sp_buf);
-        tap(B_SAVE); sframes(20);
+    {   /* four tracks muted, soloed, at 100 %: one message */
+        uint32_t k2, n2;
         go_home(); sframes(20);
         for (k2 = 0; k2 < NTRK; k2++) trk[k2].p[P_MUTE] = 1, trk[k2].p[P_LEVEL] = 127;
         song.g[G_DRLVL] = 127; song.solo = 15u;

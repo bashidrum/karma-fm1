@@ -32,8 +32,6 @@ static const uint8_t FAM_BTN[FAM_COUNT] = {B_HOME, B_ENV, B_LFO, B_FX, B_SCL, B_
 static uint32_t cur_fam(void) { return ui.home ? FAM_HOME : cur_page()->fam; }
 static uint32_t cur_btn(void)                      /* the button of the screen shown */
 {
-    if (!ui.home && cur_page()->scope == SC_SONG)
-        return B_SAVE;
     if (!ui.home && cur_page()->scope == SC_DRUM)
         return B_SEQ;
     return FAM_BTN[cur_fam()];
@@ -131,13 +129,8 @@ static uint32_t keys_lit(void)
         return m;
     case LY_ERASE:                                 /* the sounds the pattern holds (NOTES: dim, the hits lit) */
         return (lights_notes ? 0u : erase_lanes(t)) | fm1_in.notes | (lights_notes ? keys_sounding(t) : 0u);
-    default:                                       /* playing, ARP roll, SAVE song, every page and the menu */
+    default:                                       /* playing, ARP roll, SAVE sections, every page and the menu */
         break;
-    }
-    if (kb_grid && on_song_page()) {               /* (PHEBUS) SONG: the keys of its entries */
-        for (i = 0; i < arrangement.count && i < 16u; i++)
-            m |= 1u << key_of_white(i);
-        return m;
     }
     if (kb_grid)                                   /* the GRID: the steps of the page shown (ui_grid.c) */
         return grid_keys_lit(blink) | fm1_in.notes;
@@ -424,12 +417,6 @@ static void edit_param(uint32_t slot, int32_t steps)
         break;
     case G_NEWPRJ:
         *vp = 0;
-#if FELUCCA_ARRANGER
-        if (song.playing && arrangement_enabled) {      /* (the song's stop would bring the old loop back) */
-            ui_message("STOP FIRST");
-            break;
-        }
-#endif
         project_new();
         ui_message("NEW LOOP");
         break;
@@ -506,12 +493,6 @@ static void layer_tap(uint32_t layer)
         break;
     case LY_ERASE:
     case LY_STEP:
-#if FELUCCA_ARRANGER
-        if (on_song_page() && layer == LY_ERASE) {         /* (3.0.5) SONG: EDIT twice erases the part at the cursor */
-            song_edit_tap();
-            break;
-        }
-#endif
         if (on_drum_page() && sg_held) {                  /* the GRID, a step held: EDIT walks the pages that lock
                                                           * (OSC > FILT > ENV, ui_grid.c); SEQ nothing */
             if (layer == LY_ERASE)
@@ -549,15 +530,8 @@ static void layer_tap(uint32_t layer)
     case LY_MIX:
         open_family(FAM_GLO);
         break;
-    case LY_SONG:                                         /* SAVE tapped: TRACKS -> the song, else the SAVE pages */
-        if (on_song_page())
-            song_save_tap();                              /* (3.0.5) the saved songs and back (the order keeps itself) */
-        else if (!ui.home && cur_page()->scope == SC_TRK)
-            studio_open(SC_SONG);
-        else if (on_drum_page())
-            studio_open(SC_SONG);
-        else
-            open_family(FAM_SAVE);
+    case LY_SONG:                                         /* SAVE tapped: the SAVE pages, everywhere (one job a button) */
+        open_family(FAM_SAVE);
         break;
     default:
         break;
@@ -620,8 +594,6 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
                                                            * Ariel); any other button, or GLO again, lets it go */
             ui.force = 1;
         }
-        if (!d && down[l] && l == LY_SONG)
-            chain_release();                              /* SAVE let go: the section taps of the hold (ui_layers.c) */
         down[l] = (uint8_t)d;
         if (d && held == LY_PLAY)
             held = l;
@@ -646,9 +618,7 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         while (lk_r != lk_w) {                            /* a key let go after its layer: its release only */
             uint32_t e = lk_q[lk_r % LKQ];
             lk_r++;
-            if ((e >> 8) == KB_GRID) {                    /* the GRID: a step key (its release always); the SONG
-                                                           * screen: an entry's key (PHEBUS) */
-                song_key(e & 31u, (e >> 7) & 1u);
+            if ((e >> 8) == KB_GRID) {                    /* the GRID: a step key (its release always) */
                 if (!((e >> 7) & 1u) || grid_keys_on())
                     grid_key(e & 31u, (e >> 7) & 1u);
             } else if (!((e >> 7) & 1u)) {
@@ -739,15 +709,13 @@ static void rec_knobs(void)
 
 /* REC: acts on the press (no lag). Held 0.7 s the press is undone and a ring fills: held on to the
  * end, the selected track is cleared (EDIT + OCT- brings it back); let go before, nothing happens.
- * (SAVE is the SONG layer: ui_layers.c; tapped, layer_tap) */
+ * (SAVE is the sections layer: ui_layers.c; tapped, layer_tap) */
 static void holds_input(uint32_t pressed, uint32_t now_ms)
 {
     static uint8_t prev_rec, prev_wait, prev_sr, eaten, rec_on, save_on;   /* *_on: pressed, *_t0 its time */
     static uint32_t rec_t0, save_t0;
     uint32_t rb = 1u << panel.btn[B_REC], sb = 1u << panel.btn[B_SAVE];
     uint32_t rec_down = (fm1_in.buttons & rb) != 0u, save_down = (fm1_in.buttons & sb) != 0u;
-    if (on_song_page())
-        rec_down = 0, pressed &= ~rb;                     /* (the song page: REC stores a section) */
     /* REC */
     if (pressed & rb) {
         eaten = (uint8_t)ft_owns_press();                 /* (the press closed a free take: seq.c) */
@@ -827,9 +795,8 @@ static void ui_input(void)
     }
     if (sr_on && (!sr_here() || song.sel != sr_trk || ui.menu))
         sr_set(0);                                      /* (STEP REC: the GRID or its track left) */
-    kb_grid = (uint8_t)((grid_keys_on() && !sr_on && !(song.rec && sr_here())) ||   /* (seq.c: the keys are the grid's
+    kb_grid = (uint8_t)(grid_keys_on() && !sr_on && !(song.rec && sr_here()));   /* (seq.c: the keys are the grid's
                                                          * steps; STEP REC and a live take on a synth GRID: notes) */
-                        (on_song_page() && !song_bank && !ui.menu));   /* (the SONG screen's entries, PHEBUS: no notes) */
     if (sg_held && (!kb_grid || song.sel != sg_trk))
         sg_drop();                                      /* (the GRID left with steps held: their keys clear nothing) */
     if (ui.menu) {                                      /* HOME / REC taps do nothing here */
@@ -848,7 +815,7 @@ static void ui_input(void)
     pressed &= ~((ly_bit[LY_FX] | ly_bit[LY_ERASE] | ly_bit[LY_ROLL] | ly_bit[LY_STEP] | ly_bit[LY_SCALE] | ly_bit[LY_MIX] |
                   ly_bit[LY_SONG]) & ~ly_off);           /* (STEP REC: SEQ and ARP reach the GRID, ui_grid.c sr_input) */
     holds_input(pressed, fm1_ms);
-    pressed &= ~((on_song_page() ? 0u : 1u << panel.btn[B_REC]) | (1u << panel.btn[B_SAVE]));
+    pressed &= ~((1u << panel.btn[B_REC]) | (1u << panel.btn[B_SAVE]));
     if (layered || ui.hold_kind) {                      /* a layer / a hold: the rest waits */
         if ((s = panel_enc(EN_SELECT)) != 0) {           /* (the tempo always) */
             song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + accel(EN_SELECT, s, 200), GP[G_BPM].min, GP[G_BPM].max);
@@ -877,10 +844,6 @@ static void ui_input(void)
             panel_enc(EN_K1 + k);
     }
 #if FELUCCA_ARRANGER
-    if (on_song_page()) {
-        song_screen_input(pressed, home);
-        return;
-    }
     if (on_drum_page()) {
         drum_screen_input(pressed, home);
         return;
@@ -901,12 +864,6 @@ static void ui_input(void)
         b = panel_btn_of(id);
         switch (b) {
         case B_PLAY:
-#if FELUCCA_ARRANGER
-            if (!song.playing && arrangement_enabled && !arr_valid(&arrangement, arrangement_ready())) {
-                ui_message("EMPTY SECTION: REC");
-                break;
-            }
-#endif
             if (!ft_owns_press())                       /* (it closed or dropped a free take: seq.c) */
                 transport_req = song.playing ? 2 : 1;
             break;

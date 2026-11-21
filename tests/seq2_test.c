@@ -13,7 +13,7 @@
  *   nudge    (2.4) a step fires 1/64ths of a step early or late; crossing nudges keep the order
  *   locks    (2.4) a parameter lock sets p[] for its step, the base returns at the next one
  *   fill     (2.4) FILL ONLY / NO FILL steps follow GLO + key 9 (held) and key 10 (the next bar); STOP clears
- *   chain    (2.4) SAVE + two section taps: the sections in turn, each for its pattern's bars, looped
+ *   sections SAVE + a section key while playing: on the next bar
  * Exit status: the number of failed checks. */
 #define FELUCCA_ARRANGER 1
 #define main hostsim_main
@@ -834,8 +834,8 @@ static void t_mclk_jitter(void)
     song.g[G_SYNC] = 0;
     reset(120);
 }
-/* KARMA 3.0 (2026-10-28, Ariel: Ableton loops 16 bars, the FM-1's song ran on and ended): Song Position Pointer with
- * SYNC = USB. Sections A (1 bar), B (2), C (3); the song A B C, each LOOP (bars 0: its own length) */
+/* KARMA 3.0 (2026-10-28, Ariel: Ableton loops 16 bars): Song Position Pointer with SYNC = USB (the song mode it also
+ * moved is cut, PHEBUS wave 1): the loop jumps there; stopped, CONTINUE plays from there */
 static void spp_push(uint32_t pos16) { mclk_push(0xF20Fu | (pos16 & 0x7Fu) << 16 | (pos16 >> 7 & 0x7Fu) << 24); }
 static void t_spp(void)
 {
@@ -853,44 +853,15 @@ static void t_spp(void)
     TDRUM->p[P_SLEN] = 48;
     proj_capture(&proj_slot[2]);                     /* C: three bars */
     proj_slot[3].magic = 0;
-    arrangement.count = 3;
-    arrangement.loop = 0;
-    for (i = 0; i < 3u; i++)
-        arrangement.entry[i].scene = (uint8_t)i, arrangement.entry[i].bars = 0;
-    arrangement_enabled = 1;
     song.g[G_SYNC] = 1;
     mclk_run(&t, &next, per, 300, 0);
     mclk_push(0xFA0Fu);                               /* START */
-    next = t;
-    mclk_run(&t, &next, per, t + 3000.0, 0);          /* a bar and a half (A, then B) */
-    ok = song.playing && live_sec == 1 && arrangement_clock.index == 1;
-    check(ok, "SPP: song mode, LOOP entries: A plays its 1 bar, then B");
-    spp_push(3u * 16u + 4u);                          /* the master jumps to bar 4, beat 2: C's first bar */
-    mclk_run(&t, &next, per, t + 10.0, 0);
-    ok = song.playing && live_sec == 2 && arrangement_clock.index == 2 && arrangement_clock.bar == 0 && clk_beat == 1u;
-    check(ok, "SPP: a jump to bar 4 beat 2 -> section C, its bar 1, beat 2");
-    spp_push(1u * 16u);                               /* back to bar 2: B */
-    mclk_run(&t, &next, per, t + 10.0, 0);
-    check(live_sec == 1 && arrangement_clock.index == 1 && clk_beat == 0u, "SPP: a jump back to bar 2 -> section B from its top");
-    mclk_run(&t, &next, per, t + 10500.0, 0);         /* B's 2 bars and C's 3, then a beat: the master runs on */
-    ok = song.playing && live_sec == 0 && arrangement_clock.index == 0 && arrangement_clock.running && clk_beat == 1u;
-    check(ok, "SPP: the song ends while the clock runs on (Ableton's loop sends no SONG POSITION) -> A again, on the bar");
-    mclk_run(&t, &next, per, t + 2000.0, 0);
-    check(song.playing && arrangement_clock.index == 1, "SPP: ... and on: B after A, as the first time");
-    spp_push(0);                                      /* the master moves to bar 1 */
-    mclk_run(&t, &next, per, t + 60.0, 0);
-    ok = song.playing && live_sec == 0 && arrangement_clock.index == 0 && arrangement_clock.running;
-    check(ok, "SPP: the master jumps to bar 1 -> the song from A");
-    mclk_push(0xFC0Fu);                               /* STOP */
-    mclk_run(&t, &next, per, t + 20.0, 0);
-    arrangement_enabled = 0;
-    mclk_push(0xFA0Fu);                               /* loop mode: START */
     next = t;
     mclk_run(&t, &next, per, t + 500.0, 0);
     spp_push(2u * 16u + 5u);                          /* bar 3, the 6th 16th: beat 10 (9 from 0), a 16th in */
     mclk_run(&t, &next, per, t + 1.0, 0);
     check(song.playing && clk_beat == 9u && clk_pos >= BEAT_U / 4u && clk_pos < BEAT_U / 4u + 4u * CTL * 120u,
-          "SPP: loop mode, a jump to bar 3 + 5 16ths -> beat 9 and a 16th");
+          "SPP: a jump to bar 3 + 5 16ths -> beat 9 and a 16th");
     mclk_push(0xFC0Fu);
     mclk_run(&t, &next, per, t + 20.0, 0);
     spp_push(8u);                                     /* stopped: the master moves to beat 3, then CONTINUE */
@@ -1566,9 +1537,8 @@ static void t_fill(void)
         run_block();
 }
 
-/* edits stick (2026-10-28): a hit erased while section A plays in a chain stays erased when the chain comes back to A
- * (kept by the main loop a moment after the edit, mid-bar), and in song mode (kept at STOP too; STOP brings the loop
- * from before the song back) */
+/* edits stick (2026-10-28): a hit erased while section A plays stays erased when A comes back
+ * (kept by the main loop a moment after the edit, mid-bar) */
 static void t_edits_stick(void)
 {
     uint32_t i, bar = (uint32_t)((double)FS * 60.0 / 120.0 * 4.0 / CTL + 0.5), ok;
@@ -1586,16 +1556,9 @@ static void t_edits_stick(void)
     proj_slot[2].magic = proj_slot[3].magic = 0;
     proj_apply(&proj_slot[0], 1);
     live_sec = 0;
-    arrangement_enabled = 0;
     sec_kept = 0;
     transport_req = 1;
     run_block();
-    chain_n = 0;
-    chain_sec[0] = 0;
-    chain_sec[1] = 1;
-    chain_i = 0;
-    chain_bars = 1;
-    chain_n = 2;
     bar_run(1);
     while (live_sec != 0 && blk < 40000u)            /* (on A) */
         run_block();
@@ -1603,44 +1566,21 @@ static void t_edits_stick(void)
     while ((clk_beat & 3u) != 1u && live_sec == 0 && blk < 40000u)
         run_block();
     section_keep_ui(1400u, 1000u);                   /* (the main loop, 0.4 s later, on beat 2) */
+    live_req = 1;                                    /* SAVE + 2: B on the next bar */
     while (live_sec != 1 && blk < 40000u)
         run_block();
-    while (live_sec != 0 && blk < 40000u)            /* B, then A again */
+    live_req = 0;                                    /* SAVE + 1: A again */
+    while (live_sec != 0 && blk < 40000u)
         run_block();
     ok = !dstep_has(&TDRUM->dstep[4], 2) && dstep_has(&TDRUM->dstep[0], 0) && !dstep_has(&proj_slot[0].t[TRK_DRUM].dstep[4], 2) &&
          (sec_kept & 1u) && !dstep_has(&proj_slot[1].t[TRK_DRUM].dstep[4], 2) && dstep_has(&proj_slot[1].t[TRK_DRUM].dstep[8], 4);
-    check(ok, "edits stick: a hit erased while A plays in a chain stays erased when A comes back (and in A's slot)");
+    check(ok, "edits stick: a hit erased while A plays stays erased when A comes back after B (and in A's slot)");
     transport_req = 2;
     run_block();
-    chain_n = 0;
-    /* song mode: A B; the hat of B erased while B plays; STOP: B keeps it, the loop from before the song comes back */
-    dstep_set(&TDRUM->dstep[12], 5, LV_NORM, 0);     /* (the loop before the song: a mark on 13) */
-    live_sec = -1;
-    arrangement.count = 2;
-    arrangement.loop = 1;
-    arrangement.entry[0].scene = 0, arrangement.entry[0].bars = 1;
-    arrangement.entry[1].scene = 1, arrangement.entry[1].bars = 1;
-    arrangement_enabled = 1;
-    sec_kept = 0;
-    transport_req = 1;
-    run_block();
-    for (i = 0; i < 4u * bar && live_sec != 1; i++)
-        run_block();
-    dstep_clr(&TDRUM->dstep[8], 4);
-    for (i = 0; i < bar / 2u; i++)
-        run_block();
-    transport_req = 2;
-    run_block();
-    ok = !song.playing && !dstep_has(&proj_slot[1].t[TRK_DRUM].dstep[8], 4) && (sec_kept & 2u) &&
-         dstep_has(&TDRUM->dstep[12], 5) && live_sec == -1;
-    check(ok, "edits stick in song mode: B keeps the erased hat; STOP brings back the loop from before the song");
-    arrangement_enabled = 0;
     for (i = 0; i < (uint32_t)(FS / CTL); i++)
         run_block();
     /* (3.0.5, GitHub issue #3) SAVE + 5 stores the loop in A; the next pattern built after it is not A's (it went
      * into A, and SAVE + 6 then made A and B the same); A picked again (SAVE + 1): its edits stick again */
-    arrangement_enabled = 0;
-    chain_n = 0;
     live_sec = -1;
     proj_slot[0].magic = proj_slot[1].magic = proj_slot[2].magic = proj_slot[3].magic = 0;
     for (i = 0; i < 16u; i++) {
@@ -1678,13 +1618,11 @@ static void t_edits_stick(void)
     reset(120);
 }
 
-/* SLOOP 2.4: the quick chain (SAVE held + two or more section keys, ui_layers.c chain_release). Sections A (1 bar:
- * 16 steps of 1/16) and B (2 bars: the drum track 32 steps) in proj_slot[0..1]; the chain A B asked for while
- * playing: A on the next bar, B a bar later, A two bars after that, round again; a single tap ends the chain */
-static void t_chain(void)
+/* the sections (SAVE held + keys 1..4, ui_layers.c): one asked for while playing starts on the next bar, every track
+ * from its step 0, and stays (the quick chain and song mode are cut, PHEBUS wave 1) */
+static void t_section_next(void)
 {
-    uint32_t i, bar = (uint32_t)((double)FS * 60.0 / 120.0 * 4.0 / CTL + 0.5), t0 = 0, n = 0, ok = 1, bars_a, bars_b;
-    struct { uint32_t blk; int8_t sec; } ev[8];
+    uint32_t i, bar = (uint32_t)((double)FS * 60.0 / 120.0 * 4.0 / CTL + 0.5), changes = 0, before;
     int8_t last;
     reset(120);
     for (i = 0; i < NTRK; i++) {
@@ -1692,73 +1630,35 @@ static void t_chain(void)
         trk[i].p[P_SDIV] = 2;
     }
     dstep_set(&TDRUM->dstep[0], 0, LV_NORM, 0);
-    proj_capture(&proj_slot[0]);                     /* A: one bar */
-    TDRUM->p[P_SLEN] = 32;
-    dstep_set(&TDRUM->dstep[16], 2, LV_NORM, 0);
-    proj_capture(&proj_slot[1]);                     /* B: two bars (the drum track) */
-    trk[1].p[P_SLEN] = 3;
-    trk[1].p[P_SDIV] = 7;                            /* 1BAR x 3: three bars */
-    proj_capture(&proj_slot[2]);                     /* C: three bars */
-    proj_slot[3].magic = 0;
-    bars_a = section_bars(0);
-    bars_b = section_bars(1);
-    check(bars_a == 1u && bars_b == 2u && section_bars(2) == 3u && section_bars(3) == 1u && arrangement_ready() == 7u,
-          "2.4: section_bars: A 1 bar, B 2 bars (32 x 1/16), C 3 bars (3 x 1BAR); an empty slot 1");
+    proj_capture(&proj_slot[0]);                     /* A */
+    dstep_set(&TDRUM->dstep[4], 2, LV_NORM, 0);
+    proj_capture(&proj_slot[2]);                     /* C */
+    proj_slot[1].magic = proj_slot[3].magic = 0;
+    check(arrangement_ready() == 5u, "sections: the stored ones (A, C), a bit each");
     proj_apply(&proj_slot[2], 1);                    /* C is the loop */
     live_sec = 2;
-    arrangement_enabled = 0;
     transport_req = 1;
     run_block();
-    bar_run(2);                                      /* mid bar 1: SAVE held, A then B tapped, SAVE let go */
-    chain_n = 0;
-    live_req = 0;                                    /* (the first tap, as ever) */
-    chain_sec[0] = 0;
-    chain_sec[1] = 1;
-    chain_i = 0;
-    chain_bars = (uint8_t)bars_a;
-    chain_n = 2;
+    bar_run(2);                                      /* mid bar 1: SAVE held, A tapped */
+    live_req = 0;
+    bar_run(3);
+    before = (uint32_t)live_sec;                     /* (still C in bar 1's last beat) */
+    bar_run(4);                                      /* the block that starts bar 2 */
+    run_block();                                     /* (the next block sees the new bar: A from its step 0) */
+    before |= (uint32_t)(live_sec != 0) << 8 | (clk_beat != 0u) << 9;
     last = live_sec;
-    while (n < 6u && blk < 40000u) {
+    for (i = 0; i < 6u * bar; i++) {
         run_block();
         if (live_sec != last) {
+            changes++;
             last = live_sec;
-            ev[n].blk = (uint32_t)blk - 1u;
-            ev[n].sec = live_sec;
-            n++;
         }
     }
-    /* the section changes seen: A (the tap, bar 2) B (bar 3) A (bar 5) B (bar 6) A (bar 8) B (bar 9) */
-    ok = n == 6u && ev[0].sec == 0 && ev[1].sec == 1 && ev[2].sec == 0 && ev[3].sec == 1 && ev[4].sec == 0 && ev[5].sec == 1;
-    t0 = n ? ev[0].blk : 0;
-    for (i = 1; i < n && i < 6u; i++) {
-        static const uint32_t AT[6] = {0, 1, 3, 4, 6, 7};
-        uint32_t want = t0 + AT[i] * bar, got = ev[i].blk;
-        ok &= got + 1u >= want && got <= want + 1u;
-    }
-    if (!ok) {
-        printf("seq2:   chain: %u changes:", n);
-        for (i = 0; i < n; i++) printf(" %c@%u", 'A' + ev[i].sec, ev[i].blk);
-        printf(" (bar %u blocks)\n", bar);
-    }
-    check(ok, "2.4: chain A B: A on the next bar, B a bar later, A two bars after that, round again (bar exact)");
-    check(chain_n == 2u && chain_i == 1u && chain_bars == 2u, "2.4: the chain state follows: entry 2 (B), 2 bars");
-    chain_n = 0;                                     /* a single tap of A: the chain ends, A plays on */
-    live_req = 0;
-    {
-        uint32_t changes = 0;
-        last = live_sec;
-        for (i = 0; i < 6u * bar; i++) {
-            run_block();
-            if (live_sec != last) {
-                changes++;
-                last = live_sec;
-            }
-        }
-        check(changes == 1u && live_sec == 0 && chain_n == 0u, "2.4: a single section tap cancels the chain: A, and it stays");
-    }
+    check(before == 2u && changes == 0u && live_sec == 0 && live_req < 0 && !dstep_has(&TDRUM->dstep[4], 2),
+          "sections: A asked for mid bar 1 plays from bar 2, and stays (no chain)");
     transport_req = 2;
     run_block();
-    check(!song.playing && live_req < 0 && chain_n == 0u, "2.4: STOP: no chain, no request");
+    check(!song.playing && live_req < 0, "sections: STOP: no request left");
     for (i = 0; i < (uint32_t)(FS / CTL); i++)
         run_block();
     reset(120);
@@ -2125,7 +2025,7 @@ int main(void)
     t_micro();
     t_plock();
     t_fill();
-    t_chain();
+    t_section_next();
     t_edits_stick();
     t_mclk_burst();
     t_mclk_smooth();

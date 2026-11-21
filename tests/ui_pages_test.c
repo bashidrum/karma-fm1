@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The real UI (ui.c, ui_draw.c, ui_studio.c, ui_layers.c, ui_song.c, ui_menu.c, ui_input.c) on a
+/* The real UI (ui.c, ui_draw.c, ui_studio.c, ui_layers.c, ui_menu.c, ui_input.c) on a
  * framebuffer with panel / flash / storage doubles, the audio (mix_block) running between frames as on
  * the device. Renders every screen to PPM for review (DIR/page-*.ppm, live-*.ppm, layer-*.ppm) and
  * drives the panel:
@@ -14,8 +14,7 @@
  *   SEL     held + a key: the key of the song
  *   GLO     held + keys: mute, solo, fill (held) / fill the next bar, tap tempo; knobs: levels
  *   REC     press: arm / record at once; held: the clear ring, to the end: cleared (undo brings it back)
- *   SAVE    tapped: the song page; held: the SONG layer (sections A..D: play / store, SONG REC; two or more
- *           section taps: a chain, "chain A B" on the sub line)
+ *   SAVE    tapped: the SAVE pages (PRESETS first), on every screen; held: the sections layer (A..D: play / store)
  *   DRUMS   the grid: sound / step / hit / level knobs, GRID <-> KIT
  * then 20000 frames of random use: every draw stays on the screen. */
 #define FELUCCA_ARRANGER 1
@@ -59,16 +58,8 @@ static int project_used(uint32_t i) { return i < 2; }
 static void project_save(uint32_t i) { (void)i; saves++; ui_message("SAVED"); }
 static void project_load(uint32_t i) { (void)i; loads++; }
 static void project_erase(uint32_t i) { (void)i; erases++; ui_message("ERASED"); }
-static uint32_t song_ops[3], song_last = 99;                  /* (3.0.5) SAVE > SONGS: ERASE LOAD SAVE */
-static void song_go(uint32_t op, uint32_t k) { song_ops[op % 3u]++; song_last = k; }
-static uint32_t song_info_of(uint32_t k) { return k == 0u ? 0x83u : 0u; }   /* SONG 1: parts 1, 2 */
-static void arrangement_save(void) {}
 static uint32_t arrangement_ready(void) { return 3; }
 static void arrangement_apply(uint32_t s) { (void)s; }
-static uint32_t section_bars(uint32_t s) { return s == 1u ? 2u : 1u; }   /* (B: two bars) */
-static uint32_t arr_scene_bars(uint32_t scene) { return section_bars(scene); }   /* (arranger.h: a LOOP entry) */
-static void song_backup(void) {}
-static void song_restore(void) {}
 static uint32_t sec_stores, sec_loads;
 static void section_store(uint32_t s) { sec_stores++; live_sec = (int8_t)s; }
 static void section_load(uint32_t s) { sec_loads++; live_sec = (int8_t)s; }
@@ -83,7 +74,6 @@ static void up_name(uint32_t k, char *b) { str_cpy(b, k ? "MY PAD" : "MY LEAD", 
 static void up_slot_label(char *b, uint32_t k) { fmt_int(b, (int32_t)k + 1); }
 static void up_ui(uint32_t op, uint32_t k) { (void)op; (void)k; }
 static void settings_save(void) {}
-#include "../firmware/src/ui_song.c"
 #include "../firmware/src/ui_studio.c"
 #include "../firmware/src/ui_op.c"
 #include "../firmware/src/icons.c"
@@ -704,10 +694,10 @@ int main(int argc, char **argv)
     press(B_REC); frames(60); release(B_REC);         /* let go before the end: nothing */
     check(trk[0].step[3].n == 1 && !rec_wait, "REC let go before the end: nothing cleared");
 
-    /* ---- SAVE: tap = the song page; held = the SONG layer (live sections, SONG REC) */
+    /* ---- SAVE: tap = the SAVE pages (PRESETS / USER / TOOLS) everywhere; held = the sections layer (A..D: play / store) */
     go_home(); frame();
-    song.playing = 0; live_sec = -1; live_req = -1; srec = 0; arrangement_enabled = 0;
-    press(B_SAVE); frames(15); check(ui.layer == LY_SONG, "SAVE held: the song layer");
+    song.playing = 0; live_sec = -1; live_req = -1;
+    press(B_SAVE); frames(15); check(ui.layer == LY_SONG, "SAVE held: the sections layer");
     key(key_of_white(4)); check(sec_stores == 0 && sec_armed == 1u, "store over a used A: asks again");
     key(key_of_white(4)); check(sec_stores == 1 && live_sec == 0, "again: the loop stored in A");
     key(key_of_white(6)); check(sec_stores == 2 && live_sec == 2, "an empty C: stored at once");
@@ -715,122 +705,33 @@ int main(int argc, char **argv)
     key(key_of_white(3)); check(sec_loads == 1, "an empty D: not played");
     song.playing = 1; clk_beat = 1; clk_pos = 0;
     key(key_of_white(0)); check(live_req == 0, "playing: A asked for the next bar");
-    release(B_SAVE); frames(2);
-    check(chain_n == 0u && chain_taps == 0u && live_req == 0, "one tap, SAVE let go: no chain (as before)");
-    live_req = -1;
-    press(B_SAVE); frames(15);                        /* (2.4) SAVE held: A, B, B tapped: a chain on release */
-    key(key_of_white(0)); key(key_of_white(1));
-    check(live_req == 0 && chain_taps == 2u && chain_n == 0u, "SAVE held, A then B tapped: A asked for, the chain building");
-    ui.force = 1; frame();
-    check(str_eq(sub_line(), "chain A B"), "the sub line reads \"chain A B\"");
-    key(key_of_white(1));
-    ui.force = 1; frame(); ppm("layer-song-chain");
-    check(chain_taps == 3u && str_eq(sub_line(), "chain A B B"), "B again: \"chain A B B\"");
-    release(B_SAVE); frames(2);
-    check(chain_n == 3u && chain_i == 0u && chain_sec[0] == 0 && chain_sec[1] == 1 && chain_sec[2] == 1 && chain_bars == 1u && live_req == 0,
-          "SAVE let go: the chain A B B plays (A asked for, 1 bar)");
-    press(B_SAVE); frames(15);
-    check(str_eq(sub_line(), "chain A B B"), "SAVE held again: the chain shown");
-    key(key_of_white(1)); release(B_SAVE); frames(2);
-    check(chain_n == 0u && live_req == 1, "a single tap of B: the chain ends, B asked for");
-    press(B_SAVE); frames(15);
-    live_req = -1; song.playing = 0;
-    key(key_of_white(13)); check(srec == 1u && !arrangement_enabled, "SONG REC armed (loop mode)");
+    key(key_of_white(1)); check(live_req == 1, "B tapped in the same hold: B asked for instead (no chain)");
     ui.force = 1; frame(); ppm("layer-song");
-    key(key_of_white(13)); check(srec == 0u, "SONG REC again: off");
-    key(key_of_white(12)); check(arrangement_enabled == 1u, "loop / song: song mode");
-    key(key_of_white(12)); check(arrangement_enabled == 0u, "again: loop mode");
-    release(B_SAVE);
-    check(!on_song_page() && saves == 0, "SAVE held and let go: no song page, no save");
-    tap(B_SAVE); check(on_song_page(), "SAVE tapped on TRACKS: the song page");
-    lcd_fill(0, 40, 240, 2, C_WHITE);
-    ui.force = 1; frame(); ppm("page-song");
-    check(px_count(0, 40, 240, 2, C_WHITE) == 0, "SONG: the header covers rows 40 and 41 (no stray pixels, review 19)");
-    {   /* (PHEBUS, 21 Nov) the song / loop switch (OCT-) is named on the screen, above the mode */
-        uint32_t x, y, lit = 0;
-        for (y = 4; y < 16; y++) for (x = 76; x < 150; x++) lit += screen[y * 240 + x] != 0;
-        check(lit > 40u, "SONG: OCT-'s song / loop switch has its hint");
+    {   /* (PHEBUS wave 1: song mode, SONG REC and the SONG screen are cut) keys 13, 14, 16 do nothing */
+        uint32_t st0 = sec_stores, ld0 = sec_loads, pg0 = ui.page;
+        key(key_of_white(12)); key(key_of_white(13)); key(key_of_white(15));
+        check(sec_stores == st0 && sec_loads == ld0 && live_req == 1 && ui.page == pg0 && ui.layer == LY_SONG,
+              "SAVE held + keys 13, 14, 16: nothing (song mode, SONG REC and the song page are gone)");
+        check(str_eq(LAYER_NAME[LY_SONG], "section") && str_eq(sub_line(), "next bar"), "the layer reads \"section\", playing: \"next bar\"");
     }
-    {   /* PHEBUS (Ben, 21 Nov 2026: "Hold the entry's key"): white key n is entry n; held, OCT+ inserts a copy of its
-         * entry there, OCT- deletes it; plain OCT- / OCT+ as before; the keys play no note here; refusals */
-        static const uint8_t SCN[3] = {0, 1, 2}, BRS[3] = {1, 2, 3};
-        uint32_t j, gate = 0, v2, mode0;
-        #define SONG_SET(n_) do { arr_defaults(&arrangement); arrangement.count = (n_); \
-            for (j = 0; j < (n_); j++) arrangement.entry[j].scene = SCN[j % 3u], arrangement.entry[j].bars = BRS[j % 3u]; } while (0)
-        #define HOLD(w_) do { fm1_in.notes = 1u << key_of_white(w_); frame(); } while (0)
-        #define LET() do { fm1_in.notes = 0; frame(); } while (0)
-        SONG_SET(3); song_cursor = 0; ui.force = 1; frame();
-        check(keys_lit() == (1u << key_of_white(0) | 1u << key_of_white(1) | 1u << key_of_white(2)),
-              "SONG: the keys of its three entries lit");
-        HOLD(1);
-        for (v2 = 0; v2 < NVOICE; v2++) gate |= TSEL->v[v2].active && TSEL->v[v2].gate;
-        check(!gate && song_cursor == 1u && song_held == 2u, "SONG: white key 2 held: no note, the cursor on entry 2");
-        ui.force = 1; frame(); ppm("page-song-held");
-        tap(B_OCTUP);
-        check(arrangement.count == 4u && arrangement.entry[1].scene == 1u && arrangement.entry[1].bars == 2u &&
-              arrangement.entry[2].scene == 1u && arrangement.entry[2].bars == 2u && arrangement.entry[3].scene == 2u &&
-              arrangement.entry[0].scene == 0u && !strcmp(ui.msg, "INSERTED 2"),
-              "SONG: key 2 held + OCT+: a copy of entry 2 inserted there (B B), the rest one on");
-        tap(B_OCTDN);
-        check(arrangement.count == 3u && arrangement.entry[1].scene == 1u && arrangement.entry[2].scene == 2u &&
-              !strcmp(ui.msg, "DELETED 2"), "SONG: key 2 held + OCT-: entry 2 deleted, the rest one back");
-        LET();
-        mode0 = arrangement_enabled;
-        tap(B_OCTDN);
-        check(arrangement.count == 3u && arrangement_enabled == !mode0, "SONG: no key held, OCT-: song / loop as before");
-        tap(B_OCTDN);
-        HOLD(8); tap(B_OCTDN);
-        check(arrangement.count == 3u && !strcmp(ui.msg, "NO ENTRY 9"), "SONG: key 9 held (3 entries) + OCT-: NO ENTRY 9");
-        song_cursor = 0; HOLD(8); tap(B_OCTUP);
-        check(arrangement.count == 4u && arrangement.entry[3].scene == arrangement.entry[0].scene &&
-              !strcmp(ui.msg, "INSERTED 4"), "SONG: key 9 held + OCT+: past the end, a copy of the cursor's entry at the end");
-        LET();
-        SONG_SET(ARR_STEPS); HOLD(0); tap(B_OCTUP); LET();
-        check(arrangement.count == ARR_STEPS && !strcmp(ui.msg, "SONG FULL (16)"), "SONG: full (16) + OCT+: refused, SONG FULL");
-        SONG_SET(1); HOLD(0); tap(B_OCTDN); LET();
-        check(arrangement.count == 1u && !strcmp(ui.msg, "SONG NEEDS ONE"), "SONG: one entry + OCT-: refused, SONG NEEDS ONE");
-        SONG_SET(3); song.playing = 1; HOLD(0); tap(B_OCTUP); tap(B_OCTDN); LET(); song.playing = 0;
-        check(arrangement.count == 3u && !strcmp(ui.msg, "STOP FIRST"), "SONG: playing, key held + OCT+ / OCT-: STOP FIRST (as every edit)");
-        song_cursor = 0; arr_defaults(&arrangement); ui.msg_t = 0; ui.force = 1; frame();
-        #undef SONG_SET
-        #undef HOLD
-        #undef LET
+    release(B_SAVE); frames(2);
+    check(live_req == 1 && saves == 0, "SAVE let go: B still asked for, nothing saved");
+    live_req = -1; song.playing = 0;
+    go_home(); frames(2);
+    tap(B_SAVE); frames(2);
+    check(!ui.home && cur_page()->fam == FAM_SAVE && str_eq(cur_page()->title, "PRESETS"), "SAVE tapped on HOME: PRESETS (one job a button)");
+    song.sel = 0; studio_open(SC_DRUM); frames(2);
+    tap(B_SAVE); frames(2);
+    check(cur_page()->fam == FAM_SAVE && str_eq(cur_page()->title, "PRESETS"), "SAVE tapped on a synth GRID: PRESETS");
+    song.sel = TRK_DRUM; studio_open(SC_DRUM); frames(2);
+    tap(B_SAVE); frames(2);
+    check(cur_page()->fam == FAM_SAVE && str_eq(cur_page()->title, "PRESETS"), "SAVE tapped on the drum GRID: PRESETS");
+    {   /* no page is the old SONG screen */
+        uint32_t i, none = 1;
+        for (i = 0; i < NPAGES; i++) none &= !str_eq(PAGES[i].title, "SONG");
+        check(none, "no SONG page left");
     }
-    {   /* 3.0.5: on the SONG screen SAVE shows the saved songs (KNOB 1 the song, 2 ERASE, 3 LOAD, 4 SAVE: twice), SAVE
-         * again goes back; EDIT twice erases the part at the cursor (SAVE > PROJECT did) */
-        uint32_t sv = song_ops[2], ld = song_ops[1], e0 = erases;
-        song.playing = 0; transport_req = 0;
-        tap(B_SAVE); frames(16);                         /* (the knobs quiet after a layer button, #39) */
-        check(on_song_page() && song_bank && saves == 0, "SONG, SAVE: the saved songs (nothing saved)");
-        ui.sslot = 0;
-        encs[panel.enc[EN_K1]] = 9; frames(2);
-        check(ui.sslot == NSONG - 1u, "SONGS, KNOB 1: up to SONG 3, no further");
-        encs[panel.enc[EN_K1]] = -9; frames(2);
-        encs[panel.enc[EN_K4]] = 1; frames(2);
-        check(song_ops[2] == sv && !strcmp(ui.msg, "AGAIN: SAVE"), "SONGS, KNOB 4 one detent: AGAIN: SAVE, nothing saved");
-        ui.force = 1; frame(); ppm("page-songs");
-        encs[panel.enc[EN_K4]] = 1; frames(2);
-        check(song_ops[2] == sv + 1u && song_last == 0u && !ui.arm, "SONGS, KNOB 4 again: SONG 1 saved");
-        encs[panel.enc[EN_K1]] = 1; frames(2);
-        encs[panel.enc[EN_K3]] = 1; frames(2);
-        encs[panel.enc[EN_K3]] = 1; frames(2);
-        check(song_ops[1] == ld + 1u && song_last == 1u, "SONGS, KNOB 3 twice: SONG 2 loaded");
-        ui.sslot = 0;
-        tap(B_SAVE); frames(2);
-        check(on_song_page() && !song_bank, "SONGS, SAVE: back to the song");
-        song_cursor = 0; arrangement.entry[0].scene = 1;    /* (part B: used, the stub) */
-        tap(B_EDIT); frames(2);
-        check(erases == e0 && !strcmp(ui.msg, "AGAIN: ERASE B"), "SONG, EDIT: AGAIN: ERASE B (one confirm pattern, review 21), nothing erased");
-        tap(B_EDIT); frames(2);
-        check(erases == e0 + 1u && on_song_page(), "SONG, EDIT again: part B erased, still the song");
-        arrangement.entry[0].scene = 3;
-        tap(B_EDIT); frames(2);
-        check(erases == e0 + 1u && !strcmp(ui.msg, "EMPTY SECTION"), "SONG, EDIT on an empty section: EMPTY SECTION (review 21)");
-        tap(B_SAVE); frames(2); go_home(); frames(2);
-        studio_open(SC_SONG); frames(2);
-        check(!song_bank, "  the song screen opens on the song, not the saved songs");
-        arr_defaults(&arrangement); go_home(); frames(16);
-    }
+    go_home(); frames(16);
 
     /* ---- the drum screen */
     song.sel = TRK_DRUM; studio_open(SC_DRUM); ui.force = 1; frames(16);   /* (after SAVE: the knobs quiet, #39) */
