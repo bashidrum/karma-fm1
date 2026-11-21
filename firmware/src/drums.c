@@ -26,7 +26,8 @@ static const char *const DRUM_KIT_STYLES[] = {"ELECTRO", "TECHNO", "INDUSTRIAL",
                                               "YOUR HEX", "YOUR HEX", "YOUR HEX", "YOUR HEX"};
 _Static_assert(sizeof(DRUM_KIT_NAMES) / sizeof(DRUM_KIT_NAMES[0]) == DRUM_KITS, "a name per kit");
 static uint32_t drum_kit(void) { return (uint32_t)clamp(TDRUM->p[P_E0], 0, DRUM_KITS - 1); }
-#define DRUM_DEFAULT_KIT DRUM_SAMPLED   /* power-on: 808 */
+#define DRUM_DEFAULT_KIT (DRUM_SAMPLED + 2u)   /* power-on: 606 (PHEBUS, 21 Nov 2026, Ben: "Start on 606"; gen_drumkits.py
+                                                * KITS order: 808, 909, 606) */
 
 /* each sound's own sends, on top of the kit's (GLO > DRUMS REV, DLY): [lane] {reverb 0..15, delay 0..7}; the
  * kit page's KNOB 3 and 4 (ui_studio.c), kept with the project (project.c proj_ds_put) */
