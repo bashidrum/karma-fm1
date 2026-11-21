@@ -754,7 +754,7 @@ static int ly_quiet(void)
  * Returns 1 while one is held or locked (the page does not take the knobs then) */
 static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
 {
-    static uint8_t down[LY_COUNT], used[LY_COUNT];
+    static uint8_t down[LY_COUNT], used[LY_COUNT], shown;   /* shown: a bit a layer, shown in this hold (no tap then) */
     static uint32_t t0[LY_COUNT];
     uint32_t l, now = fm1_ms, held = LY_PLAY, eat = 0;
     if (ly_lock != LY_PLAY) {
@@ -771,11 +771,12 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         uint32_t d = (fm1_in.buttons & ly_bit[l]) != 0u;
         if (d && !down[l]) {
             t0[l] = now;
+            shown &= (uint8_t)~(1u << l);
             used[l] = (uint8_t)((eat & ly_bit[l]) != 0u);  /* (the press that unlocked: not a tap) */
         }
         if (d && note_edges)
             used[l] = 1;                                  /* a key while held: not a tap */
-        if (!d && down[l] && !used[l] && now - t0[l] < TAP_MS && !ui.menu && !ui.confirm)
+        if (!d && down[l] && !used[l] && !((shown >> l) & 1u) && now - t0[l] < TAP_MS && !ui.menu && !ui.confirm)
             layer_tap(l);
         if (!d && down[l] && !used[l] && l == LY_MIX && now - t0[l] >= GLO_KEEP_MS && ly_lock == LY_PLAY && !ui.menu && !ui.confirm) {
             ly_lock = LY_MIX;                             /* GLO held a while, nothing touched: the mixer stays (2026-10-28,
@@ -801,6 +802,8 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
     punch.hold = (uint8_t)(held == LY_FX);
     if (held != LY_PLAY && held != ui.layer && ui.layer != LY_PLAY)
         ui.layer = (uint8_t)held;                         /* (from one layer straight to another) */
+    if (ui.layer != LY_PLAY)
+        shown |= (uint8_t)(1u << ui.layer);               /* (seen: its button let go is no tap) */
     if (held == LY_PLAY) {
         thr_req = 0;                                      /* (the THROWs: FX let go) */
         while (lk_r != lk_w) {                            /* a key let go after its layer: its release only */
@@ -834,6 +837,7 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         used[held] = 1;
     if (ui.layer == LY_PLAY && (used[held] || now - t0[held] >= SHOW_MS)) {
         ui.layer = (uint8_t)held;                         /* show it (not for a quick tap) */
+        shown |= (uint8_t)(1u << held);
         if (held == LY_STEP && (uint32_t)ui.step_page * 16u >= trk_len(TSEL))
             ui.step_page = 0;
     }
@@ -993,6 +997,8 @@ static void ui_input(void)
         }
     }
     kb_grid = (uint8_t)grid_keys_on();                  /* (seq.c: the keys are the grid's steps) */
+    if (sg_held && (!kb_grid || song.sel != sg_trk))
+        sg_drop();                                      /* (the GRID left with steps held: their keys clear nothing) */
     if (ui.menu) {                                      /* HOME / REC taps do nothing here */
         punch.hold = 0;
         thr_req = 0;

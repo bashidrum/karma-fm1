@@ -22,6 +22,7 @@ static uint16_t sg_held;                                /* the white keys held o
 static uint16_t sg_pend;                                /* of those, the set steps that clear when let go (untouched) */
 static uint8_t sg_alt;                                  /* a synth step held: 0 NOTE LEN VEL COND, 1 FLAG RATCH NUDGE */
 static uint8_t sg_lpage = 0xFF;                         /* a step held + ENV / LFO / FX / EDIT: the page that locks */
+static uint8_t sg_trk;                                  /* the track the steps held are on (from the first key down) */
 static void lock_par_step(int32_t s);                   /* (ui_layers.c) */
 static const char *const SG_COND[4] = {"-", "FILL", "NOFL", "CHNC"};
 static const char *const SG_COND_L[4] = {"", "FILL ONLY", "NO FILL", "CHANCE"};
@@ -94,13 +95,16 @@ static void sg_set(track_t *t, uint32_t idx)            /* an empty step set: th
         dstep_set(&t->dstep[idx], drum_lane, LV_NORM, 0);
     } else {
         step_t *s = &t->step[idx];
-        uint32_t i, n = pen_n ? pen_n : 1u;
+        uint32_t i, n = pen_n ? pen_n : 1u, tie = s->time == ST_TIE;
         memset(s, 0, sizeof *s);
         for (i = 0; i < n && i < 4u; i++)
             s->note[i] = pen_n ? pen_note[i] : last_note;
         s->n = (uint8_t)(t->p[P_VOICE] == V_POLY ? n : 1u);
         s->time = ST_NOTE;
         s->vel = 100;
+        if (tie)                                        /* set on a TIE: the note before ends here, this one is one
+                                                         * step long (the rest of the old tail goes, not to it) */
+            note_set_len(t, idx, 1);
     }
     t->seq_active = 1;
     fm1_irq_on();
@@ -125,6 +129,13 @@ static void sg_clear(track_t *t, uint32_t idx)          /* a set step cleared (d
     }
     fm1_irq_on();
     sync_reload = 1;
+}
+/* the steps held let go of without a change (the GRID left, or another track: a key let go later clears nothing) */
+static void sg_drop(void)
+{
+    sg_held = sg_pend = 0;
+    sg_lpage = 0xFF;
+    sg_alt = 0;
 }
 /* the GRID shown, no layer held: its keys are steps (seq.c kb_grid). The drum track's KIT page: its pads */
 static int grid_keys_on(void) { return on_drum_page() && (song.sel != TRK_DRUM || !drum_page) && !ui.menu; }
@@ -167,8 +178,10 @@ static void grid_key(uint32_t k, uint32_t down)
         ui_message("STOP THE SONG FIRST");
         return;
     }
-    if (!sg_held)
+    if (!sg_held) {
         sg_cur_set(idx);
+        sg_trk = (uint8_t)song.sel;
+    }
     sg_held |= (uint16_t)(1u << w);
     if (sg_on(t, idx))
         sg_pend |= (uint16_t)(1u << w);                 /* (cleared on release, if untouched) */
@@ -208,6 +221,20 @@ static void sg_lock_open(uint32_t fam)
     }
     ui_message("NOTHING TO LOCK HERE");
 }
+/* the steps held (bits of page pg) can all take a lock of id: the new ones fit in the free slots. Else none is made
+ * (never a half: the first steps locked, the rest not) and the screen says why */
+static int locks_fit(const track_t *t, uint32_t pg, uint32_t held, uint32_t id)
+{
+    uint32_t w, need = 0, fr = 0;
+    for (w = 0; w < NLOCK; w++)
+        fr += t->lock[w].step == LOCK_FREE;
+    for (w = 0; w < 16u; w++)
+        need += ((held >> w) & 1u) && pg * 16u + w < trk_len(t) && lock_find(t, pg * 16u + w, id, 0) < 0;
+    if (need <= fr)
+        return 1;
+    ui_message(fr ? "LOCKS FULL: HOLD FEWER STEPS" : "LOCKS FULL: 24 A TRACK");
+    return 0;
+}
 /* the steps held: a lock of id moved s (made at the track's value first) */
 static void sg_lock_turn(uint32_t id, int32_t s, uint32_t role)
 {
@@ -219,6 +246,8 @@ static void sg_lock_turn(uint32_t id, int32_t s, uint32_t role)
         return;
     }
     sk = accel(role, s, lock_desc(t, id)->max - lock_desc(t, id)->min);
+    if (!locks_fit(t, sg_page(), sg_held, id))
+        return;
     fm1_irq_off();
     for (w = 0; w < 16u; w++) {
         uint32_t idx = sg_page() * 16u + w;
@@ -523,30 +552,31 @@ static uint32_t sg_lines(const track_t *t, uint32_t idx, char ln[4][31])
         }
         n = 2;
     }
-    for (k = 0; k < NLOCK; k++) {                       /* the locks, three a line */
+    for (k = 0; k < NLOCK && n < 4u; k++) {             /* the locks, as many a line as fit (30 characters, 228 px) */
         const plock_t *l = &t->lock[k];
-        char *b;
+        char e[18];
+        uint32_t el;
         if (l->step != idx || l->param >= P_COUNT)
             continue;
-        if (n >= 4u) {
-            str_cpy(ln[3] + (str_len(ln[3]) > 26u ? 26u : str_len(ln[3])), " +", 3);
-            break;
-        }
-        b = ln[n];
-        if (!nl)
-            str_cpy(b, "LOCK", 31);
-        str_cpy(b + str_len(b), " ", 2);
-        str_cpy(b + str_len(b), lock_desc(t, l->param)->label, 7);
+        e[0] = ' ';
+        str_cpy(e + 1, lock_desc(t, l->param)->label, 7);
+        el = str_len(e);
+        e[el++] = ' ';
         param_format(lock_desc(t, l->param), l->val, v, &u);
-        str_cpy(b + str_len(b), " ", 2);
-        str_cpy(b + str_len(b), v, 8);
-        if (++nl % 3u == 0u) {
-            n++;
-            if (n < 4u)
-                str_cpy(ln[n], "    ", 31);
+        str_cpy(e + el, v, 8);
+        if (!nl)
+            str_cpy(ln[n], "LOCK", 31);
+        else if (str_len(ln[n]) + str_len(e) > 30u || text_w(&FONT_S, ln[n]) + text_w(&FONT_S, e) > 228) {
+            if (++n >= 4u) {                            /* (no room left: "+" says there are more) */
+                str_cpy(ln[3] + (str_len(ln[3]) > 28u ? 28u : str_len(ln[3])), " +", 3);
+                break;
+            }
+            str_cpy(ln[n], "    ", 31);
         }
+        str_cpy(ln[n] + str_len(ln[n]), e, 31u - str_len(ln[n]));
+        nl++;
     }
-    if (nl % 3u)
+    if (nl && n < 4u)
         n++;
     return n > 4u ? 4u : n;
 }

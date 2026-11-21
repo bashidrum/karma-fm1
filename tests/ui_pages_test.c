@@ -698,6 +698,83 @@ int main(int argc, char **argv)
         memcpy(trk, keep, sizeof keep); sync_reload = 1;
         song.sel = TRK_DRUM;
     }
+    {   /* ---- the four sequencer bugs of the review (REVIEW.md 11) and the full lock table (ENG-9) */
+        track_t *t = &trk[0];
+        static track_t keep[NTRK];
+        uint32_t k3 = key_of_lane(2), k5 = key_of_lane(4), k6 = key_of_lane(5), k7 = key_of_lane(6), j, n, ok;
+        memcpy(keep, trk, sizeof keep);
+        song.playing = 0; song.sel = 0; go_home(); frames(16);
+        steps_clear(t); for (j = 0; j < NLOCK; j++) t->lock[j].step = LOCK_FREE;
+        t->p[P_SLEN] = 16; pen_n = 1; pen_note[0] = 48;
+        {   /* (a) a step with every lock it can take: its lines stay inside their 31 bytes and the screen */
+            char ln[4][31];
+            for (j = 0, n = 0; j < P_COUNT && n < NLOCK; j++)
+                if (p_lockable(j) && lock_desc(t, j)->max > lock_desc(t, j)->min) {
+                    lock_set(t, 4, j, lock_desc(t, j)->max); n++;
+                }
+            n = sg_lines(t, 4, ln);
+            for (j = 0, ok = n == 4u; j < n; j++)
+                ok &= strlen(ln[j]) <= 30u && text_w(&FONT_S, ln[j]) <= 228;
+            check(ok && strstr(ln[3], " +") != 0, "bug (a): 24 locks on a step: 4 lines, each <= 30 characters and 228 px, \"+\" for more");
+            tap(B_SEQ); frames(2);
+            fm1_in.notes |= 1u << k5; frame(); ui.force = 1; frame(); ppm("grid-synth-many-locks");
+            fm1_in.notes &= ~(1u << k5); frame();
+            go_home(); frames(2);
+            for (j = 0; j < NLOCK; j++) t->lock[j].step = LOCK_FREE;
+        }
+        /* (b) a set step held, the GRID left (HOME), another track, the key let go: nothing cleared anywhere */
+        trk[1].p[P_SLEN] = 16; steps_clear(&trk[1]);
+        memset(&trk[1].step[2], 0, sizeof(step_t)); trk[1].step[2].n = 1; trk[1].step[2].note[0] = 60; trk[1].step[2].time = ST_NOTE; trk[1].step[2].vel = 100;
+        memset(&t->step[2], 0, sizeof(step_t)); t->step[2].n = 1; t->step[2].note[0] = 50; t->step[2].time = ST_NOTE; t->step[2].vel = 100;
+        tap(B_SEQ); frames(2);
+        fm1_in.notes |= 1u << k3; frame();
+        tap(B_HOME); frames(2);
+        encs[panel.enc[EN_ALGO]] = 1; frames(2);
+        fm1_in.notes &= ~(1u << k3); frames(2);
+        check(song.sel == 1u && step_on(&trk[0].step[2]) && step_on(&trk[1].step[2]) && !sg_held,
+              "bug (b): step held, GRID left, track changed, key let go: no step cleared on either track");
+        song.sel = 0; go_home(); frames(4);
+        /* (c) a TIE tapped: a note of one step there, the note before ends there (no tail taken) */
+        steps_clear(t);
+        tap(B_SEQ); frames(2);
+        fm1_in.notes |= 1u << k5; frame();
+        encs[panel.enc[EN_K2]] = 1; frame(); encs[panel.enc[EN_K2]] = 1; frame();
+        fm1_in.notes &= ~(1u << k5); frame();
+        check(note_len(t, 4) == 3u, "bug (c): set up: a note of 3 steps on step 5");
+        key(k6);
+        check(note_len(t, 4) == 1u && step_on(&t->step[5]) && note_len(t, 5) == 1u && t->step[6].time == ST_REST,
+              "bug (c): its TIE (step 6) tapped: a note of 1 step there, step 5 ends before it, step 7 empty");
+        /* (d) a layer button held until its layer shows (past SHOW_MS, before TAP_MS), let go: no tap */
+        {
+            uint32_t pg = ui.page;
+            press(B_SEQ); frames((SHOW_MS + 40u) / 16u);
+            check(ui.layer == LY_STEP, "bug (d): SEQ held 180 ms: its layer shows");
+            release(B_SEQ); frames(2);
+            check(on_drum_page() && ui.page == pg, "bug (d): ... let go: no tap (the GRID stays)");
+            press(B_FX); frames((SHOW_MS + 40u) / 16u); release(B_FX); frames(2);
+            check(on_drum_page() && ui.page == pg, "bug (d): FX held until shown, let go: no FX page");
+            press(B_EDIT); frames((SHOW_MS + 40u) / 16u); release(B_EDIT); frames(2);
+            check(on_drum_page() && ui.page == pg, "bug (d): EDIT held until shown, let go: no EDIT page");
+            tap(B_FX); frames(2);
+            check(!on_drum_page() && cur_page()->fam == FAM_FX, "bug (d): FX tapped quickly: still its page");
+            go_home(); frames(2);
+        }
+        /* ENG-9: two steps held, one free lock slot: no lock made on either, and the screen says so */
+        steps_clear(t); for (j = 0; j < NLOCK; j++) t->lock[j].step = LOCK_FREE;
+        for (j = 0; j < NLOCK - 1u; j++) {
+            t->lock[j].step = (uint8_t)(8u + j % 8u); t->lock[j].param = (uint8_t)(j < 8u ? P_DEC : j < 16u ? P_SUS : P_REL); t->lock[j].val = 1;
+        }
+        tap(B_SEQ); frames(2);
+        fm1_in.notes |= 1u << k5 | 1u << k7; frames(2);
+        tap(B_ENV); frame(); ui.msg_t = 0;
+        encs[panel.enc[EN_K1]] = 3; frame();
+        check(lock_find(t, 4, P_ATK, 0) < 0 && lock_find(t, 6, P_ATK, 0) < 0 && strstr(ui.msg, "LOCKS FULL") != 0,
+              "ENG-9: lock table one short for two steps held: neither locked, \"LOCKS FULL\" shown");
+        fm1_in.notes = 0; frames(2);
+        go_home(); frames(4);
+        memcpy(trk, keep, sizeof keep); sync_reload = 1;
+        song.sel = TRK_DRUM;
+    }
     {   /* the free take screens */
         static track_t keep[NTRK];
         memcpy(keep, trk, sizeof keep);

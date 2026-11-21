@@ -188,6 +188,8 @@ static void steps_held_edit(uint32_t knob, int32_t s)
     int32_t sv = knob == 1u && !is_drum(t) ? accel(EN_K2, s, 126) : 0;
     int32_t sk = knob == 4u ? accel(EN_PRESET, s, lock_desc(t, ui.lock_par % P_COUNT)->max -
                                                   lock_desc(t, ui.lock_par % P_COUNT)->min) : 0;
+    if (knob == 4u && p_lockable(ui.lock_par % P_COUNT) && !locks_fit(t, ui.step_page, ui.step_held, ui.lock_par % P_COUNT))
+        return;                                           /* (all the steps held, or none: ui_grid.c) */
     layer_undo_mark(t);
     step_pend_off &= (uint16_t)~ui.step_held;            /* (edited: kept when let go) */
     fm1_irq_off();
