@@ -57,9 +57,9 @@ The FM-1 has these controls: the buttons PLAY, REC, SAVE, HOME, ENV, LFO, FX, SE
 
 PHEBUS turns the FM-1 into a four-voice groovebox: three synth voices and one drum voice, each with its own sequencer track of up to 64 steps.
 
-Each voice is a character with its own colour:
+Each voice has its own colour, and a small head in the bottom strip and on HOME:
 
-| Voice | Character | Colour | Plays |
+| Voice | Head | Colour | Plays |
 | --- | --- | --- | --- |
 | **1** | robot | purple | ACID (a 303 voice) or JUNO (a Juno-106 style synth) |
 | **2** | alien | blue | JUNO or ELEMENTS (physical modelling) |
@@ -97,13 +97,13 @@ After a layer lets go, the knobs ignore you for a quarter of a second, so a knob
 - a red **record disc** while recording, or a small white **unsaved dot** when the project in memory differs from what is saved (see [Saving](#12-saving));
 - the **battery**, three bars, red when low.
 
-**The bottom strip** shows the four characters' heads, numbered 1 2 3 DR. The selected voice is underlined and its number is in its colour. A yellow **M** on a head means muted, an ice-blue **S** means soloed, a red dot means it is recording. On the STUTTER lane no voice is underlined.
+**The bottom strip** shows the four voices' heads, numbered 1 2 3 DR. The selected voice is underlined and its number is in its colour. A yellow **M** on a head means muted, an ice-blue **S** means soloed, a red dot means it is recording. On the STUTTER lane no voice is underlined.
 
 **The knob band** at the bottom of a page shows what KNOB 1 to KNOB 4 do. Values are drawn in one bold face. The knob you are touching has an inverted label and an underlined value. A dim grey value means it does nothing in the current setting. A short message appears as a white bar over the band.
 
 **The chain strip.** On sound pages, a strip above the knobs lists the five stages of the sound chain, OSC, FILT, ENV, FX and MOD. The current stage is lit and carries the page name. If the stage has more than one page, "2/3" and so on appears at the right. See [Sound design](#7-sound-design-along-the-chain).
 
-**Graphs.** Sound pages draw what their knobs do: the filter's response curve (with the envelope's sweep), the insert effect's curve, the oscillator's waveform, the envelope, the LFO, and bars for the rest. A small dancing character sits at the top right, and the sound's name is at the top left.
+**Graphs.** Sound pages draw what their knobs do: the filter's response curve (with the envelope's sweep), the insert effect's curve, the oscillator's waveform, the envelope, the LFO, and bars for the rest. The sound's name is at the top left.
 
 ### The HOME screen
 
@@ -402,7 +402,7 @@ On the drum voice, the sound pages are HEX OSC, HEX MOD, HEX CLICK, HEX MORE, HE
 | CHORUS | chorus lines |
 | FX | the sends as drawn boxes |
 | OSC | the waveform (a schematic for ELEMENTS and some PLAITS models) |
-| ENV | the envelope (with a dim ghost of the character) |
+| ENV | the envelope |
 | LFO | the LFO shape |
 | OSC 2, ENV DEST, LFO DEST, VOICE 2 | bar graphs |
 
@@ -496,7 +496,7 @@ Tap **GLO**. Tap again, or turn SELECT, for the next page. These pages are share
 
 ## 9. Mixer, mute and solo
 
-**Hold GLO** for the mixer (or hold GLO untouched for about 0.7 seconds and let go to keep it open). It shows a podium for each voice, the characters, and M and S badges. The key legend reads "123D123DFBP T".
+**Hold GLO** for the mixer (or hold GLO untouched for about 0.7 seconds and let go to keep it open). It shows a level bar for each voice with its meter inside, and M and S badges. The key legend reads "123D123DFBP T".
 
 | Control | Does |
 | --- | --- |

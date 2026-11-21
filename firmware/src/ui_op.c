@@ -141,10 +141,10 @@ static void op_knobs(const char *const lab[4], const char *const val[4], const c
 
 #include "op_sprites.h"
 /* the track strip (Ben, 21 Nov 2026, review 15 "A: heads, underline"; mute / solo "A: badges"): a status line, not
- * tabs. Each track its character's head and its number (1 2 3 DR); the selected track underlined, its number in its
+ * tabs. Each track its head and its number (1 2 3 DR); the selected track underlined, its number in its
  * colour (the others grey); a muted track a yellow M badge, a soloed one an ice-blue S, the one that records a red
  * dot. A 1 px rule above */
-static void op_sprite_wh(const uint8_t *d, int32_t w, int32_t h, int32_t x0, int32_t y0, int flip, uint16_t c, int32_t s);
+static void op_sprite_wh(const uint8_t *d, int32_t w, int32_t h, int32_t x0, int32_t y0, uint16_t c);
 static void op_badge(int32_t x, int32_t y, char ch, uint16_t bg)   /* 10 x 14: a black letter on bg */
 {
     char b[2] = {ch, 0};
@@ -165,7 +165,7 @@ static void op_trackbar(uint32_t *cache)
     for (i = 0; i < NTRK; i++) {
         int32_t x = 4 + 58 * (int32_t)i, nx = x + OP_HM_W + 4, bx;
         uint32_t sel = song.sel == i && !(on_drum_page() && stl_shown());   /* (the STUTTER lane, after DR: no track underlined, PHEBUS) */
-        op_sprite_wh(OP_SPR_HM[i], OP_HM_W, OP_HM_H, x, 5, 0, TE_COL[i], 1);
+        op_sprite_wh(OP_SPR_HM[i], OP_HM_W, OP_HM_H, x, 5, TE_COL[i]);
         bx = cv_text(nx, 5, &FONT_S, NAME[i], sel ? TE_COL[i] : TE_G3) + 3;
         if ((song.rec >> i) & 1u)
             te_disc(bx + 4, 12, 3, TE_RED);
@@ -179,9 +179,10 @@ static void op_trackbar(uint32_t *cache)
     cv_blit(0, OP_BAR_Y);
 }
 
-/* the characters (op_sprites.h, drawn by tools/gen_sprites.py): a robot (track 1), an alien (2), a crocodile (3), a
- * snake (the drums), each in its track's colour; pictures in flash, 4 bits a pixel: 1 dark, 2 the colour, 3 light
- * (shades of the track's colour), 4 white, 5 black. They dance to the beat: op_dance */
+/* the tracks' heads (op_sprites.h, drawn by tools/gen_sprites.py): a robot (track 1), an alien (2), a crocodile (3), a
+ * snake (the drums), each in its track's colour; 18 x 16 in flash, 4 bits a pixel: 1 dark, 2 the colour, 3 light
+ * (shades of the track's colour), 4 white, 5 black. Only in the track strip and HOME's lanes (KARMA's full-size
+ * characters, their dance and STRIKE poses and the mixer's figures are cut) */
 static uint8_t op_dim;                                  /* the next pictures dim (a muted, a silent track) */
 static uint16_t op_mix(uint16_t c, uint16_t to, uint32_t k)   /* c, k eighths of the way to "to" */
 {
@@ -200,40 +201,19 @@ static void op_pal(uint16_t *pal, uint16_t c, int dim)   /* dim: c is dim alread
     pal[4] = dim ? TE_G3 : C_WHITE;
     pal[5] = C_BLACK;
 }
-/* a picture w x h (even), each pixel s x s; (x0, y0): the top left, flip: mirrored, c: the track's colour */
-static void op_sprite_wh(const uint8_t *d, int32_t w, int32_t h, int32_t x0, int32_t y0, int flip, uint16_t c, int32_t s)
+/* a picture w x h (even); (x0, y0): the top left, c: the track's colour */
+static void op_sprite_wh(const uint8_t *d, int32_t w, int32_t h, int32_t x0, int32_t y0, uint16_t c)
 {
     uint16_t pal[6];
-    int32_t x, y, i;
+    int32_t x, y;
     op_pal(pal, c, op_dim);
     for (y = 0; y < h; y++)
         for (x = 0; x < w; x++) {
             uint32_t v = (d[(y * w + x) >> 1] >> ((x & 1) * 4)) & 15u;
-            int32_t px = x0 + (flip ? w - 1 - x : x) * s;
             if (v && v < 6u)
-                for (i = 0; i < s * s; i++)
-                    cv_pset(px + i % s, y0 + y * s + i / s, pal[v]);
+                cv_pset(x0 + x, y0 + y, pal[v]);
         }
 }
-/* a character at full size (112 x 104: its pixels doubled): pose 0 still, 1 leaning, 2 arms up (op_dance) */
-static void op_char(uint32_t ti, uint32_t pose, int flip, int32_t x0, int32_t y0)
-{
-    if (op_strike[ti & 3u])                              /* its voice just played an accent: the STRIKE pose (Ben: "Both") */
-        pose = 3u;
-    op_sprite_wh(OP_SPR_BIG[ti & 3u][pose & 3u], OP_BIG_W, OP_BIG_H, x0, y0, flip, TE_COL[ti & 3u], 2);
-}
-/* the dance: a pose a beat while the song plays (lean right, arms up, lean left, arms up the other way); still
- * when it is stopped. *flip: mirrored */
-static uint32_t op_dance(int *flip)
-{
-    uint32_t b = clk_beat & 3u;
-    *flip = 0;
-    if (!song.playing)
-        return 0;
-    *flip = b >= 2u;
-    return b & 1u ? 2u : 1u;
-}
-
 /* an arc of an ellipse, a0 .. a1 in 1/1024 turns (0 = right, 256 = down), as 2 px chords */
 static void op_arc(int32_t cx, int32_t cy, int32_t rx, int32_t ry, uint32_t a0, uint32_t a1, uint16_t c)
 {
@@ -285,7 +265,7 @@ static void op_drum_steps(uint32_t bank, uint32_t len)   /* (a step held: at the
 
 /* ---------------------------------------------------------------- SYNTH --- */
 /* a synth track's page without a graph of its own (EDIT, VOICE, the DEST pages...): the track's
- * character in its own scene (below), moved by the sound: the track's meter, its last note, each note
+ * scene (below), moved by the sound: the track's meter, its last note, each note
  * as it starts. */
 static uint32_t op_ph;                                  /* the wave scrolls while there is sound */
 static int32_t op_px;                                   /* PRISM's picture is at the top right: the scenes' things there go left by this */
@@ -305,11 +285,6 @@ static int32_t op_wave(uint32_t ph, uint32_t kind, int32_t morph)
     default: return (SINE[p] + SINE[(p * 2) & 1023] * morph / 2000 + SINE[(p * 3) & 1023] * morph / 3000) * 2 / 3;
     }
 }
-
-/* the characters small (the mixer: op_k 2, HOME: op_k 1), still pictures: op_k says which size, op_ink dim a muted
- * or silent track */
-static int32_t op_k = 3;
-static uint16_t op_ink = OP_PUR;
 
 /* the sound of the track, at the top of the graph canvas: its preset alone, in white (the engine is the header's tag,
  * review 18) */
@@ -343,21 +318,17 @@ static const voice_t *op_env_voice(const track_t *t)
 /* The three scenes draw into the graph canvas (240 x 124, ui_draw.c draw_graph). ratio: the four knobs,
  * 0..1000 (-1: none); each owns a part of the picture, in its colour. */
 
-/* the scenes' character: its top in the graph canvas (screen y 36) so the sound chain's strip (y 141) leaves its feet
- * whole, the floor just under them (review 19) */
-#define OP_SPR_Y 14
+/* the scenes' floor, over the sound chain's strip (y 141, review 19) */
 #define OP_FLOOR_Y 118
-/* synth 1, the robot (the bass): it dances to the beat (op_dance); a note: a little hop. KNOB 1 the wave behind it
- * (ANALOG's WAVE as it is, else from round to sharp; its ripples the last note's pitch), KNOB 2 the rays round
- * its head, KNOB 3 a moon that rises, KNOB 4 sparks off the floor on a note */
+/* synth 1 (the bass): KNOB 1 the wave (ANALOG's WAVE as it is, else from round to sharp; its ripples the last
+ * note's pitch), KNOB 2 rays over the middle, KNOB 3 a moon that rises, KNOB 4 sparks off the floor on a note.
+ * (The robot that stood here is cut: the tracks' characters are heads in the strip only) */
 static void op_scene_robot(track_t *t, const int32_t ratio[4], int analog_wave)
 {
-    uint32_t kind = analog_wave ? (uint32_t)clamp(t->p[P_E0], 0, 4) : 5u, pose;
+    uint32_t kind = analog_wave ? (uint32_t)clamp(t->p[P_E0], 0, 4) : 5u;
     uint32_t cyc = (uint32_t)clamp(384 + ((int32_t)op_note - 36) * 13, 256, 1536), rnd = (ui.frame / 2u) * 2654435761u + 1u;
     int32_t morph = ratio[0] < 0 ? 0 : ratio[0], amp = 3 + op_lvl * 10 / 82, x, py = 0, cx = 120, i, n, hop = op_hit > 5u ? 2 : 0;
-    int flip;
 #define WY(xx, f, ph) (104 - ((op_wave((uint32_t)(((xx) - 8) * (int32_t)(f) / 56) + (ph), kind, morph) * amp) >> 15))
-    pose = op_dance(&flip);
     if (ratio[2] >= 0)                                  /* KNOB 3: the moon */
         op_ell(222 - (op_px ? 146 : 0), 70 - ratio[2] * 34 / 1000, 5, 5, tint_col(2u, 0));
     for (x = 8; x <= 232; x += 2) {                     /* KNOB 1: the wave; white as a note starts */
@@ -366,15 +337,14 @@ static void op_scene_robot(track_t *t, const int32_t ratio[4], int analog_wave)
             cv_line(x - 2, py, x, y, op_hit > 6u ? C_WHITE : tint_col(0u, 0));
         py = y;
     }
-    n = ratio[1] <= 0 ? 0 : 3 + ratio[1] * 10 / 1000;   /* KNOB 2: the rays, round its head */
+    n = ratio[1] <= 0 ? 0 : 3 + ratio[1] * 10 / 1000;   /* KNOB 2: the rays */
     for (i = 0; i < n; i++) {
         uint32_t a = 512u + 64u + (uint32_t)i * 384u / (uint32_t)(n > 1 ? n - 1 : 1);
-        int32_t hx = cx + (pose == 1u ? (flip ? -10 : 10) : 0), hy = 42 - (pose == 2u ? 4 : 0) - hop;
+        int32_t hx = cx, hy = 42 - hop;
         int32_t co = SINE[(a + 256u) & 1023u], si = SINE[a & 1023u];
         cv_line(hx + ((co * 30) >> 15), hy + ((si * 26) >> 15), hx + ((co * 36) >> 15), hy + ((si * 32) >> 15), tint_col(1u, 0));
     }
     op_ell(120, OP_FLOOR_Y, 70, 2, op_hit > 4u ? C_WHITE : OP_PUR_D);   /* the floor: it rings under a note */
-    op_char(0, pose, flip, cx - 56, OP_SPR_Y - hop);
     n = ratio[3] <= 0 ? 0 : 2 + ratio[3] * 7 / 1000;    /* KNOB 4: sparks off the floor */
     for (i = 0; op_hit > 4u && i < n; i++) {
         int32_t fx = cx + (i & 1 ? 30 : -30), d = (9 - (int32_t)op_hit) * 3;
@@ -385,19 +355,16 @@ static void op_scene_robot(track_t *t, const int32_t ratio[4], int analog_wave)
 #undef WY
 }
 
-/* synth 2, the alien (ELEMENTS): it dances to the beat (op_dance) between two speakers; a note: a little hop, and a
- * speaker thumps (they take turns). KNOB 1 the size of the speakers, KNOB 2 strings of lights from above, swinging
+/* synth 2 (ELEMENTS): two speakers; a note: a speaker thumps (they take turns). (The alien that danced between
+ * them is cut.) KNOB 1 the size of the speakers, KNOB 2 strings of lights from above, swinging
  * with the sound, KNOB 3 a moon that rises, KNOB 4 the rings of sound off the speaker */
 static void op_scene_alien(const int32_t ratio[4])
 {
     static uint8_t prev, side;                          /* the speaker that thumped last */
-    int32_t big = ratio[0] < 0 ? 0 : ratio[0] * 6 / 1000, x, i, n, s, hop = op_hit > 5u ? 2 : 0;
-    uint32_t pose;
-    int flip;
+    int32_t big = ratio[0] < 0 ? 0 : ratio[0] * 6 / 1000, x, i, n, s;
     if (op_hit > prev)
         side ^= 1u;
     prev = op_hit;
-    pose = op_dance(&flip);
     for (x = 8; x < 232; x += 8)
         cv_pset(x, OP_FLOOR_Y, OP_PUR_D);
     if (ratio[2] >= 0)                                  /* KNOB 3: the moon */
@@ -414,7 +381,6 @@ static void op_scene_alien(const int32_t ratio[4])
         for (k = 1; k <= 3; k++)                        /* its bulbs */
             cv_rect(x + sw * k / 3 - 1, y0 + len * k / 3 - 1, 3, 3, tint_col(1u, 0));
     }
-    op_char(1, pose, flip, 64, OP_SPR_Y - hop);
     for (s = -1; s <= 1; s += 2) {                      /* KNOB 1: the speakers, at the sides */
         int32_t dx = 120 + s * 82, hw = 11 + big, top = 88 - big * 2, hot = op_hit > 3u && (s > 0) == (side != 0);
         int32_t r = 6 + big / 2;
@@ -432,16 +398,13 @@ static void op_scene_alien(const int32_t ratio[4])
     }
 }
 
-/* synth 3, the crocodile (PLAITS): it dances to the beat (op_dance) under a spotlight, on a floor of lights, among
- * the stars; with sound the lights run along the floor and the stars pass, faster the louder; a note: a little hop,
- * the spotlight flashes and the floor lights all light. KNOB 1 the spotlight's width, KNOB 2 a planet that grows,
+/* synth 3 (PLAITS): a spotlight on a floor of lights, among the stars (the crocodile that danced in it is cut);
+ * with sound the lights run along the floor and the stars pass, faster the louder; a note: the spotlight flashes
+ * and the floor lights all light. KNOB 1 the spotlight's width, KNOB 2 a planet that grows,
  * KNOB 3 more stars, KNOB 4 sparks rising in the light */
 static void op_scene_croc(const int32_t ratio[4])
 {
-    int32_t i, n, bw, live = op_lvl || op_hit, hop = op_hit > 5u ? 2 : 0, cx = op_px ? 92 : 120;   /* (left of PRISM's picture) */
-    uint32_t pose;
-    int flip;
-    pose = op_dance(&flip);
+    int32_t i, n, bw, live = op_lvl || op_hit, cx = op_px ? 92 : 120;   /* (left of PRISM's picture) */
     n = 8 + (ratio[2] < 0 ? 0 : ratio[2] * 26 / 1000);  /* KNOB 3: the stars, three depths, some twinkling */
     for (i = 0; i < n; i++) {
         uint32_t h = (uint32_t)(i + 1) * 2654435761u;
@@ -474,7 +437,6 @@ static void op_scene_croc(const int32_t ratio[4])
         int32_t up = (int32_t)(((h >> 7) + op_ph / 12u) % 64u), y = 120 - up * 96 / 64, half = 6 + (bw - 6) * (y - 22) / 98;
         cv_rect(cx - half + (int32_t)((h >> 3) % (uint32_t)(half * 2 + 1)), y, 2, 2, tint_col(3u, 0));
     }
-    op_char(2, pose, flip, cx - 56, OP_SPR_Y - hop);
     for (i = 0; i < 7; i++) {                           /* the floor lights: one runs along; all of them on a note */
         int on = op_hit > 4u || (live && (uint32_t)i == (op_ph / 160u) % 7u);
         cv_rect(24 + i * 30, OP_FLOOR_Y, 12, 2, on ? tint_col(3u, 0) : tint_col(3u, 2));
@@ -653,7 +615,7 @@ static void op_chain(uint32_t st, uint32_t have, uint32_t k, uint32_t n, uint32_
 }
 
 /* the four tracks' meters, for the screens that show the whole band (the mixer, HOME), once a frame: up at
- * once, falling; a rise: the track's character hops for 6 frames */
+ * once, falling; a rise: the track's head on HOME hops for 6 frames */
 static uint8_t op_mx[NTRK], op_hop[NTRK];
 static void op_band_tick(void)
 {
@@ -672,26 +634,17 @@ static void op_band_tick(void)
         op_mx[i] = (uint8_t)(m > op_mx[i] ? m : op_mx[i] > 3 ? op_mx[i] - 3 : 0);
     }
 }
-/* a track's character for the mixer (op_k 2: dancing, pose 0 still or 1 leaning, flip: the other way) or HOME's
- * lanes (op_k 1: the head), standing on (cx, fy), dim if op_ink is (a muted, a silent track) */
-static void op_band_member(uint32_t i, int32_t cx, int32_t fy, uint32_t pose, int flip, uint16_t c)
+/* a track's head for HOME's lanes, standing on (cx, fy), dim (a muted, a silent track) */
+static void op_lane_head(uint32_t i, int32_t cx, int32_t fy, int dim, uint16_t c)
 {
-    uint32_t sm = op_k == 1, k = i & 3u;
-    int32_t w = sm ? OP_HM_W : OP_MX_W, h = sm ? OP_HM_H : OP_MX_H;
-    op_dim = op_ink == OP_PUR_D;
-    op_sprite_wh(sm ? OP_SPR_HM[k] : OP_SPR_MX[k][op_strike[k] ? 2u : pose & 1u], w, h, cx - w / 2, fy - h + 1, flip, c, 1);
+    op_dim = (uint8_t)dim;
+    op_sprite_wh(OP_SPR_HM[i & 3u], OP_HM_W, OP_HM_H, cx - OP_HM_W / 2, fy - OP_HM_H + 1, c);
     op_dim = 0;
 }
 
 /* ---------------------------------------------------------------- ARP --- */
-/* the track's character at half size (its own pixels: 56 x 52), still, standing on (cx, fy) */
-static void op_sprite_scaled(uint32_t ti, int32_t cx, int32_t fy, uint16_t c)
-{
-    op_sprite_wh(OP_SPR_BIG[ti & 3u][0], OP_BIG_W, OP_BIG_H, cx - OP_BIG_W / 2, fy - OP_BIG_H + 1, 0, c, 1);
-}
-
 /* the ARP page: the arp as stepping stones, one a note in the order it plays them (the keys held, else C E G to
- * show the shape), high for a high note; the track's character hops to the stone of each note it plays. KNOB 1
+ * show the shape), high for a high note; the stone of each note it plays lights white. KNOB 1
  * (MODE, blue) the stones' order: up, down, up and down, shuffled, as played; KNOB 2 (RATE, green) the grid under
  * them; KNOB 3 (OCT, white) the octaves, a dashed line between them; KNOB 4 (GATE, orange) how much of each stone
  * is lit */
@@ -702,8 +655,7 @@ static void op_arp_scene(const track_t *t)
     static const uint8_t TICKS[6] = {4, 8, 16, 32, 6, 12};
     uint8_t base[16], seq[32];
     uint32_t mode = (uint32_t)clamp(t->p[P_AMODE], 0, 5), oct = (uint32_t)clamp(t->p[P_AOCT], 1, 4), nb = 0, n = 0, i, j, k;
-    int32_t gate = clamp(t->p[P_AGATE], 1, 127), lo = 127, hi = 0, sp, x0, cx, fy, live = t->nheld && mode;
-    uint32_t ti = (uint32_t)(t - trk) & 3u;
+    int32_t gate = clamp(t->p[P_AGATE], 1, 127), lo = 127, hi = 0, sp, x0, live = t->nheld && mode;
     for (i = 0; i < t->nheld && nb < 16u; i++)
         base[nb++] = t->held[i];
     if (!nb) {                                      /* nothing held: the shape on a C major chord */
@@ -782,13 +734,6 @@ static void op_arp_scene(const track_t *t)
                 cv_rect(x + 1, y + 1, lit > 2 ? lit - 2 : 1, 2, i == pos && live ? C_WHITE : tint_col(3u, 0));
         }
     }
-    {                                               /* the character: on its stone, or on the way there */
-        int32_t xa = x0 + (int32_t)prev * sp + sp / 2, ya = AY(seq[prev]) - 1;
-        int32_t xb = x0 + (int32_t)pos * sp + sp / 2, yb = AY(seq[pos]) - 1, u = 6 - (int32_t)op_arp_hop;
-        cx = op_arp_hop ? xa + (xb - xa) * u / 6 : xb;
-        fy = op_arp_hop ? ya + (yb - ya) * u / 6 - (SINE[u * 512 / 6] * 12 >> 15) : yb;
-        op_sprite_scaled(ti, cx, fy, TE_COL[ti]);
-    }
     if (op_arp_hop)
         op_arp_hop--;
     if (!mode)
@@ -843,8 +788,8 @@ static void op_hex_scene(void)
 /* ---------------------------------------------------------- SOUND PAGES --- */
 /* (Ben, 21 Nov 2026, review 8: "Sound big, character small") a sound page (OSC, VOICE, FILTER, the DEST pages, FX,
  * CHORUS, INSERT) draws what its four knobs do, big, as they turn, in the voice's colour (tint_col: a shared page
- * neutral): the wave the oscillator makes, the filter's response, the sends, the INSERT's curve, the voice's ways. Its
- * character small (the mixer's size) at the top right, still dancing and striking; the sound's name at the top left.
+ * neutral): the wave the oscillator makes, the filter's response, the sends, the INSERT's curve, the voice's ways. The
+ * sound's name at the top left (the character small at the top right is cut).
  * MiniFreak's rule: the picture shows the consequence the instant a knob moves, not the number. One 2 px line
  * helper (gp_to) draws every curve in the plot SP_L..SP_R x SP_T..SP_B (graph canvas rows) */
 #define SP_L 8
@@ -1079,15 +1024,11 @@ static void gp_chorus(const track_t *t, uint16_t c)
 }
 static void op_sound(const track_t *t, const page_t *pg)
 {
-    uint32_t e = t->eng_req % NENGINES, si = song.sel & 3u, pose;
+    uint32_t e = t->eng_req % NENGINES;
     uint16_t c = tint_col(0u, 0);
-    int flip;
     const int16_t *p = t->p;
     if (!is_drum(t))
         op_names(t);
-    pose = op_dance(&flip);                             /* the character, small, top right */
-    op_k = 3;
-    op_band_member(si, 218, 35, pose, flip, TE_COL[si]);
     if (pg->fam == FAM_FLT) {
         if (pg->id[0] == P_TFLT || is_drum(t))
             gp_filter(127, 0, 0, -1, 0, p[P_TFLT], c);
@@ -1111,9 +1052,9 @@ static void op_sound(const track_t *t, const page_t *pg)
 }
 
 /* ---------------------------------------------------------------- MIXER --- */
-/* GLO held: the band on stage, a track a column (as the knobs and the track bar under it). A podium as
- * high as the track's level, its meter inside; its character on top, dancing to the beat (still when muted),
- * hopping as the track sounds. Muted: dashed and dim, a red M; soloed: a white S. Under the stage the 16 white keys and what they do here:
+/* GLO held: a track a column (as the knobs and the track bar under it). A bar as high as the track's level, its
+ * meter inside (the characters that danced on top are cut: the bars are taller). Muted: dashed and grey, a yellow
+ * M; soloed: an S. Under the stage the 16 white keys and what they do here:
  * M mute 1..4, S solo 1..4, F a fill while held, B fill the next bar, T tap the tempo (lit on the beat).
  * flags: 1 a fill now, 2 the next bar is one, 4 it is asked for, 8 the beat. */
 static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32_t flags)
@@ -1121,23 +1062,20 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
     static const char *const LAB[4] = {"1", "2", "3", "DR"};   /* (the tracks by number, as the strip: review 21) */
     static const char KEYS[17] = "123D123DFBP    T";   /* (PHEBUS: P, key 11, the knobs are the pans) */
     static uint32_t head, scene, keys, knobs, bar;
-    const uint8_t *mx = op_mx, *hop = op_hop;
+    const uint8_t *mx = op_mx;
     uint32_t i, sig = 7u;
     op_header("GLO", C_WHITE, ui.msg_t ? ui.msg : flags & 16u ? "PAN" : "MIX", &head);   /* (GLO: MIX, the button and the layer, review 21; a
                                                          * message: in the title, the levels stay) */
     op_band_tick();
     for (i = 0; i < NTRK; i++)
-        sig = sig * 131u + mx[i] + hop[i] * 97u + (uint32_t)ratio[i] * 7u + (trk[i].p[P_MUTE] != 0) * 3u;
-    sig = sig * 31u + song.solo + (song.playing ? clk_beat & 3u : 4u) * 64u;   /* (the dance: a pose a beat) */
-    sig = sig * 31u + (op_strike[0] != 0) + (op_strike[1] != 0) * 2u + (op_strike[2] != 0) * 4u + (op_strike[3] != 0) * 8u;
+        sig = sig * 131u + mx[i] + (uint32_t)ratio[i] * 7u + (trk[i].p[P_MUTE] != 0) * 3u;
+    sig = sig * 31u + song.solo;
     if (ui.force || sig != scene) {
         scene = sig;
         cv_begin(240, 96, C_BLACK);
         cv_rect(0, 94, 240, 1, TE_G1);
-        op_k = 2;
         for (i = 0; i < NTRK; i++) {
-            int32_t cx = 4 + 58 * (int32_t)i + 27, h = 6 + ratio[i] * 46 / 1000, top = 94 - h, y, n = (h - 3) / 4, lit;
-            int32_t air = hop[i] ? (SINE[(6 - hop[i]) * 85] * 5) >> 15 : 0;
+            int32_t cx = 4 + 58 * (int32_t)i + 27, h = 6 + ratio[i] * 70 / 1000, top = 94 - h, y, n = (h - 3) / 4, lit;
             uint32_t mute = trk[i].p[P_MUTE] != 0;
             uint16_t c = mute ? TE_G3 : TE_COL[i];   /* (muted: grey, never darker, review 19) */
             if (mute) {                                 /* a muted podium: dashed */
@@ -1153,19 +1091,11 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
             lit = n * mx[i] / 82;
             for (y = 0; y < n; y++)
                 cv_rect(cx - 13, 91 - y * 4, 26, y < lit ? 2 : 1, y < lit ? TE_COL[i] : TE_G1);
-            op_ink = mute ? OP_PUR_D : OP_PUR;
-            {                                           /* dancing to the beat (still if muted) */
-                int flip = 0;
-                uint32_t pose = mute ? 0u : op_dance(&flip);
-                op_band_member(i, cx, top - 1 - air, pose, flip, c);
-            }
             if (mute || (song.solo >> i) & 1u) {
                 cv_rect(cx + 14, 2, 12, 14, mute ? TE_MUTE : TE_SOLO);
                 cv_text(cx + 16, 1, &FONT_S, mute ? "M" : "S", C_BLACK);
             }
         }
-        op_ink = OP_PUR;
-        op_k = 3;
         cv_blit(0, OP_BODY_Y);
     }
     sig = flags + song.solo * 64u;
@@ -1212,7 +1142,7 @@ static uint32_t home_band_tick(void);                   /* ui_vis.c */
 static void home_band(int32_t x0, int32_t y0, uint32_t w, uint32_t h);
 /* TRACKS, between the header and the knobs. The deck: the bar in large digits, a strip of the FLOW backdrop moving with
  * the four voices' levels (PHEBUS: it replaced the tape reels; ui_vis.c home_band), the song's sections A..D (the one
- * playing filled). Then the selected track's sound and state, and a lane a track: its character in small (it hops as
+ * playing filled). Then the selected track's sound and state, and a lane a track: its head (it hops as
  * the track sounds), the 16 steps in view (a synth: each note at its height; the drums: a bar, taller with more
  * sounds), the step that plays, its level. */
 #define HB_X 74                                         /* the strip: x, y in the deck, its size (2 x 2 blocks) */
@@ -1312,11 +1242,7 @@ static void op_home_body(void)
         cv_begin(240, 18, C_BLACK);
         if (sel)
             op_box(24, 0, 214, 18, TE_COL[i]);
-        op_k = 1;                                       /* the character, half size */
-        op_ink = silent ? OP_PUR_D : sel ? C_WHITE : OP_PUR;
-        op_band_member(i, 12, 17 - air, 0, 0, silent ? TE_G3 : TE_COL[i]);
-        op_ink = OP_PUR;
-        op_k = 3;
+        op_lane_head(i, 12, 17 - air, silent, silent ? TE_G3 : TE_COL[i]);   /* the track's head */
         for (j = 0; j < 16u; j++) {
             uint32_t p = bank * 16u + j;
             int32_t x = 28 + (int32_t)j * 11;

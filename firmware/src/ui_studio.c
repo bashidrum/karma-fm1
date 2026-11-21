@@ -294,9 +294,6 @@ static uint16_t pad_lit[DRUM_LANES];                   /* pads and key LEDs: fra
 static uint8_t key_lit[27];                             /* menu NOTES, a synth track: frames its key stays lit */
 static uint8_t key_lit_trk = 0xFF;                      /* (the track key_lit is for) */
 static uint8_t op_note = 60, op_hit;                    /* the selected synth track: its last note, frames since (8 .. 0) */
-static uint8_t op_strike[NTRK];                         /* each track's character: frames of its STRIKE pose still to show
-                                                         * (an accent: pads_tick; ui_op.c op_dance) */
-#define OP_STRIKE_FR 8u
 
 /* the drum track's EDIT pages (HEX OSC .. HEX MORE): G_HXMODEL.. show the selected sound (drum_lane) of the
  * drum track's kit, if it is a HEX kit, and what the knobs set goes into it. A factory kit (HEX BOOM ..) is not
@@ -394,54 +391,12 @@ static void pads_tick(void)                             /* once a frame: the hit
             key_lit[k]--;
     if (op_hit)
         op_hit--;
-    if (song.sel < NPART)                               /* the character of the track jumps on its notes (ui_op.c) */
+    if (song.sel < NPART)                               /* the track's scene answers its notes (ui_op.c) */
         for (k = 0; k < 128u; k++)
             if ((n[song.sel][k >> 5] >> (k & 31u)) & 1u) {
                 op_note = (uint8_t)k;
                 op_hit = 8;
             }
-    {   /* an accent, a note or a hit started at LV_HARD's velocity (116 and up: an ACC step, a HARD hit, a key
-         * played hard): its track's character strikes a pose for a few frames. Read from the voices the notes
-         * started since the last frame (their ages), nothing in the sound is changed */
-        static uint32_t seen_v, seen_d;
-        uint32_t top_v = seen_v, top_d = seen_d, j;
-        for (i = 0; i < NTRK; i++)
-            if (op_strike[i])
-                op_strike[i]--;
-        {   /* the sequencer's ACC steps (seq.c seq_acc): UNISON, a legato ACC + SLIDE too */
-            uint32_t a;
-            fm1_irq_off();
-            a = seq_acc;
-            seq_acc = 0;
-            fm1_irq_on();
-            for (i = 0; i < NPART; i++)
-                if ((a >> i) & 1u)
-                    op_strike[i] = OP_STRIKE_FR;
-        }
-        for (i = 0; i < NPART; i++)
-            for (j = 0; j < NVOICE; j++) {
-                const voice_t *v = &trk[i].v[j];
-                uint32_t age = v->age;
-                if (v->active && (int32_t)(age - seen_v) > 0) {
-                    if (vel_lvl(v->vel) == LV_HARD)
-                        op_strike[i] = OP_STRIKE_FR;
-                    if ((int32_t)(age - top_v) > 0)
-                        top_v = age;
-                }
-            }
-        for (j = 0; j < NDRUM; j++) {
-            const voice_t *v = &drums.v[j];
-            uint32_t age = v->age;
-            if (v->active && (int32_t)(age - seen_d) > 0) {
-                if (vel_lvl(v->vel) == LV_HARD)
-                    op_strike[TRK_DRUM] = OP_STRIKE_FR;
-                if ((int32_t)(age - top_d) > 0)
-                    top_d = age;
-            }
-        }
-        seen_v = top_v;
-        seen_d = top_d;
-    }
     if (song.sel < NPART && (n[song.sel][0] | n[song.sel][1] | n[song.sel][2] | n[song.sel][3]))
         for (k = 0; k < 27u; k++) {
             uint32_t note = kb_map(TSEL, k);

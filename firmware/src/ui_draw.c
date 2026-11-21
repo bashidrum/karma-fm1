@@ -103,9 +103,9 @@ static void draw_column(uint32_t c, const char *label, const char *val, const ch
 
 /* ENV: the envelope, a segment per knob in its colour (ATK DEC SUS REL). Matches voice.c: attack is linear,
  * decay and release are exponential (env += (target - env) * k each tick, ~99 % after the set time); the
- * time axis is the parameter value (the times themselves are exponential). The track's character
- * (ui_op.c) travels it with the voice that sounds: up the attack, down to the sustain, along it while
- * the note is held, down the release; its level in large digits, GATE lit while a key is down. */
+ * time axis is the parameter value (the times themselves are exponential). It follows the voice that
+ * sounds (ui_op.c op_env_voice): up the attack, down to the sustain, along it while the note is held,
+ * down the release; its level in large digits, GATE lit while a key is down. */
 static void graph_adsr(const track_t *t, uint16_t c)
 {
     static int32_t plat;                                                /* px along the sustain so far */
@@ -312,14 +312,12 @@ static uint32_t graph_signature(void)
     if (ui.home)
         return h ^ (ui.frame / 2u);                  /* scope: redraw every other frame */
     h ^= (uint32_t)pg->graph * 131u + TSEL->eng_req + song.sel * 7777u;
-    if (fam_stage(pg->fam) >= 0 && (pg->graph == GR_FX || big_page(pg))) {   /* a sound page (op_sound): as its knobs, the
-                                                     * beat and a strike (below) move it; a swept INSERT's notches run */
+    if (fam_stage(pg->fam) >= 0 && (pg->graph == GR_FX || big_page(pg))) {   /* a sound page (op_sound): as its knobs move
+                                                     * it; a swept INSERT's notches run */
         if (pg->graph == GR_INS && t->p[P_ITYPE] >= IT_PHASER)
             h ^= (ui.frame + 1u) * 40503u;
-    } else if (big_page(pg) && !is_drum(t))          /* the character's scene (ui_op.c): moves while the track sounds */
+    } else if (big_page(pg) && !is_drum(t))          /* the track's scene (ui_op.c): moves while the track sounds */
         h ^= (t->peak > 64 || op_lvl || op_hit ? ui.frame / 2u : 0u) * 40503u + op_note * 977u + user_of(t) * 31u;
-    if (pg->fam == FAM_FX || big_page(pg))           /* (the characters dance: a pose a beat) */
-        h ^= (song.playing ? (clk_beat & 3u) + 1u : 0u) * 69069u + (op_strike[song.sel & 3u] ? 2246822519u : 0u);   /* (and the STRIKE pose) */
     for (i = 0; i < P_COUNT; i++)
         h = (h ^ (uint32_t)t->p[i]) * 16777619u;
     h ^= (uint32_t)TSEL->preset * 7u + (uint32_t)song.g[G_SLOT] * 13u + TSEL->user * 257u + up_gen * 7919u + ui.uslot * 104729u;
@@ -329,7 +327,7 @@ static uint32_t graph_signature(void)
         h ^= (t->nheld * 31u + t->arp_note * 977u + (op_arp_hop ? ui.frame + 1u : 0u)) * 40503u;
     if (pg->graph == GR_LFO && !is_drum(t))          /* LFO: the wave runs (every other frame) */
         h ^= (ui.frame / 2u + 1u) * 40503u;
-    if (pg->graph == GR_ADSR && !is_drum(t) && op_env_voice(t))   /* ENV: the character follows the voice */
+    if (pg->graph == GR_ADSR && !is_drum(t) && op_env_voice(t))   /* ENV: it follows the voice */
         h ^= (ui.frame / 2u + 1u) * 40503u;
     if (pg->graph == GR_SLCR && t->p[P_SLCR])        /* the SLICER's step playing */
         h ^= (sl[song.sel].idx + 1u) * 2654435761u;
@@ -621,7 +619,7 @@ static void graph_big(void)
 }
 
 /* the settings pages (GLO, SAVE > TOOLS; 2026-10-29, Ariel: they should read as a menu): the four knobs as rows, each
- * its knob's number and colour, its name, its value large; the track's character small at the side */
+ * its knob's number and colour, its name, its value large (the track's character at the side is cut) */
 static int menu_page(const page_t *pg)
 {
     return pg->scope == SC_GLOBAL && pg->graph == GR_NONE && (pg->fam == FAM_GLO || pg->fam == FAM_SAVE);
@@ -652,10 +650,6 @@ static void graph_menu(const track_t *t)
         }
         cv_rect(22, y + 28, 146, 1, C_LINE);
     }
-    if (drums_page(cur_page()))                         /* (a shared page: no character, review 16b) */
-        op_sprite_scaled(TRK_DRUM, 210, 100, TE_COL[TRK_DRUM]);
-    else if (!shared_page(cur_page()))
-        op_sprite_scaled(song.sel & 3u, 210, 100, TE_COL[song.sel & 3u]);
 }
 
 static void draw_graph(void)
@@ -700,7 +694,7 @@ static void draw_graph(void)
             break;
         case GR_FX:
             cv_oy = 0;
-            op_sound(t, pg);              /* the sends, the character small (ui_op.c, review 8) */
+            op_sound(t, pg);              /* what the knobs do, big (ui_op.c, review 8) */
             break;
         case GR_SLCR:
             graph_slicer(t, c);

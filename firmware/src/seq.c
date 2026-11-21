@@ -1676,9 +1676,6 @@ static uint32_t step_vel(const step_t *s, uint32_t i)
     return lvl_vel((s->lvl >> (2u * i)) & 3u, base);
 }
 
-/* the synth steps played with ACC, a bit a track: the UI's characters strike a pose on them (ui_studio.c pads_tick;
- * REVIEW.md 13: the voices' velocity misses UNISON's scaled one and a legato ACC + SLIDE, which starts no voice) */
-static volatile uint8_t seq_acc;
 /* play one synth step: TIE extends, REST releases, NOTE (re)triggers; a SLIDE on the previous
  * step makes this one legato with a glide (acid style). skip: bit k = note k already sounds
  * from live recording (not triggered, not released here). len: the step's length (units). */
@@ -1733,8 +1730,6 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
     for (i = 0; i < s->n; i++)
         if (!((skip >> i) & 1u))
             t->seq_notes[t->seq_n++] = s->note[i];
-    if ((s->flags & SF_ACCENT) && t->seq_n)
-        seq_acc |= (uint8_t)(1u << trk_index(t));
     t->seq_off = gate;
     t->seq_hold = !s->rat && ((s->flags & SF_SLIDE) != 0 || next_tie);   /* next step a TIE: keep the notes to it */
 }
