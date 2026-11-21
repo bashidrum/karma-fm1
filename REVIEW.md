@@ -5,6 +5,37 @@
 **Overall state:** the bones are good and it already reads as one instrument. The new step GRID is the weakest part: it is silent, incomplete and has three real bugs. Nothing has run on a real FM-1.
 **Decisions waiting:** 22, most valuable first. Pictures are in `review/shots/`. The full lens reports and the research are in `review/`.
 
+## Ben's decisions (21 Nov, by picker)
+
+| # | Finding | Decision |
+|---|---|---|
+| 1 | Silent synth GRID | Play on change |
+| 2 | Three step editors | GRID only |
+| 3 | Filter locks | EDIT walks the chain |
+| 4 | Length and pages | Page slots, view follows the playhead |
+| 5 | Drum GRID one lane | SELECT toggles between the snake view and a full grid |
+| 6 | Saving | Unsaved dot, save on stop |
+| 7 | Undo | Full undo, shown on screen |
+| 8 | Sound pages | Sound big, character small |
+| 9 | Chain length | Merge one-knob pages, LFO SYNC, global effects to GLO |
+| 10 | Song screen | Insert and delete |
+| 11 | Four sequencer bugs | Fix all four |
+| 12 | Boot | Keep 3 s at full detail (the broken test still gets fixed) |
+| 13 | Strike pose | Fix |
+| 14 | Knob numbers | A: one bold face |
+| 15 | Bottom bar | A: heads with underline; mute and solo as badges |
+| 16 | Colour rule leftovers | Fix all |
+| 17 | Colour-blind | Skip |
+| 18 | Headers | Fix |
+| 19 | Small legibility fixes | Do all |
+| 20 | Screensavers | Drop all 11, build only the new pieces |
+| 21 | Words | Fix all |
+| 22 | Docs and site | Rewrite guide and cheat sheet, remove the analytics counter. Power-on kit: 606 |
+
+Status: being built. This table is updated as each lands.
+
+---
+
 Two facts that shape everything below:
 
 - **Space is nearly gone.** The firmware is 553,240 bytes of a 581,564 limit, so about 28 KB is left. The fierce characters used 12.7 KB of it. The working-memory pool has 16 bytes spare before the build fails. New screensavers must be code, not stored pictures, and must not need a buffer.

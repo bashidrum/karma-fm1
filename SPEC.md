@@ -97,3 +97,6 @@ Characters, first draft feedback (Ben, 20 Nov, 23:08): "Let's go more classic on
 - "You're right. The title font should fill the square. PHE / BUS"
 - Characters: "I like them."
 This supersedes "Just do it in plain white" for the boot screen.
+
+## Review decisions (Ben, 21 Nov 2026, by picker; the questions are in REVIEW.md)
+1 Hear notes on the GRID: "Play on change". 2 Step editors: "GRID only". 3 Filter locks: "EDIT walks the chain". 4 Length: "Page slots". 5 Drum grid: "SELECT toggles views". 6 Saving: "Dot + save on stop". 7 Undo: "Full undo, shown". 8 Sound pages: "Sound big, character small". 9 Chain: "Merge and move". 10 Song screen: "Insert and delete". 11 Bugs: "Fix all four". 12 Boot: "Keep 3 s full detail". 13 Strike: "Fix". 14 Knob numbers: "A: one bold face". 15 Bottom bar: "A: heads, underline"; mute/solo "A: badges". 16 Colour rule: "Fix all". 17 Colour-blind: "Skip". 18 Headers: "Fix". 19 Small fixes: "Do all". 20 Screensavers: "Drop all 11, new only". 21 Words: "Fix all". 22 Docs and site: "Rewrite and remove"; default kit: "Start on 606".
