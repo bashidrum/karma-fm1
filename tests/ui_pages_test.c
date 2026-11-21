@@ -617,6 +617,51 @@ int main(int argc, char **argv)
         for (y = 4; y < 16; y++) for (x = 76; x < 150; x++) lit += screen[y * 240 + x] != 0;
         check(lit > 40u, "SONG: OCT-'s song / loop switch has its hint");
     }
+    {   /* PHEBUS (Ben, 21 Nov 2026: "Hold the entry's key"): white key n is entry n; held, OCT+ inserts a copy of its
+         * entry there, OCT- deletes it; plain OCT- / OCT+ as before; the keys play no note here; refusals */
+        static const uint8_t SCN[3] = {0, 1, 2}, BRS[3] = {1, 2, 3};
+        uint32_t j, gate = 0, v2, mode0;
+        #define SONG_SET(n_) do { arr_defaults(&arrangement); arrangement.count = (n_); \
+            for (j = 0; j < (n_); j++) arrangement.entry[j].scene = SCN[j % 3u], arrangement.entry[j].bars = BRS[j % 3u]; } while (0)
+        #define HOLD(w_) do { fm1_in.notes = 1u << key_of_white(w_); frame(); } while (0)
+        #define LET() do { fm1_in.notes = 0; frame(); } while (0)
+        SONG_SET(3); song_cursor = 0; ui.force = 1; frame();
+        check(keys_lit() == (1u << key_of_white(0) | 1u << key_of_white(1) | 1u << key_of_white(2)),
+              "SONG: the keys of its three entries lit");
+        HOLD(1);
+        for (v2 = 0; v2 < NVOICE; v2++) gate |= TSEL->v[v2].active && TSEL->v[v2].gate;
+        check(!gate && song_cursor == 1u && song_held == 2u, "SONG: white key 2 held: no note, the cursor on entry 2");
+        ui.force = 1; frame(); ppm("page-song-held");
+        tap(B_OCTUP);
+        check(arrangement.count == 4u && arrangement.entry[1].scene == 1u && arrangement.entry[1].bars == 2u &&
+              arrangement.entry[2].scene == 1u && arrangement.entry[2].bars == 2u && arrangement.entry[3].scene == 2u &&
+              arrangement.entry[0].scene == 0u && !strcmp(ui.msg, "INSERTED 2"),
+              "SONG: key 2 held + OCT+: a copy of entry 2 inserted there (B B), the rest one on");
+        tap(B_OCTDN);
+        check(arrangement.count == 3u && arrangement.entry[1].scene == 1u && arrangement.entry[2].scene == 2u &&
+              !strcmp(ui.msg, "DELETED 2"), "SONG: key 2 held + OCT-: entry 2 deleted, the rest one back");
+        LET();
+        mode0 = arrangement_enabled;
+        tap(B_OCTDN);
+        check(arrangement.count == 3u && arrangement_enabled == !mode0, "SONG: no key held, OCT-: song / loop as before");
+        tap(B_OCTDN);
+        HOLD(8); tap(B_OCTDN);
+        check(arrangement.count == 3u && !strcmp(ui.msg, "NO ENTRY 9"), "SONG: key 9 held (3 entries) + OCT-: NO ENTRY 9");
+        song_cursor = 0; HOLD(8); tap(B_OCTUP);
+        check(arrangement.count == 4u && arrangement.entry[3].scene == arrangement.entry[0].scene &&
+              !strcmp(ui.msg, "INSERTED 4"), "SONG: key 9 held + OCT+: past the end, a copy of the cursor's entry at the end");
+        LET();
+        SONG_SET(ARR_STEPS); HOLD(0); tap(B_OCTUP); LET();
+        check(arrangement.count == ARR_STEPS && !strcmp(ui.msg, "SONG FULL (16)"), "SONG: full (16) + OCT+: refused, SONG FULL");
+        SONG_SET(1); HOLD(0); tap(B_OCTDN); LET();
+        check(arrangement.count == 1u && !strcmp(ui.msg, "SONG NEEDS ONE"), "SONG: one entry + OCT-: refused, SONG NEEDS ONE");
+        SONG_SET(3); song.playing = 1; HOLD(0); tap(B_OCTUP); tap(B_OCTDN); LET(); song.playing = 0;
+        check(arrangement.count == 3u && !strcmp(ui.msg, "STOP FIRST"), "SONG: playing, key held + OCT+ / OCT-: STOP FIRST (as every edit)");
+        song_cursor = 0; arr_defaults(&arrangement); ui.msg_t = 0; ui.force = 1; frame();
+        #undef SONG_SET
+        #undef HOLD
+        #undef LET
+    }
     {   /* 3.0.5: on the SONG screen SAVE shows the saved songs (KNOB 1 the song, 2 ERASE, 3 LOAD, 4 SAVE: twice), SAVE
          * again goes back; EDIT twice erases the part at the cursor (SAVE > PROJECT did) */
         uint32_t sv = song_ops[2], ld = song_ops[1], e0 = erases;

@@ -134,6 +134,11 @@ static uint32_t keys_lit(void)
     default:                                       /* playing, ARP roll, SAVE song, every page and the menu */
         break;
     }
+    if (kb_grid && on_song_page()) {               /* (PHEBUS) SONG: the keys of its entries */
+        for (i = 0; i < arrangement.count && i < 16u; i++)
+            m |= 1u << key_of_white(i);
+        return m;
+    }
     if (kb_grid)                                   /* the GRID: the steps of the page shown (ui_grid.c) */
         return grid_keys_lit(blink) | fm1_in.notes;
     m = fm1_in.notes;
@@ -646,7 +651,9 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         while (lk_r != lk_w) {                            /* a key let go after its layer: its release only */
             uint32_t e = lk_q[lk_r % LKQ];
             lk_r++;
-            if ((e >> 8) == KB_GRID) {                    /* the GRID: a step key (its release always) */
+            if ((e >> 8) == KB_GRID) {                    /* the GRID: a step key (its release always); the SONG
+                                                           * screen: an entry's key (PHEBUS) */
+                song_key(e & 31u, (e >> 7) & 1u);
                 if (!((e >> 7) & 1u) || grid_keys_on())
                     grid_key(e & 31u, (e >> 7) & 1u);
             } else if (!((e >> 7) & 1u)) {
@@ -814,7 +821,8 @@ static void ui_input(void)
             song.seq_mode = 0;
         }
     }
-    kb_grid = (uint8_t)grid_keys_on();                  /* (seq.c: the keys are the grid's steps) */
+    kb_grid = (uint8_t)(grid_keys_on() || (on_song_page() && !song_bank && !ui.menu));   /* (seq.c: the keys are the
+                                                         * grid's steps; the SONG screen's entries, PHEBUS: no notes) */
     if (sg_held && (!kb_grid || song.sel != sg_trk))
         sg_drop();                                      /* (the GRID left with steps held: their keys clear nothing) */
     if (ui.menu) {                                      /* HOME / REC taps do nothing here */

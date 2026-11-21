@@ -5,6 +5,7 @@ static uint8_t song_cursor, song_store_armed, song_load_armed, song_erase_armed;
 static uint32_t song_store_deadline;
 static uint8_t song_bank;                          /* (3.0.5) SAVE on the SONG screen: the saved songs (SAVE again: back) */
 static int on_song_page(void) { return !ui.home && cur_page()->scope == SC_SONG; }
+static uint16_t song_held;                          /* (PHEBUS) the white keys held on the SONG screen: entries 1..16 */
 static void song_sane(void)                         /* a bad chain (blank / damaged settings): defaults */
 {
     uint32_t i, ok = arrangement.count >= 1u && arrangement.count <= ARR_STEPS;
@@ -28,7 +29,7 @@ static void song_screen_draw(void)
     uint32_t i, start = song_cursor > 3u ? song_cursor - 3u : 0u;
     static uint32_t previous;
     static const uint16_t SC[4] = {RGB(196, 196, 204), RGB(196, 196, 204), RGB(196, 196, 204), RGB(196, 196, 204)};
-    uint32_t sig = song_cursor + 17u * arrangement_enabled + 37u * song.playing +
+    uint32_t sig = song_cursor + 17u * arrangement_enabled + 37u * song.playing + 1013u * (song_held != 0) +
                    71u * arrangement_clock.index + 127u * arrangement_clock.bar +
                    257u * arrangement.count + 509u * song.g[G_BPM];
     char b[30];
@@ -91,12 +92,14 @@ static void song_screen_draw(void)
     } else {
         static const char *const L[4] = {"entry", "section", "bars", "entries"};
         for (i = 0; i < 4u; i++) {
-            cv_rect((int32_t)i * 60 + 4, 6, 52, 3, SC[i]);
-            cv_text((int32_t)i * 60 + 30 - text_w(&FONT_S, L[i]) / 2, 12, &FONT_S, L[i], RGB(118, 118, 126));
+            cv_rect((int32_t)i * 60 + 4, 2, 52, 3, SC[i]);
+            cv_text((int32_t)i * 60 + 30 - text_w(&FONT_S, L[i]) / 2, 5, &FONT_S, L[i], RGB(118, 118, 126));
         }
     }
-    cv_text(4, 30, &FONT_S, "rec: store  oct+ x2: load", RGB(196, 196, 204));
-    cv_text(4, 45, &FONT_S, "edit x2: erase  save: songs", RGB(196, 196, 204));
+    cv_text(4, 21, &FONT_S, "rec: store  oct+ x2: load", RGB(196, 196, 204));
+    cv_text(4, 36, &FONT_S, "edit x2: erase  save: songs", RGB(196, 196, 204));
+    cv_text(4, 51, &FONT_S, song_held ? "oct+: insert  oct-: delete" : "hold key, oct+/-: ins/del",
+            song_held ? C_WHITE : RGB(196, 196, 204));   /* (PHEBUS, Ben 21 Nov: "Hold the entry's key") */
     cv_blit(0, 172);
 }
 
@@ -221,6 +224,59 @@ static void song_edit_tap(void)
     }
 }
 
+/* (PHEBUS, Ben 21 Nov 2026: "Hold the entry's key") a white key on the SONG screen (seq.c kb_grid: it plays nothing
+ * here): white key n is entry n; held, OCT+ inserts and OCT- deletes there (song_entry_edit); pressed, the cursor
+ * goes to its entry */
+static void song_key(uint32_t k, uint32_t down)
+{
+    int32_t w = punch_key(k);
+    if (w < 0)
+        return;
+    if (!down) {
+        song_held &= (uint16_t)~(1u << w);
+        return;
+    }
+    if (!on_song_page() || song_bank)
+        return;
+    song_held |= (uint16_t)(1u << w);
+    if ((uint32_t)w < arrangement.count)
+        song_cursor = (uint8_t)w;
+}
+/* the first entry key held: OCT+ a copy of its entry there (past the end: of the cursor's, at the end), the rest one
+ * on; OCT- its entry out, the rest one back. Refused: a full song, a song that would be empty, no such entry */
+static void song_entry_edit(int ins)
+{
+    uint32_t p = 0, n = arrangement.count, i;
+    arr_entry_t e;
+    char b[4];
+    while (p < 15u && !((song_held >> p) & 1u))
+        p++;
+    if (ins) {
+        if (n >= ARR_STEPS) { ui_message("SONG FULL (16)"); return; }
+        e = arrangement.entry[p < n ? p : song_cursor];
+        if (p > n)
+            p = n;
+        fm1_irq_off();
+        for (i = n; i > p; i--)
+            arrangement.entry[i] = arrangement.entry[i - 1u];
+        arrangement.entry[p] = e;
+        arrangement.count = (uint8_t)(n + 1u);
+        fm1_irq_on();
+    } else {
+        fmt_int(b, (int32_t)p + 1);
+        if (p >= n) { ui_say("NO ENTRY ", b); return; }
+        if (n <= 1u) { ui_message("SONG NEEDS ONE"); return; }
+        fm1_irq_off();
+        for (i = p; i + 1u < n; i++)
+            arrangement.entry[i] = arrangement.entry[i + 1u];
+        arrangement.count = (uint8_t)(n - 1u);
+        fm1_irq_on();
+    }
+    song_cursor = (uint8_t)(p < arrangement.count ? p : arrangement.count - 1u);
+    fmt_int(b, (int32_t)p + 1);
+    ui_say(ins ? "INSERTED " : "DELETED ", b);
+}
+
 static void song_screen_input(uint32_t pressed, uint32_t home)
 {
     uint32_t k, b;
@@ -245,7 +301,10 @@ static void song_screen_input(uint32_t pressed, uint32_t home)
         } else if (b == B_SAVE || b == B_REC || b == B_OCTDN || b == B_OCTUP) {
             uint32_t scene = arrangement.entry[song_cursor].scene;
             if (song.playing || transport_req) { ui_message("STOP FIRST"); continue; }
-            if (b == B_SAVE) {
+            if (song_held && (b == B_OCTDN || b == B_OCTUP)) {   /* an entry's key held: insert / delete there */
+                song_store_armed = song_load_armed = song_erase_armed = 0;
+                song_entry_edit(b == B_OCTUP);
+            } else if (b == B_SAVE) {
                 arrangement_save();
                 song_store_armed = 0;
             } else if (b == B_OCTDN) {
