@@ -648,6 +648,29 @@ int main(int argc, char **argv)
         ui.force = 1; frame(); ppm("grid-synth-lock");
         press(B_OCTDN); release(B_OCTDN); frame();
         check(lock_find(t, 4, a1, 0) < 0 && lock_find(t, 4, P_ATK, 0) >= 0, "GRID: OCT- on the FX lock page: its locks go, ATK's stays");
+        {   /* REVIEW 3: EDIT with a step held walks OSC > FILT > ENV (the filter locks), the page named whole */
+            uint32_t seen = 0, j, cut = 0;
+            for (j = 0; j < 10u; j++) {
+                tap(B_EDIT); frame();
+                if (sg_lpage >= NPAGES) break;
+                seen |= 1u << (PAGES[sg_lpage].fam == FAM_OSC ? 0 : PAGES[sg_lpage].fam == FAM_FLT ? 1 : PAGES[sg_lpage].fam == FAM_ENV ? 2 : 3);
+                if (!cut && !strcmp(sg_lock_title(), "FILTER")) {
+                    cut = 1;
+                    encs[panel.enc[EN_K1]] = 5; frame();
+                    ui.force = 1; frame(); ppm("grid-synth-lock-filter");
+                }
+            }
+            check(seen == 7u, "GRID: step held + EDIT, again and again: OSC, FILTER and ENV pages (nothing else)");
+            check(cut && lock_find(t, 4, P_E1, 0) >= 0 && t->lock[lock_find(t, 4, P_E1, 0)].val != t->p[P_E1],
+                  "GRID: on FILTER, KNOB 1: a CUT lock on the step (the filter locks from the GRID)");
+            {
+                uint32_t j2;
+                for (j2 = 0, j = 1; j2 < NPAGES; j2++)
+                    if (sg_fam_in(PAGES[j2].fam, FAM_EDIT) || PAGES[j2].fam == FAM_FX || PAGES[j2].fam == FAM_LFO)
+                        j &= text_w(&FONT_S, PAGES[j2].title) <= 122 - 46;
+                check(j, "GRID: every lock page's name fits the header whole (no \"LOCK VOIC\")");
+            }
+        }
         ui.msg_t = 0;
         fm1_in.notes &= ~(1u << k5); frame();
         check(step_on(&t->step[4]) && !sg_held && sg_lpage == 0xFF, "GRID: step let go after edits: kept, the knobs back");

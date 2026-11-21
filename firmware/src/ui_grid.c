@@ -210,15 +210,28 @@ static int sg_lock_page_ok(const page_t *pg)
     }
     return 0;
 }
-/* a step held + a page button: its page on the knobs (again: the next one of that button that can lock) */
+/* the pages a button walks with a step held: EDIT the chain's first three stages, OSC > FILT > ENV (REVIEW.md 3,
+ * 21 Nov 2026: the filter locks from the GRID), ENV / LFO / FX their own */
+static int sg_fam_in(uint32_t pfam, uint32_t fam)
+{
+    return fam == FAM_EDIT ? pfam == FAM_OSC || pfam == FAM_FLT || pfam == FAM_ENV : pfam == fam;
+}
+/* the lock page's name ("FILTER 2"): the page's title, an engine page its engine's */
+static const char *sg_lock_title(void)
+{
+    const page_t *pg = &PAGES[sg_lpage % NPAGES];
+    return pg->scope == SC_ENGINE ? ENGINES[TSEL->eng_req % NENGINES]->page_title[pg->id[0] != P_E0] : pg->title;
+}
+/* a step held + a page button: its page on the knobs (again: the next one of that button that can lock, in the
+ * chain's order, round) */
 static void sg_lock_open(uint32_t fam)
 {
     uint32_t i, start = 0, n;
-    if (sg_lpage < NPAGES && PAGES[sg_lpage].fam == fam)
+    if (sg_lpage < NPAGES && sg_fam_in(PAGES[sg_lpage].fam, fam))
         start = sg_lpage + 1u;
     for (n = 0; n < NPAGES; n++) {
         i = (start + n) % NPAGES;
-        if (PAGES[i].fam == fam && sg_lock_page_ok(&PAGES[i])) {
+        if (sg_fam_in(PAGES[i].fam, fam) && sg_lock_page_ok(&PAGES[i])) {
             sg_lpage = (uint8_t)i;
             ui.force = 1;
             return;
@@ -606,6 +619,10 @@ static void sg_detail_draw(uint32_t y, uint32_t h, uint32_t idx, uint32_t held)
     fmt_int(top + 5, (int32_t)idx + 1);
     if (held && (sg_held & (sg_held - 1u)))
         str_cpy(top + str_len(top), " +", 3);           /* (more steps held: edited together) */
+    if (held && sg_lpage < NPAGES) {                    /* its knobs lock: on which page */
+        str_cpy(top + str_len(top), " LOCK ", 7);
+        str_cpy(top + str_len(top), sg_lock_title(), 32u - str_len(top));
+    }
     if (is_drum(t)) {
         str_cpy(nm, LANE_SHORT[drum_lane], 20);
     } else if (step_on(&t->step[idx])) {
@@ -778,9 +795,8 @@ static void sg_draw(void)
     if (ui.cursor >= len)
         sg_cur_set(len - 1u);
     c = h0 >= 0 ? (uint32_t)h0 : sg_cur();
-    if (sg_lpage < NPAGES) {                             /* a lock page: its name */
-        str_cpy(title, "LOCK ", 20);
-        str_cpy(title + 5, PAGES[sg_lpage].scope == SC_ENGINE ? e->page_title[PAGES[sg_lpage].id[0] != P_E0] : PAGES[sg_lpage].title, 14);
+    if (sg_lpage < NPAGES) {                             /* a lock page: its name, whole (the step band says LOCK) */
+        str_cpy(title, sg_lock_title(), 20);
     } else {
         str_cpy(title, "GRID ", 20);
         fmt_int(title + 5, (int32_t)sg_page() + 1);
