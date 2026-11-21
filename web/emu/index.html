@@ -85,7 +85,8 @@ footer small { font-size: 11px; opacity: .8; }
   <span><kbd>[</kbd> <kbd>]</kbd> OCT</span>
   <span><kbd>↑</kbd> <kbd>↓</kbd> SELECT</span>
   <span><kbd>←</kbd> <kbd>→</kbd> ALGORITHM</span>
-  <span>Double-click (or <kbd>Shift</kbd>-click) a button to hold it down, click it again to let go</span>
+  <span>Double-click (or <kbd>Shift</kbd>-click) a button or a key to hold it down, click it again to let go</span>
+  <span>To hold a step and turn a knob: hold its key on your computer keyboard, or double-click it, then drag or scroll the knob</span>
 </p>
 
 <p class="keys" id="midistat" aria-live="polite">MIDI: switch on first</p>
@@ -149,7 +150,7 @@ function label(parent, x, y, s, size, font = SANS, ink = "var(--label)") {
 const KEYNAMES = ["F", "F♯", "G", "G♯", "A", "A♯", "B", "C", "C♯", "D", "D♯", "E"];
 const keyName = (k) => KEYNAMES[k % 12] + (3 + Math.floor((k + 5) / 12));
 
-let node = null, btnMask = 0, keyMask = 0, latched = 0, masterValue = 700, lastLeds = [0, 0, 0, 0, 0], layout = null;
+let node = null, btnMask = 0, keyMask = 0, latched = 0, keyLatched = 0, masterValue = 700, lastLeds = [0, 0, 0, 0, 0], layout = null;
 const angle = Object.fromEntries(KNOBS.map((n) => [n, 0]));
 angle.MASTER = -135 + 270 * masterValue / 1023;
 const knobs = [], buttons = [], keys = [];
@@ -245,11 +246,11 @@ function syncButtons(redraw) {
   }
 }
 function syncKeys(redraw) {
-  let m = 0;
+  let m = keyLatched;
   for (const k of keyBy.values()) m |= 1 << k;
   if (m !== keyMask) { keyMask = m; send({ type: "keys", mask: m }); }
   else if (!redraw) return;
-  keys.forEach((k, i) => k.g.classList.toggle("held", !!(m & (1 << i))));
+  keys.forEach((k, i) => { k.g.classList.toggle("held", !!(m & (1 << i))); k.g.classList.toggle("latched", !!(keyLatched & (1 << i))); });
 }
 function bindButton(b) {
   b.hit.addEventListener("pointerdown", (e) => {
@@ -270,6 +271,12 @@ function bindButton(b) {
 function bindKey(k, i) {
   k.hit.addEventListener("pointerdown", (e) => {
     e.preventDefault();
+    // PHEBUS: a key can be held for you (shift-click, right-click or double-click; click it again to let go), so a
+    // step can be held while a knob is turned with one mouse
+    const now = performance.now(), twice = now - (k.downAt || 0) < 350, bit = 1 << i;
+    k.downAt = now;
+    if (e.shiftKey || e.button === 2 || (twice && !(keyLatched & bit))) { keyLatched ^= bit; k.downAt = 0; syncKeys(true); return; }
+    if (keyLatched & bit) { keyLatched &= ~bit; k.downAt = 0; syncKeys(true); return; }
     k.hit.setPointerCapture(e.pointerId);
     keyBy.set("p" + e.pointerId, i);
     syncKeys();
