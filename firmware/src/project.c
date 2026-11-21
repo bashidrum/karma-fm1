@@ -612,6 +612,24 @@ static void proj_apply(const project_t *p, int all)
     }
 }
 
+/* ---- when the working project goes to flash (autosave_tick below; on the host: tests/project_test.c). PHEBUS, 21 Nov
+ * 2026 (Ben: "Dot + save on stop"): each time the transport stops, once the panel has rested AUTOSAVE_STOP_IDLE and the
+ * output is silent (stop_quiet: a flash erase stalls the audio ~50 ms, so never under a tail), at most every
+ * AUTOSAVE_STOP_GAP (the two sectors' wear); else, as before, AUTOSAVE_IDLE untouched and AUTOSAVE_GAP apart (the
+ * output then need not be silent: a frozen CLOUD may hold it). quiet: no voice sounds */
+#define AUTOSAVE_IDLE 2500u                    /* ms without input */
+#define AUTOSAVE_GAP 20000u                    /* ms between two saves at least */
+#define AUTOSAVE_STOP_IDLE 300u                /* after a stop: ms without input (the STOP press itself is input) */
+#define AUTOSAVE_STOP_GAP 5000u                /* after a stop: ms since the last save at least */
+static int autosave_due(uint32_t stop, uint32_t stop_quiet, uint32_t quiet, uint32_t idle, uint32_t gap)
+{
+    if (!quiet)
+        return 0;
+    if (stop && stop_quiet && idle >= AUTOSAVE_STOP_IDLE && gap >= AUTOSAVE_STOP_GAP)
+        return 1;
+    return idle >= AUTOSAVE_IDLE && gap >= AUTOSAVE_GAP;
+}
+
 #ifndef PROJ_HOST
 #if FELUCCA_ARRANGER
 #include "arranger_scene.c"
@@ -742,10 +760,9 @@ static void project_load(uint32_t slot)
 /* ---- the working project, kept in flash by itself: saved when it changed, the transport is stopped,
  * nothing sounds and the panel was not touched for AUTOSAVE_IDLE (a flash erase stops the audio for
  * ~50 ms: never while something plays); loaded at power-on (autosave_resume) */
-#define AUTOSAVE_IDLE 2500u                    /* ms without input */
-#define AUTOSAVE_GAP 20000u                    /* ms between two saves at least */
 static project_t autosave_buf __attribute__((section(".pool")));
-static uint32_t autosave_hash, autosave_ms, autosave_checked;
+static uint32_t autosave_hash, autosave_ms, autosave_checked, unsaved_ms;
+static uint8_t stop_save, was_running;         /* (PHEBUS) the transport stopped, not saved since; it ran last frame */
 
 static int audio_quiet(void)
 {
@@ -759,22 +776,63 @@ static int audio_quiet(void)
             return 0;
     return 1;
 }
+#if FELUCCA_FLASH
+static int out_silent(void)                    /* (PHEBUS) the last 512 samples of the mix (audio.c scope) under -60 dB */
+{
+    uint32_t i;
+    for (i = 0; i < SCOPE_N; i++)
+        if (scope_buf[i] > 32 || scope_buf[i] < -32 || scope_bufr[i] > 32 || scope_bufr[i] < -32)
+            return 0;
+    return 1;
+}
+
+/* (PHEBUS) the header's unsaved dot (ui_op.c proj_unsaved): the working project as it is now against the one in flash,
+ * twice a second; a lock in force counts as its base (seq.c lk_*: the knob's value, not the step's); the live sections,
+ * the song order and an edited kit not yet in flash count too. A song playing: the tracks hold a section, kept as was */
+static void unsaved_tick(void)
+{
+    uint32_t i, k;
+    if (!flash_ok || fm1_ms - unsaved_ms < 500u)
+        return;
+    unsaved_ms = fm1_ms;
+#if FELUCCA_ARRANGER
+    if (arrangement_clock.running)
+        return;
+#endif
+    proj_capture(&autosave_buf);
+    for (i = 0; i < NTRK; i++)
+        for (k = 0; k < trk[i].lk_n && k < NLOCK; k++)
+            if (trk[i].p[trk[i].lk_param[k] % P_COUNT] == trk[i].lk_set[k])
+                pt_set(&autosave_buf.t[i], trk[i].lk_param[k] % P_COUNT, trk[i].lk_base[k]);
+    proj_unsaved = (uint8_t)(proj_sum(&autosave_buf) != autosave_hash || sec_dirty || song_dirty || dsu_dirty);
+}
+#endif
 
 static void autosave_tick(void)                /* main loop */
 {
 #if FELUCCA_FLASH
-    uint32_t h, now = fm1_ms;
-    if (!flash_ok || song.playing || transport_req || rec_wait || ft_on || ui.menu ||
-        now - ui_input_ms < AUTOSAVE_IDLE || now - autosave_ms < AUTOSAVE_GAP || now - autosave_checked < 1000u)
+    uint32_t h, now = fm1_ms, run = song.playing || transport_req;
+    if (was_running && !run)
+        stop_save = 1;                         /* (PHEBUS) stopped: saved as soon as it is silent */
+    was_running = (uint8_t)run;
+    unsaved_tick();
+    if (!flash_ok || run || rec_wait || ft_on || ui.menu || now - autosave_checked < (stop_save ? 100u : 1000u) ||
+        !autosave_due(stop_save, stop_save && out_silent(), 1, now - ui_input_ms, now - autosave_ms))
         return;
     autosave_checked = now;
     proj_capture(&autosave_buf);
     h = autosave_buf.sum;
-    if (h == autosave_hash || !audio_quiet())
+    if (h == autosave_hash) {
+        stop_save = 0;                         /* (nothing changed since the last save) */
+        return;
+    }
+    if (!audio_quiet())
         return;
     if (st_save(OBJ_AUTOSAVE, &autosave_buf, sizeof autosave_buf) == 0)
         autosave_hash = h;
     autosave_ms = fm1_ms;
+    stop_save = 0;
+    unsaved_ms = fm1_ms - 500u;                /* (the dot: again at the next frame) */
 #endif
 }
 

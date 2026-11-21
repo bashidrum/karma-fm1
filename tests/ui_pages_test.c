@@ -173,6 +173,20 @@ int main(int argc, char **argv)
       for (k = 0; k < 6u; k++) { char nm[16]; snprintf(nm, sizeof nm, "boot-%u", (unsigned)k); flow_seed = SEED[k]; boot_frame(60u + k * 9u); ppm(nm); } }
     ui.menu = 2; ui.force = 1; frame(); ppm("page-about"); ui.menu = 0;
     go_home(); ui.force = 1; frame(); ppm("page-tracks");
+    {   /* PHEBUS (21 Nov, Ben: "Dot + save on stop"): the header's unsaved dot (project.c unsaved_tick sets proj_unsaved),
+         * between the beats and the battery; REC's red disc takes its place while recording; gone once saved */
+        uint16_t was = swap16(screen[10 * 240 + 209]);
+        proj_unsaved = 1; frame();
+        check(was != C_WHITE && swap16(screen[10 * 240 + 209]) == C_WHITE,
+              "unsaved work: a white dot in the header, clear of the tempo and the battery");
+        ppm("home-unsaved");
+        open_family(FAM_ENV); ui.force = 1; frame();
+        check(swap16(screen[10 * 240 + 209]) == C_WHITE, "unsaved work: the dot on a sound page's header too");
+        go_home(); ui.force = 1; frame();
+        proj_unsaved = 0; frame();
+        check(swap16(screen[10 * 240 + 209]) == was, "saved: the dot goes");
+        check(!strcmp(DRUM_KIT_NAMES[DRUM_DEFAULT_KIT], "606"), "power-on drum kit: the 606 (Ben, 21 Nov)");
+    }
     open_family(FAM_ENV); ui.force = 1; ui.hot_col = 1; ui.hot_t = 30; frame(); ppm("page-env");
     go_home(); open_family(FAM_EDIT); ui.force = 1; frame(); ppm("page-edit");   /* (EDIT: the chain's start, OSC) */
     open_family(FAM_FX); ui.force = 1; frame(); ppm("page-fx");

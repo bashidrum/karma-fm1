@@ -24,13 +24,14 @@ static void op_box(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)   /* 
     cv_rect(x + w - 1, y, 1, h, c);
 }
 
-/* the header: [tag] title | BPM, play / stop, the four beats, REC, the battery */
+/* the header: [tag] title | BPM, play / stop, the four beats, REC (else the unsaved dot), the battery */
+static uint8_t proj_unsaved;                           /* (PHEBUS) the work differs from flash (project.c unsaved_tick) */
 static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t *cache)
 {
     char b[12];
     uint32_t beat = clk_beat, k, playing = song.playing;
     uint32_t sig = studio_hash((uint32_t)song.g[G_BPM] * 7u + playing * 3u + (song.rec != 0) * 1999u +
-                               (playing ? beat * 131u : 0u) + (ui.bpm_t != 0) * 104729u + (uint32_t)batt_shown() * 7777u, title);
+                               (playing ? beat * 131u : 0u) + (ui.bpm_t != 0) * 104729u + (uint32_t)batt_shown() * 7777u + proj_unsaved * 31337u, title);
     sig = studio_hash(sig * 31u + tc, tag);
     if (!ui.force && sig == *cache)
         return;
@@ -59,6 +60,8 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
         cv_rect(172 + (int32_t)k * 8, 7, 6, 6, playing && beat % 4u == k ? (k ? C_WHITE : TE_RED) : TE_G2);
     if (song.rec)
         te_disc(209, 10, 4, TE_RED);
+    else if (proj_unsaved)                             /* (saved again at the next stop: project.c autosave_tick) */
+        te_disc(209, 10, 2, C_WHITE);
     {   /* battery, 3 bars (filling in turn while a USB host charges it) */
         int32_t lvl = batt_shown(), i;
         op_box(217, 5, 17, 10, TE_G3);
