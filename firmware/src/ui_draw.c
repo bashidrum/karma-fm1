@@ -61,7 +61,7 @@ static void draw_head(void)
     else if (drums_page(pg))
         op_header("DRUM", TE_COL[TRK_DRUM], title, &ui.head_sig);
     else
-        op_header(!is_drum(TSEL) && e != &ENG_GONE ? e->name : "DRUM",   /* a synth track: its engine, by name */
+        op_header(!is_drum(TSEL) ? e->name : "DRUM",   /* a synth track: its engine, by name (review 18: never SYN1) */
                   TE_COL[song.sel & 3u], title, &ui.head_sig);
 }
 /* (the bands cover the screen: header, graph, the pages strip, the knob band, the track bar) */

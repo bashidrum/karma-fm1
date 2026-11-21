@@ -37,9 +37,10 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
         return;
     *cache = sig;
     cv_begin(240, OP_HEAD_H, C_BLACK);
-    {   /* the tag in its box (four characters, or as wide as a longer one), the title up to the tempo */
-        int32_t w = text_w(&FONT_S, tag) + 6;
-        w = w < 38 ? 38 : w;
+    {   /* the tag in its box, one width for every tag (five characters: the title always starts at x 52; review 18) */
+        int32_t w = 46;
+        if (str_len(tag) > 5u)                          /* (ELEMENTS, PLAITS: their five-letter tags) */
+            tag = tag[0] == 'E' ? "ELEM" : tag[0] == 'P' ? "PLTS" : "SYN";
         op_box(2, 1, w, 18, tc);
         te_text_c(2 + w / 2, 2, tag, tc);
         str_cpy(b, title, 10);
@@ -354,18 +355,18 @@ static int32_t op_wave(uint32_t ph, uint32_t kind, int32_t morph)
 static int32_t op_k = 3;
 static uint16_t op_ink = OP_PUR;
 
-/* the sound of the track, at the top of the graph canvas: engine, preset */
+/* the sound of the track, at the top of the graph canvas: its preset alone, in white (the engine is the header's tag,
+ * review 18) */
 static void op_names(const track_t *t)
 {
     char b[16];
     const engine_t *e = ENGINES[t->eng_req % NENGINES];
-    int32_t x = cv_text(4, 2, &FONT_S, e->name, TE_G4);
     b[0] = 0;
     if (user_of(t) < UP_SLOTS)
         up_name(user_of(t), b);
     else if (e->npresets)
         str_cpy(b, e->presets[t->preset % e->npresets].name, sizeof b);
-    cv_text(x + 8, 2, &FONT_S, b, TE_G3);
+    cv_text(4, 2, &FONT_S, b, C_WHITE);
 }
 
 /* the voice whose envelope the ENV page follows: the one earliest in its envelope (a new note first), then

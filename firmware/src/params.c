@@ -351,8 +351,7 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
             str_cpy(val, "OFF", 6);
         } else {
             str_cpy(val, v < 0 ? "LP" : "HP", 6);
-            fmt_int(val + 2, v < 0 ? (-v * 100 + 32) / 64 : (v * 100 + 31) / 63);
-            *unit = "%";
+            fmt_int(val + 2, v < 0 ? (-v * 100 + 32) / 64 : (v * 100 + 31) / 63);   /* (a mode name: no unit, review 18) */
         }
         break;
     case F_BIPCT:
