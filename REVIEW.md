@@ -127,3 +127,37 @@ Each is asked in the pickers.
 - "EDIT walks the chain" for locks becomes unnecessary once hold-and-turn locks whatever is on screen.
 - "Keep the one-knob pages, name them" against one uniform layout.
 - CLOUD, moved to GLO this morning, against cutting it.
+
+---
+
+## Ben's decisions (21 Nov, evening, by picker)
+
+| Decision | Choice |
+|---|---|
+| Route | Hybrid |
+| Save format | New format accepted |
+| Drum model | Per-sound trigs on one track |
+| Drum sounds | 16 |
+| Oscillator types | Same layout now, ACID and JUNO everywhere, the big list after a device check |
+| Filter envelope | Its own ADSR page with a LINK switch |
+| Mod matrix | Grid |
+| Locks | Rytm way: hold a step and turn, shown inverted |
+| Song and sections | A to D as patterns only; song, chains and songs bank cut |
+| Generators | All cut; MiniFreak-style Spice and Dice added |
+| Stutter lane | Kept; played effects record into it |
+| CLOUD, TEXTURE, SLICER | CLOUD and TEXTURE cut; SLICER kept |
+| Characters | Heads in the strip only |
+| Snake view | Dropped |
+| Screensavers and HOME band | Both kept |
+| Sample kits, free take, screen reader, web editor editing | All cut (web editor keeps backup and install) |
+| Drum pages | Four dials over the knobs |
+| Drum kits | Every kit editable; 606 start kept |
+| Performance | Pad map, trimmed set |
+| HOME | Three zones, with cutoff, decay, stutter, level |
+| OSC page | Type + three macros |
+| Held build | Merged |
+| Order | Cuts and save format, then drums, then melodic, then performance |
+
+Taken as read, not asked: the visual fixes that follow from the new screens (one value size in fixed columns, the touched knob shown large on pages with no graph, stutter lengths drawn as spans, shared list pages showing values once).
+
+Status: building. Wave 1 is the cuts.

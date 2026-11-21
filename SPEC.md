@@ -141,3 +141,29 @@ D. Include a visual review from a graphic design point of view: each kept screen
 Give me the result as a short grouped list, then put every CUT and every real choice to me as multiple-choice pickers. Known open choices: fold ACID and JUNO into one oscillator Type list or keep separate engines; 16 drum sounds or the Rytm's 12; keep or drop the snake view; whether song mode, the generators, CLOUD and the screensavers stay.
 Things I have already decided today stay decided unless they clash with this direction. If one clashes, show me the clash and ask.
 Ask me before starting any long test run."
+
+## Direction decisions (Ben, 21 Nov 2026, evening, by picker; the questions and context are in REVIEW.md)
+- Route: "Hybrid" (keep drawing code, menus and rescue screens; replace the page layout, step editor and screens one module at a time).
+- Save format: "Accept" (new format; PHEBUS reads old projects; stock KARMA cannot read new ones).
+- Drum model: "Per-sound trigs, one track" (each sound's hits get their own velocity, condition, nudge, retrig and locks; all sounds share one pattern length).
+- Drum sounds: "16 sounds".
+- Oscillator types: "Same layout, widen in stages" (every voice gets the same pages now, with ACID and JUNO on every track; the big multi-model list on every track only after a processor check on the real FM-1).
+- Filter envelope: "As decided: ADSR + link" (a dedicated filter envelope page with a LINK AMP/OWN switch).
+- Mod matrix: "A: grid".
+- Locks: "Rytm way" (hold a step and turn: whatever is on the knobs gets locked; page buttons still change page while the step is held; locked values shown inverted).
+- Song and sections: "Keep A-D as patterns only" (four patterns you switch between, queued to the bar; cut chains, the SONG screen, song record and the songs bank).
+- Generators, in his words: "Cut all but give me the spice & dice from minifreak".
+- Stutter lane: "Keep, and record played FX into it" (it becomes PHEBUS's FX track).
+- CLOUD, TEXTURE, SLICER, in his words: "Slicer sounds fun. Cut the others".
+- Characters: "Heads in the strip only".
+- Snake view: "Drop it".
+- Screensavers and HOME band: "Keep both".
+- Old extras to cut (all four ticked): "Sample kits", "Free take", "Screen reader", "Web editor (keep backup + install)".
+- Drum pages: "B: four dials over the knobs".
+- Drum kits: "Make every kit editable" (keep the 606 start; turning a knob on any kit makes your own editable copy).
+- Performance: "A: pad map, trimmed set" (about 18 effects: straight stutters 1/1 to 1/32, reverse, half, tape stop, sweeps, gate, crush, echo, kills, throws; latch; knobs tweak the last effect pressed).
+- HOME: "B: three zones" (SYNTH, DRUM and PERFORM panels, one per pillar), keeping the knobs cutoff, decay, stutter, level.
+- OSC page: "A: Type + three macros" (knob 1 picks the Type, knobs 2 to 4 are its three macros, renamed per type; volume on HOME and the mixer).
+- Held build (step-record, HOME knobs, ACID bass, stutter lengths, LFO PATT, HOME band): "Merge it".
+- Order: "Drums first", after a first wave of cuts and the new save format.
+- "Start building".
