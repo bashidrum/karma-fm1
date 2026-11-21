@@ -712,8 +712,9 @@ static void layer_screen_draw(void)
     sub[6] = (char)('1' + sel);
     sub[7] = 0;
     switch (layer) {
-    case LY_FX:                                         /* the 27 punch-in effects: 16 white keys, 11 black */
-        col = TE_DRUM;
+    case LY_FX:                                         /* the 27 punch-in effects: 16 white keys, 11 black (the mix's:
+                                                         * neutral, review 16c) */
+        col = C_WHITE;
         str_cpy(sub, thr_req == 3u ? "rev + echo throw" : thr_req == 2u ? "echo throw" : thr_req ? "rev throw" : "hold + key",
                 sizeof sub);
         for (i = 0; i < PUNCH_NFX; i++) {
@@ -725,7 +726,6 @@ static void layer_screen_draw(void)
             str_cpy(tl[i].lab, PSHORT[i], 8);
             tl[i].bg = on ? C_WHITE : black ? C_BLACK : TE_G1;
             tl[i].fg = on ? C_BLACK : black ? TE_G3 : TE_G4;
-            tl[i].top = on || black ? 0 : TE_DIM[i / 4u];
         }
         lab[0] = "filter", lab[1] = "dust", lab[2] = "duck", lab[3] = "trk flt";
         {
@@ -1039,7 +1039,10 @@ static void layer_screen_draw(void)
         if (layer == LY_MIX)                            /* GLO layer: the levels of tracks 1..4 */
             knob_tint_voices();
         else
-            knob_tint_all(layer == LY_SCALE || layer == LY_SONG ? TINT_NEUTRAL : song.sel);   /* the key, the song: everyone's */
+            knob_tint_all(layer == LY_SCALE || layer == LY_SONG || layer == LY_FX ? TINT_NEUTRAL : song.sel);   /* the key,
+                                                         * the song, the mix's effects: everyone's */
+        if (layer == LY_FX)
+            knob_tint[3] = (uint8_t)song.sel;           /* TRK FLT: the selected track's own filter */
         te_dials(184, lab, val, ratio, layer * 7919u, &foot);
         ui.msg_t = m;
     }

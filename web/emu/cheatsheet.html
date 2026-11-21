@@ -14,7 +14,7 @@
 @font-face { font-family: "DotGothic16"; src: url("fonts/DotGothic16-subset.woff") format("woff"); font-display: swap; }
 
 /* Layout: the landing page's grammar (boxed pixel labels, track colours with meaning, the FM-1's black body),
-   sections as cards in a responsive grid; knob values in the four knob colours (= the four track colours). */
+   sections as cards in a responsive grid; colour means voice: a voice's pages in its track's colour, shared pages neutral. */
 :root {
   --bg: #0c0c11;
   --panel: #14141b;
@@ -22,10 +22,11 @@
   --line: #2a2a36;
   --fg: #ecebf3;
   --dim: #a09eb3;
-  --t1: #4590ff;   /* track 1, KNOB 1 */
-  --t2: #2fd27e;   /* track 2 ELEMENTS, KNOB 2 */
-  --t3: #e4e4ec;   /* track 3 PLAITS, KNOB 3 */
-  --t4: #ff6b1f;   /* DRUM, KNOB 4 */
+  --t1: #8c76f0;   /* track 1 (robot) */
+  --t2: #28a0f5;   /* track 2 (alien) */
+  --t3: #14c4aa;   /* track 3 (crocodile) */
+  --t4: #ff806c;   /* drums (snake) */
+  --all: #c4c4cc;  /* what every voice shares: neutral */
   --lav: #8d82ec;  /* accents */
   --scr: #000;     /* the FM-1 screen in the small diagrams */
   --beat: .4839s;  /* one beat at 124 BPM */
@@ -66,7 +67,7 @@ b, strong { font-weight: 600; }
 .knobs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .knobs div { border-top: 2px solid currentColor; padding-top: 3px; font-weight: 800; font-size: 13.5px; letter-spacing: .03em; overflow-wrap: anywhere; }
 .knobs div span { display: block; font-weight: 400; font-size: 12px; color: var(--dim); letter-spacing: 0; }
-.c1 { color: var(--t1); } .c2 { color: var(--t2); } .c3 { color: var(--t3); } .c4 { color: var(--t4); } .cl { color: var(--lav); }
+.c1 { color: var(--t1); } .c2 { color: var(--t2); } .c3 { color: var(--t3); } .c4 { color: var(--t4); } .cl { color: var(--lav); } .ca { color: var(--all); }
 .pg { font-family: var(--f-pixel); font-size: 12px; letter-spacing: .06em; color: var(--dim); margin-bottom: -4px; }
 .note { font-size: 13px; color: var(--dim); margin: 0; }
 p { margin: 0; }
@@ -135,7 +136,7 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
 
 /* ---------- print: white paper, every card shown, nothing moving ---------- */
 @media print {
-  :root { --bg: #fff; --panel: #fff; --inset: #f3f3f6; --line: #c9c9d2; --fg: #000; --dim: #444; --t3: #6b6b78; --t2: #128a4e; --t1: #1f5fd6; --t4: #d0500f; --lav: #5a4fc4; --scr: #fff; }
+  :root { --bg: #fff; --panel: #fff; --inset: #f3f3f6; --line: #c9c9d2; --fg: #000; --dim: #444; --t3: #0e8a78; --t2: #1a72b0; --t1: #5b45c4; --t4: #c4503c; --all: #555; --lav: #5a4fc4; --scr: #fff; }
   @page { margin: 12mm; }
   html, body { background: #fff !important; color: #000; }
   body { padding: 0; font-size: 11.5px; }
@@ -161,7 +162,7 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
   </div>
   <h1>PHEBUS <span>cheat sheet</span></h1>
   <p>Where everything lives on KARMA, the free firmware for the M-VAVE FM-1, and how to reach it. Tap a button to open its pages (tap again or turn SELECT for the next one); hold a button for what it does with the keys and knobs.</p>
-  <div class="legend"><span>Knob colours on the screen:</span><b class="c1">KNOB 1</b><b class="c2">KNOB 2</b><b class="c3">KNOB 3</b><b class="c4">KNOB 4</b></div>
+  <div class="legend"><span>Knob colours on the screen: a voice's pages in its colour</span><b class="c1">TRACK 1</b><b class="c2">TRACK 2</b><b class="c3">TRACK 3</b><b class="c4">DRUMS</b><span>shared pages (tag ALL) neutral</span><b class="ca">ALL</b></div>
 </header>
 
 <div class="grid">

@@ -39,17 +39,30 @@ static int32_t batt_shown(void)
     return batt_level();
 }
 
-/* the header (ui_op.c): the track's tag, the page's title; a message shows in the knob band */
+/* a page every voice shares (Ben's colour rule, review 16b): GLO's GLOBAL, MASTER, the shared effects (DLY, REV/CHO,
+ * CLOUD, CLOUD 2), SYSTEM, MIDI, TEXTURE; not GLO > DRUMS (the drum track's level and sends) */
+static int shared_page(const page_t *pg)
+{
+    return !ui.home && pg->fam == FAM_GLO && pg->scope == SC_GLOBAL && pg->id[1] != G_DRLVL;
+}
+static int drums_page(const page_t *pg) { return !ui.home && pg->fam == FAM_GLO && pg->id[1] == G_DRLVL; }   /* GLO > DRUMS */
+
+/* the header (ui_op.c): the track's tag, the page's title; a message shows in the knob band. A shared page: "ALL" in
+ * neutral grey; GLO > DRUMS: the drum track's */
 static void draw_head(void)
 {
-    static const char *const TAG[NTRK] = {"SYN1", "SYN2", "SYN3", "DRUM"};
     const page_t *pg = cur_page();
     const engine_t *e = ENGINES[TSEL->eng_req % NENGINES];
     const char *title = ui.home ? "HOME" : pg->scope == SC_ENGINE && !is_drum(TSEL) ? e->page_title[pg->id[0] != P_E0] : pg->title;
     if (mlu.on)                                       /* MIDI LEARN on (2.6, GLO + F#3) */
         title = "LEARN";
-    op_header(!is_drum(TSEL) && e != &ENG_GONE ? e->name : TAG[song.sel & 3u],   /* a synth track: its engine, by name */
-              TE_COL[song.sel & 3u], title, &ui.head_sig);
+    if (shared_page(pg))
+        op_header("ALL", TE_G4, title, &ui.head_sig);
+    else if (drums_page(pg))
+        op_header("DRUM", TE_COL[TRK_DRUM], title, &ui.head_sig);
+    else
+        op_header(!is_drum(TSEL) && e != &ENG_GONE ? e->name : "DRUM",   /* a synth track: its engine, by name */
+                  TE_COL[song.sel & 3u], title, &ui.head_sig);
 }
 /* (the bands cover the screen: header, graph, the pages strip, the knob band, the track bar) */
 static void draw_frame(void) {}
@@ -706,7 +719,7 @@ static void graph_big(void)
             y0 = 30;
         }
         cv_text(x0, y0 + 2, &FONT_S, ui.big_l[c], tint_col(c, 0));
-        x = cv_text(x0, y0 + 20, &FONT_L, ui.big_v[c], ui.big_c[c] == C_DIM ? C_DIM : ui.big_c[c] == C_WHITE ? C_WHITE : C_HI);
+        x = cv_text(x0, y0 + 20, &FONT_L, ui.big_v[c], ui.big_c[c] == C_DIM ? C_DIM : ui.big_c[c] == C_WHITE && knob_tint[c] >= TINT_NEUTRAL ? C_WHITE : C_HI);   /* (a voice's: no white, review 16e) */
         if (ui.big_u[c][0])
             cv_text(x + 4, y0 + 34, &FONT_S, ui.big_u[c], C_GRAY);
     }
@@ -724,7 +737,7 @@ static void graph_menu(const track_t *t)
     (void)t;
     for (c = 0; c < 4u; c++) {
         int32_t y = 2 + (int32_t)c * 30, x, lw, vw, uw;
-        uint16_t vc = ui.big_c[c] == C_DIM ? C_DIM : ui.big_c[c] == C_WHITE ? C_WHITE : tint_col(c, 0);   /* (the page's tint; dim: does nothing now) */
+        uint16_t vc = ui.big_c[c] == C_DIM ? C_DIM : ui.big_c[c] == C_WHITE && knob_tint[c] >= TINT_NEUTRAL ? C_WHITE : tint_col(c, 0);   /* (the page's tint; dim: does nothing now; a voice's touched: its colour, review 16e) */
         char n[2] = {(char)('1' + c), 0};
         if (!ui.big_l[c][0])
             continue;
@@ -744,7 +757,10 @@ static void graph_menu(const track_t *t)
         }
         cv_rect(22, y + 28, 146, 1, C_LINE);
     }
-    op_sprite_scaled(song.sel & 3u, 210, 100, TE_COL[song.sel & 3u]);
+    if (drums_page(cur_page()))                         /* (a shared page: no character, review 16b) */
+        op_sprite_scaled(TRK_DRUM, 210, 100, TE_COL[TRK_DRUM]);
+    else if (!shared_page(cur_page()))
+        op_sprite_scaled(song.sel & 3u, 210, 100, TE_COL[song.sel & 3u]);
 }
 
 static void draw_graph(void)
@@ -892,7 +908,10 @@ static void draw_columns(void)                         /* the four knobs of the 
     {                                                   /* a track's page: its colour; a song or global page: neutral */
         uint32_t sc = cur_page()->scope;
         knob_tint_all(cur_page()->graph == GR_HEX && !ui.home ? TRK_DRUM   /* (the drum voice's sound: its colour) */
+                      : drums_page(cur_page()) ? TRK_DRUM
                       : sc == SC_GLOBAL || sc == SC_SONG ? TINT_NEUTRAL : sc == SC_DRUM ? TRK_DRUM : song.sel);
+        if (!ui.home && cur_page()->id[0] == G_CLSEND && sc == SC_GLOBAL)
+            knob_tint[0] = (uint8_t)song.sel;           /* CLOUD's SEND is the selected track's (review 16b) */
     }
     op_knobs(lab, val, unit, opk.ratio, opk.dim, song.sel * 7u + ui.page * 31u + ui.home, &ui.col_sig);
     {                                                   /* the track bar under them: it follows the track selected here */

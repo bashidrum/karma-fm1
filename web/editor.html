@@ -131,7 +131,7 @@
   footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--s3); }
   footer a { color: var(--dim); }
 
-  /* ---- cards and the parameter pages (the device's 4 knobs a page, one colour per knob) ---- */
+  /* ---- cards and the parameter pages (the device's 4 knobs a page, in the colour of what they act on) ---- */
   .card { background: var(--s1); border: 1px solid var(--line); padding: 14px 16px 16px; margin: 0 0 16px; min-width: 0; }
   .card > h2, .group > h2 { color: var(--fg); text-transform: uppercase; margin: 0 0 12px; display: flex; align-items: center; gap: 8px;
                             font-size: 32px; line-height: 32px; }
@@ -150,12 +150,13 @@
   .dslanes button { --c: var(--t4); padding: 8px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .dslanes button[aria-pressed=true] { background: var(--c); border-color: var(--c); color: #000; }
   #dsgroups .knob { --c: var(--t4); }
-  .knob { --c: var(--t1); position: relative; padding: 8px 10px 10px; min-width: 0; border-left: 1px solid var(--line);
+  .knob { --c: var(--trk); position: relative; padding: 8px 10px 10px; min-width: 0; border-left: 1px solid var(--line);
           display: flex; flex-direction: column; gap: 4px; }
   .knob:first-child { border-left: 0; padding-left: 0; }
-  .knobs > .knob:nth-child(4n + 2) { --c: var(--t2); }
-  .knobs > .knob:nth-child(4n + 3) { --c: var(--t3); }
-  .knobs > .knob:nth-child(4n + 4) { --c: var(--t4); }
+  /* Ben's colour rule (as the device): a voice's knobs in its colour (--trk, the selected track), what every voice
+     shares neutral, the drum track's settings in the drums' colour */
+  .knob.g { --c: var(--fg2); }
+  .knob.dr { --c: var(--t4); }
   .knob .kl { color: var(--c); text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .knob .v { color: var(--fg); font-size: 32px; line-height: 32px; white-space: nowrap; overflow: hidden; cursor: ns-resize;
              user-select: none; touch-action: none; }
@@ -4465,7 +4466,7 @@ function buildGroups() {
   const known = EXPECT.pcount.indexOf(info.pcount);
   if (known >= 0 && EXPECT.gcount.includes(info.gcount) && info.pe0 === EXPECT.pe0[known]) {
     for (const g of LAYOUT(info.pe0)) {
-      /* a card per button of the device (ENV, LFO, EDIT ...), its pages as rows of four knobs, one colour per knob */
+      /* a card per button of the device (ENV, LFO, EDIT ...), its pages as rows of four knobs, in the track's colour */
       const div = el("div", { class: "group" }, el("h2", { ic: HEAD_IC[g.t] },
         g.engine ? `EDIT ${info.engines[dev.dump.engine] || ""}` : g.t));
       let pages = 0;
@@ -4473,6 +4474,7 @@ function buildGroups() {
         if (onlyEng != null && dev.dump.engine !== onlyEng) continue;
         const rows = ids.map((id) => paramRow(s, id)).filter(Boolean);
         if (!rows.length) continue;
+        if (s === 1) for (const r of rows) r.classList.add(title === "DRUMS" ? "dr" : "g");   /* shared: neutral */
         const tt = g.engine && (dev.titles[dev.dump.engine] || [])[g.pages.findIndex((x) => x[0] === title)];
         if (g.pages.length > 1) div.append(el("h3", { ic: PAGE_IC[tt || title], text: tt || title }));
         div.append(el("div", { class: "knobs" }, ...rows));
@@ -4488,7 +4490,7 @@ function buildGroups() {
     const b = box("EDIT", "EDIT"), c = box("GLOBAL", "GLOBAL");
     const ka = el("div", { class: "knobs" }), kb = el("div", { class: "knobs" }), kc = el("div", { class: "knobs" });
     for (let i = 0; i < info.pcount; i++) { const r = paramRow(0, i); if (r) (i >= info.pe0 ? kb : ka).append(r); }
-    for (let i = 0; i < info.gcount; i++) { const r = paramRow(1, i); if (r) kc.append(r); }
+    for (let i = 0; i < info.gcount; i++) { const r = paramRow(1, i); if (r) { r.classList.add("g"); kc.append(r); } }
     a.append(ka); b.append(kb); c.append(kc);
     groups.groups.push(a, b);
     groups.setgroups.push(c);

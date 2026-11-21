@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The three bands every LIVE screen shares, top to bottom: the header (a tag that says where you are,
- * the tempo, the transport), the four knob readouts (KNOB 1..4 in blue, green, white, orange: the label
- * and its value in the knob's colour) and the track bar (the four tracks, the selected one filled).
+ * the tempo, the transport), the four knob readouts (each knob's label and value in the colour of what it acts
+ * on: a voice's colour, or neutral grey for what everyone shares) and the track strip (the four tracks).
  * The screen's own picture goes between the header and the readouts, rows OP_BODY_Y .. OP_KNOB_Y - 1.
  * Each band is its own canvas with its own signature, as the rest of ui_studio.c. */
 #define OP_HEAD_H 22
@@ -57,7 +57,7 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
         cv_rect(156, 5, 10, 10, TE_G3);
     }
     for (k = 0; k < 4u; k++)                           /* the four beats of the bar */
-        cv_rect(172 + (int32_t)k * 8, 7, 6, 6, playing && beat % 4u == k ? (k ? C_WHITE : TE_RED) : TE_G2);
+        cv_rect(172 + (int32_t)k * 8, 7, 6, 6, playing && beat % 4u == k ? (k || !song.rec ? C_WHITE : TE_RED) : TE_G2);   /* (red: recording only) */
     if (song.rec)
         te_disc(209, 10, 4, TE_RED);
     else if (proj_unsaved)                             /* (saved again at the next stop: project.c autosave_tick) */

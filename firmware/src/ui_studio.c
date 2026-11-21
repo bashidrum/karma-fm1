@@ -122,12 +122,18 @@ static void te_dials(int32_t y0, const char *const lab[4], const char *const val
         if (!lab[k][0])
             continue;
         te_dial(cx, 12, 11, ratio[k], tint_col(k, 0), tint_col(k, 2));
-        te_text_c(cx, 24, lab[k], TE_G3);
+        if (ui.hot_t && ui.hot_col == k) {              /* turned: the label inverted in the knob's colour (review 16e) */
+            int32_t w = text_w(&FONT_S, lab[k]);
+            cv_rect(cx - w / 2 - 1, 24, w + 1, 16, tint_col(k, 0));
+            te_text_c(cx, 24, lab[k], C_BLACK);
+        } else {
+            te_text_c(cx, 24, lab[k], TE_G3);
+        }
     }
     cv_blit(0, (uint32_t)y0);
-    cv_begin(240, 16, C_BLACK);                         /* the values: white while turned */
+    cv_begin(240, 16, C_BLACK);                         /* the values */
     for (k = 0; k < 4u; k++)
-        te_text_c(30 + 60 * (int32_t)k, 0, val[k], ui.hot_t && ui.hot_col == k ? C_WHITE : TE_G4);
+        te_text_c(30 + 60 * (int32_t)k, 0, val[k], TE_G4);
     cv_blit(0, (uint32_t)y0 + 40u);
 }
 
@@ -205,7 +211,7 @@ static void te_header(const char *title, uint16_t tc, uint32_t *cache)
         cv_text(122, 5, &FONT_S, arrangement_enabled ? "song" : "loop", TE_G3);
     }
     for (k = 0; k < 4u; k++)                           /* the four beats of the bar */
-        cv_rect(104 + (int32_t)k * 9, 26, 7, 7, playing && beat % 4u == k ? (k ? C_WHITE : TE_RED) : TE_G2);
+        cv_rect(104 + (int32_t)k * 9, 26, 7, 7, playing && beat % 4u == k ? (k || !song.rec ? C_WHITE : TE_RED) : TE_G2);   /* (red: recording only) */
     if (song.rec) {
         te_disc(224, 12, 8, TE_RED);
         cv_text(176, 4, &FONT_S, "rec", TE_RED);

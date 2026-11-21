@@ -191,11 +191,31 @@ int main(int argc, char **argv)
         check(swap16(screen[10 * 240 + 209]) == was, "saved: the dot goes");
         check(!strcmp(DRUM_KIT_NAMES[DRUM_DEFAULT_KIT], "606"), "power-on drum kit: the 606 (Ben, 21 Nov)");
     }
+    {   /* review 16d: the downbeat light white while playing, red only while recording */
+        uint32_t c = 0, b = clk_beat, pl = song.playing, rc = song.rec;
+        clk_beat = 4u; song.playing = 1; song.rec = 0; ui.force = 1;
+        op_header("HOME", TE_G3, "loop", &c);
+        check(swap16(screen[9 * 240 + 174]) == C_WHITE, "header: the downbeat white while playing");
+        song.rec = 1; ui.force = 1;
+        op_header("HOME", TE_G3, "loop", &c);
+        check(swap16(screen[9 * 240 + 174]) == TE_RED, "header: the downbeat red while recording");
+        clk_beat = b; song.playing = pl; song.rec = rc;
+        go_home(); ui.force = 1; frame();
+    }
     open_family(FAM_ENV); ui.force = 1; ui.hot_col = 1; ui.hot_t = 30; frame(); ppm("page-env");
     go_home(); open_family(FAM_EDIT); ui.force = 1; frame(); ppm("page-edit");   /* (EDIT: the chain's start, OSC) */
     open_family(FAM_FX); ui.force = 1; frame(); ppm("page-fx");
     open_family(FAM_SEQ); ui.force = 1; frame(); ppm("page-pattern");
     open_family(FAM_GLO); ui.force = 1; frame(); ppm("page-global");
+    {   /* review 16b (Ben, 21 Nov: "Fix all"): a page every voice shares is neutral: the tag "ALL" in grey, no voice colour
+         * in the header, no character, the knobs grey */
+        uint32_t k, voice = 0;
+        for (k = 0; k < 4u; k++)
+            voice += px_count(0, 0, 240, OP_HEAD_H, TE_COL[k]) + px_count(0, OP_BODY_Y, 240, OP_KNOB_Y - OP_BODY_Y, TE_COL[k]) +
+                     px_count(0, OP_KNOB_Y, 240, OP_KNOB_H, TE_COL[k]);
+        check(!strcmp(cur_page()->title, "GLOBAL") && px_count(2, 1, 46, 18, TE_G4) > 60 && voice == 0,
+              "GLO > GLOBAL: tag ALL in grey, no voice colour above the strip (no character, neutral knobs)");
+    }
     open_family(FAM_GLO); ui.force = 1; frame(); ppm("page-master");
     open_family(FAM_SCL); ui.force = 1; frame(); ppm("page-scale");
     {   /* (2.4) GLO > SYSTEM: KNOB 1 is MIDI OUT (KEYS / SEQ), shown as such; the USB status in the third column */
