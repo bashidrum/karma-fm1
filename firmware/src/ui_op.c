@@ -138,31 +138,42 @@ static void op_knobs(const char *const lab[4], const char *const val[4], const c
     cv_blit(0, OP_KNOB_Y);
 }
 
-/* the track bar: 1 2 3 DRUM, the selected track filled in its colour; a muted track dim, a soloed one
- * marked white, the one that records marked red */
+#include "op_sprites.h"
+/* the track strip (Ben, 21 Nov 2026, review 15 "A: heads, underline"; mute / solo "A: badges"): a status line, not
+ * tabs. Each track its character's head and its number (1 2 3 DR); the selected track underlined, its number in its
+ * colour (the others grey); a muted track a yellow M badge, a soloed one an ice-blue S, the one that records a red
+ * dot. A 1 px rule above */
+static void op_sprite_wh(const uint8_t *d, int32_t w, int32_t h, int32_t x0, int32_t y0, int flip, uint16_t c, int32_t s);
+static void op_badge(int32_t x, int32_t y, char ch, uint16_t bg)   /* 10 x 14: a black letter on bg */
+{
+    char b[2] = {ch, 0};
+    cv_rect(x, y, 10, 14, bg);
+    cv_text(x + 1, y - 1, &FONT_S, b, C_BLACK);
+}
 static void op_trackbar(uint32_t *cache)
 {
-    static const char *const NAME[NTRK] = {"1", "2", "3", "DRUM"};
+    static const char *const NAME[NTRK] = {"1", "2", "3", "DR"};
     uint32_t i, sig = 1u + song.sel + song.rec * 16u + song.solo * 256u;
     for (i = 0; i < NTRK; i++)
-        sig = sig * 3u + (trk_silent(&trk[i]) != 0);
+        sig = sig * 3u + (trk[i].p[P_MUTE] != 0);
     if (!ui.force && sig == *cache)
         return;
     *cache = sig;
     cv_begin(240, OP_BAR_H, C_BLACK);
+    cv_rect(0, 0, 240, 1, TE_G1);
     for (i = 0; i < NTRK; i++) {
-        int32_t x = 4 + 58 * (int32_t)i;
-        uint32_t sel = song.sel == i, mute = trk_silent(&trk[i]) != 0;
-        uint16_t c = mute && !sel ? TE_DIM[i] : TE_COL[i];
-        if (sel)
-            cv_rect(x, 3, 55, 22, c);
-        else
-            op_box(x, 3, 55, 22, c);
-        te_text_c(x + 27, 6, NAME[i], sel ? C_BLACK : mute ? TE_G3 : c);
+        int32_t x = 4 + 58 * (int32_t)i, nx = x + OP_HM_W + 4, bx;
+        uint32_t sel = song.sel == i;
+        op_sprite_wh(OP_SPR_HM[i], OP_HM_W, OP_HM_H, x, 5, 0, TE_COL[i], 1);
+        bx = cv_text(nx, 5, &FONT_S, NAME[i], sel ? TE_COL[i] : TE_G3) + 3;
         if ((song.rec >> i) & 1u)
-            te_disc(x + 47, 14, 3, TE_RED);
+            te_disc(bx + 4, 12, 3, TE_RED);
+        else if (trk[i].p[P_MUTE])
+            op_badge(bx, 6, 'M', TE_MUTE);
         else if ((song.solo >> i) & 1u)
-            cv_rect(x + 45, 11, 6, 6, sel ? C_BLACK : TE_SOLO);
+            op_badge(bx, 6, 'S', TE_SOLO);
+        if (sel)
+            cv_rect(x, 24, 54, 3, TE_COL[i]);
     }
     cv_blit(0, OP_BAR_Y);
 }
@@ -170,7 +181,6 @@ static void op_trackbar(uint32_t *cache)
 /* the characters (op_sprites.h, drawn by tools/gen_sprites.py): a robot (track 1), an alien (2), a crocodile (3), a
  * snake (the drums), each in its track's colour; pictures in flash, 4 bits a pixel: 1 dark, 2 the colour, 3 light
  * (shades of the track's colour), 4 white, 5 black. They dance to the beat: op_dance */
-#include "op_sprites.h"
 static uint8_t op_dim;                                  /* the next pictures dim (a muted, a silent track) */
 static uint16_t op_mix(uint16_t c, uint16_t to, uint32_t k)   /* c, k eighths of the way to "to" */
 {

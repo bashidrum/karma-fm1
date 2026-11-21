@@ -125,7 +125,9 @@ static int grid_voice(const track_t *t, uint32_t note)   /* a voice of t sounds 
 { uint32_t v; for (v = 0; v < NVOICE; v++) if (t->v[v].active && t->v[v].gate && t->v[v].note == note) return 1; return 0; }
 static int fails;
 static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok ? "ok" : "FAIL"); fails += !ok; }
-static const char *sub_line(void) { return layer_sub_shown; }   /* the layer's sub line as last drawn (ui_layers.c) */
+static const char *sub_line(void) { return layer_sub_shown; }
+static uint32_t px_count(uint32_t x0, uint32_t y0, uint32_t w, uint32_t h, uint16_t c)   /* pixels of colour c in a box */
+{ uint32_t x, y, n = 0; for (y = y0; y < y0 + h; y++) for (x = x0; x < x0 + w; x++) n += swap16(screen[y * 240u + x]) == c; return n; }   /* the layer's sub line as last drawn (ui_layers.c) */
 
 #ifndef UI_PAGES_HARNESS_ONLY                       /* (tests/stress_test.c: the harness, its own main) */
 int main(int argc, char **argv)
@@ -356,6 +358,19 @@ int main(int argc, char **argv)
     key(0); check(trk[0].p[P_MUTE] == 1, "GLO + key 1: track 1 muted");
     key(9); check(song.solo == 2u, "GLO + key 6: track 2 soloed");
     ppm("layer-mix");
+    {   /* review 15 (Ben, 21 Nov: "A: heads, underline", "A: badges"): the track strip under the knobs: a yellow M badge
+         * on the muted track, an ice-blue S on the soloed one, the selected track underlined in its colour; the mixer's
+         * S in the same ice blue, never the alien's */
+        check(px_count(4, OP_BAR_Y, 56, OP_BAR_H, TE_MUTE) >= 60 && px_count(62, OP_BAR_Y, 56, OP_BAR_H, TE_MUTE) == 0,
+              "strip: a yellow M badge on track 1 (muted), none on track 2");
+        check(px_count(62, OP_BAR_Y, 56, OP_BAR_H, TE_SOLO) >= 60 && px_count(4, OP_BAR_Y, 56, OP_BAR_H, TE_SOLO) == 0,
+              "strip: an ice-blue S badge on track 2 (soloed)");
+        check(TE_SOLO == RGB(150, 215, 255) && TE_SOLO != TE_COL[1] && px_count(0, OP_BODY_Y, 240, 96, TE_SOLO) >= 60,
+              "mixer: its S badge ice blue (150,215,255), not the alien's blue");
+        check(px_count(4, OP_BAR_Y + 24, 54, 3, TE_COL[0]) == 54 * 3 && px_count(62, OP_BAR_Y + 24, 54, 3, TE_COL[1]) == 0,
+              "strip: the selected track underlined in its colour, 3 px");
+        check(px_count(0, OP_BAR_Y + 1, 240, OP_BAR_H - 1, C_WHITE) < 40, "strip: no filled tab (the old bar's look)");
+    }
     for (i = 0; i < 4u; i++) { fm1_in.notes = 1u << 26; frame(); fm1_in.notes = 0; frames(36); }   /* ~0.6 s apart */
     check(song.g[G_BPM] >= 95 && song.g[G_BPM] <= 105, "GLO + the last key, tapped at ~0.6 s: ~100 BPM");
     key(0); key(9);
