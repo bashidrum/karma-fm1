@@ -134,6 +134,8 @@ static void graph_adsr(const track_t *t, uint16_t c)
     int32_t stage = v ? v->stage : 0, cur = v ? clamp(((v->env >> 14) * 1000) >> 10, 0, 1000) : 0, gate = stage == 1 || stage == 2;
     (void)c;
 #define EGY(lvl) (bot - (lvl) * (bot - top) / 1000)
+#define EGL(ax, ay, bx, by, col) (cv_line(ax, ay, bx, by, col), cv_line((ax) + 1, ay, (bx) + 1, by, col), \
+                                 cv_line(ax, (ay) - 1, bx, (by) - 1, col))   /* the curve 2 px (review 19) */
     ty = bot;
     op_env_ghost((uint32_t)(t - trk), 128, 93, cur);                    /* the track's character, behind it all */
     cv_rect(0, bot + 1, 240, 1, TE_G1);
@@ -143,34 +145,34 @@ static void graph_adsr(const track_t *t, uint16_t c)
         cv_pset(x2, y, OP_PUR_D);
         cv_pset(x3, y, OP_PUR_D);
     }
-    cv_line(x0, bot, x1, top, tint_col(0u, 0));                               /* attack: linear */
+    EGL(x0, bot, x1, top, tint_col(0u, 0));                                   /* attack: linear */
     px = x1;
     py = top;
     for (i = 1; i <= d; i++) {                                          /* decay: exponential to SUS */
         int32_t lvl;
         e = (e * (32768 - 150733 / d)) >> 15;           /* k^d = exp(-4.6) */
         lvl = sus + ((1000 - sus) * e >> 15);
-        cv_line(px, py, x1 + i, EGY(lvl), tint_col(1u, 0));
+        EGL(px, py, x1 + i, EGY(lvl), tint_col(1u, 0));
         px = x1 + i;
         py = EGY(lvl);
         if (dpos < 0 && lvl <= cur)
             dpos = px;
     }
-    cv_line(px, py, x3, EGY(sus), tint_col(2u, 0));                            /* sustain */
+    EGL(px, py, x3, EGY(sus), tint_col(2u, 0));                                /* sustain */
     px = x3;
     py = EGY(sus);
     e = 32768;
     for (i = 1; i <= r; i++) {                                          /* release: exponential to 0 */
         e = (e * (32768 - 150733 / r)) >> 15;
-        cv_line(px, py, x3 + i, EGY(sus * e >> 15), tint_col(3u, 0));
+        EGL(px, py, x3 + i, EGY(sus * e >> 15), tint_col(3u, 0));
         px = x3 + i;
         py = EGY(sus * e >> 15);
         if (rpos < 0 && (sus * e >> 15) <= cur)
             rpos = px;
     }
-    te_disc(x1, top, 2, tint_col(1u, 0));                                      /* a dot where the next knob takes over */
-    te_disc(x2, EGY(sus), 2, tint_col(2u, 0));
-    te_disc(x3, EGY(sus), 2, tint_col(3u, 0));
+    cv_rect(x1 - 1, top - 1, 3, 3, C_WHITE);                                   /* a handle where the next knob takes over */
+    cv_rect(x2 - 1, EGY(sus) - 1, 3, 3, C_WHITE);
+    cv_rect(x3 - 1, EGY(sus) - 1, 3, 3, C_WHITE);
     if (stage == 1) {                                                   /* where the voice is on the line */
         plat = 0;
         tx = x0 + a * cur / 1000;
@@ -189,13 +191,16 @@ static void graph_adsr(const track_t *t, uint16_t c)
     } else {
         plat = 0;
     }
-    te_digit(4, -2, 12, 26, 2, (uint32_t)(cur * 99 / 1000) / 10u, v ? C_WHITE : TE_G2);
-    te_digit(20, -2, 12, 26, 2, (uint32_t)(cur * 99 / 1000) % 10u, v ? C_WHITE : TE_G2);
-    op_box(196, 0, 40, 18, gate ? C_WHITE : TE_G2);
-    te_text_c(216, 1, "GATE", gate ? C_WHITE : TE_G2);
-    if (v)                                                              /* where the voice is on the line */
+    if (v) {                                                            /* a note playing: its level, GATE (hidden
+                                                                         * until then, review 19), where it is */
+        te_digit(4, -2, 12, 26, 2, (uint32_t)(cur * 99 / 1000) / 10u, C_WHITE);
+        te_digit(20, -2, 12, 26, 2, (uint32_t)(cur * 99 / 1000) % 10u, C_WHITE);
+        op_box(196, 0, 40, 18, gate ? C_WHITE : TE_G4);
+        te_text_c(216, 1, "GATE", gate ? C_WHITE : TE_G4);
         te_disc(tx, ty, 3, C_WHITE);
+    }
 #undef EGY
+#undef EGL
 }
 
 /* LFO: two cycles of the wave, running (KARMA 3.0): it scrolls with the track's LFO, "now" at x = LFO_NOW with a dot

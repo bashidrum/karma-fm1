@@ -592,7 +592,10 @@ static void tiles_draw(const tile_t *tl, uint32_t *cache)
             const tile_t *t = &tl[r * 4u + c];
             int32_t x = 2 + (int32_t)c * 60;
             uint32_t m;
-            cv_rect(x, 2, 56, 32, t->bg);
+            if (!t->lab[0] && t->bg == TE_G1)           /* a key that does nothing here: an outline (review 19) */
+                op_box(x, 2, 56, 32, TE_G1);
+            else
+                cv_rect(x, 2, 56, 32, t->bg);
             if (t->top)
                 cv_rect(x, 2, 56, 3, t->top);
             te_text_c(x + 28, 9, t->lab, t->fg);
@@ -624,7 +627,7 @@ static void tiles_draw(const tile_t *tl, uint32_t *cache)
 /* the punch layer (2.6): the 27 keys as a keyboard, four rows of four white keys (as the other layers' 16
  * tiles) with the black keys over them, between the white keys they sit between (the one after the
  * row's last white key at its right end); a held effect lit white */
-#define PT_BW 52                                        /* a black key's tile */
+#define PT_BW 40                                        /* a black key's tile: centred on the gap (review 19) */
 static void punch_tiles_draw(const tile_t *tl, uint32_t *cache)
 {
     uint32_t r, c, i, sig = 11u;
@@ -718,10 +721,11 @@ static void layer_screen_draw(void)
         str_cpy(sub, thr_req == 3u ? "rev + echo throw" : thr_req == 2u ? "echo throw" : thr_req ? "rev throw" : "hold + key",
                 sizeof sub);
         for (i = 0; i < PUNCH_NFX; i++) {
-            static const char *const PSHORT[PUNCH_NFX] = {"loop 4", "loop 8", "loop16", "loop32", "stutt", "rev", "stop",
+            static const char *const PSHORT[PUNCH_NFX] = {"lp 4", "lp 8", "lp 16", "lp 32", "stutr", "revrs", "stop",
                                                           "half", "low", "high", "phone", "crush", "alias", "gate", "echo",
-                                                          "wobble", "k low", "k mid", "k high", "rewind", "oct up", "flange",
-                                                          "pan", "freeze", "loop8t", "mono", "fade"};
+                                                          "wow", "-low", "-mid", "-hi", "rwnd", "oct+", "flng",
+                                                          "pan", "frz", "lp8t", "mono", "fade"};   /* (5 characters at most; the
+                                                         * black keys' 4: 3 px of their 40 px tile left each side, review 19) */
             int on = punch.req == (int8_t)i, black = i >= 16u;
             str_cpy(tl[i].lab, PSHORT[i], 8);
             tl[i].bg = on ? C_WHITE : black ? C_BLACK : TE_G1;

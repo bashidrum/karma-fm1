@@ -203,6 +203,18 @@ int main(int argc, char **argv)
         go_home(); ui.force = 1; frame();
     }
     open_family(FAM_ENV); ui.force = 1; ui.hot_col = 1; ui.hot_t = 30; frame(); ppm("page-env");
+    check(px_count(0, Y_GRAPH + G_OY, 40, 26, C_WHITE) + px_count(0, Y_GRAPH + G_OY, 40, 26, TE_G2) == 0 &&
+          px_count(190, Y_GRAPH + G_OY, 50, 20, TE_G2) == 0,
+          "ENV, no note playing: the level and GATE readout hidden (review 19)");
+    check(px_count(0, OP_KNOB_Y + 5, 240, 16, C_WHITE) == 0, "ENV: the touched knob keeps the voice colour (no white, review 16e)");
+    {   /* review 19: HOME, a muted track: its real level, dim, with MUTE (not LEVEL 0) */
+        int16_t m = trk[0].p[P_MUTE];
+        song.sel = 0; trk[0].p[P_MUTE] = 1; go_home(); ui.force = 1; frame();
+        check(px_count(62, OP_KNOB_Y + 26, 56, 26, TE_G3) > 40 && px_count(62, OP_KNOB_Y + 26, 56, 26, TE_COL[0]) == 0,
+              "HOME, track 1 muted: LEVEL shows its level in grey, with MUTE");
+        trk[0].p[P_MUTE] = m; go_home(); ui.force = 1; frame();
+        open_family(FAM_ENV); ui.force = 1; frame();
+    }
     go_home(); open_family(FAM_EDIT); ui.force = 1; frame(); ppm("page-edit");   /* (EDIT: the chain's start, OSC) */
     open_family(FAM_FX); ui.force = 1; frame(); ppm("page-fx");
     open_family(FAM_SEQ); ui.force = 1; frame(); ppm("page-pattern");
@@ -578,7 +590,9 @@ int main(int argc, char **argv)
     release(B_SAVE);
     check(!on_song_page() && saves == 0, "SAVE held and let go: no song page, no save");
     tap(B_SAVE); check(on_song_page(), "SAVE tapped on TRACKS: the song page");
+    lcd_fill(0, 40, 240, 2, C_WHITE);
     ui.force = 1; frame(); ppm("page-song");
+    check(px_count(0, 40, 240, 2, C_WHITE) == 0, "SONG: the header covers rows 40 and 41 (no stray pixels, review 19)");
     {   /* (PHEBUS, 21 Nov) the song / loop switch (OCT-) is named on the screen, above the mode */
         uint32_t x, y, lit = 0;
         for (y = 4; y < 16; y++) for (x = 76; x < 150; x++) lit += screen[y * 240 + x] != 0;

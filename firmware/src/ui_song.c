@@ -37,8 +37,8 @@ static void song_screen_draw(void)
     for (i = 0; i < ARR_SCENES; i++) sig = sig * 3u + (uint32_t)project_used(i);
     if (!ui.force && !ui.msg_t && sig == previous) return;
     previous = ui.msg_t ? ~sig : sig;               /* redraw after a message expires */
-    /* Draw one small band at a time: never exceed the 124-row canvas. */
-    cv_begin(240, 40, C_BLACK);
+    /* Draw one small band at a time: never exceed the 124-row canvas. (42 rows: down to the list, review 19) */
+    cv_begin(240, 42, C_BLACK);
     cv_text(4, 4, &FONT_L, "SONG", C_WHITE);
     cv_text(76, 4, &FONT_S, "oct-: mode", RGB(196, 196, 204));   /* (PHEBUS, 21 Nov: the song / loop switch named) */
     cv_text(76, 20, &FONT_S, arrangement_enabled ? "song mode" : "loop mode", arrangement_enabled ? C_WHITE : RGB(118, 118, 126));

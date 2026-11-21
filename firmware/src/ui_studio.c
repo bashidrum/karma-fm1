@@ -14,6 +14,7 @@ static void op_knobs(const char *const lab[4], const char *const val[4], const c
 static void op_trackbar(uint32_t *cache);
 static void op_drum_scene(uint32_t bank, uint32_t len);
 static void op_drum_steps(uint32_t bank, uint32_t len);
+static int32_t op_steps_y;                              /* (ui_op.c) */
 static void op_home_body(void);
 static void op_box(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c);
 static int on_drum_page(void) { return !ui.home && cur_page()->scope == SC_DRUM; }
@@ -246,16 +247,17 @@ static void studio_tracks_draw(void)
         int32_t ratio[4];
         uint32_t lvl = is_drum(t) ? song.g[G_DRLVL] : t->p[P_LEVEL];
         swing_str(v[0], song.g[G_SWING]);
-        fmt_int(v[1], t->p[P_MUTE] ? 0 : (int32_t)lvl * 100 / 127);
+        const char *unit[4] = {"", t->p[P_MUTE] ? "MUTE" : "", "", ""};   /* muted: its real level, dim, "MUTE" (review 19) */
+        fmt_int(v[1], (int32_t)lvl * 100 / 127);
         fmt_int(v[2], t->p[P_SLEN]);
         fmt_int(v[3], t->p[P_PAN]);
         ratio[0] = song.g[G_SWING] * 10;
-        ratio[1] = t->p[P_MUTE] ? 0 : (int32_t)lvl * 1000 / 127;
+        ratio[1] = (int32_t)lvl * 1000 / 127;
         ratio[2] = (t->p[P_SLEN] - 1) * 1000 / 63;
         ratio[3] = (t->p[P_PAN] + 64) * 1000 / 127;
         knob_tint_all(song.sel);                        /* HOME: swing is the song's, the rest the selected track's */
         knob_tint[0] = TINT_NEUTRAL;
-        op_knobs(lab, val, 0, ratio, 0, song.sel, &footer);
+        op_knobs(lab, val, unit, ratio, t->p[P_MUTE] ? 2u : 0u, song.sel, &footer);
     }
     op_trackbar(&bar);
 }
@@ -689,7 +691,7 @@ static void drum_screen_draw(void)
             ls = ls * 31u + sig + sg_held + (uint32_t)TDRUM->micro[drum_cursor] * 7u + step_fill(TDRUM, drum_cursor) * 3u;
             if (ui.force || ls * 131u + 1u != scene_sig) {
                 scene_sig = ls * 131u + 1u;
-                sg_detail_draw(SG_BODY_Y, SG_SCENE_H, (uint32_t)sg_first(), 1);
+                sg_detail_draw(SG_BODY_Y + 36u, SG_SCENE_H, (uint32_t)sg_first(), 1);   /* (the steps above it) */
             }
         } else if (drum_full) {                        /* the full view: every sound in use, a row each */
             if (ui.force || sig * 131u + 2u != scene_sig) {
@@ -704,8 +706,9 @@ static void drum_screen_draw(void)
             scene_sig = sig * 131u + lit + (op_strike[TRK_DRUM] ? 977u : 0u);
             op_drum_scene(bank, len);
         }
-        if ((!drum_full || sg_held) && (ui.force || sig != steps_sig)) {
-            steps_sig = sig;
+        if ((!drum_full || sg_held) && (ui.force || sig + (sg_held != 0) * 7u != steps_sig)) {
+            steps_sig = sig + (sg_held != 0) * 7u;
+            op_steps_y = (int32_t)(sg_held ? SG_BODY_Y : SG_BODY_Y + SG_SCENE_H);
             op_drum_steps(bank, len);
         }
         body_sig = 0;
