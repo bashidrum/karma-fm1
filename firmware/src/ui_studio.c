@@ -1026,9 +1026,9 @@ static void rec_screen_draw(void)
     rec_rows(rt, 0u, 106u, &rows);
     {   /* the dials: how it records */
         static char v[3][10];
-        static const char *const LAB_E[4] = {"mode", "length", "start", ""};
+        static const char *const LAB_E[4] = {"mode", "steps", "start", ""};   /* (STEPS: the pattern's length, review 21) */
         static const char *const LAB_F[4] = {"mode", "", "", ""};
-        static const char *const LAB_N[4] = {"", "length", "start", ""};
+        static const char *const LAB_N[4] = {"", "steps", "start", ""};
         static const char *const LAB_0[4] = {"", "", "", ""};
         const char *val[4] = {v[0], v[1], v[2], ""};
         int32_t ratio[4] = {0, 0, 0, 0};

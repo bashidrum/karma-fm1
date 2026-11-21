@@ -671,11 +671,13 @@ static void layer_title(const char *name, const char *sub, uint16_t col, uint32_
         return;
     *cache = sig;
     cv_begin(240, 40, C_BLACK);
-    {
-        const char *btn = LAYER_BTN_NAME[ui.layer % LY_COUNT];
-        int32_t x = cv_text(4, 14, &FONT_S, btn, TE_G4) + 2;   /* (on the name's baseline) */
+    {   /* (a sub line or message too long for the line with the button's name: the name alone, as before) */
+        const char *btn = LAYER_BTN_NAME[ui.layer % LY_COUNT], *s2 = ui.msg_t ? ui.msg : sub;
+        int32_t x = 4;
+        if (text_w(&FONT_S, btn) + 2 + text_w(&FONT_L, name) + 8 + text_w(&FONT_S, s2) <= 232)
+            x = cv_text(4, 14, &FONT_S, btn, TE_G4) + 2;   /* (on the name's baseline) */
         x = cv_text(x, 2, &FONT_L, name, col);
-        cv_text(x + 8, 18, &FONT_S, ui.msg_t ? ui.msg : sub, ui.msg_t ? C_WHITE : TE_G3);
+        cv_text(x + 8, 18, &FONT_S, s2, ui.msg_t ? C_WHITE : TE_G3);
     }
     if (locked) {                                         /* locked open (HOME): any button lets it go */
         int32_t w = (int32_t)text_w(&FONT_S, "LOCK") + 8;
@@ -726,7 +728,7 @@ static void layer_screen_draw(void)
     case LY_FX:                                         /* the 27 punch-in effects: 16 white keys, 11 black (the mix's:
                                                          * neutral, review 16c) */
         col = C_WHITE;
-        str_cpy(sub, thr_req == 3u ? "rev + echo throw" : thr_req == 2u ? "echo throw" : thr_req ? "rev throw" : "hold + key",
+        str_cpy(sub, thr_req == 3u ? "rev+echo throw" : thr_req == 2u ? "echo throw" : thr_req ? "rev throw" : "hold + key",
                 sizeof sub);
         for (i = 0; i < PUNCH_NFX; i++) {
             static const char *const PSHORT[PUNCH_NFX] = {"lp 4", "lp 8", "lp 16", "lp 32", "stutr", "revrs", "stop",
@@ -759,7 +761,7 @@ static void layer_screen_draw(void)
         uint32_t held = fm1_in.notes;
         int mute = layer == LY_ERASE && is_drum(t) && er_mute;   /* (2.6) EDIT + a black key: the mutes */
         col = layer == LY_ERASE ? TE_RED : col;
-        str_cpy(sub, mute ? "mute: key = sound" : layer == LY_ERASE ? (song.playing ? "as it plays" : "every step") : "hold + key", sizeof sub);
+        str_cpy(sub, mute ? "keys mute" : layer == LY_ERASE ? (song.playing ? "as it plays" : "every step") : "hold + key", sizeof sub);
         for (i = 0; i < 16u; i++) {
             uint32_t k = key_of_white(i), down = (held >> k) & 1u, present = 0, j;
             if (is_drum(t)) {
@@ -793,14 +795,14 @@ static void layer_screen_draw(void)
             }
         }
         if (layer == LY_ERASE && is_drum(t) && !mute && !undo.valid)
-            str_cpy(sub, "black key: mute", sizeof sub);
+            str_cpy(sub, "black = mute", sizeof sub);
         if (layer == LY_ERASE) {
             lab[0] = "shift", lab[1] = "steps", lab[2] = is_drum(t) ? "" : "transp";   /* (STEPS: the pattern's length) */
             str_cpy(v[0], "<  >", 8);
             fmt_int(v[1], t->p[P_SLEN]);
             str_cpy(v[2], is_drum(t) ? "" : "-  +", 8);
             if (!mute)                                  /* what OCT- / OCT+ do now (one step: undo, then redo) */
-                str_cpy(sub, undo.valid ? (undo.undone ? "oct+ redo" : "oct- undo") : is_drum(t) ? sub : "nothing to undo",
+                str_cpy(sub, undo.valid ? (undo.undone ? "oct+ redo" : "oct- undo") : is_drum(t) ? sub : "no undo yet",
                         sizeof sub);
         } else {
             lab[0] = "rate";
