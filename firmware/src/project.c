@@ -508,6 +508,36 @@ static void proj_cl_get(const project_t *p)
     cloud_resync = 1;                                   /* (the page's SEND: ui_studio.c cloud_ui_sync) */
 }
 
+/* (PHEBUS) the STUTTER lane (punch.c stl) in the drum track's bytes that nothing reads (the drum track has no LFO and
+ * no voice allocation: voice.c plays the synth parts only, and no engine byte): P_LRATE .. P_LD_AMP the length codes
+ * (2 bits a step), P_GLMODE .. P_DETUNE the lit steps (a bit each), the engine byte 'S' (it is there: 0 in every other
+ * project), the preset byte the lane's length - 1 | ON << 6. Same format and size: KARMA and SLOOP load the project as
+ * before (each of those values clamped into a parameter the drum track does not use) */
+#define STL_MARK 0x53u
+_Static_assert(P_LD_AMP - P_LRATE == 7 && P_DETUNE - P_GLMODE == 3 && P_DETUNE < PROJ_NC6, "the lane's bytes");
+static void stl_put(project_t *p)
+{
+    proj_trk_t *t = &p->t[TRK_DRUM];
+    uint32_t i;
+    for (i = 0; i < 8u; i++)
+        t->p[P_LRATE + i] = (int16_t)(stl.lc[2u * i] | stl.lc[2u * i + 1u] << 8);
+    for (i = 0; i < 4u; i++)
+        t->p[P_GLMODE + i] = (int16_t)(stl.on[2u * i] | stl.on[2u * i + 1u] << 8);
+    t->engine = STL_MARK;
+    t->preset = (uint8_t)(((stl.len - 1u) & 63u) | (stl.act ? 64u : 0u));
+}
+static void stl_get(const project_t *p)                 /* (no lane in it: an empty one, ON, 16 steps) */
+{
+    const proj_trk_t *t = &p->t[TRK_DRUM];
+    uint32_t i, there = t->engine == STL_MARK;
+    for (i = 0; i < 16u; i++)
+        stl.lc[i] = there ? (uint8_t)((uint16_t)t->p[P_LRATE + i / 2u] >> (8u * (i & 1u))) : 0u;
+    for (i = 0; i < 8u; i++)
+        stl.on[i] = there ? (uint8_t)((uint16_t)t->p[P_GLMODE + i / 2u] >> (8u * (i & 1u))) : 0u;
+    stl.len = (uint8_t)(there ? (t->preset & 63u) + 1u : 16u);
+    stl.act = (uint8_t)(!there || (t->preset & 64u));
+}
+
 static void proj_capture(project_t *p)        /* what is playing now, as a project */
 {
     uint32_t i;
@@ -532,6 +562,7 @@ static void proj_capture(project_t *p)        /* what is playing now, as a proje
     }
     proj_ds_put(p);
     proj_cl_put(p);
+    stl_put(p);
     p->sum = proj_sum(p);
 }
 
@@ -551,6 +582,7 @@ static void proj_apply(const project_t *p, int all)
     proj_tx_get(p);                                     /* GLO > TEXTURE (2.6): a load and a section */
     proj_ds_get(p);                                     /* each drum sound's own sends: a load and a section */
     proj_cl_get(p);                                     /* the CLOUD and what is sent to it: a load and a section */
+    stl_get(p);                                         /* (PHEBUS) the STUTTER lane: a load and a section */
     for (k = 0; k < NTRK; k++) {
         track_t *t = &trk[k];
         const proj_trk_t *s = &p->t[k];

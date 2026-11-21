@@ -247,6 +247,17 @@ static int undo_swap(int redo)
     int16_t len;
     if (!undo.valid || (uint32_t)!!redo != undo.undone)
         return 0;
+    if (undo.trk >= NTRK) {                           /* (PHEBUS) the STUTTER lane's (ui_stut.c stl_mark) */
+        uint8_t x[sizeof stl];
+        fm1_irq_off();
+        memcpy(x, &stl, sizeof stl);
+        memcpy(&stl, undo.st, sizeof stl);
+        memcpy(undo.st, x, sizeof stl);
+        undo.undone = (uint8_t)!redo;
+        fm1_irq_on();
+        ui.force = 1;
+        return 1;
+    }
     t = &trk[undo.trk % NTRK];
     fm1_irq_off();
     {
@@ -769,6 +780,7 @@ static void track_select(uint32_t i)
     if (i >= NTRK || i == song.sel)
         return;
     song.sel = (uint8_t)i;
+    stl_view = 0;                                    /* (PHEBUS: the GRID's STUTTER lane, after DRUM) */
     rec_follow(i);                                   /* LIVE: recording follows the selected track */
     ui.entry_open = 0;
     ui.cursor = 0;

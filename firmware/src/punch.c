@@ -54,6 +54,36 @@ static struct {
     int32_t fg;                   /* FREEZE: the held reverb's gain, Q10 */
 } punch = {.req = -1, .cur = -1, .fg = 8192};
 
+/* (PHEBUS, 21 Nov 2026, Ben: "a stutter sequencer ... where you could set the length of the stutter pattern and then
+ * turn stutter on by step"; picker: length "Per step", repeats "The whole mix") The STUTTER lane (ui_stut.c draws and
+ * edits it): steps of 1/16 on the transport's grid, its own length, each step off or on with a length 1/4 1/8 1/16 1/32
+ * (code 0..3 = PX_LOOP4 .. PX_LOOP32). A lit step under the playhead asks for that loop (stl_want, set a block at a
+ * time by seq.c events_block: the block its drum hits start in); punch_process plays it as the punch key would, but
+ * on the span played just before the run of lit steps began (punch_seq_align). Steps in a row with the same length are
+ * one loop. FX held + a key takes over while held. Saved with the project (project.c stl_put / stl_get) */
+static struct {
+    uint8_t on[8];                /* bit per step */
+    uint8_t lc[16];               /* 2 bits a step: the length code */
+    uint8_t len;                  /* 1..64 steps */
+    uint8_t act;                  /* the lane on (else it keeps its steps and plays nothing) */
+} stl = {.len = 16, .act = 1};
+static volatile int8_t stl_want = -1;   /* the loop the lane asks for now, -1 none (audio ISR) */
+static int8_t stl_was = -1;             /* .. in the block before (punch_process: a run of lit steps starts) */
+static uint32_t stl_t;                  /* samples since that run began */
+static uint8_t stl_pos;                 /* the lane's step under the playhead (the screen) */
+static uint8_t stl_view;                /* the GRID shows the lane (ui_stut.c; ui.c track_select: off) */
+static int stl_lit(uint32_t s) { return (stl.on[(s >> 3) & 7u] >> (s & 7u)) & 1u; }
+static uint32_t stl_code(uint32_t s) { return (uint32_t)stl.lc[(s >> 2) & 15u] >> (2u * (s & 3u)) & 3u; }
+static void stl_tick(void)              /* seq.c events_block, before the clock moves on: the step this block is in */
+{
+    int32_t w = -1;
+    uint32_t s = (clk_beat * 4u + clk_pos / (BEAT_U / 4u)) % (stl.len ? stl.len : 16u);
+    stl_pos = (uint8_t)s;
+    if (song.playing && stl.act && stl_lit(s))
+        w = (int32_t)stl_code(s);
+    stl_want = (int8_t)w;
+}
+
 static int px_loop(int32_t fx) { return fx <= PX_STUT || fx == PX_LOOP8T; }   /* on the grid */
 static int px_replay(int32_t fx) { return fx <= PX_HALF || fx == PX_LOOP8T; } /* replays a span of the ring */
 
@@ -237,7 +267,14 @@ static void punch_freeze_feed(int32_t *rev, const int32_t *l, const int32_t *r, 
 static void punch_process(int32_t *l, int32_t *r, uint32_t n)
 {
     uint32_t i;
-    int32_t want = punch.req;
+    int32_t want = punch.req, sq = stl_want;
+    if (sq != stl_was)                                  /* (PHEBUS) the STUTTER lane: a run of lit steps begins */
+        stl_t = 0;
+    stl_was = (int8_t)sq;
+    if (want < 0)                                       /* (FX held + a key comes first) */
+        want = sq;
+    else
+        sq = -1;
     uint32_t beat, step, echo_d, binc, fdec;
     static int32_t kl[CTL], kr[CTL];                    /* (static: the ISR stack is small) */
     tsvf_t c1, c2;
@@ -266,8 +303,17 @@ static void punch_process(int32_t *l, int32_t *r, uint32_t n)
             PUNCH_PUT(punch.w++, clamp((l[i] + r[i]) >> 4, -32768, 32767));
         return;
     }
-    if (punch.cur < 0 && want >= 0)
+    if (punch.cur < 0 && want >= 0) {
         punch_start(want);
+        if (sq >= 0) {                                  /* the lane's: the span just before its run, from the run's
+                                                         * start (a block late after another loop's fade: its phase) */
+            punch.pre = 0;
+            punch.t = stl_t;
+            punch.k = stl_t % punch.len;
+            punch.start = punch.w - stl_t - punch.len;
+        }
+    }
+    stl_t += n;
     beat = beat_samples();                              /* per block: no divide per sample */
     step = beat / 4u ? beat / 4u : 1u;
     echo_d = beat * 3u / 4u;

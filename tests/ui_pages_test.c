@@ -1398,6 +1398,74 @@ int main(int argc, char **argv)
         check(pad_lit[9] && !dstep_has(&TDRUM->dstep[25], 3), "kit: the keys play the pads again, no step set");
         encs[panel.enc[EN_SELECT]] = -1; frame();
         check(drum_page == 0, "DRUMS: SELECT left: grid");
+        {   /* PHEBUS (21 Nov 2026): the STUTTER lane, after DRUM on the GRID (ui_stut.c, punch.c stl) */
+            uint32_t j, kw0 = key_of_white(0), kw12 = key_of_white(12);
+            memset(&stl, 0, sizeof stl); stl.len = 16; stl.act = 1; stl_new = 1;
+            ui.force = 1; frame();
+            encs[panel.enc[EN_ALGO]] = 1; frames(2);
+            check(stl_shown() && song.sel == TRK_DRUM && grid_keys_on() && kb_grid,
+                  "STUTTER: ALGORITHM right of DRUM on the GRID: the lane, the keys its steps");
+            ui.force = 1; frame(); ppm("grid-stutter-empty");
+            key(kw12);
+            check(stl_lit(12) && stl_code(12) == 1u, "STUTTER: tap step 13: lit, 1/8 (the length for new steps)");
+            check(!dstep_mask(&TDRUM->dstep[12]), "STUTTER: ... and no drum hit set");
+            key(kw12);
+            check(!stl_lit(12), "STUTTER: tap it again: off");
+            encs[panel.enc[EN_K1]] = -1; frame();
+            check(stl_new == 0u, "STUTTER: KNOB 1 left: new steps 1/4");
+            for (j = 12; j < 16u; j++) key(key_of_white(j));
+            check(stl_lit(12) && stl_lit(15) && stl_code(13) == 0u, "STUTTER: steps 13-16 lit at 1/4");
+            fm1_in.notes |= 1u << key_of_white(14); frame();
+            encs[panel.enc[EN_K1]] = 1; frame(); encs[panel.enc[EN_K1]] = 1; frame();
+            ui.force = 1; frame(); ppm("grid-stutter-held");
+            fm1_in.notes &= ~(1u << key_of_white(14)); frame();
+            check(stl_lit(14) && stl_code(14) == 2u && stl_code(13) == 0u, "STUTTER: hold step 15 + KNOB 1: that step 1/16, the others kept");
+            check(stl_new == 0u, "STUTTER: ... the length for new steps unchanged");
+            press(B_EDIT); press(B_OCTDN); release(B_OCTDN); release(B_EDIT); frames(2);
+            check(stl_code(14) == 0u, "STUTTER: EDIT + OCT-: undo (step 15 back to 1/4)");
+            press(B_EDIT); press(B_OCTUP); release(B_OCTUP); release(B_EDIT); frames(2);
+            check(stl_code(14) == 2u, "STUTTER: EDIT + OCT+: redo");
+            j = (uint32_t)TDRUM->p[P_SLEN];
+            for (i = 0; i < 64u && stl.len < 32u; i++) { encs[panel.enc[EN_K4]] = 1; frame(); }
+            check(stl.len == 32u && TDRUM->p[P_SLEN] == (int16_t)j, "STUTTER: KNOB 4: its own length, 32 steps (the drums keep theirs)");
+            key(3);                                      /* (A3, the second black key: steps 17-32) */
+            check(stl_pg == 1u, "STUTTER: black key 2: steps 17-32");
+            encs[panel.enc[EN_K1]] = 1; frame();         /* (1/8) */
+            key(kw12);
+            check(stl_lit(28) && stl_code(28) == 1u, "STUTTER: on page 2 the keys are steps 17-32 (step 29 lit, 1/8)");
+            ui.msg_t = 0; ui.force = 1; frame(); ppm("grid-stutter-p2");
+            encs[panel.enc[EN_K2]] = -1; frame();
+            check(!stl.act && stl_lit(28), "STUTTER: KNOB 2 left: the lane OFF, its steps kept");
+            ui.msg_t = 0; ui.force = 1; frame(); ppm("grid-stutter-off");
+            encs[panel.enc[EN_K2]] = 1; frame();
+            check(stl.act, "STUTTER: KNOB 2 right: ON");
+            /* played: the steps lit ask for their loop as the playhead reaches them (punch.c stl_want) */
+            {
+                uint32_t seen13 = 0, seen29 = 0, other = 0, n = 0, cur29 = 0;
+                transport_req = 1;
+                while (n++ < 400u) {
+                    frame();
+                    if (stl_pos == 12u || stl_pos == 13u) seen13 |= stl_want == PX_LOOP4;
+                    else if (stl_pos == 14u) seen13 |= (stl_want == PX_LOOP16) << 1;
+                    else if (stl_pos == 28u) { seen29 |= stl_want == PX_LOOP8; cur29 |= punch.cur == PX_LOOP8; }
+                    else other |= stl_want >= 0 && stl_pos != 15u;
+                    if (stl_pos == 29u) { ui.force = 1; frame(); ppm("grid-stutter-play"); break; }
+                }
+                check(seen13 == 3u && seen29 && !other && cur29,
+                      "STUTTER: playing: steps 13-16 ask for LOOP 4 (15: LOOP 16), 29 LOOP 8, no other step; the punch plays it");
+                transport_req = 2; frames(3);
+                check(stl_want < 0, "STUTTER: stopped: no stutter");
+            }
+            /* (saved with the project and its sections: tests/project_test.c) */
+            encs[panel.enc[EN_ALGO]] = -1; frames(2);
+            check(!stl_shown() && song.sel == TRK_DRUM && !drum_page, "STUTTER: ALGORITHM left: the drum GRID again");
+            encs[panel.enc[EN_ALGO]] = 1; frames(2);
+            check(stl_shown(), "STUTTER: right again: the lane");
+            track_select(0); frames(1); track_select(TRK_DRUM); frames(1);
+            check(!stl_shown(), "STUTTER: another track picked and back: the drum GRID");
+            memset(&stl, 0, sizeof stl); stl.len = 16; stl.act = 1;
+            ui.force = 1; frame();
+        }
         go_home(); frame();
         memset(pad_lit, 0, sizeof pad_lit);
         pen_lane = 0;
@@ -1900,10 +1968,10 @@ int main(int argc, char **argv)
         check(song.sel == TRK_DRUM && on_chain() && fam_stage(cur_page()->fam) == 3, "chain: on MOD, to the drums: their FX (the stage before)");
         track_select(0); host_preset(&trk[0], ENGI_ACID, 0); go_home(); frames(2);
     }
-    {   /* PHEBUS (21 Nov 2026): TOOLS > NEW: every send and effect off */
+    {   /* PHEBUS (21 Nov 2026): TOOLS > NEW: every send and effect off, the STUTTER lane empty */
         uint32_t ok = 1, l;
         for (i = 0; i < NPART; i++) trk[i].p[P_REV] = 50, trk[i].p[P_DLY] = 40, trk[i].p[P_DIST] = 20, cloud_send[i] = 9;
-        drum_send[3][0] = 2; song.g[G_SWING] = 30; song.g[G_DRREV] = 20;
+        drum_send[3][0] = 2; song.g[G_SWING] = 30; song.g[G_DRREV] = 20; stl.on[0] = 5; stl.len = 40;
         project_new(); frames(4);
         for (i = 0; i < NPART; i++)
             ok &= !trk[i].p[P_DIST] && !trk[i].p[P_CHOR] && !trk[i].p[P_DLY] && !trk[i].p[P_REV] && !trk[i].p[P_ITYPE] &&
@@ -1914,6 +1982,7 @@ int main(int argc, char **argv)
               !song.g[G_DRDLY] && !song.g[G_CLSEND] && !song.g[G_CLFRZ] && !song.g[G_SWING] && !song.g[G_DUST] &&
               !song.g[G_DUCK] && !song.g[G_FILT] && !song.g[G_TXSRC];
         check(ok, "TOOLS > NEW: the default sounds dry, every send 0, no swing, master FX off");
+        check(!stl.on[0] && stl.len == 16u && stl.act, "TOOLS > NEW: the STUTTER lane empty, 16 steps, ON");
     }
     printf("ui: %s\n", fails ? "FAILED" : "pages, layers (punch, steps, erase, roll, key, mix), layer lock, song layer, REC hold, drums, REC, 20000-frame fuzz PASS");
     return fails;
