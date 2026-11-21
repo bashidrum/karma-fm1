@@ -127,12 +127,17 @@ static void op_knobs(const char *const lab[4], const char *const val[4], const c
             cv_rect(x0, 22, 52, 2, TE_G2);
             cv_rect(x0, 22, ratio[k] * 52 / 1000, 2, tint_col(k, 0));
         }
-        if (text_w(&FONT_L, v) - 2 + uw <= 56)          /* (FONT_L: 2 blank columns after the last letter) */
-            x = cv_text(x0, OPK_BASE - 24, &FONT_L, v, c) - 2;
-        else
-            x = cv_text(x0, OPK_BASE - 12, &FONT_S, v, c) - 1;
-        if (uw && x + uw <= x0 + 57)
-            cv_text(x + 3, OPK_BASE - 12, &FONT_S, u, TE_G3);
+        {   /* large if it fits 54 px (4 px clear of the next column); a unit 3 px after it, 1 px where only that fits */
+            int32_t lw = text_w(&FONT_L, v) - 2, gap = 3;   /* (FONT_L: 2 blank columns after the last letter) */
+            if (lw + uw > 54 && lw + uw - 2 <= 54)
+                gap = 1;
+            if (lw + uw - (3 - gap) <= 54)
+                x = cv_text(x0, OPK_BASE - 24, &FONT_L, v, c) - 2;
+            else
+                x = cv_text(x0, OPK_BASE - 12, &FONT_S, v, c) - 1, gap = 3;
+            if (uw && x + uw - (3 - gap) <= x0 + 55)
+                cv_text(x + gap, OPK_BASE - 12, &FONT_S, u, TE_G3);
+        }
         if (hot)
             cv_rect(x0, 54, 52, 3, tint_col(k, 0));
     }
