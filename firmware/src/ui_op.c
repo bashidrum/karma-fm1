@@ -82,16 +82,10 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
  * nothing now (dim: a bit per knob): grey. A label left empty: an empty column. unit may be 0. A message replaces
  * the band (as te_dials) */
 #define OPK_BASE 50                                     /* the values' baseline, in the band */
-#if KARMA_ANN
-static void opk_take(const char *const lab[4], const char *const val[4], const char *const *unit);   /* (ui_draw.c) */
-#endif
 static void op_knobs(const char *const lab[4], const char *const val[4], const char *const *unit, const int32_t ratio[4],
                      uint32_t dim, uint32_t sig, uint32_t *cache)
 {
     uint32_t k;
-#if KARMA_ANN
-    opk_take(lab, val, unit);                           /* every frame, for the screen reader (ui_speak.c) */
-#endif
     sig = studio_hash(sig + dim * 977u + knob_tint_sig() * 7919u, ui.msg_t ? ui.msg : "");
     for (k = 0; k < 4u; k++) {
         sig = studio_hash(sig * 7u + (uint32_t)ratio[k] + (ui.hot_t && ui.hot_col == k) * 5003u, lab[k]);

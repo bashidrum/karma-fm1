@@ -5,7 +5,6 @@
 #   docs/emu/                       the browser simulator (build/emu: build it first, sh web/emu/build.sh)
 #   docs/webapp/editor/             the web editor (web/editor.html + its icon font, and its offline copy)
 #   docs/webapp/installer/          the web installer (web/make_site.py: build/karma.fwsc, the dual-core build)
-#   docs/words/                     the screen reader's words files (web/words; never change or remove a published one)
 #   docs/firmware/karma-VER.fwsc    the package it installs (KARMA_VERSION, default 3.1.5)
 #   sh tools/make_pages.sh
 set -e
@@ -24,5 +23,4 @@ SITE=$(mktemp -d)
 python3 web/make_site.py build/karma.fwsc "${KARMA_VERSION:-3.1.5}" "$SITE"
 cp -R "$SITE/webapp" "$SITE/firmware" docs/
 rm -rf "$SITE"
-cp -R web/words docs/
 du -sh docs
