@@ -307,7 +307,7 @@ static void op_drum_scene(uint32_t bank, uint32_t len)
 
 /* the 16 steps of KNOB 1's sound: a hit filled in its level's colour (a notch per ratchet), the cursor
  * framed white, the step that plays underlined */
-static int32_t op_steps_y = OP_BODY_Y + OP_SCENE_H;     /* where: under the snake; a step held: at the top, as on a
+static uint8_t op_steps_y = OP_BODY_Y + OP_SCENE_H;     /* where: under the snake; a step held: at the top, as on a
                                                          * synth's GRID (review 19) */
 static void op_drum_steps(uint32_t bank, uint32_t len)
 {

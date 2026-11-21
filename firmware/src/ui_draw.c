@@ -1040,11 +1040,11 @@ static void ui_draw(void)
         return;
     pads_tick();
     {   /* a message belongs to the screen it showed on: another screen, it goes (review 21) */
-        uint32_t k = ui.menu * 1000003u + ui.layer * 7919u + ui.hold_kind * 131u + (rec_wait || ft_on) * 17u + ui.home * 3u +
-                     ui.page * 977u + drum_page * 5u + vis_on * 11u;
+        uint16_t k = (uint16_t)((ui.menu * 1000003u + ui.layer * 7919u + ui.hold_kind * 131u + (rec_wait || ft_on) * 17u +
+                                 ui.home * 3u + ui.page * 977u + drum_page * 5u + vis_on * 11u) % 65521u);
         if (!ui.msg_t)
             ;
-        else if (msg_scr == 0xFFFFFFFFu)
+        else if (msg_scr == 0xFFFFu)
             msg_scr = k;
         else if (msg_scr != k)
             ui.msg_t = 0;

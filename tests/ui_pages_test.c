@@ -191,6 +191,16 @@ int main(int argc, char **argv)
         check(swap16(screen[10 * 240 + 209]) == was, "saved: the dot goes");
         check(!strcmp(DRUM_KIT_NAMES[DRUM_DEFAULT_KIT], "606"), "power-on drum kit: the 606 (Ben, 21 Nov)");
     }
+    {   /* review 21: a message stays on the screen it showed on; another screen, it goes */
+        go_home(); ui.force = 1; frame();
+        ui_message("STOP FIRST"); frame(); frame();
+        check(ui.msg_t != 0, "a message shows on HOME");
+        open_family(FAM_ENV); frame(); frame();
+        check(ui.msg_t == 0, "... and clears when the screen changes (review 21)");
+        open_family(FAM_ENV); ui_message("NOT ON THIS SOUND"); frame(); frame();
+        check(ui.msg_t != 0, "a message made as the screen changes stays on the new screen");
+        go_home(); ui.force = 1; frame();
+    }
     {   /* review 16d: the downbeat light white while playing, red only while recording */
         uint32_t c = 0, b = clk_beat, pl = song.playing, rc = song.rec;
         clk_beat = 4u; song.playing = 1; song.rec = 0; ui.force = 1;

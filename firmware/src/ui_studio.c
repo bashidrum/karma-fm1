@@ -14,7 +14,7 @@ static void op_knobs(const char *const lab[4], const char *const val[4], const c
 static void op_trackbar(uint32_t *cache);
 static void op_drum_scene(uint32_t bank, uint32_t len);
 static void op_drum_steps(uint32_t bank, uint32_t len);
-static int32_t op_steps_y;                              /* (ui_op.c) */
+static uint8_t op_steps_y;                              /* (ui_op.c) */
 static void op_home_body(void);
 static void op_box(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c);
 static int on_drum_page(void) { return !ui.home && cur_page()->scope == SC_DRUM; }
@@ -708,7 +708,7 @@ static void drum_screen_draw(void)
         }
         if ((!drum_full || sg_held) && (ui.force || sig + (sg_held != 0) * 7u != steps_sig)) {
             steps_sig = sig + (sg_held != 0) * 7u;
-            op_steps_y = (int32_t)(sg_held ? SG_BODY_Y : SG_BODY_Y + SG_SCENE_H);
+            op_steps_y = (uint8_t)(sg_held ? SG_BODY_Y : SG_BODY_Y + SG_SCENE_H);
             op_drum_steps(bank, len);
         }
         body_sig = 0;

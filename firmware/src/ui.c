@@ -116,11 +116,11 @@ static uint32_t page_first(uint32_t fam)            /* the family's first page t
 #if KARMA_ANN
 static void ann_say(const char *a, const char *b, uint32_t flags);
 #endif
-static uint32_t msg_scr;                                /* the screen a message showed on first (ui_draw: it goes with it) */
+static uint16_t msg_scr;                                /* the screen a message showed on first (ui_draw: it goes with it) */
 static void ui_say(const char *a, const char *b)
 {
     uint32_t n;
-    msg_scr = 0xFFFFFFFFu;                              /* (taken at the next frame: after what made the message) */
+    msg_scr = 0xFFFFu;                                  /* (taken at the next frame: after what made the message) */
     str_cpy(ui.msg, a, sizeof ui.msg);
     n = str_len(ui.msg);
     str_cpy(ui.msg + n, b, sizeof ui.msg - n);
