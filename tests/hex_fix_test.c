@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* KARMA 3.1.2, the HEX drums (a report: "a glitch on the hex drum effects"):
- *  - a hit cut short (stolen, choked) fades its reverb, delay and CLOUD sends as its dry sound: they stepped to 0
+ *  - a hit cut short (stolen, choked) fades its reverb and delay sends as its dry sound: they stepped to 0
  *  - a MY HEX kit copied from a HEX kit plays as loud as it (the first EDIT knob made the kit 1.4 .. 2.7 dB louder)
  *  - ATK 127 ends (the envelope's step was 0: a voice never ended, a clap droned)
  *  - WAVE turned back to SIN during a hit plays a sine, not the square table */
@@ -21,7 +21,6 @@ static int32_t ml[32], mr[32], rv[32], dl[32];
 static void block(void)
 {
     memset(ml, 0, sizeof ml); memset(mr, 0, sizeof mr); memset(rv, 0, sizeof rv); memset(dl, 0, sizeof dl);
-    memset(cloud_bus, 0, sizeof cloud_bus);
     drums_render(ml, mr, rv, dl, 32);
 }
 static void reset(uint32_t kit)
@@ -37,28 +36,26 @@ static void reset(uint32_t kit)
 static int32_t send_only_step(uint32_t kit)
 {
     uint32_t b, i, l;
-    int32_t pd = 0, pdl = 0, pc = 0, worst = 0;
+    int32_t pd = 0, pdl = 0, worst = 0;
     reset(kit);
     for (l = 0; l < DRUM_LANES; l++) {
         drum_send[l][0] = DRUM_SEND_REV;
         drum_send[l][1] = DRUM_SEND_DLY;
-        drum_cloud[l] = 127;
     }
     for (b = 0; b < 44100 * 4 / 32; b++) {
         if (b % 43u == 0)                            /* a kick every ~31 ms: each one cuts the last */
             drum_on(36, 110);
         block();
         for (i = 0; i < 32; i++) {
-            int32_t d = ml[i] - pd, sd = dl[i] - pdl, sc = cloud_bus[i] - pc;
-            int32_t ad = d < 0 ? -d : d, asd = sd < 0 ? -sd : sd, asc = sc < 0 ? -sc : sc;
+            int32_t d = ml[i] - pd, sd = dl[i] - pdl;
+            int32_t ad = d < 0 ? -d : d, asd = sd < 0 ? -sd : sd;
             /* a send step much larger than the dry one's (the sends are at most the dry's level) */
             if (asd > ad + 4000 && asd - ad > worst) worst = asd - ad;
-            if (asc > ad + 4000 && asc - ad > worst) worst = asc - ad;
-            pd = ml[i]; pdl = dl[i]; pc = cloud_bus[i];
+            pd = ml[i]; pdl = dl[i];
         }
     }
     for (l = 0; l < DRUM_LANES; l++)
-        drum_send[l][0] = drum_send[l][1] = 0, drum_cloud[l] = 0;
+        drum_send[l][0] = drum_send[l][1] = 0;
     return worst;
 }
 static double rms_hit(uint32_t kit, uint32_t note, uint32_t blocks)
@@ -81,7 +78,7 @@ int main(void)
     char t[96];
     for (k = 0; k < 5; k++) {
         int32_t w = send_only_step(k);
-        snprintf(t, sizeof t, "HEX kit %u: no click in the reverb / delay / CLOUD when a hit is cut (worst %d)", k, (int)w);
+        snprintf(t, sizeof t, "HEX kit %u: no click in the reverb / delay when a hit is cut (worst %d)", k, (int)w);
         check(w == 0, t);
     }
     for (k = 0; k < 5; k++) {
@@ -157,36 +154,6 @@ int main(void)
             check(w <= base + base / 8, t);
         }
         drum_cap = NDRUM;
-    }
-    {                                                /* the CLOUD under overload: fewer grains, then back */
-        static int32_t in[CTL], cl[CTL], cr[CTL];
-        uint32_t on, h, j;
-        int16_t dens = song.g[G_CLDENS];
-        song.g[G_CLDENS] = 0;                          /* her steady rate at its fastest: every grain */
-        cl_cap = CL_NG;
-        for (b = 0; b < 2000; b++) {
-            for (j = 0; j < CTL; j++) in[j] = (int32_t)((j * 977u + b * 131u) % 16000u) - 8000, cl[j] = cr[j] = 0;
-            cloud_process(in, cl, cr, CTL);
-        }
-        for (on = 0, j = 0; j < CL_NG; j++) on += cloud_cl.g[j].on;
-        snprintf(t, sizeof t, "CLOUD at DENS 0: %u grains at once", on);
-        check(on > CL_CAP_MIN + 2u, t);
-        for (h = 0; h < 20; h++) {
-            cloud_shed();
-            for (j = 0; j < CTL; j++) in[j] = 4000, cl[j] = cr[j] = 0;
-            cloud_process(in, cl, cr, CTL);
-        }
-        for (b = 0; b < 3000; b++) {
-            for (j = 0; j < CTL; j++) in[j] = (int32_t)((j * 977u + b * 131u) % 16000u) - 8000, cl[j] = cr[j] = 0;
-            cloud_process(in, cl, cr, CTL);
-        }
-        for (on = 0, j = 0; j < CL_NG; j++) on += cloud_cl.g[j].on;
-        snprintf(t, sizeof t, "CLOUD under overload: at most %u grains (%u), never under %u", (unsigned)cl_cap, on, CL_CAP_MIN);
-        check(on <= cl_cap && cl_cap == CL_CAP_MIN, t);
-        for (h = 0; h < 172u * 8u; h++) cloud_calm_half(0);
-        snprintf(t, sizeof t, "calm for ~8 s: all %u grains allowed again (%u)", CL_NG, (unsigned)cl_cap);
-        check(cl_cap == CL_NG, t);
-        song.g[G_CLDENS] = dens;
     }
     {                                                /* (3.1.3) MODAL under overload: 4 modes fewer a shed, never under 8 */
         uint32_t h;

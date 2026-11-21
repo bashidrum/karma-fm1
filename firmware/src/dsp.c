@@ -16,7 +16,6 @@ enum { PC_SETUP, PC_BANK, PC_BOWLOOP, PC_BOWNOISE, PC_BLOW, PC_UP, PC_OUT_E, PC_
        PC_PLX_INIT, PC_INIT_MAX,                        /* (a Plaits model set up for a voice; the longest, us) */
        PC_HX_SET, PC_HX_DRUM, PC_HX_SNARE, PC_HX_CYM, PC_HX_DEC,   /* (3.1.3) a HEX voice (lxr_dsp.c lx_render): its block's
                                                          * set-up (envelopes, filter), each kind's samples, the decimator */
-       PC_CL_REC, PC_CL_PLAY,                           /* (3.1.3) the CLOUD (cloud.c): the recording, the grains */
        PC_EV_DRUM, PC_EV_NOTE,                          /* (3.1.3) a note's start: a drum hit (drum_on), a synth note */
        PC_EV_N1, PC_EV_N2, PC_EV_N3, PC_EV_OFF, PC_EV_ALL,   /* (3.1.5 test 13) a synth note's start by track, a note's
                                                          * end, the whole of events_block (the bar's spike) */

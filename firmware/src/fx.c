@@ -5,7 +5,69 @@
  * Stereo dry mix; the chorus and the reverb come back in stereo, the delay in the middle. */
 #define DLY_LEN 65536u           /* 1.49 s: 1/4 down to 41 BPM, 1/8 dotted down to 31, 1/4 dotted down to 61 (clamped below) */
 #define CHO_LEN 2048u
-#include "cloud.c"               /* the CLOUD send effect (Clouds' grains), in mix_block below */
+/* (3.1.3) PLAITS' MODAL (Plaits' modal_voice.cc) plays 24 resonator modes a voice; measured on an FM-1: about twice
+ * FOLD's cost, a MODAL sound with two more tracks and the drums ~60 late halves a second. When audio.c sheds, MODAL
+ * plays 4 fewer (its highest, the quietest), down to 8; ~1 s without an overload gives 4 back. Asked by each MODAL
+ * voice as it renders (on either core) */
+#define MODAL_MIN 8u
+static volatile uint8_t modal_cap = 24u, modal_seen;
+uint32_t karma_modal_modes(void)
+{
+    modal_seen = 1;
+    return modal_cap;
+}
+static int modal_shed(void)                           /* 1 = 4 modes fewer */
+{
+    if (!modal_seen || modal_cap <= MODAL_MIN)
+        return 0;
+    modal_seen = 0;
+    modal_cap = (uint8_t)(modal_cap - 4u);
+    return 1;
+}
+static void modal_calm_half(int over)
+{
+    static uint16_t calm;
+    if (over) {
+        calm = 0;
+    } else if (modal_cap < 24u && ++calm >= 172u) {
+        modal_cap = (uint8_t)(modal_cap + 4u);
+        calm = 0;
+    }
+}
+/* (3.1.5 test 11) the overload guard across STOP and PLAY. Measured on Ariel's FM-1 (2026-11-17), each PLAY was the
+ * heaviest moment of the loop: 16 .. 29 late halves and ~20 cuts in its first 1 .. 2 s, a STOP 0 .. 4. While stopped
+ * the guard gave everything back (MODAL's modes, the drums' voices), so PLAY started at full cost and the guard cut it
+ * all again, in the first bars. Now PLAY starts where STOP left the guard (what was given back since is taken back),
+ * and it gives back as it does while playing, after a calm second or two */
+static uint8_t gs_modal, gs_drum, gs_saved;
+/* (test 12) test 11 alone did not help: nothing is given back for the first ~10 s of a stop (a quick STOP / PLAY plays
+ * on at the load it had); a longer stop (keys played live) gives back as before */
+#define GS_HOLD_HALVES 1720u                          /* ~10 s */
+static uint16_t gs_hold;
+static int guard_hold_half(void)                      /* audio.c, each half: 1 = give nothing back this half */
+{
+    if (song.playing || !gs_hold)
+        return 0;
+    gs_hold--;
+    return 1;
+}
+static void guard_stop(void)                          /* seq.c seq_stop (the audio ISR) */
+{
+    gs_hold = GS_HOLD_HALVES;
+    gs_modal = modal_cap;
+    gs_drum = drum_cap;
+    gs_saved = 1;
+}
+static void guard_start(void)                         /* seq.c seq_start, from stopped */
+{
+    gs_hold = 0;
+    if (!gs_saved)
+        return;
+    if (modal_cap > gs_modal)
+        modal_cap = gs_modal;
+    if (drum_cap > gs_drum)
+        drum_cap = gs_drum;
+}
 static int16_t dly_buf[DLY_LEN] __attribute__((section(".pool")));
 static int16_t cho_buf[CHO_LEN] __attribute__((section(".pool")));
 /* the reverb: two input diffusers, then four delay lines mixed by a Hadamard matrix (a feedback delay
@@ -640,11 +702,11 @@ static __attribute__((noinline)) void ins_rest(track_t *t)
 /* where a part's sound goes: the mix and the sends, its scratch block (KARMA_DUAL_CORE: CPU1 renders into buses of its
  * own, CPU0 adds them after; one core: the mix's own) */
 typedef struct {
-    int32_t *l, *r, *c, *d, *v, *cl, *b;
+    int32_t *l, *r, *c, *d, *v, *b;
     int16_t *pnew;
 } mixbus_t;
 static int16_t pnew0[P_COUNT];
-static const mixbus_t BUS0 = {mix_l, mix_r, send_c, send_d, send_r, cloud_bus, part_buf, pnew0};
+static const mixbus_t BUS0 = {mix_l, mix_r, send_c, send_d, send_r, part_buf, pnew0};
 static void mix_part_run(track_t *t, uint32_t n, const mixbus_t *o);
 /* (2.6) a preset's fade (voice.c sound_change): the whole part rendered with the sound it had, then the new one back */
 static void mix_part_to(track_t *t, uint32_t n, const mixbus_t *o)
@@ -690,16 +752,15 @@ static void mix_part(track_t *t, uint32_t n) { mix_part_to(t, n, &BUS0); }
 #undef KARMA_FX_WAIT
 #define KARMA_FX_WAIT 0
 #endif
-static int32_t w_l[CTL], w_r[CTL], w_c[CTL], w_d[CTL], w_v[CTL], w_cl[CTL], w_b[CTL];
+static int32_t w_l[CTL], w_r[CTL], w_c[CTL], w_d[CTL], w_v[CTL], w_b[CTL];
 #if KARMA_CPU1_FX
 #define FXP_C w_c                               /* (3.1.3: the last block's sends, between the blocks: fx_prev on CPU1, which
                                                  * reads them before its parts write this block's) */
 #define FXP_D w_d
 #define FXP_R w_v
-#define FXP_CL w_cl
 #endif
 static int16_t pnew1[P_COUNT];
-static const mixbus_t BUS1 = {w_l, w_r, w_c, w_d, w_v, w_cl, w_b, pnew1};
+static const mixbus_t BUS1 = {w_l, w_r, w_c, w_d, w_v, w_b, pnew1};
 static uint8_t w_fx;                           /* (3.1.3) CPU1 runs the effects this block (fx_prev) */
 static uint8_t w_hex;                          /* (3.1.3) CPU1 renders the HEX voices this block (drums.c drums_hex_pre) */
 static uint32_t w_n, w_job;                     /* the block's length, the tracks CPU1 renders in it (bit k: track k + 1) */
@@ -752,20 +813,18 @@ static uint8_t fx_stems;
 static int32_t stem_pre1[CTL];                  /* CPU1's own (stem_take's is CPU0's) */
 #endif
 #if KARMA_DUAL_CORE && KARMA_FX_WAIT
-static int32_t fxp_c[CTL], fxp_d[CTL], fxp_r[CTL], fxp_cl[CTL];   /* (test 8) the last block's sends, held for CPU0's wait */
+static int32_t fxp_c[CTL], fxp_d[CTL], fxp_r[CTL];   /* (test 8) the last block's sends, held for CPU0's wait */
 #define FXP_C fxp_c
 #define FXP_D fxp_d
 #define FXP_R fxp_r
-#define FXP_CL fxp_cl
 #elif !KARMA_DUAL_CORE || !KARMA_CPU1_FX                /* (3.1.5) the effects on CPU0 (one core, or KARMA_CPU1_FX 0): on this
                                                  * block's sends, as 3.1.2, no block behind and no copy (3.1.4 held them in
                                                  * fxp_*: 512 B of RAM, now each track's ACID GEN and envelope steps) */
 #define FXP_C send_c
 #define FXP_D send_d
 #define FXP_R send_r
-#define FXP_CL cloud_bus
 #endif
-/* (3.1.3) the effects a block behind: the reverb, the delay, the chorus and the CLOUD run on the last block's sends
+/* (3.1.3) the effects a block behind: the reverb, the delay and the chorus run on the last block's sends
  * (held in FXP_*) into wet_l / wet_r, which this block adds. Measured on an FM-1, they were 0.08 .. 0.16 ms of CPU0's
  * 0.73 ms block, after the join, with nothing beside them; now CPU1 runs them first in its job (one core: CPU0, the
  * same; the output does not depend on the split). Their return is 32 samples (0.73 ms) later than before */
@@ -779,7 +838,6 @@ static void fx_prev(void)
         return;
     }
     fx_buses(FXP_C, FXP_D, FXP_R, wet_l, wet_r, n);
-    cloud_process(FXP_CL, wet_l, wet_r, n);           /* (adds into wet, takes FXP_CL to 0) */
     for (i = n; i < CTL; i++)
         wet_l[i] = wet_r[i] = 0;
 }
@@ -826,7 +884,7 @@ static void core1_parts(void *ctx)
     if (w_fx | w_hex)
         cost_put(NPART + 1u, fm1_ticks() - t0);   /* (CPU1's own work, for the balance) */
     for (i = 0; i < n; i++)
-        w_l[i] = w_r[i] = w_c[i] = w_d[i] = w_v[i] = w_cl[i] = 0;
+        w_l[i] = w_r[i] = w_c[i] = w_d[i] = w_v[i] = 0;
     for (k = 0; k < NPART; k++)
         if ((m >> k) & 1u) {
             t0 = fm1_ticks();
@@ -961,7 +1019,6 @@ static void mix_part_run(track_t *t, uint32_t n, const mixbus_t *o)
         int32_t lvl = LEVEL_Q12[t->p[P_LEVEL] ? clamp(t->p[P_LEVEL] + t->p[P_ED_FX], 1, 127) : 0], pan = t->p[P_PAN];   /* (+ the sound's trim: 1/2 dB steps, as LEVEL's) */
         int32_t gl = 4096 - (pan > 0 ? pan * 64 : 0), gr = 4096 + (pan < 0 ? pan * 64 : 0);
         int32_t c = t->p[P_CHOR] * 258, d = send_thr(t->p[P_DLY] * 258, thr_dly), r = send_thr(t->p[P_REV] * 258, thr_rev);
-        int32_t cs = cloud_send[(uint32_t)(t - trk) % NPART] * 258;   /* the track's send to the CLOUD (cloud.c) */
         int32_t pk = t->peak;
         int32_t xmax = c > d ? c : d;
         int32_t ga = mulq15(g0, duck.g0), gb = mulq15(g1, duck.g1);   /* mute x duck, ramped over the block */
@@ -999,8 +1056,6 @@ static void mix_part_run(track_t *t, uint32_t n, const mixbus_t *o)
                 o->d[i] += mulq15(xs, d);
             if (r)
                 o->v[i] += mulq15(xs, r);
-            if (cs)
-                o->cl[i] += mulq15(xs, cs);
             o->l[i] += (x * (gl >> 4) + 128) >> 8;      /* (x may pass 2^19: PAN's Q12 to Q8, exact at rest; 3.0.4 after
                                                          * SLOOP 2.8.4: x >> 4 floored the part to 16 LSB) */
             o->r[i] += (x * (gr >> 4) + 128) >> 8;
@@ -1091,257 +1146,10 @@ static void drum_insert(int32_t *l, int32_t *r, int32_t *v, int32_t *d, uint32_t
     run |= ins_run(&ins[NPART + 3u], t->p, d, n);
     t->ins_run = (uint8_t)run;
 }
-/* ---- TEXTURE (SLOOP 2.6, GLO > TEXTURE): a looping bed under the mix, the glue of lo-fi and ambient tracks, without
- * taking a track. SRC: a generated noise (no memory, nothing to load) or a user sample slot looped (USR1..4, its first
- * zone at its own pitch; a looped zone from its loop, else whole), LEVEL, TONE (the DJ filter: left a low-pass, right a
- * high-pass), MOVE: how much it breathes over RATE (1 .. 16 bars of the tempo; its level and brightness, a sine from the
- * transport's start), WHEN: PLAY (fades in and out with the transport) or ALWAYS, DUCK: the kick pumps it as the
- * parts (GLO > MASTER > DUCK). Into the dry mix (no sends), before DUST, the punch-ins and the master filter.
- *   VINYL  hiss, rumble, crackle and the odd pop, each crackle somewhere left to right
- *   TAPE   hiss tilted dark, its level drifting slowly (flutter)
- *   RAIN   a soft bed and droplets, left and right apart
- *   WIND   noise through two resonant low-passes wandering slowly, gusts
- *   RADIO  a band of static (500 Hz .. 3 kHz), coarse, in bursts that come and go
- *   ROOM   room tone: a low rumble and a little air
- * Its level: x * LEVEL^2 / 16384 into the mix (the sources at about 8000 rms: LEVEL 64 about -30 dBFS rms out, 127
- * about -18). Off (and faded out): nothing runs, the mix bit for bit as without */
-enum { TX_OFF, TX_VINYL, TX_TAPE, TX_RAIN, TX_WIND, TX_RADIO, TX_ROOM, TX_USR1, TX_N = TX_USR1 + 4 };
-static struct {
-    int32_t rnd;                                        /* noise state (never 0) */
-    int32_t g;                                          /* gain now (Q15 of the LEVEL target), ramped a block */
-    uint8_t src, play;                                  /* the source running; the transport as last seen */
-    uint32_t ph;                                        /* MOVE's phase (a turn per RATE) */
-    int32_t a[2], b[2], c[2], d[2], e[2];               /* per side: the sources' states (see texture_gen) */
-    int32_t lpm[2];                                     /* MOVE's brightness (one-pole) */
-    int32_t t0, t1, t2;                                 /* slow random walks / timers */
-    tsvf_t wc[2];                                       /* WIND: this block's filters */
-    int32_t wz[2][2];
-    uint32_t upos, ufrac;                               /* USR: the read position, Q16 fraction */
-    int32_t up, ui, us0, us1;                           /* USR: ADPCM predictor, step index, the two samples interpolated */
-    uint32_t ugen;                                      /* USR: the slots' scan count (an upload restarts it) */
-    int32_t ulast, uoff;                                /* USR: the last value out; the step at a wrap, gliding to 0
-                                                         * (a sample that does not end where it starts: no click) */
-    uint8_t uwrap;                                      /* USR: tx_usr_next went round */
-    djf_t f;                                            /* TONE */
-} tx = {.rnd = 0x2545F491};
-static inline int32_t tx_n16(void) { return (int32_t)(noise32(&tx.rnd) >> 16) - 32768; }   /* -32768 .. 32767 */
-static void texture_reset(uint32_t src)
-{
-    int32_t rnd = tx.rnd, g = tx.g;
-    uint32_t ph = tx.ph;
-    uint8_t play = tx.play;
-    memset(&tx, 0, sizeof tx);
-    tx.rnd = rnd ? rnd : 0x2545F491;
-    tx.g = g, tx.ph = ph, tx.play = play;
-    tx.src = (uint8_t)src;
-    tx.t0 = 50 << 8, tx.t1 = 60 << 8;                  /* (WIND: the two cutoffs, RADIO / TAPE: the level) */
-    tx.ugen = smp_user_gen - 1u;                        /* (USR: the zone looked up on the first block) */
-}
-/* USR k: the next sample of its first zone, looped (sample_next's decoder, its own state) */
-static inline int32_t tx_usr_next(const smp_zone_t *z)
-{
-    uint32_t pos = tx.upos, b = SMP_AT(z->off + (pos >> 1));
-    uint32_t code = (pos & 1u) ? (b >> 4) : (b & 15u);
-    int32_t step = IMA_STEP[(uint32_t)tx.ui <= 88u ? tx.ui : 88], vd = step >> 3;
-    if (code & 4u) vd += step;
-    if (code & 2u) vd += step >> 1;
-    if (code & 1u) vd += step >> 2;
-    tx.up = clamp(tx.up + ((code & 8u) ? -vd : vd), -32768, 32767);
-    tx.ui = clamp(tx.ui + IMA_IDX[code & 7u], 0, 88);
-    if (++pos > (z->looped ? z->le : z->n - 1u)) {      /* round again: from the loop (its state), or the top */
-        pos = z->looped ? z->ls : 0u;
-        tx.up = z->looped ? z->pred : 0;
-        tx.ui = z->looped ? z->idx : 0;
-        tx.uwrap = 1;
-    }
-    tx.upos = pos;
-    return tx.up;
-}
-/* n samples of source src (both sides) into l, r, at about 8000 rms */
-static void texture_gen(uint32_t src, int32_t *l, int32_t *r, uint32_t n)
-{
-    uint32_t i, k;
-    if (src >= TX_USR1) {
-        uint32_t s = src - TX_USR1;
-        const smp_zone_t *z = usr_nz[s] ? &usr_zone[s][0] : 0;
-        if (!z || !z->n) {
-            for (i = 0; i < n; i++)
-                l[i] = r[i] = 0;
-            return;
-        }
-        if (tx.ugen != smp_user_gen) {                  /* a new upload (or the first block): from the top */
-            tx.ugen = smp_user_gen;
-            tx.upos = 0, tx.ufrac = 0, tx.up = tx.ui = 0;
-            tx.us0 = 0, tx.us1 = tx_usr_next(z);
-            tx.uwrap = 1;                               /* (from where the old one was: no click) */
-        }
-        for (i = 0; i < n; i++) {
-            int32_t v;
-            tx.ufrac += z->rate;                        /* (its own rate: Q16 of 44.1 kHz) */
-            while (tx.ufrac >= 65536u) {
-                tx.ufrac -= 65536u;
-                tx.us0 = tx.us1;
-                tx.us1 = tx_usr_next(z);
-            }
-            v = (tx.us0 + (((tx.us1 - tx.us0) * (int32_t)(tx.ufrac >> 1)) >> 15)) >> 1;
-            if (tx.uwrap) {                             /* (2.6) round again: from the value it was at */
-                tx.uwrap = 0;
-                tx.uoff = tx.ulast - v;
-            }
-            tx.uoff -= (tx.uoff >> 6) + (tx.uoff > 0) - (tx.uoff < 0);   /* (~1.5 ms) */
-            l[i] = r[i] = tx.ulast = v + tx.uoff;
-        }
-        return;
-    }
-    switch (src) {
-    case TX_VINYL:                                      /* a: rumble, b: crackle, c: its decay, d: hiss tilt */
-        for (i = 0; i < n; i++) {
-            uint32_t z = noise32(&tx.rnd);
-            int32_t w = (int32_t)(z >> 16) - 32768, h;
-            tx.a[0] += (w >> 5) - (tx.a[0] >> 7);       /* rumble: integrated, leaky */
-            if ((z & 0xFFFFu) < 60u) {                  /* crackle, ~40 a second, anywhere left to right */
-                int32_t amp = 6000 + (int32_t)((z >> 8) & 0x3FFFu) + ((z & 1u) ? 0 : 12000 * ((z & 0x30u) == 0u));
-                int32_t pan = (int32_t)((z >> 20) & 0xFFu);
-                amp = (z & 0x100u) ? -amp : amp;
-                tx.b[0] = (amp * (256 - pan)) >> 8;
-                tx.b[1] = (amp * pan) >> 8;
-            }
-            for (k = 0; k < 2u; k++) {
-                h = (k ? (int32_t)(noise32(&tx.rnd) >> 16) - 32768 : w);
-                tx.d[k] += (h - tx.d[k]) >> 2;          /* the hiss: dark, low (the crackle on top) */
-                (k ? r : l)[i] = (tx.d[k] >> 4) + (tx.a[0] >> 2) + tx.b[k];
-                tx.b[k] -= tx.b[k] >> 2;                /* (a click: a few samples) */
-            }
-        }
-        break;
-    case TX_TAPE:                                       /* t0: the level drifting (Q8), t2: its next target */
-        if (!(tx.t1++ & 31))
-            tx.t2 = (24 << 8) + (int32_t)((noise32(&tx.rnd) >> 20) & 0x7FFu) * 4;
-        tx.t0 += (tx.t2 - tx.t0) >> 6;
-        for (i = 0; i < n; i++)
-            for (k = 0; k < 2u; k++) {
-                int32_t w = tx_n16();
-                tx.a[k] += (w - tx.a[k]) >> 2;          /* tilted dark: mostly the low-passed part */
-                (k ? r : l)[i] = (((tx.a[k] >> 1) + (w >> 3)) * (tx.t0 >> 8)) >> 5;
-            }
-        break;
-    case TX_RAIN:                                       /* a: the bed's low-pass, b: a droplet's level, c: its noise */
-        for (i = 0; i < n; i++)
-            for (k = 0; k < 2u; k++) {
-                uint32_t z = noise32(&tx.rnd);
-                int32_t w = (int32_t)(z >> 16) - 32768;
-                tx.a[k] += (w - tx.a[k]) >> 4;          /* the bed: ~450 Hz */
-                if ((z & 0xFFFFu) < 420u)               /* a droplet: ~280 a second a side */
-                    tx.b[k] = 4000 + (int32_t)((z >> 4) & 0x3FFFu);
-                tx.c[k] += (w - tx.c[k]) >> 1;
-                (k ? r : l)[i] = (tx.a[k] >> 1) + (((w - tx.c[k]) * tx.b[k]) >> 14);
-                tx.b[k] -= tx.b[k] >> 5;
-            }
-        break;
-    case TX_WIND: {                                     /* t0, t1: the cutoffs wandering (Q8 index), t2: their targets */
-        if (!(noise32(&tx.rnd) & 31u))
-            tx.t2 = (int32_t)(noise32(&tx.rnd) & 0xFFFFu);   /* new targets now and then: 34 .. 78 */
-        tx.t0 += (((34 << 8) + (tx.t2 & 0xFF) * 44) - tx.t0) >> 7;
-        tx.t1 += (((34 << 8) + (tx.t2 >> 8) * 44) - tx.t1) >> 7;
-        tsvf_coef(&tx.wc[0], tx.t0, 95);
-        tsvf_coef(&tx.wc[1], tx.t1, 95);
-        for (i = 0; i < n; i++)
-            for (k = 0; k < 2u; k++) {
-                int32_t y = tsvf_lp(&tx.wc[k], tx_n16() >> 2, &tx.wz[k][0], &tx.wz[k][1]);
-                (k ? r : l)[i] = clamp(y, -32767, 32767);
-            }
-        break;
-    }
-    case TX_RADIO:                                      /* a, b: the band's two low-passes, t0: the burst level (Q8),
-                                                         * t1: samples left of the burst, c: the held sample */
-        if ((tx.t1 -= (int32_t)n) <= 0) {
-            uint32_t z = noise32(&tx.rnd);
-            tx.t1 = 1500 + (int32_t)((z >> 8) & 0x3FFFu);   /* 35 .. 400 ms */
-            tx.t2 = (z & 3u) == 0u ? 40 << 8 : (110 + (int32_t)((z >> 24) & 0x7Fu)) << 8;   /* (a gap now and then) */
-        }
-        tx.t0 += (tx.t2 - tx.t0) >> 2;
-        for (i = 0; i < n; i++) {
-            int32_t w = tx_n16(), y;
-            if (!(i & 3u))
-                tx.c[0] = w;                            /* coarse: held four samples */
-            tx.a[0] += (tx.c[0] - tx.a[0]) >> 1;        /* < ~3 kHz */
-            tx.b[0] += (tx.a[0] - tx.b[0]) >> 4;        /* the lows taken out: > ~500 Hz */
-            y = (((tx.a[0] - tx.b[0]) >> 1) * (tx.t0 >> 8)) >> 6;
-            l[i] = y;
-            r[i] = y - (y >> 2);
-        }
-        break;
-    case TX_ROOM:                                       /* a: the rumble, b: its low-pass, c: air */
-        for (i = 0; i < n; i++)
-            for (k = 0; k < 2u; k++) {
-                int32_t w = tx_n16();
-                tx.a[k] += (w >> 4) - (tx.a[k] >> 8);
-                tx.b[k] += (tx.a[k] - tx.b[k]) >> 5;
-                (k ? r : l)[i] = (tx.b[k] >> 1) + (w >> 6);
-            }
-        break;
-    default:
-        for (i = 0; i < n; i++)
-            l[i] = r[i] = 0;
-        break;
-    }
-}
-static void texture_mix(int32_t *l, int32_t *r, uint32_t n)
-{
-    static int32_t tl[CTL], tr[CTL];
-    static const uint8_t BARS[5] = {1, 2, 4, 8, 16};
-    uint32_t src = (uint32_t)clamp(song.g[G_TXSRC], 0, TX_N - 1), i, bar;
-    /* the sources to about 8000 rms (VINYL ~5000: its crackle peaks), Q8; the user slots as they are (/ 2) */
-    static const int16_t TX_SCALE[TX_USR1 + 1] = {0, 800, 301, 693, 1918, 149, 343, 256};
-    int32_t lvl = clamp(song.g[G_TXLVL], 0, 127), on, g0, g1, mv, depth, u, lfo, k0, k1, sc;
-    tsvf_t fc;
-    if (song.playing && !tx.play)
-        tx.ph = 0;                                      /* MOVE from the transport's start */
-    tx.play = (uint8_t)song.playing;
-    on = src && src == tx.src && (song.playing || song.g[G_TXWHEN]) && lvl;
-    if (!tx.g && !on) {                                 /* silent: nothing runs (and a new source starts from rest) */
-        if (src != tx.src)
-            texture_reset(src);
-        return;
-    }
-    if (n > CTL)
-        return;
-    g0 = tx.g;                                          /* fades over ~0.1 s (238 a block), as DUST's bed */
-    g1 = tx.g = clamp(tx.g + (on ? 238 : -238), 0, 32767);
-    bar = (uint32_t)FS * 240u / (uint32_t)clamp(song.g[G_BPM], 20, 300);   /* a bar of 4/4, samples */
-    tx.ph += (uint32_t)((0xFFFFFFFFu / (bar * BARS[clamp(song.g[G_TXRATE], 0, 4)])) * n);
-    lfo = sine_i(tx.ph - 0x40000000u);                  /* (from its top: a start at full) */
-    depth = clamp(song.g[G_TXMOVE], 0, 127) * 258;
-    u = mulq15(depth, (32767 - lfo) >> 1);              /* 0 .. depth, the dip */
-    mv = 32767 - mulq15(u, 21000);                      /* the level breathing: down to ~36 % */
-    k0 = 32767 - mulq15(u, 28000);                      /* the brightness: a one-pole closing */
-    texture_gen(tx.src, tl, tr, n);
-    sc = TX_SCALE[tx.src < TX_USR1 ? tx.src : TX_USR1];
-    for (i = 0; i < n; i++) {                           /* each source to its level, MOVE's colour (Q13: no overflow */
-        tx.lpm[0] += ((((tl[i] * sc) >> 8) - tx.lpm[0]) >> 2) * (k0 >> 2) >> 11;   /* up to +-260000) */
-        tx.lpm[1] += ((((tr[i] * sc) >> 8) - tx.lpm[1]) >> 2) * (k0 >> 2) >> 11;
-        tl[i] = tx.lpm[0], tr[i] = tx.lpm[1];
-    }
-    if (djf_block(&tx.f, clamp(song.g[G_TXTONE], -64, 63), &fc)) {
-        djf_run(&tx.f, &fc, tl, n, 0);
-        djf_run(&tx.f, &fc, tr, n, 1);
-    }
-    k1 = mulq15(lvl * lvl * 2, mv);                     /* LEVEL^2 (x 2: Q15 of 4096 at 127 .. ) x MOVE */
-    for (i = 0; i < n; i++) {
-        int32_t g = g0 + (((g1 - g0) * (int32_t)i) >> CTL_LOG2), gk = mulq15(g, k1);
-        if (song.g[G_TXDUCK])
-            gk = mulq15(gk, duck.g0 + (((duck.g1 - duck.g0) * (int32_t)i) >> CTL_LOG2));
-        l[i] += (tl[i] * (gk >> 4)) >> 11;              /* x LEVEL^2 / 16384: (x * gk / 32768) at full */
-        r[i] += (tr[i] * (gk >> 4)) >> 11;
-    }
-    if (!g1 && src != tx.src)
-        texture_reset(src);                             /* faded out: the new source from rest */
-}
-
 /* KARMA 3.0, after JIANT FM 0.7.1 (Juan Jiant, GPL-3.0-only): menu USB AUDIO = STEMS, the USB audio input as 6
  * channels (usb.c uac_tap6): each track mono (its LEVEL, DIST, SLICER, INSERT, FILTER and MUTE in, its PAN not: what
  * it adds to the dry mix, L + R halved), tracks 1..3 then the drums, and the FX return L R (the CHORUS, DELAY and
- * REVERB buses, the CLOUD, TEXTURE), all before the master (no DUST, punch-in, DJ filter, limiter or MASTER: the
+ * REVERB buses), all before the master (no DUST, punch-in, DJ filter, limiter or MASTER: the
  * mix's own scale); the metronome in none. fx_stems: this render feeds them (audio.c) */
 static int32_t stem_buf[NTRK][CTL], stem_fx[2][CTL], stem_pre[CTL];
 static uint8_t fx_stems;
@@ -1456,7 +1264,7 @@ static void mix_block(int32_t *out, uint32_t n)
         if (audio_worker_online)
             for (i = 0; i < n; i++) {
                 mix_l[i] += w_l[i], mix_r[i] += w_r[i];
-                send_c[i] += w_c[i], send_d[i] += w_d[i], send_r[i] += w_v[i], cloud_bus[i] += w_cl[i];
+                send_c[i] += w_c[i], send_d[i] += w_d[i], send_r[i] += w_v[i];
             }
         PROF(PF_T2);                                    /* (CPU0's wait and the sum; track3: 0) */
         core_balance();
@@ -1513,7 +1321,6 @@ static void mix_block(int32_t *out, uint32_t n)
     if (fx_stems)                                       /* the FX return: what is added from here (not the metronome) */
         for (i = 0; i < n; i++)
             stem_fx[0][i] = mix_l[i], stem_fx[1][i] = mix_r[i];
-    texture_mix(mix_l, mix_r, n);                       /* GLO > TEXTURE (2.6): the bed, dry */
     punch_freeze_feed(send_r, mix_l, mix_r, n);         /* punch-in FREEZE: the dry mix into the held reverb */
 #if !KARMA_DUAL_CORE || (!KARMA_CPU1_FX && !KARMA_FX_WAIT)
     fxp_n = n;                                          /* (3.1.5) the effects on this block's sends, here */
@@ -1530,13 +1337,11 @@ static void mix_block(int32_t *out, uint32_t n)
         FXP_C[i] = send_c[i];
         FXP_D[i] = send_d[i];
         FXP_R[i] = send_r[i];
-        FXP_CL[i] = cloud_bus[i];
-        cloud_bus[i] = 0;
     }
     fxp_n = n;
 #endif
     PROF(PF_CLOUD);
-    if (fx_stems)                                       /* ... what the buses, the CLOUD and TEXTURE added */
+    if (fx_stems)                                       /* ... what the buses added */
         for (i = 0; i < n; i++)
             stem_fx[0][i] = STEM_OF(2 * (mix_l[i] - stem_fx[0][i])), stem_fx[1][i] = STEM_OF(2 * (mix_r[i] - stem_fx[1][i]));   /* (as far down) */
     dust_process(mix_l, mix_r, n);

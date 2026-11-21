@@ -12,10 +12,6 @@ static const char *const N_LPOL[] = {"BI", "UNI"};
 /* GLO > MIDI (2.6): a synth track's MIDI channel, and the other channels */
 static const char *const N_MCH[] = {"OFF", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16"};
 static const char *const N_MOTH[] = {"SEL", "OFF"};
-/* GLO > TEXTURE (2.6, fx.c texture_*): the bed's sources (the user slots last), its movement's length, when it plays */
-static const char *const N_TXSRC[] = {"OFF", "VINYL", "TAPE", "RAIN", "WIND", "RADIO", "ROOM", "USR1", "USR2", "USR3", "USR4"};
-static const char *const N_TXRATE[] = {"1BAR", "2BAR", "4BAR", "8BAR", "16BAR"};
-static const char *const N_TXWHEN[] = {"PLAY", "ALWAYS"};
 /* ANALOG's filter TYPE (eng_analog.c): the SVF's low-pass (as always), band-pass, high-pass output */
 static const char *const N_FTYPE[] = {"LP", "BP", "HP"};
 /* ENV SYNC (voice.c): ATK DEC REL as note values of the tempo, shortest first. 0..127 split evenly over these 25
@@ -169,7 +165,6 @@ static const char *const PART_N[5] = {"", "A", "B", "C", "D"};   /* GLO G_SLOT (
 static const param_desc_t GP[G_COUNT] = {
     [G_BPM] = PD("BPM", F_BPM, 40, 240, 90),
     [G_SWING] = PD("SWING", F_SWING, 0, 100, 0),
-    [G_CLOCK] = PE("CLICK", N_CLICK, 0),            /* (the old CLK slot: projects keep their format) */
     [G_TUNE] = PD("TUNE", F_INT, -50, 50, 0),
     [G_DTIME] = PE("TIME", N_DLY, 1),
     [G_DFDBK] = PD("FEEDBK", F_PCT, 0, 120, 60),
@@ -190,7 +185,6 @@ static const param_desc_t GP[G_COUNT] = {
     [G_SAVE] = PE("SAVE", N_GO, 0),
     [G_ENGSEL] = PE("ENG", N_ENGNAME, 0),
     [G_ENGGO] = PE("SET", N_GO, 0),
-    [G_CLRSEQ] = PE("CLRSQ", N_GO, 0),
     [G_INITSND] = PE("INIT", N_GO, 0),
     [G_DRCH] = PE("CH4", N_MCH, 10),                  /* GM drum part (track 4) MIDI channel, 0 = OFF (2.6: as GLO > MIDI's CH1..3) */
     [G_DRLVL] = PD("LVL", F_INT, 0, 127, 100),
@@ -205,21 +199,6 @@ static const param_desc_t GP[G_COUNT] = {
     [G_CH2] = PE("CH2", N_MCH, 2),                /* no MIDI in; out on its old one) */
     [G_CH3] = PE("CH3", N_MCH, 3),
     [G_CHOTH] = PE("OTHER", N_MOTH, 0),           /* the channels no track has: SEL the selected track, OFF none */
-    [G_TXSRC] = PE("SRC", N_TXSRC, 0),            /* 2.6, GLO > TEXTURE: the bed under the mix (OFF: none) */
-    [G_TXLVL] = PD("LEVEL", F_PCT, 0, 127, 64),
-    [G_TXTONE] = PD("TONE", F_FILT, -64, 63, 0),  /* left a low-pass, right a high-pass, centre open */
-    [G_TXMOVE] = PD("MOVE", F_PCT, 0, 127, 40),   /* how much it breathes (level and colour), over RATE */
-    [G_TXRATE] = PE("RATE", N_TXRATE, 2),
-    [G_TXWHEN] = PE("WHEN", N_TXWHEN, 0),         /* PLAY: while the transport runs (fades in / out); ALWAYS */
-    [G_TXDUCK] = PE("DUCK", N_ONOFF, 0),          /* ON: the kick pumps it too (GLO > MASTER > DUCK) */
-    [G_CLSEND] = PD("SEND", F_PCT, 0, 127, 0),   /* FX > CLOUD (cloud.c) */
-    [G_CLPOS] = PD("POS", F_PCT, 0, 127, 24),
-    [G_CLSIZE] = PD("SIZE", F_PCT, 0, 127, 64),
-    [G_CLPIT] = PD("PITCH", F_SEMI, -24, 24, 0),
-    [G_CLDENS] = PD("DENS", F_PCT, 0, 127, 104),
-    [G_CLTEX] = PD("TEXT", F_PCT, 0, 127, 90),
-    [G_CLFB] = PD("FEEDBK", F_PCT, 0, 127, 0),
-    [G_CLFRZ] = PE("FRZ", N_ONOFF, 0),
     [G_HXMODEL] = PE("MODEL", N_HXMODEL, 0),     /* EDIT on the drum track: the HEX sound (ui_studio.c hex_ui_sync); */
     [G_HXWAVE] = PE("WAVE", N_HXWAVE, 0),        /* the LXR's 0..127 values. These are the DRUM model's: the pages */
     [G_HXTUNE] = PD("TUNE", F_INT, 0, 127, 36),  /* show each model's own (hex_desc) */
@@ -507,12 +486,9 @@ static const page_t PAGES[] = {
     {"GLOBAL", FAM_GLO, SC_GLOBAL, GR_NONE, {G_BPM, G_SWING, G_CLOCK, G_TUNE}},
     {"MASTER", FAM_GLO, SC_GLOBAL, GR_NONE, {G_DUST, G_DUCK, G_FILT, G_ROLL}},
     /* the shared effects (PHEBUS, 21 Nov 2026: out of the voices' FX stage): the delay, reverb and chorus every track
-     * sends to, and Clouds' grains (cloud.c): CLOUD's SEND is the selected track's send (the drum track's: the selected
-     * sound's; ui_studio.c cloud_ui_sync), the rest the cloud's own */
+     * sends to */
     {"DLY", FAM_GLO, SC_GLOBAL, GR_NONE, {G_DTIME, G_DFDBK, G_DCOLOR, G_DMIX}},
     {"REV/CHO", FAM_GLO, SC_GLOBAL, GR_NONE, {G_RSIZE, G_RDAMP, G_CRATE, G_CDEPTH}},
-    {"CLOUD", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CLSEND, G_CLPOS, G_CLSIZE, G_CLPIT}},
-    {"CLOUD 2", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CLDENS, G_CLTEX, G_CLFB, G_CLFRZ}},
     {"SYSTEM", FAM_GLO, SC_GLOBAL, GR_NONE, {G_MIDI, G_SYNC, G_ROUTE, G_INFO}},
     {"DRUMS", FAM_GLO, SC_GLOBAL, GR_NONE, {G_DRCH, G_DRLVL, G_DRREV, G_DRDLY}},   /* GM kit on MIDI ch 10 */
     {"MIDI", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CH1, G_CH2, G_CH3, G_DRCH}},   /* 2.6: each track's channel, the drums' too */
@@ -520,8 +496,6 @@ static const page_t PAGES[] = {
                                                                            * setting in these two pages (IN and OUT on
                                                                            * SYSTEM too, the drums' channel on DRUMS) */
     {"MIDI 3", FAM_GLO, SC_GLOBAL, GR_NONE, {G_KNOBS, 0xFF, 0xFF, 0xFF}},   /* a controller's knobs (2026-10-20) */
-    {"TEXTURE", FAM_GLO, SC_GLOBAL, GR_NONE, {G_TXSRC, G_TXLVL, G_TXTONE, G_TXMOVE}},   /* 2.6: the bed under the mix */
-    {"TEXTURE 2", FAM_GLO, SC_GLOBAL, GR_NONE, {G_TXRATE, G_TXWHEN, G_TXDUCK, 0xFF}},
     {"PRESETS", FAM_SAVE, SC_GLOBAL, GR_BROWSE, {0xFF, 0xFF, 0xFF, 0xFF}},   /* browser: PRESETS knob / KNOB 1 */
     {"USER", FAM_SAVE, SC_GLOBAL, GR_USER, {0xFF, 0xFF, 0xFF, 0xFF}},       /* user presets: SLOT LOAD ERASE SAVE */
     /* (3.0.5) PROJECT (PARTS) is gone from SAVE: the sections are SAVE held + keys 1..8. SAVE here is the sound's */

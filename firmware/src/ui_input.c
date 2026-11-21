@@ -270,11 +270,8 @@ static void project_new(void)
 {
     uint32_t i;
     memset(drum_send, 0, sizeof drum_send);             /* (every drum sound dry again) */
-    memset(cloud_send, 0, sizeof cloud_send);           /* .. and nothing sent to the CLOUD */
-    memset(drum_cloud, 0, sizeof drum_cloud);
     memset(&stl, 0, sizeof stl);                        /* (PHEBUS) the STUTTER lane empty, ON, 16 steps */
     stl.len = 16, stl.act = 1;
-    cloud_resync = 1;
     transport_req = 2;
     panic_req = (1u << NTRK) - 1u;
 #if FELUCCA_ARRANGER

@@ -383,29 +383,20 @@ int main(void)
     step_fill_set(TDRUM, 63, FC_FILL);
     trk[2].p[P_ITYPE] = 7, trk[2].p[P_IA] = 11, trk[2].p[P_IMIX] = 77, TDRUM->p[P_ITYPE] = 4;   /* 2.6 */
     trk[0].p[P_LSYNC] = 6, trk[0].p[P_LTRIG] = 1, trk[0].p[P_LPOL] = 1, trk[0].p[P_ESYNC] = 1, trk[0].p[P_FTYPE] = 1;
-    song.g[G_CLPOS] = 99, song.g[G_CLSIZE] = 3, song.g[G_CLPIT] = -17, song.g[G_CLDENS] = 127, song.g[G_CLTEX] = 1,   /* the CLOUD */
-    song.g[G_CLFB] = 64, song.g[G_CLFRZ] = 1, cloud_send[0] = 127, cloud_send[1] = 0, cloud_send[2] = 45;
-    for (i = 0; i < DRUM_LANES; i++) drum_cloud[i] = (uint8_t)((i * 37u + 5u) & 127u);
     proj_capture(&q);
     host_tracks_init();
     song.g[G_DRDLY] = 0;
-    song.g[G_CLPOS] = song.g[G_CLSIZE] = song.g[G_CLPIT] = song.g[G_CLDENS] = song.g[G_CLTEX] = song.g[G_CLFB] = song.g[G_CLFRZ] = 0;
-    memset(cloud_send, 9, sizeof cloud_send);
-    memset(drum_cloud, 9, sizeof drum_cloud);
     proj_apply(&q, 1);
-    {
-        int okc = song.g[G_CLPOS] == 99 && song.g[G_CLSIZE] == 3 && song.g[G_CLPIT] == -17 && song.g[G_CLDENS] == 127 &&
-                  song.g[G_CLTEX] == 1 && song.g[G_CLFB] == 64 && song.g[G_CLFRZ] == 1 && cloud_send[0] == 127 &&
-                  cloud_send[1] == 0 && cloud_send[2] == 45 && cloud_resync;
-        for (i = 0; i < DRUM_LANES; i++) okc = okc && drum_cloud[i] == ((i * 37u + 5u) & 127u);
-        bad += check("capture / apply: the CLOUD's settings, the tracks' sends and each drum sound's come back", okc);
-        memset(q2.cloud, 0, sizeof q2.cloud);          /* an older project's: none */
-        memcpy(&q2, &q, __builtin_offsetof(project_t, cloud));
-        q2.sum = proj_sum(&q2);
+    {   /* (PHEBUS wave 1: the CLOUD is cut) its 24 bytes are written as zeros; KARMA's, there, are read and ignored */
+        static const uint8_t z[24];
+        project_t q3 = q;
+        int okc = !memcmp(q.cloud, z, sizeof z);
+        memset(q3.cloud, 0xA5, sizeof q3.cloud);
+        q3.cloud[6] = 0x81u;                           /* (KARMA: "there", FREEZE on) */
+        q3.sum = proj_sum(&q3);
+        okc &= proj_import(&q2, &q3, (int)sizeof q3);
         proj_apply(&q2, 1);
-        okc = song.g[G_CLPOS] == GP[G_CLPOS].def && song.g[G_CLDENS] == GP[G_CLDENS].def && song.g[G_CLPIT] == 0 &&
-              !song.g[G_CLFRZ] && !cloud_send[0] && !cloud_send[2] && !drum_cloud[3] && !drum_cloud[15];
-        bad += check("a project without the CLOUD's bytes: the cloud at its defaults, nothing sent", okc);
+        bad += check("the CLOUD's bytes: written as zeros; a KARMA project with them loads (they are ignored)", okc);
         proj_apply(&q, 1);
     }
     ok = q.drdly == 77 && song.g[G_DRDLY] == 77 && trk[2].p[P_SLEN] == 7 && trk[1].step[2].n == 2 && trk[1].step[2].lvl == 0x0D && song.g[G_DUST] == 33 &&
@@ -428,36 +419,24 @@ int main(void)
     ok &= song.g[G_DRDLY] == 127;
     bad += check("2.5 drum DLY: kept in the byte after sel, a 2.4 project: 0, a section sets it, 200 -> 127",
                  ok && G_DRDLY == PROJ_NG && offsetof(project_t, drdly) == 8u + 2u * PROJ_NG + 1u);
-    {   /* 2.6: GLO > TEXTURE in the project (and in a section); a project before it: OFF; the drum channel (a setting of
-         * the FM-1 now, GLO > MIDI) not taken from a project */
-        song.g[G_TXSRC] = 5, song.g[G_TXLVL] = 101, song.g[G_TXTONE] = -37, song.g[G_TXMOVE] = 90;
-        song.g[G_TXRATE] = 3, song.g[G_TXWHEN] = 1, song.g[G_TXDUCK] = 1, song.g[G_DRCH] = 4;
-        proj_capture(&q2);
-        song.g[G_TXSRC] = 0, song.g[G_TXLVL] = 0, song.g[G_TXTONE] = 0, song.g[G_TXMOVE] = 0;
-        song.g[G_TXRATE] = 0, song.g[G_TXWHEN] = 0, song.g[G_TXDUCK] = 0;
-        proj_apply(&q2, 1);
-        ok = song.g[G_TXSRC] == 5 && song.g[G_TXLVL] == 101 && song.g[G_TXTONE] == -37 && song.g[G_TXMOVE] == 90 &&
-             song.g[G_TXRATE] == 3 && song.g[G_TXWHEN] == 1 && song.g[G_TXDUCK] == 1 && song.g[G_DRCH] == 4;
+    {   /* (PHEBUS wave 1: TEXTURE is cut) not written (rsv[0] without 0x80); a KARMA project with its TEXTURE (in rsv and
+         * the slots of G_DRCH, G_INFO) loads, nothing taken from them: the drum channel stays a setting of the FM-1 */
         song.g[G_DRCH] = 9;
-        song.g[G_TXSRC] = 0;
-        proj_apply(&q2, 0);                        /* a section: its texture too */
-        ok &= song.g[G_TXSRC] == 5 && song.g[G_DRCH] == 9;
-        q2.rsv[0] = 0;                             /* a project before 2.6 (converted): no texture */
+        proj_capture(&q2);
+        ok = !(q2.rsv[0] & 0x80u) && q2.rsv[1] == 0 && q2.g[G_DRCH] == 9;
+        q2.rsv[0] = (uint8_t)(0x80u | 5u | 1u << 4), q2.rsv[1] = 3, q2.g[G_DRCH] = (int16_t)(101 | 27 << 7), q2.g[G_INFO] = 90;
         proj_apply(&q2, 1);
-        ok &= song.g[G_TXSRC] == 0 && song.g[G_TXLVL] == GP[G_TXLVL].def && song.g[G_TXMOVE] == GP[G_TXMOVE].def && song.g[G_DRCH] == 9;
-        bad += check("2.6 TEXTURE: kept in a project (SRC LEVEL TONE MOVE RATE WHEN DUCK), a section sets it, an older one: OFF; "
-                     "the drum channel not taken from a project", ok);
+        ok &= song.g[G_DRCH] == 9;
+        proj_apply(&q2, 0);
+        ok &= song.g[G_DRCH] == 9;
+        bad += check("TEXTURE: not written; a KARMA project with its TEXTURE loads, the drum channel not taken from it", ok);
     }
-    {   /* what format 6 packs in fewer bits holds every value: the byte parameters (P_ITYPE .. P_LPOL: 0..255), TEXTURE's
-         * SRC (4 bits), WHEN and DUCK (1), RATE (a byte), LEVEL and TONE + 64 (7 bits each) */
+    {   /* what format 6 packs in fewer bits holds every value: the byte parameters (P_ITYPE .. P_LPOL: 0..255) */
         uint32_t k;
         int ok = 1;
         for (k = PROJ_NC6; k < P_E0; k++)
             ok &= TP[k].min >= 0 && TP[k].max <= 255;
-        ok &= GP[G_TXSRC].min >= 0 && GP[G_TXSRC].max <= 15 && GP[G_TXWHEN].min >= 0 && GP[G_TXWHEN].max <= 1 &&
-              GP[G_TXDUCK].min >= 0 && GP[G_TXDUCK].max <= 1 && GP[G_TXRATE].min >= 0 && GP[G_TXRATE].max <= 255 &&
-              GP[G_TXLVL].min >= 0 && GP[G_TXLVL].max <= 127 && GP[G_TXTONE].min >= -64 && GP[G_TXTONE].max <= 63;
-        bad += check("format 6: the byte parameters and TEXTURE's packed fields hold every value of their range", ok);
+        bad += check("format 6: the byte parameters hold every value of their range", ok);
     }
     /* a damaged image: a nudge out of range, a lock on a parameter that cannot lock, on a step past the end,
      * with a value past the range: clamped, freed, freed, clamped */

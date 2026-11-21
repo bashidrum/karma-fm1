@@ -303,21 +303,6 @@ static uint8_t op_strike[NTRK];                         /* each track's characte
                                                          * (an accent: pads_tick; ui_op.c op_dance) */
 #define OP_STRIKE_FR 8u
 
-/* FX > CLOUD's SEND (G_CLSEND) is the selected track's send, on the drum track the selected sound's: the value on
- * the page follows the selection, and what the knob (or the editor) sets goes to that track / sound. Once a frame */
-static void cloud_ui_sync(void)
-{
-    static uint16_t was = 0xFFFF;
-    uint16_t now = (uint16_t)(song.sel == TRK_DRUM ? 0x100u | (drum_lane % DRUM_LANES) : song.sel % NPART);
-    uint8_t *v = now & 0x100u ? &drum_cloud[now & 0xFFu] : &cloud_send[now];
-    if (now != was || cloud_resync) {
-        song.g[G_CLSEND] = *v;
-        was = now;
-        cloud_resync = 0;
-    } else {
-        *v = (uint8_t)clamp(song.g[G_CLSEND], 0, 127);
-    }
-}
 /* the drum track's EDIT pages (HEX OSC .. HEX MORE): G_HXMODEL.. show the selected sound (drum_lane) of the
  * drum track's kit, if it is a HEX kit, and what the knobs set goes into it. A factory kit (HEX BOOM ..) is not
  * changed: the first turn copies it into the first MY HEX kit not edited yet and the drum track takes that one
@@ -398,7 +383,6 @@ static void pads_tick(void)                             /* once a frame: the hit
             note_hits[i][w] = 0;
         }
     fm1_irq_on();
-    cloud_ui_sync();
     hex_ui_sync();
     for (i = 0; i < DRUM_LANES; i++) {
         if ((hits >> i) & 1u) pad_lit[i] = 6;

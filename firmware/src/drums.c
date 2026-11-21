@@ -32,11 +32,6 @@ static uint32_t drum_kit(void) { return (uint32_t)clamp(TDRUM->p[P_E0], 0, DRUM_
 /* each sound's own sends, on top of the kit's (GLO > DRUMS REV, DLY): [lane] {reverb 0..15, delay 0..7}; the
  * kit page's KNOB 3 and 4 (ui_studio.c), kept with the project (project.c proj_ds_put) */
 static uint8_t drum_send[DRUM_LANES][2];
-/* the CLOUD (cloud.c, a send as the reverb and the delay): what the tracks send it this block, each synth track's
- * send and each drum sound's own (0..127; the FX > CLOUD page's SEND) */
-static int32_t cloud_bus[CTL];
-static uint8_t cloud_send[NPART], drum_cloud[DRUM_LANES];
-static uint8_t cloud_resync;              /* they were set from elsewhere (a project): the page's SEND takes its value again */
 #define DRUM_SEND_REV 15
 #define DRUM_SEND_DLY 7
 
@@ -46,9 +41,9 @@ static struct {
     uint32_t age;
     int16_t set;                 /* SMP_SETS index of "PERC" (GM map), -1 = none */
     int32_t tail;                /* declick: the last output of cut voices, decaying */
-    int32_t trev, tdly, tcld;    /* (3.1.2) .. and their reverb, delay and CLOUD sends: they stepped to 0, a click in
-                                  * the echo, the reverb and the grains */
-    int32_t gs[NDRUM][3];        /* each voice's reverb, delay and CLOUD send gains in the last block, Q15 */
+    int32_t trev, tdly;          /* (3.1.2) .. and their reverb and delay sends: they stepped to 0, a click in
+                                  * the echo and the reverb */
+    int32_t gs[NDRUM][2];        /* each voice's reverb and delay send gains in the last block, Q15 */
     int32_t peak;                /* largest |output| since the UI last looked (TRACKS meter) */
     uint8_t kit[NDRUM];
     int32_t filter[NDRUM], env[NDRUM];
@@ -92,7 +87,6 @@ static void drum_cut(uint32_t k)
     drums.tail += s;
     drums.trev += mulq15(s, drums.gs[k][0]);
     drums.tdly += mulq15(s, drums.gs[k][1]);
-    drums.tcld += mulq15(s, drums.gs[k][2]);
 }
 
 static int32_t drum_set(void)
@@ -468,7 +462,7 @@ static const uint16_t DRUM_KIT_TRIM[7] = {160, 145, 96, 149, 183, 215, 256};
 static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dly, int32_t *mono, uint32_t n)
 {
     uint32_t k, i;
-    int32_t lvl = song.g[G_DRLVL] * 200, send, dsend, csend, pk = drums.peak;
+    int32_t lvl = song.g[G_DRLVL] * 200, send, dsend, pk = drums.peak;
     uint32_t kt = drum_kit();
     int32_t kboost;
     if (kt >= DRUM_SYN && kt < DRUM_KITS)            /* (3.1.2) MY HEX: the trim of the HEX kit it started from (it was 256: the
@@ -482,13 +476,13 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dl
                                                        * (unmuted, the next hits play) */
         for (k = 0; k < NDRUM; k++)
             drums.v[k].active = 0;
-        drums.tail = drums.trev = drums.tdly = drums.tcld = 0;
+        drums.tail = drums.trev = drums.tdly = 0;
         drums.peak = 0;
         hx_pre_mask = 0;
         return;
     }
 #define DRUM_FADE(x) ((x) -= (x) / 16 + ((x) > 0 ? 1 : (x) < 0 ? -1 : 0))
-    for (i = 0; i < n && (drums.tail | drums.trev | drums.tdly | drums.tcld); i++) {   /* declick tails, ~0.4 ms */
+    for (i = 0; i < n && (drums.tail | drums.trev | drums.tdly); i++) {   /* declick tails, ~0.4 ms */
         if (mono) {
             mono[i] += drums.tail;
         } else {
@@ -497,11 +491,9 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dl
         }
         rev[i] += drums.trev;
         dly[i] += drums.tdly;
-        cloud_bus[i] += drums.tcld;
         DRUM_FADE(drums.tail);
         DRUM_FADE(drums.trev);
         DRUM_FADE(drums.tdly);
-        DRUM_FADE(drums.tcld);
     }
 #undef DRUM_FADE
     for (k = 0; k < NDRUM; k++) {               /* synthesised voices: render, then as below */
@@ -510,10 +502,8 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dl
         if (!v->active || !drums.synth[k])
             continue;
         drum_voice_sends(k, mono != 0, &send, &dsend);
-        csend = drum_cloud[drums.lane[k] % DRUM_LANES] * 258;   /* the sound's own send to the CLOUD (cloud.c) */
         drums.gs[k][0] = send;                      /* (3.1.2: for drum_cut) */
         drums.gs[k][1] = dsend;
-        drums.gs[k][2] = csend;
         if (drums.synth[k] == 2 && ((hx_pre_mask >> k) & 1u)) {   /* (3.1.3: CPU1 rendered it) */
             for (i = 0; i < m; i++)
                 ds_buf[i] = hx_pre_buf[k][i];
@@ -526,8 +516,6 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dl
             int32_t s = mulq15(ds_buf[i], mulq15(lvl, 32767 - drums.a0 - (((drums.a1 - drums.a0) * (int32_t)i) >> CTL_LOG2)));
             s = soft_knee((s * kboost) >> 8, DRUM_KNEE);   /* louder, the hits' tips rounded (2026-10-20) */
             v->s[7] = s;
-            if (csend)
-                cloud_bus[i] += mulq15(s, csend);
             if (s > pk || -s > pk)
                 pk = s < 0 ? -s : s;
             if (mono) {
@@ -561,10 +549,8 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dl
         if (!v->active)
             continue;
         drum_voice_sends(k, mono != 0, &send, &dsend);
-        csend = drum_cloud[drums.lane[k] % DRUM_LANES] * 258;   /* the sound's own send to the CLOUD (cloud.c) */
         drums.gs[k][0] = send;                      /* (3.1.2: for drum_cut) */
         drums.gs[k][1] = dsend;
-        drums.gs[k][2] = csend;
         g = mulq15(lvl, v->vel * 258);
         g += g * 3 >> 2;                           /* x1.75 (+5 dB): as loud as the synthesised kits */
         for (i = 0; i < n; i++) {
@@ -593,8 +579,6 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dl
                 if (drums.env[k] <= 0) v->active = 0;
             }
             v->s[7] = s;
-            if (csend)
-                cloud_bus[i] += mulq15(s, csend);
             if (s > pk || -s > pk)
                 pk = s < 0 ? -s : s;
             if (mono) {

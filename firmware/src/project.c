@@ -6,8 +6,8 @@
  * the transport is stopped and nothing sounds) and comes back at power-on: SLOOP starts where you
  * left it.
  *
- * Formats: 7 ("FUN7", written): format 6 and the CLOUD (cloud.c) in the 24 bytes it left of a flash object: the
- * cloud's seven settings, the three synth tracks' sends and each drum sound's own (7 bits each); 3840 bytes.
+ * Formats: 7 ("FUN7", written): format 6 and the 24 bytes it left of a flash object, where KARMA kept its CLOUD (the
+ * cloud's settings and every send; PHEBUS cut the CLOUD: written as zeros, read and ignored); 3840 bytes.
  * Read and converted: 6 ("FUN6", SLOOP 2.6: the cloud at its defaults, nothing sent to it): format 5 with the ten parameters of 2.6 (P_ITYPE .. P_LPOL, just
  * before P_E0: the INSERT, the ANALOG filter TYPE, ENV SYNC, LFO 2) in a byte each, and each step's nudge (6 bits)
  * and fill condition (2 bits) in one byte: format 5 was full (3840 bytes, one flash object), this is 3816.
@@ -23,7 +23,7 @@
  *
  * Built on the host too (tests/project_test.c, -DPROJ_HOST): the part above the #ifndef
  * PROJ_HOST needs core.h, params.c (TP), drums.c (the lanes), the engines and trk_def_engine (ui.c). */
-#define PROJ_MAGIC 0x46554E37u                 /* "FUN7": format 6 + the CLOUD */
+#define PROJ_MAGIC 0x46554E37u                 /* "FUN7": format 6 + KARMA's CLOUD bytes (zeros here) */
 #define PROJ_MAGIC_V6 0x46554E36u              /* "FUN6": format 5 + the 2.6 parameters, nudge and condition in a byte; read only */
 #define PROJ_MAGIC_V5 0x46554E35u              /* "FUN5": format 4 + per-step nudge, parameter locks, fill conditions (SLOOP 2.4) */
 #define PROJ_MAGIC_V4 0x46554E34u              /* "FUN4": four tracks, P_COUNT parameters each, 10-byte steps; read only */
@@ -39,7 +39,7 @@
 #define PROJ_NG 32u                            /* the globals of formats 4 and 5 (G_COUNT until 2.4). SLOOP 2.5's
                                                 * G_DRDLY rides in the byte after sel (0 in older projects: off),
                                                 * so the format and its size do not change */
-_Static_assert(G_DRDLY == PROJ_NG && G_TXSRC == PROJ_NG + 5u && G_COUNT == G_BEND + 32u,   /* (+31: CLOUD, the HEX sound, KNOBS: not in a project) */
+_Static_assert(G_DRDLY == PROJ_NG && G_BEND == PROJ_NG + 5u && G_COUNT == G_BEND + 24u,   /* (+23: the HEX sound, KNOBS: not in a project) */
                "the globals a project holds, then G_DRDLY (then 2.6's GLO > MIDI: settings of the FM-1)");
 #define PROJ_NC6 ((uint32_t)P_ITYPE)           /* format 6: the parameters kept in 16 bits, P_LEVEL .. P_VLEAD (as 5), */
 #define PROJ_NX6 ((uint32_t)(P_E0 - P_ITYPE))  /* the 2.6 ones in a byte (0..127), then P_E0 .. P_E7 */
@@ -61,7 +61,7 @@ typedef struct {
     int16_t g[PROJ_NG];
     uint8_t sel, drdly, rsv[2];                /* the selected track; 2.5: G_DRDLY */
     proj_trk_t t[NTRK];
-    uint8_t cloud[24];                         /* format 7: the CLOUD (proj_cl_put) */
+    uint8_t cloud[24];                         /* format 7: KARMA's CLOUD (cut: zeros, ignored) */
     uint32_t sum;
 } project_t;
 typedef struct {                               /* format 6 (SLOOP 2.6), read only: format 7 without the CLOUD */
@@ -317,7 +317,7 @@ static int proj_from_v5(project_t *q, const project_v5_t *v5, int n)
     return 1;
 }
 
-/* a format 6 project -> slot q as format 7: as it is, the CLOUD's bytes 0 (its defaults, nothing sent: proj_cl_get) */
+/* a format 6 project -> slot q as format 7: as it is, the CLOUD's bytes 0 */
 static int proj_from_v6(project_t *q, const project_v6_t *v6, int n)
 {
     if (n != (int)sizeof *v6 || v6->magic != PROJ_MAGIC_V6 || v6->size != sizeof *v6 ||
@@ -414,34 +414,8 @@ static int proj_import(project_t *q, const void *b, int n)
 }
 
 /* ---- the working project <-> a project_t */
-/* 2.6: GLO > TEXTURE in a project (a song section has its own): in the slots of two globals a project no longer
- * applies (G_DRCH: a setting of the FM-1 now; G_INFO: the CPU readout) and the spare bytes. rsv[0]: 0x80 (there) | SRC
- * | WHEN << 4 | DUCK << 5, rsv[1]: RATE, g[G_DRCH]: LEVEL | (TONE + 64) << 7, g[G_INFO]: MOVE. Without the 0x80 (a
- * project before it, converted): the defaults, OFF */
-static void proj_tx_put(project_t *p)
-{
-    p->rsv[0] = (uint8_t)(0x80u | ((uint32_t)song.g[G_TXSRC] & 15u) | ((uint32_t)song.g[G_TXWHEN] & 1u) << 4 |
-                          ((uint32_t)song.g[G_TXDUCK] & 1u) << 5);
-    p->rsv[1] = (uint8_t)song.g[G_TXRATE];
-    p->g[G_DRCH] = (int16_t)((song.g[G_TXLVL] & 127) | ((song.g[G_TXTONE] + 64) & 127) << 7);
-    p->g[G_INFO] = song.g[G_TXMOVE];
-}
-static void proj_tx_get(const project_t *p)
-{
-    static const uint8_t ID[7] = {G_TXSRC, G_TXLVL, G_TXTONE, G_TXMOVE, G_TXRATE, G_TXWHEN, G_TXDUCK};
-    int32_t v[7];
-    uint32_t i;
-    if (!(p->rsv[0] & 0x80u)) {
-        for (i = 0; i < 7u; i++)
-            v[i] = GP[ID[i]].def;
-    } else {
-        v[0] = p->rsv[0] & 15u, v[5] = (p->rsv[0] >> 4) & 1u, v[6] = (p->rsv[0] >> 5) & 1u, v[4] = p->rsv[1];
-        v[1] = p->g[G_DRCH] & 127, v[2] = ((p->g[G_DRCH] >> 7) & 127) - 64, v[3] = p->g[G_INFO];
-    }
-    for (i = 0; i < 7u; i++)
-        song.g[ID[i]] = (int16_t)clamp(v[i], GP[ID[i]].min, GP[ID[i]].max);
-}
-
+/* (2.6) KARMA's TEXTURE (cut in PHEBUS) lived in the slots of two globals a project no longer applies (G_DRCH, G_INFO)
+ * and rsv[0]'s 0x80 and the low bits, rsv[1]: not written now, ignored when read */
 /* each drum sound's own sends (drums.c drum_send): 7 bits a sound (reverb 4, delay 3), the 16 of them in the
  * drum track's P_E1 .. P_E7, which it has no use for (its P_E0 is the kit); bit 6 of rsv[0] says they are
  * there (a project from before: none, as it sounded) */
@@ -470,42 +444,6 @@ static void proj_ds_get(const project_t *p)
         drum_send[l][0] = (uint8_t)(v & 15u);
         drum_send[l][1] = (uint8_t)(v >> 4);
     }
-}
-
-/* the CLOUD (cloud.c) in a project's 24 bytes: [0..6] POS SIZE PITCH + 24 DENS TEXT FDBK, 0x80 (they are there) |
- * FRZ; [7..9] the synth tracks' sends; [10..23] the 16 drum sounds' own, 7 bits each. Without the 0x80 (an older
- * project): the cloud at its defaults, nothing sent */
-static void proj_cl_put(project_t *p)
-{
-    static const uint8_t ID[6] = {G_CLPOS, G_CLSIZE, G_CLPIT, G_CLDENS, G_CLTEX, G_CLFB};
-    uint32_t i, b;
-    memset(p->cloud, 0, sizeof p->cloud);
-    for (i = 0; i < 6u; i++)
-        p->cloud[i] = (uint8_t)(song.g[ID[i]] - GP[ID[i]].min);
-    p->cloud[6] = (uint8_t)(0x80u | (song.g[G_CLFRZ] ? 1u : 0u));
-    for (i = 0; i < NPART; i++)
-        p->cloud[7u + i] = cloud_send[i] & 127u;
-    for (i = 0; i < DRUM_LANES; i++)
-        for (b = 0; b < 7u; b++)
-            if ((drum_cloud[i] >> b) & 1u)
-                p->cloud[10u + (i * 7u + b) / 8u] |= (uint8_t)(1u << ((i * 7u + b) % 8u));
-}
-static void proj_cl_get(const project_t *p)
-{
-    static const uint8_t ID[6] = {G_CLPOS, G_CLSIZE, G_CLPIT, G_CLDENS, G_CLTEX, G_CLFB};
-    uint32_t i, b, there = p->cloud[6] & 0x80u;
-    for (i = 0; i < 6u; i++)
-        song.g[ID[i]] = there ? (int16_t)clamp(p->cloud[i] + GP[ID[i]].min, GP[ID[i]].min, GP[ID[i]].max) : GP[ID[i]].def;
-    song.g[G_CLFRZ] = (int16_t)(there && (p->cloud[6] & 1u));
-    for (i = 0; i < NPART; i++)
-        cloud_send[i] = (uint8_t)(there ? p->cloud[7u + i] & 127u : 0u);
-    for (i = 0; i < DRUM_LANES; i++) {
-        uint32_t v = 0;
-        for (b = 0; b < 7u && there; b++)
-            v |= (((uint32_t)p->cloud[10u + (i * 7u + b) / 8u] >> ((i * 7u + b) % 8u)) & 1u) << b;
-        drum_cloud[i] = (uint8_t)v;
-    }
-    cloud_resync = 1;                                   /* (the page's SEND: ui_studio.c cloud_ui_sync) */
 }
 
 /* (PHEBUS) the STUTTER lane (punch.c stl) in the drum track's bytes that nothing reads (the drum track has no LFO and
@@ -556,7 +494,6 @@ static void proj_capture(project_t *p)        /* what is playing now, as a proje
         p->g[i] = song.g[i];
     p->sel = song.sel;
     p->drdly = (uint8_t)song.g[G_DRDLY];
-    proj_tx_put(p);
     for (i = 0; i < NTRK; i++) {
         uint32_t k;
         for (k = 0; k < P_COUNT; k++)
@@ -569,7 +506,6 @@ static void proj_capture(project_t *p)        /* what is playing now, as a proje
         memcpy(p->t[i].lock, trk[i].lock, sizeof trk[i].lock);
     }
     proj_ds_put(p);
-    proj_cl_put(p);
     stl_put(p);
     p->sum = proj_sum(p);
 }
@@ -584,12 +520,10 @@ static void proj_apply(const project_t *p, int all)
         if (all ? i != G_SLOT && i != G_LOAD && i != G_SAVE && i != G_SYNC && i != G_MIDI && i != G_ROUTE && i != G_DRCH &&
                       i != G_INFO
                 : i == G_DRLVL || i == G_DRREV)                 /* (2.6: the drum channel a setting of the FM-1, GLO > MIDI;
-                                                                 * its slot and G_INFO's hold the TEXTURE) */
+                                                                 * its slot and G_INFO's held KARMA's TEXTURE) */
             song.g[i] = (int16_t)clamp(p->g[i], GP[i].min, GP[i].max);
     song.g[G_DRDLY] = (int16_t)clamp(p->drdly, GP[G_DRDLY].min, GP[G_DRDLY].max);   /* (a load and a section, as REV) */
-    proj_tx_get(p);                                     /* GLO > TEXTURE (2.6): a load and a section */
     proj_ds_get(p);                                     /* each drum sound's own sends: a load and a section */
-    proj_cl_get(p);                                     /* the CLOUD and what is sent to it: a load and a section */
     stl_get(p);                                         /* (PHEBUS) the STUTTER lane: a load and a section */
     for (k = 0; k < NTRK; k++) {
         track_t *t = &trk[k];

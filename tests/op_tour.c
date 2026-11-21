@@ -86,7 +86,6 @@ static void part(double bars, int k1, int k2, int k3, int k4)
         drum_lane = keep_lane;
         drum_send[drum_lane % DRUM_LANES][0] = keep_ds[0];
         drum_send[drum_lane % DRUM_LANES][1] = keep_ds[1];
-        cloud_resync = 1;
     }
 }
 static void tap_key(uint32_t white)                 /* a white key, a moment */

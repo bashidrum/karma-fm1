@@ -212,13 +212,12 @@ int main(int argc, char **argv)
         uint32_t ok = 1, l;
         for (i = 0; i < NPART; i++)
             ok &= !trk[i].p[P_DIST] && !trk[i].p[P_CHOR] && !trk[i].p[P_DLY] && !trk[i].p[P_REV] && !trk[i].p[P_ITYPE] &&
-                  !trk[i].p[P_SSWING] && !cloud_send[i];
+                  !trk[i].p[P_SSWING];
         for (l = 0; l < DRUM_LANES; l++)
-            ok &= !drum_send[l][0] && !drum_send[l][1] && !drum_cloud[l];
+            ok &= !drum_send[l][0] && !drum_send[l][1];
         ok &= !TDRUM->p[P_DIST] && !TDRUM->p[P_DLY] && !TDRUM->p[P_REV] && !TDRUM->p[P_ITYPE] && !song.g[G_DRREV] &&
-              !song.g[G_DRDLY] && !song.g[G_CLSEND] && !song.g[G_CLFRZ] && !song.g[G_SWING] && !song.g[G_DUST] &&
-              !song.g[G_DUCK] && !song.g[G_FILT] && !song.g[G_TXSRC];
-        check(ok, "power-on: every send 0 (tracks, drum sounds, CLOUD), no DIST / INSERT, no swing, master FX off");
+              !song.g[G_DRDLY] && !song.g[G_SWING] && !song.g[G_DUST] && !song.g[G_DUCK] && !song.g[G_FILT];
+        check(ok, "power-on: every send 0 (tracks, drum sounds), no DIST / INSERT, no swing, master FX off");
         check(plain_defaults(), "power-on: plain saws: ACID INIT bass (mono, -12), JUNO chords (poly), PLAITS VA lead (mono)");
         check(ACID_INIT == NELEM(ACID_PRESETS) - 1u && ACID_INIT == 6u && !strcmp(ACID_PRESETS[ACID_INIT].name, "INIT") &&
               ACID_PRESETS[ACID_INIT].e[0] == 0 && !ACID_PRESETS[ACID_INIT].e[5] && !ACID_PRESETS[ACID_INIT].e[6] &&
@@ -1418,7 +1417,7 @@ int main(int argc, char **argv)
         #define PT() (PAGES[ui.page].title)
         #define SEL(n) do { encs[panel.enc[EN_SELECT]] = (n); frame(); } while (0)
         {   /* PHEBUS, 21 Nov 2026 (Ben: "Merge and move"): each voice's chain without the shared effects, LFO 2 named
-             * LFO SYNC; DLY, REV/CHO, CLOUD, CLOUD 2 under GLO, neutral; every parameter still on a page */
+             * LFO SYNC; DLY, REV/CHO under GLO, neutral; every parameter still on a page (CLOUD, TEXTURE: cut, wave 1) */
             static const char *const WANT[5] = {
                 "OSC|VOICE|VOICE 2|FILTER|FILTER 2|ENV|ENV DEST|FX|INSERT|INSERT 2|SLICER|LFO|LFO DEST|LFO SYNC",
                 "OSC|VOICE|VOICE 2|FILTER|ENV|ENV DEST|FX|CHORUS|INSERT|INSERT 2|SLICER|LFO|LFO DEST|LFO SYNC",
@@ -1451,19 +1450,18 @@ int main(int argc, char **argv)
                     uint32_t k;
                     for (k = 0; k < 4u; k++) if (PAGES[i].id[k] != 0xFFu) seen[PAGES[i].id[k]] = 1;
                     g_glo |= (!strcmp(PAGES[i].title, "DLY") ? 1u : 0u) | (!strcmp(PAGES[i].title, "REV/CHO") ? 2u : 0u) |
-                             (!strcmp(PAGES[i].title, "CLOUD") ? 4u : 0u) | (!strcmp(PAGES[i].title, "CLOUD 2") ? 8u : 0u);
+                             (!strncmp(PAGES[i].title, "CLOUD", 5) || !strncmp(PAGES[i].title, "TEXTURE", 7) ? 4u : 0u);
                 }
-            check(g_glo == 15u && seen[G_DTIME] && seen[G_DFDBK] && seen[G_DCOLOR] && seen[G_DMIX] && seen[G_RSIZE] &&
-                  seen[G_RDAMP] && seen[G_CRATE] && seen[G_CDEPTH] && seen[G_CLSEND] && seen[G_CLPOS] && seen[G_CLSIZE] &&
-                  seen[G_CLPIT] && seen[G_CLDENS] && seen[G_CLTEX] && seen[G_CLFB] && seen[G_CLFRZ],
-                  "GLO: DLY, REV/CHO, CLOUD, CLOUD 2 with all sixteen of their controls");
+            check(g_glo == 3u && seen[G_DTIME] && seen[G_DFDBK] && seen[G_DCOLOR] && seen[G_DMIX] && seen[G_RSIZE] &&
+                  seen[G_RDAMP] && seen[G_CRATE] && seen[G_CDEPTH],
+                  "GLO: DLY, REV/CHO with all eight of their controls; no CLOUD or TEXTURE page");
             go_home(); open_family(FAM_GLO); frame();
             for (i = 0; i < 16u; i++) { encs[panel.enc[EN_SELECT]] = -1; frame(); }
             for (i = 0; i < 16u && strcmp(PAGES[ui.page].title, "DLY"); i++) { encs[panel.enc[EN_SELECT]] = 1; frame(); }
             ui.force = 1; frame(); ppm("page-glo-dly");
             check(!strcmp(PAGES[ui.page].title, "DLY"), "GLO, SELECT: reaches DLY");
-            for (i = 0; i < 2u; i++) { encs[panel.enc[EN_SELECT]] = 1; frame(); }
-            ui.force = 1; frame(); ppm("page-glo-cloud");
+            encs[panel.enc[EN_SELECT]] = 1; frame();
+            ui.force = 1; frame(); ppm("page-glo-rev");
         }
         song.playing = 0; song.sel = 0; go_home(); ui.force = 1; frame();
         bpm = song.g[G_BPM];
@@ -2069,19 +2067,6 @@ int main(int argc, char **argv)
             song.g[G_CH2] = 2;
             go_home(); frames(16);
         }
-        {   /* GLO > TEXTURE, TEXTURE 2 (2.6) */
-            uint32_t h1 = 0, h2 = 0;
-            WALK(FAM_GLO, "TEXTURE", h1);
-            WALK(FAM_GLO, "TEXTURE 2", h2);
-            open_family(FAM_GLO); frame();
-            for (j = 0; j < 16u && strcmp(PAGES[ui.page].title, "TEXTURE"); j++) { encs[panel.enc[EN_SELECT]] = 1; frame(); }
-            frames(16);
-            K(EN_K1, 1);                                  /* SRC: OFF -> VINYL */
-            check(h1 && h2 && song.g[G_TXSRC] == 1, "GLO > TEXTURE, TEXTURE 2: the pages; KNOB 1 the source (VINYL)");
-            ui.force = 1; frame(); ppm("page-texture");
-            song.g[G_TXSRC] = 0;
-            go_home(); frames(16);
-        }
         #undef K
         #undef WALK
     }
@@ -2276,17 +2261,16 @@ int main(int argc, char **argv)
     }
     {   /* PHEBUS (21 Nov 2026): TOOLS > NEW: every send and effect off, the STUTTER lane empty */
         uint32_t ok = 1, l;
-        for (i = 0; i < NPART; i++) trk[i].p[P_REV] = 50, trk[i].p[P_DLY] = 40, trk[i].p[P_DIST] = 20, cloud_send[i] = 9;
+        for (i = 0; i < NPART; i++) trk[i].p[P_REV] = 50, trk[i].p[P_DLY] = 40, trk[i].p[P_DIST] = 20;
         drum_send[3][0] = 2; song.g[G_SWING] = 30; song.g[G_DRREV] = 20; stl.on[0] = 5; stl.len = 40;
         project_new(); frames(4);
         for (i = 0; i < NPART; i++)
             ok &= !trk[i].p[P_DIST] && !trk[i].p[P_CHOR] && !trk[i].p[P_DLY] && !trk[i].p[P_REV] && !trk[i].p[P_ITYPE] &&
-                  !trk[i].p[P_SSWING] && !cloud_send[i] && trk[i].eng_req == TRK_DEF[i][0] && trk[i].preset == TRK_DEF[i][1];
+                  !trk[i].p[P_SSWING] && trk[i].eng_req == TRK_DEF[i][0] && trk[i].preset == TRK_DEF[i][1];
         for (l = 0; l < DRUM_LANES; l++)
-            ok &= !drum_send[l][0] && !drum_send[l][1] && !drum_cloud[l];
+            ok &= !drum_send[l][0] && !drum_send[l][1];
         ok &= !TDRUM->p[P_DIST] && !TDRUM->p[P_DLY] && !TDRUM->p[P_REV] && !TDRUM->p[P_ITYPE] && !song.g[G_DRREV] &&
-              !song.g[G_DRDLY] && !song.g[G_CLSEND] && !song.g[G_CLFRZ] && !song.g[G_SWING] && !song.g[G_DUST] &&
-              !song.g[G_DUCK] && !song.g[G_FILT] && !song.g[G_TXSRC];
+              !song.g[G_DRDLY] && !song.g[G_SWING] && !song.g[G_DUST] && !song.g[G_DUCK] && !song.g[G_FILT];
         check(ok, "TOOLS > NEW: the default sounds dry, every send 0, no swing, master FX off");
         check(plain_defaults(), "TOOLS > NEW: the plain saws again (ACID INIT bass, JUNO chords, PLAITS VA lead)");
         check(!stl.on[0] && stl.len == 16u && stl.act, "TOOLS > NEW: the STUTTER lane empty, 16 steps, ON");

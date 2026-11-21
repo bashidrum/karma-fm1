@@ -297,6 +297,26 @@ int main(int argc, char **argv)
         events_block(CTL);
     }
     punch_new_fx();
+    {   /* (PHEBUS wave 1) the ring is 16 bits linear (the CLOUD that shared its words is cut): a mix written idle reads
+         * back within one step of its scale (mix >> PUNCH_SH), loud and quiet alike (8-bit mu-law was ~35 dB on a loud mix) */
+        static int32_t l[CTL], r[CTL];
+        uint32_t b, i, w0;
+        int32_t worst = 0;
+        punch.req = -1; punch.cur = -1; punch.g = 0;
+        w0 = punch.w;
+        for (b = 0; b < 64u; b++) {
+            for (i = 0; i < CTL; i++) l[i] = r[i] = (int32_t)(((b * CTL + i) * 2654435761u) >> 17) - 32768 >> (b & 7u);
+            punch_process(l, r, CTL);
+        }
+        for (b = 0; b < 64u; b++)
+            for (i = 0; i < CTL; i++) {
+                int32_t x = (int32_t)(((b * CTL + i) * 2654435761u) >> 17) - 32768 >> (b & 7u), d = x - ring_at(w0 + b * CTL + i);
+                if (d < 0) d = -d;
+                if (d > worst) worst = d;
+            }
+        assert(worst < (1 << PUNCH_SH));
+        printf("punch-in ring: 16 bits linear, a sample read back within %d of the mix (its step: %d)\n", (int)worst, 1 << PUNCH_SH);
+    }
     if (f) {   /* demo: one beat dry, then each effect for one beat with a beat dry between */
         uint32_t beat = FS / 2u / CTL, b, total = beat * (1u + 2u * PUNCH_NFX);
         static int32_t blk[CTL * 2u];

@@ -94,14 +94,7 @@ enum {                          /* global parameters */
     G_CH1, G_CH2, G_CH3,        /* SLOOP 2.6: GLO > MIDI, the MIDI channel of synth tracks 1..3 (0 OFF, 1..16; in and out) */
     G_CHOTH,                    /* .. and what the other channels play: 0 SEL (the selected track), 1 OFF. Settings of
                                  * the FM-1 (with G_DRCH): not in a project (project.c, panel.c midi_set) */
-    G_TXSRC, G_TXLVL, G_TXTONE, G_TXMOVE,   /* SLOOP 2.6, GLO > TEXTURE: a looping bed under the mix (fx.c texture_*): */
-    G_TXRATE, G_TXWHEN, G_TXDUCK,           /* its source, level, tone, movement; its rate, when it plays, the DUCK pump.
-                                             * In a project (project.c: the spare bytes) */
     G_BEND,                     /* SLOOP 2.6, GLO > MIDI 2: the pitch bend's range, 1..12 semitones (a setting of the FM-1) */
-    G_CLSEND,                   /* FX > CLOUD (cloud.c): SEND shows and sets the selected track's send (the drum track: the
-                                 * selected sound's): ui_studio.c cloud_ui_sync keeps it and cloud_send / drum_cloud together */
-    G_CLPOS, G_CLSIZE, G_CLPIT, /* .. the grains: where in the recording, how long, at what pitch */
-    G_CLDENS, G_CLTEX, G_CLFB, G_CLFRZ,   /* .. how many, their window, the feedback, FREEZE. In a project (project.c) */
     G_HXMODEL, G_HXWAVE, G_HXTUNE, G_HXFINE, G_HXATK, G_HXDEC, G_HXSLOPE, G_HXLVL,   /* the drum track's EDIT pages: */
     G_HXPAMT, G_HXPDEC, G_HXRATIO, G_HXFM, G_HXCLICK, G_HXCLVL, G_HXCTONE,         /* the selected sound of a HEX */
     G_HXFTYPE, G_HXCUT, G_HXRES, G_HXDRIVE, G_HXAUX1, G_HXAUX2, G_HXCRUSH,          /* kit (hex_drums.c hex_snd_t, in its

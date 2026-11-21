@@ -40,7 +40,7 @@ static int32_t batt_shown(void)
 }
 
 /* a page every voice shares (Ben's colour rule, review 16b): GLO's GLOBAL, MASTER, the shared effects (DLY, REV/CHO,
- * CLOUD, CLOUD 2), SYSTEM, MIDI, TEXTURE; not GLO > DRUMS (the drum track's level and sends) */
+ * SYSTEM, MIDI; not GLO > DRUMS (the drum track's level and sends) */
 static int shared_page(const page_t *pg)
 {
     return !ui.home && pg->fam == FAM_GLO && pg->scope == SC_GLOBAL && pg->id[1] != G_DRLVL;
@@ -814,8 +814,6 @@ static void draw_columns(void)                         /* the four knobs of the 
         knob_tint_all(cur_page()->graph == GR_HEX && !ui.home ? TRK_DRUM   /* (the drum voice's sound: its colour) */
                       : drums_page(cur_page()) ? TRK_DRUM
                       : sc == SC_GLOBAL ? TINT_NEUTRAL : sc == SC_DRUM ? TRK_DRUM : song.sel);
-        if (!ui.home && cur_page()->id[0] == G_CLSEND && sc == SC_GLOBAL)
-            knob_tint[0] = (uint8_t)song.sel;           /* CLOUD's SEND is the selected track's (review 16b) */
     }
     op_knobs(lab, val, unit, opk.ratio, opk.dim, song.sel * 7u + ui.page * 31u + ui.home, &ui.col_sig);
     {                                                   /* the track bar under them: it follows the track selected here */

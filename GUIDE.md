@@ -350,7 +350,7 @@ How it behaves:
 - **1/4, 1/8, 1/16 and 1/32** repeat the sound itself (an audio stutter). Their tiles read 4, 8, 16, 32.
 - **1/2 and 1/1 replay the sequencer** (tiles 2 and 1): for as long as the run of lit steps lasts, every voice and the drums play again the steps of the half bar (1/2) or the bar (1/1) just before the run, with their notes and locks, in a loop. The song position keeps counting underneath, so when the run ends every voice carries on from the step it would have played without the stutter. Notes ring on naturally (it is not a recording), so the replay is not sample-identical. A voice whose steps are longer than the span (a bar's steps on 1/2) is not replayed.
 - Holding **FX** and a key (see [Performance effects](#8-performance-effects-and-global-effects)) takes over while you hold it.
-- The lane is mono and low resolution. Below about 84 BPM a quarter-note loop is cut to 0.72 seconds.
+- The lane is mono (16-bit). Below about 84 BPM a quarter-note loop is cut to 0.72 seconds.
 - It is saved with the project and with each section (it lives in unused drum-track bytes). Stock KARMA loads such a project but drops the stutter lane if it saves again. A lane saved before 1/2 and 1/1 existed loads as it was.
 - **EDIT + OCT-** undoes a stutter edit.
 
@@ -480,22 +480,16 @@ Tap **GLO**. Tap again, or turn SELECT, for the next page. These pages are share
 | **MASTER** | DUST | DUCK | FILT | ROLL |
 | **DLY** | TIME | FEEDBK | COLOR | MIX |
 | **REV/CHO** | SIZE | DAMP | CRT (chorus rate) | CDP (chorus depth) |
-| **CLOUD** | SEND | POS | SIZE | PITCH |
-| **CLOUD 2** | DENS | TEXT | FEEDBK | FRZ |
 | **SYSTEM** | OUT | SYNC | IN | CPU (or USB state) |
 | **DRUMS** | CH4 | LVL | REVERB | DELAY |
 | **MIDI** | CH1 | CH2 | CH3 | CH4 |
 | **MIDI 2** | IN | OTHER | OUT | BEND |
 | **MIDI 3** | KNOBS | | | |
-| **TEXTURE** | SRC | LEVEL | TONE | MOVE |
-| **TEXTURE 2** | RATE | WHEN | DUCK | |
 
 - **DUST** runs the mix through an old sampler and record: lower sample rate, fewer bits, a darker top end, and a little hiss and crackle while playing.
 - **DUCK** makes every kick pump the synth voices down and up over an eighth note.
 - **FILT** is a DJ filter: left low-pass, right high-pass, centre off.
 - **ROLL** is the note-repeat rate of ARP + key.
-- **CLOUD** is a granular effect fed by the sends. Its SEND knob is drawn in the selected voice's colour (on the drum voice it is the selected drum sound's send). The rest is shared.
-- **TEXTURE** is a looping bed under the mix (VINYL, TAPE, RAIN, WIND, RADIO, ROOM, or a sample slot USR1 to USR4).
 - **DLY** TIME values include 1/4, 1/8, 1/16, 1/32, 8T, 16T and dotted values.
 
 ---
@@ -932,6 +926,6 @@ These could not be confirmed from the code and are not described above as fact:
 
 ## 21. Credits
 
-PHEBUS is Ben's fork of **KARMA** by Ariel Muchnik. KARMA is a fork of **SLOOP** by isod89, which is based on **Felucca** by Leo Kuroshita (Hügelton Instruments). It also uses code from X0X (Charles Vestal), FM-106 (PatttF), Melodee (Kerem Kilic), Mutable Instruments' Plaits, Elements and Clouds (Émilie Gillet), the LXR-02 firmware (Erica Synths), and JIANT FM (Juan Jiant). The screen font is Terminus.
+PHEBUS is Ben's fork of **KARMA** by Ariel Muchnik. KARMA is a fork of **SLOOP** by isod89, which is based on **Felucca** by Leo Kuroshita (Hügelton Instruments). It also uses code from X0X (Charles Vestal), FM-106 (PatttF), Melodee (Kerem Kilic), Mutable Instruments' Plaits and Elements (Émilie Gillet), the LXR-02 firmware (Erica Synths), and JIANT FM (Juan Jiant). The screen font is Terminus.
 
 Licence: GPL-3.0-only. See [LICENSING.md](LICENSING.md) and [LICENSE](LICENSE). PHEBUS comes with no warranty. M-VAVE and FM-1 are trademarks of their owners; PHEBUS is not affiliated with M-VAVE. The README of SLOOP is kept as [SLOOP-README.md](SLOOP-README.md).

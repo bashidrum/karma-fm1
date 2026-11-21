@@ -115,7 +115,6 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
         {
             int calm_no = (int)(shed_over & 1u) | guard_hold_half();   /* (3.1.5 test 12: not in a stop's first ~10 s) */
             drum_calm_half(calm_no);                    /* (3.1.2: the drums' voices come back after ~2 s calm, */
-            cloud_calm_half(calm_no);                   /*  the CLOUD's grains after ~1 s, */
             modal_calm_half(calm_no);                   /*  MODAL's modes after ~1 s) */
         }
         song.cpu_q8 = (song.cpu_q8 * 15u + (us * 256u) / (HALF_FRAMES * 1000000u / FS)) / 16u;

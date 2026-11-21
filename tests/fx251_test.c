@@ -102,11 +102,8 @@ static void setup(void)
         trk[0].v[i].active = 0;
     song.playing = 0;
     song.master_q12 = 2048;
-    texture_reset(0);                                   /* (GLO > TEXTURE off, at rest) */
     memset(&lim_dac, 0, sizeof lim_dac);                /* (the master's one-block delay: nothing of the last render) */
     lim_dac.env = LIM_T, lim_dac.g = 32768, lim_dac.hold = 0;
-    tx.g = 0;
-    song.g[G_TXSRC] = 0;
 }
 
 static void t_insert(void)
@@ -341,100 +338,6 @@ static void t_learn(void)
     mi_r = mi_w;
 }
 
-/* TEXTURE (GLO > TEXTURE): off it changes nothing; each source heard, bounded, no offset; WHEN; MOVE; TONE; a user slot
- * looped */
-static void tx_set(int32_t src, int32_t lvl, int32_t tone, int32_t move, int32_t rate, int32_t when, int32_t duck)
-{
-    song.g[G_TXSRC] = (int16_t)src, song.g[G_TXLVL] = (int16_t)lvl, song.g[G_TXTONE] = (int16_t)tone;
-    song.g[G_TXMOVE] = (int16_t)move, song.g[G_TXRATE] = (int16_t)rate, song.g[G_TXWHEN] = (int16_t)when;
-    song.g[G_TXDUCK] = (int16_t)duck;
-}
-static void t_texture(void)
-{
-    uint32_t s, i, ok = 1, b;
-    double r, m;
-    int32_t pk;
-    setup();
-    tx_set(0, 64, 0, 0, 2, 1, 0);
-    trk_note_on(&trk[0], 45, 100);
-    fork_dry(300);
-    tx_set(1, 0, 0, 0, 2, 1, 0);                        /* VINYL at LEVEL 0: nothing either */
-    render(300);
-    check(!memcmp(shared_dry, out_l, 300u * CTL * 4u) && !tx.g, "TEXTURE OFF (or LEVEL 0): the mix bit for bit as without");
-    for (s = 1; s <= 6u; s++) {                         /* each source alone, ALWAYS (stopped), LEVEL 64, no MOVE */
-        setup();
-        tx_set((int32_t)s, 64, 0, 0, 2, 1, 0);
-        render(NB);
-        r = rms(400u * CTL, NB * CTL);
-        for (m = 0, pk = 0, i = 400u * CTL; i < NB * CTL; i++)
-            m += out_l[i], pk = abs(out_l[i]) > pk ? abs(out_l[i]) : pk;
-        m /= (double)(NB - 400u) * CTL;
-        printf("  TEXTURE %-6s: rms %.0f (%.1f dBFS), mean %.0f, peak %d\n", N_TXSRC[s], r, 20 * log10(r / 32768), m, pk);
-        ok &= r > 250 && r < 2500 && fabs(m) < 0.2 * r + 30 && pk < 30000;
-    }
-    check(ok, "TEXTURE: VINYL TAPE RAIN WIND RADIO ROOM heard (LEVEL 64: -40 .. -22 dBFS rms), bounded, no offset");
-    setup();
-    fork_dry(200);                                      /* (the same start, TEXTURE off) */
-    tx_set(2, 127, 0, 0, 2, 0, 0);                      /* TAPE, WHEN PLAY, stopped: nothing; ALWAYS: heard */
-    render(200);
-    ok = !memcmp(shared_dry, out_l, 200u * CTL * 4u);
-    song.g[G_TXWHEN] = 1;
-    render(200);
-    printf("  TEXTURE WHEN ALWAYS (stopped): rms %.0f\n", rms(100u * CTL, 200u * CTL));
-    check(ok && rms(100u * CTL, 200u * CTL) > 500, "TEXTURE WHEN PLAY: nothing while stopped; ALWAYS: plays");
-    {   /* MOVE 127 over 1BAR at 120 BPM (2 s): the level breathes */
-        double lo = 1e9, hi = 0, q;
-        setup();
-        song.g[G_BPM] = 120;
-        tx_set(2, 100, 0, 127, 0, 1, 0);
-        render(NB);
-        for (b = 0; b + 172u <= NB; b += 172u) {        /* (a quarter of a second) */
-            q = rms(b * CTL, (b + 172u) * CTL);
-            lo = q < lo ? q : lo, hi = q > hi ? q : hi;
-        }
-        printf("  TEXTURE MOVE 127: a quarter second's rms %.0f .. %.0f\n", lo, hi);
-        check(hi > 2.0 * lo, "TEXTURE MOVE: the level breathes over RATE (x2 and more at MOVE 127)");
-    }
-    {   /* TONE: left a low-pass, right a high-pass (TAPE: its 8 kHz vs 200 Hz) */
-        double hl[3], ll[3];
-        int32_t T[3] = {-50, 0, 50};
-        for (s = 0; s < 3u; s++) {
-            setup();
-            tx_set(2, 100, T[s], 0, 2, 1, 0);
-            render(800);
-            hl[s] = tonew(200u * CTL, 800u * CTL, 8000), ll[s] = tonew(200u * CTL, 800u * CTL, 150);
-        }
-        printf("  TEXTURE TONE -50 / 0 / +50: 8 kHz %.1f / 0 / %.1f dB, 150 Hz %.1f / 0 / %.1f dB\n", 10 * log10(hl[0] / hl[1]),
-               10 * log10(hl[2] / hl[1]), 10 * log10(ll[0] / ll[1]), 10 * log10(ll[2] / ll[1]));
-        check(hl[0] < 0.1 * hl[1] && ll[2] < 0.1 * ll[1], "TEXTURE TONE: left closes the highs, right the lows");
-    }
-    {   /* USR1: a zone of 2000 samples looped (it goes on), a slot without one silent */
-        uint8_t *img = (uint8_t *)host_slots, *d = img + SMP_USER_DATA;
-        smp_user_hdr_t *h = (smp_user_hdr_t *)img;
-        memset(img, 0xFF, SMP_USER_SIZE);
-        memset(h, 0, sizeof *h);
-        h->magic = SMP_USER_MAGIC, h->version = 1, h->nz = 1;
-        for (i = 0; i < 1000u; i++)
-            d[i] = (i / 8u) & 1u ? 0xFFu : 0x77u;       /* up a while, then down */
-        h->zone[0].off = 0, h->zone[0].n = 2000, h->zone[0].ls = 0, h->zone[0].le = 1999;
-        h->zone[0].rate = 0x8000u, h->zone[0].root16 = 60 * 16, h->zone[0].lo = 0, h->zone[0].hi = 127;
-        h->data_len = 1000;
-        smp_user_scan(0);
-        memset((uint8_t *)host_slots + SMP_USER_SIZE, 0xFF, 512);
-        smp_user_scan(1);
-        setup();
-        tx_set(TX_USR1, 100, 0, 0, 2, 1, 0);
-        render(NB);
-        r = rms((NB - 300u) * CTL, NB * CTL);           /* (2000 samples at half rate: ~0.09 s; long after) */
-        setup();
-        tx_set(TX_USR1 + 1, 100, 0, 0, 2, 1, 0);
-        render(300);
-        printf("  TEXTURE USR1 looped: rms %.0f after 1.4 s; USR2 (empty) %.0f\n", r, rms(0, 300u * CTL));
-        check(r > 300 && rms(0, 300u * CTL) < 30, "TEXTURE USR1: a user slot's sample looped; an empty slot silent");
-    }
-    tx_set(0, 64, 0, 40, 2, 0, 0);
-    render(20);
-}
 
 /* 2.6: MIDI pitch bend: full up with BEND 2 is two semitones up, at BEND 12 an octave (the pitch from the waveform's
  * period: a saw's zero crossings going down) */
@@ -453,6 +356,7 @@ static void t_bend(void)
     double p0, p2, p12;
     setup();
     trk[0].p[P_E4] = 50;                              /* (a darker saw: clean crossings) */
+    render(300);                                      /* (settled: the cutoff glides from 127 to 50) */
     trk_note_on(&trk[0], 45, 100);
     render(400);
     p0 = period_of(100u * CTL, 400u * CTL);
@@ -635,7 +539,6 @@ int main(void)
     t_lfo2();
     t_mutes();
     t_learn();
-    t_texture();
     t_bend();
     t_clicks();
     t_limiter();
