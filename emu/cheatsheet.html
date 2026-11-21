@@ -1,0 +1,381 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PHEBUS cheat sheet</title>
+<meta name="description" content="Where everything lives on PHEBUS, Ben's FM-1 firmware (a fork of KARMA), and how to reach it.">
+<style>
+/* DotGothic16 (SIL OFL 1.1, fonts/OFL.txt), cut to printable ASCII: the boxed pixel labels */
+@font-face { font-family: "DotGothic16"; src: url("fonts/DotGothic16-subset.woff") format("woff"); font-display: swap; }
+
+/* Layout: the landing page's grammar (boxed pixel labels, track colours with meaning, the FM-1's black body),
+   sections as cards in a responsive grid; colour means voice: a voice's pages in its track's colour, shared pages neutral. */
+:root {
+  --bg: #0c0c11;
+  --panel: #14141b;
+  --inset: #1b1b24;
+  --line: #2a2a36;
+  --fg: #ecebf3;
+  --dim: #a09eb3;
+  --t1: #8c76f0;   /* track 1 (robot) */
+  --t2: #28a0f5;   /* track 2 (alien) */
+  --t3: #14c4aa;   /* track 3 (crocodile) */
+  --t4: #ff806c;   /* drums (snake) */
+  --all: #c4c4cc;  /* what every voice shares: neutral */
+  --lav: #8d82ec;  /* accents */
+  --scr: #000;     /* the FM-1 screen in the small diagrams */
+  --beat: .4839s;  /* one beat at 124 BPM */
+  --f-body: "Chivo", "Helvetica Neue", Arial, sans-serif;
+  --f-mono: "Chivo Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --f-pixel: "DotGothic16", "Chivo Mono", ui-monospace, monospace;
+  color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { background: var(--bg); -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 15px; line-height: 1.5; padding: 24px 16px 48px; overflow-x: hidden; }
+a { color: var(--lav); }
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 22px; }
+
+header { display: grid; gap: 10px; border-bottom: 1px solid var(--line); padding-bottom: 18px; padding-right: 96px; }
+.toprow { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.tag { display: inline-block; font-family: var(--f-pixel); font-size: .9rem; letter-spacing: .06em; line-height: 1; padding: .3em .45em .25em; border: 2px solid currentColor; text-transform: uppercase; }
+h1 { font-weight: 900; font-size: clamp(30px, 5vw, 46px); letter-spacing: -.01em; line-height: 1.05; margin: 0; text-wrap: balance; }
+h1 span { color: var(--lav); }
+header p { margin: 0; color: var(--dim); max-width: 72ch; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-family: var(--f-pixel); font-size: .78rem; letter-spacing: .05em; line-height: 1; padding: .35em .5em .3em; border: 2px solid currentColor; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-family: var(--f-mono); font-size: 12px; color: var(--dim); }
+.legend b { font-weight: 500; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; align-items: start; grid-auto-flow: row dense; }
+section { background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--line); border-radius: 10px; padding: 16px 18px; display: grid; gap: 10px; min-width: 0; }
+section.s1 { border-top-color: var(--t1); } section.s2 { border-top-color: var(--t2); } section.s3 { border-top-color: var(--t3); }
+section.s4 { border-top-color: var(--t4); } section.sl { border-top-color: var(--lav); }
+h2 { font-weight: 800; font-size: 19px; letter-spacing: .03em; text-transform: uppercase; margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+h2 small { font-weight: 400; font-size: 13px; color: var(--dim); text-transform: none; letter-spacing: 0; }
+h3 { font-family: var(--f-pixel); font-weight: 400; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--lav); margin: 6px 0 0; }
+ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+li { padding-left: 2px; }
+b, strong { font-weight: 600; }
+.how { font-family: var(--f-mono); font-size: 12.5px; color: var(--fg); background: var(--inset); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; }
+.btn { font-family: var(--f-mono); font-size: 12px; font-weight: 500; border: 1px solid #4a4858; border-radius: 4px; padding: 0 5px; white-space: nowrap; }
+.knobs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.knobs div { border-top: 2px solid currentColor; padding-top: 3px; font-weight: 800; font-size: 13.5px; letter-spacing: .03em; overflow-wrap: anywhere; }
+.knobs div span { display: block; font-weight: 400; font-size: 12px; color: var(--dim); letter-spacing: 0; }
+.c1 { color: var(--t1); } .c2 { color: var(--t2); } .c3 { color: var(--t3); } .c4 { color: var(--t4); } .cl { color: var(--lav); } .ca { color: var(--all); }
+.pg { font-family: var(--f-pixel); font-size: 12px; letter-spacing: .06em; color: var(--dim); margin-bottom: -4px; }
+.note { font-size: 13px; color: var(--dim); margin: 0; }
+p { margin: 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+td { border-top: 1px solid var(--line); padding: 5px 6px 5px 0; vertical-align: top; }
+td:first-child { font-family: var(--f-mono); font-size: 12px; white-space: nowrap; color: var(--fg); width: 1%; padding-right: 12px; }
+.wide { grid-column: 1 / -1; }
+.roles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.roles div { border-left: 3px solid currentColor; padding-left: 9px; }
+.roles b { display: block; font-family: var(--f-pixel); font-weight: 400; letter-spacing: .06em; font-size: 13px; }
+.roles span { display: block; color: var(--fg); font-size: 13px; }
+.prog { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 12px; font-size: 13px; }
+.prog div b { font-family: var(--f-mono); font-weight: 500; color: var(--lav); margin-right: 6px; }
+.pages { font-family: var(--f-mono); font-size: 11.5px; color: var(--dim); display: flex; flex-wrap: wrap; gap: 4px; }
+.pages span { border: 1px solid var(--line); border-radius: 3px; padding: 0 5px; }
+.pages span.on { color: var(--fg); border-color: var(--lav); }
+
+/* the small diagrams: an FM-1 screen strip */
+.dia { display: block; width: 100%; height: auto; background: var(--scr); border: 1px solid var(--line); border-radius: 6px; }
+.dia .grid-l { stroke: #23232c; stroke-width: 1; }
+.dia .off { fill: #2a2a36; }
+.dia .on1 { fill: var(--t1); } .dia .on2 { fill: var(--t2); } .dia .on3 { fill: var(--t3); } .dia .on4 { fill: var(--t4); } .dia .onl { fill: var(--lav); }
+.dia .ph { fill: #fff; opacity: .16; }
+.dia text { font-family: var(--f-pixel); fill: var(--dim); font-size: 11px; letter-spacing: .06em; }
+.dia text.big { fill: var(--fg); font-size: 18px; }
+.dia .wave { fill: none; stroke: var(--t3); stroke-width: 2; }
+.dia .ghost { fill: none; stroke: var(--t2); stroke-dasharray: 3 2; opacity: .7; }
+
+footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-top: 1px solid var(--line); padding-top: 14px; display: flex; flex-wrap: wrap; gap: 6px 18px; justify-content: space-between; }
+
+@media (max-width: 520px) {
+  header { padding-right: 0; padding-top: 34px; }
+  .roles { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 420px) { .knobs { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- motion: all of it off under prefers-reduced-motion, where every diagram shows a finished frame ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  /* cards rise in as they scroll into view (JS adds .rv only when it can watch them) */
+  .rv section { opacity: 0; transform: translateY(14px); transition: opacity .5s ease, transform .5s ease; }
+  .rv section.in { opacity: 1; transform: none; }
+  /* the four track chips light one after another, a beat each, at 124 BPM */
+  .chip { animation: pulse calc(var(--beat) * 4) steps(1, end) infinite; opacity: .4; }
+  .chip:nth-child(2) { animation-delay: var(--beat); } .chip:nth-child(3) { animation-delay: calc(var(--beat) * 2); } .chip:nth-child(4) { animation-delay: calc(var(--beat) * 3); }
+  @keyframes pulse { 0% { opacity: 1; box-shadow: 0 0 10px -2px currentColor; } 25%, 100% { opacity: .4; box-shadow: none; } }
+  /* a playhead walks the 16 steps (one bar = 4 beats); the 2-bar ones take 8 */
+  .dia .ph { animation: walk calc(var(--beat) * 4) steps(16, end) infinite; }
+  .dia .ph2 { animation: walk2 calc(var(--beat) * 8) linear infinite; }
+  @keyframes walk { from { transform: translateX(0); } to { transform: translateX(var(--run, 304px)); } }
+  @keyframes walk2 { from { transform: translateX(0); } to { transform: translateX(var(--run, 304px)); } }
+  /* GEN: one note of the loop moves now and then (DRIFT), the shape stays */
+  .dia .drift { animation: drift calc(var(--beat) * 16) steps(1, end) infinite; }
+  @keyframes drift { 0% { transform: translateY(0); } 50% { transform: translateY(-24px); } }
+  .dia .ghost { animation: ghost calc(var(--beat) * 16) steps(1, end) infinite; }
+  @keyframes ghost { 0% { transform: translateY(0); } 50% { transform: translateY(24px); } }
+  /* HARMONY: the lit chord follows the playhead, i then bVII */
+  .dia .ch-a { animation: chA calc(var(--beat) * 8) steps(1, end) infinite; }
+  .dia .ch-b { animation: chA calc(var(--beat) * 8) steps(1, end) infinite; animation-delay: calc(var(--beat) * -4); }
+  @keyframes chA { 0% { opacity: 1; } 50%, 100% { opacity: .3; } }
+  /* LFO: the wave runs, the dot rides its current value */
+  .dia .lfo { animation: lfo 2.4s linear infinite; }
+  @keyframes lfo { to { transform: translateX(-120px); } }
+  .dia .dot { animation: dot 1.2s ease-in-out infinite alternate; }
+  @keyframes dot { from { transform: translateY(0); } to { transform: translateY(36px); } }
+}
+
+/* ---------- print: white paper, every card shown, nothing moving ---------- */
+@media print {
+  :root { --bg: #fff; --panel: #fff; --inset: #f3f3f6; --line: #c9c9d2; --fg: #000; --dim: #444; --t3: #0e8a78; --t2: #1a72b0; --t1: #5b45c4; --t4: #c4503c; --all: #555; --lav: #5a4fc4; --scr: #fff; }
+  @page { margin: 12mm; }
+  html, body { background: #fff !important; color: #000; }
+  body { padding: 0; font-size: 11.5px; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .rv section, section { opacity: 1 !important; transform: none !important; }
+  header { padding-right: 0; padding-top: 0; }
+  .grid { display: block; columns: 2; column-gap: 14px; }
+  section { break-inside: avoid; margin-bottom: 12px; border-radius: 4px; padding: 10px 12px; }
+  .chip { opacity: 1 !important; box-shadow: none !important; }
+  .dia .grid-l { stroke: #ddd; } .dia .off { fill: #ddd; } .dia .ph { opacity: .1; fill: #000; } .dia text.big { fill: #000; }
+  .dia .ch-a, .dia .ch-b { opacity: 1 !important; }
+  a { color: #000; }
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+<header>
+  <div class="toprow">
+    <span class="tag cl">PHEBUS</span>
+    <span class="chips" aria-label="The four voices and their colours"><span class="chip c1">1 ROBOT</span><span class="chip c2">2 ALIEN</span><span class="chip c3">3 CROCODILE</span><span class="chip c4">DRUMS SNAKE</span></span>
+  </div>
+  <h1>PHEBUS <span>cheat sheet</span></h1>
+  <p>Ben's FM-1 firmware, a fork of KARMA. Tap a button to open its pages (tap again, or turn SELECT, for the next). Hold a button for its layer on the keys and knobs. Unreleased: not yet run on a real FM-1.</p>
+  <div class="legend"><span>Colour = the voice it acts on:</span><b class="c1">1 purple</b><b class="c2">2 blue</b><b class="c3">3 teal</b><b class="c4">drums coral</b><span>shared (tag ALL): white / grey. Yellow M = mute, ice-blue S = solo, red = record / erase only</span></div>
+</header>
+
+<div class="grid">
+
+<section class="sl">
+  <h2>Getting around</h2>
+  <table>
+    <tr><td>ALGORITHM</td><td>Voice: 1, 2, 3, DRUM (on the GRID, one more: STUTTER)</td></tr>
+    <tr><td>PRESETS</td><td>The voice's sounds (drums: the kit)</td></tr>
+    <tr><td>SELECT</td><td>Next / previous page; the tempo where there are no pages</td></tr>
+    <tr><td>OCT- / OCT+</td><td>Octave -3 to +3 (both: 0). Held with a drum key: ghost / hard</td></tr>
+    <tr><td>tap SEQ</td><td>The GRID (steps on the 16 white keys). On the GRID: the SEQ pages</td></tr>
+    <tr><td>tap HOME</td><td>HOME. Again on HOME: a screensaver (SELECT changes it)</td></tr>
+    <tr><td>hold HOME</td><td>The menu (0.7 s)</td></tr>
+    <tr><td>tap SAVE</td><td>HOME or GRID: the SONG screen. Elsewhere: SAVE pages</td></tr>
+    <tr><td>EDIT + OCT-</td><td>Undo. EDIT + OCT+: redo</td></tr>
+    <tr><td>layer + HOME</td><td>Hold a layer button, tap HOME: it stays open. Any other button lets go</td></tr>
+  </table>
+</section>
+
+<section class="sl">
+  <h2>Hold a button <small>its layer</small></h2>
+  <table>
+    <tr><td>FX</td><td><b>PUNCH</b>: effects on the keys, while held</td></tr>
+    <tr><td>EDIT</td><td><b>ERASE</b>: key erases that note or sound. K1 SHIFT, K2 STEPS x2 / half, K3 TRANSP</td></tr>
+    <tr><td>ARP</td><td><b>ROLL</b>: hold a key to repeat. K1 rate</td></tr>
+    <tr><td>SEQ</td><td><b>STEPS</b>: K2 DIV, K3 SWING, K4 STEPS (keys do nothing)</td></tr>
+    <tr><td>SEL</td><td><b>KEY</b>: a key sets the song key. K1 CHORD, K2 SCALE, K3 KEYS, K4 TRANSP</td></tr>
+    <tr><td>GLO</td><td><b>MIX</b>: mixer (below)</td></tr>
+    <tr><td>SAVE</td><td><b>SONG</b>: sections A to D (below)</td></tr>
+  </table>
+</section>
+
+<section class="sl wide">
+  <h2>The GRID <small>tap SEQ, any voice</small></h2>
+  <div class="roles">
+    <div class="ca"><b>PLACE</b><span>Tap an empty step: set with the pen (last note or chord played, or K1), velocity 100. Tap a set step: cleared when the key comes up (unless a knob was turned).</span></div>
+    <div class="ca"><b>HOLD A STEP</b><span>K1 NOTE, K2 LEN (ties), K3 VEL, K4 COND (- FILL NOFL CHNC). SELECT right: FLAG (- ACC SLD A+S), RATCH x1-x4, NUDGE. Several steps edit together. Drums: LEVEL RATCH NUDGE COND.</span></div>
+    <div class="ca"><b>PAGES</b><span>Black keys 1-4: steps 1-16, 17-32, 33-48, 49-64. The next empty slot adds a page. OCT-/OCT+: page (OCT+ on the last adds one). Max 64. The view follows the playhead.</span></div>
+  </div>
+  <table>
+    <tr><td>step + EDIT / ENV / LFO / FX</td><td><b>Parameter lock</b>: that page goes on the knobs ("LOCK ..."); turn a knob to lock it on the held step(s). Tap again for the next page. Full colour = locked, dim = the voice's own. 24 locks a voice. EDIT walks OSC, FILT, ENV</td></tr>
+    <tr><td>step + PRESETS / ALGORITHM</td><td>Lock on or off / choose the lock parameter</td></tr>
+    <tr><td>step + OCT- / OCT+</td><td>Clear locks (on the GRID also nudge and condition) / next condition</td></tr>
+    <tr><td>nothing held (synth)</td><td>K1 NOTE (pen), K2 STEP (cursor), K3 HIT (right sets, left clears), K4 VEL. PRESETS the sound, SELECT the tempo</td></tr>
+    <tr><td>tap SEQ (synth)</td><td>PATTERN (STEPS DIV SWING GATE), PLAY, ACID GEN, GEN, HARMONY. Tap SEQ again: back to the GRID</td></tr>
+  </table>
+</section>
+
+<section class="s4">
+  <h2>Drums</h2>
+  <div class="how">tap SEQ with DRUM selected: the snake view. SELECT right: full grid. SELECT left: snake</div>
+  <div class="knobs"><div class="c4">SOUND<span>KNOB 1</span></div><div class="c4">STEP<span>KNOB 2</span></div><div class="c4">HIT<span>right sets, left clears</span></div><div class="c4">LEVEL<span>ghost soft norm hard</span></div></div>
+  <ul>
+    <li>PRESETS picks the kit. Power-on kit: 606.</li>
+    <li>On the GRID, SEQ again: KIT page (K1 sound, K2 kit, K3 reverb, K4 delay of that sound), then DRUM GEN, then the GRID.</li>
+    <li>Tap EDIT: HEX OSC / MOD / CLICK / MORE / FILT. ENV: HEX AEG. No LFO on drums.</li>
+    <li>EDIT + a black key: switch erase and mute mode (white keys mute sounds).</li>
+    <li>Keys 1-16: KICK, KICK 2, SNARE, CLAP, HAT, OPEN HAT, PEDAL, RIM, SNARE 2, LOW TOM, HI TOM, CRASH, RIDE, SHAKER, CONGA, COWBELL.</li>
+  </ul>
+</section>
+
+<section class="sl">
+  <h2>STUTTER lane <small>ALGORITHM past DRUM</small></h2>
+  <ul>
+    <li>Tap an unlit step: it lights (length 1/8). Tap a lit step: it goes out on release.</li>
+    <li>Hold a step + K1: its length 1/4, 1/8, 1/16, 1/32.</li>
+    <li>K2: lane ON / OFF (steps kept). K4: lane length 1-64.</li>
+    <li>Black keys 1-4, OCT-/OCT+: page. EDIT + OCT-: undo.</li>
+    <li>A lit step repeats the span just before it, the whole mix. Same-length steps in a row are one loop.</li>
+  </ul>
+</section>
+
+<section class="sl">
+  <h2>Sound chain <small>OSC > FILT > ENV > FX > MOD</small></h2>
+  <table>
+    <tr><td>EDIT</td><td>Enters at OSC. Again: next stage, MOD wraps to OSC</td></tr>
+    <tr><td>ENV / FX / LFO</td><td>That stage's first page. Again: its next page</td></tr>
+    <tr><td>SELECT</td><td>Walks every page of the chain</td></tr>
+  </table>
+  <div class="pages" aria-label="Pages in order"><span>OSC</span><span>OSC 2</span><span>VOICE</span><span>VOICE 2</span><span class="on">FILTER</span><span>FILTER 2</span><span class="on">ENV</span><span>ENV DEST</span><span class="on">FX</span><span>CHORUS</span><span>INSERT</span><span>INSERT 2</span><span>SLICER</span><span class="on">LFO</span><span>LFO DEST</span><span>LFO SYNC</span></div>
+  <div class="knobs"><div class="c1">ATK</div><div class="c2">DEC</div><div class="c3">SUS</div><div class="c4">REL</div></div>
+  <div class="knobs"><div class="c1">DIST</div><div class="c2">CHORUS</div><div class="c3">DELAY</div><div class="c4">REVERB<span>the voice's sends (start at 0)</span></div></div>
+  <p class="note">The strip above the knobs shows the five stages and the page. Presets: PRESETS, INIT at the end of JUNO and PLAITS lists. SAVE > TOOLS: CLRSQ, INIT, NEW.</p>
+</section>
+
+<section class="sl">
+  <h2>Engines <small>OSC page, KNOB 1-4</small></h2>
+  <table>
+    <tr><td class="c1">ACID</td><td>WAVE ACC SLIDE DRV (FILTER: CUT RES ENV DEC)</td></tr>
+    <tr><td class="c1">JUNO</td><td>WAVE PW SUB NOISE (FILTER: CUT RES ENV FILT)</td></tr>
+    <tr><td class="c2">ELEMENTS</td><td>MODEL STRC BRIT DAMP; OSC 2: POS ACC BOW EXC</td></tr>
+    <tr><td class="c3">PLAITS</td><td>MODEL HARM TIMB MRPH; OSC 2: ENV SUB</td></tr>
+  </table>
+  <p class="note">Plain starts, no effects: 1 JUNO INIT mono, octave down. 2 JUNO INIT poly. 3 PLAITS INIT (saw), mono. Drums: 606.</p>
+</section>
+
+<section class="sl wide">
+  <h2>Hold FX: PUNCH <small>keys, while held</small></h2>
+  <table>
+    <tr><td>white, row 1</td><td><b>LOOP 4</b> (quarter note) · <b>LOOP 8</b> (eighth) · <b>LOOP 16</b> · <b>LOOP 32</b></td></tr>
+    <tr><td>white, row 2</td><td><b>STUTTER</b> · <b>REVERSE</b> · <b>STOP</b> · <b>HALF</b></td></tr>
+    <tr><td>white, row 3</td><td><b>LOW</b> · <b>HIGH</b> · <b>PHONE</b> · <b>CRUSH</b></td></tr>
+    <tr><td>white, row 4</td><td><b>ALIAS</b> · <b>GATE</b> · <b>ECHO</b> · <b>WOBBLE</b></td></tr>
+    <tr><td>black keys</td><td>F#3 KILL LOW · G#3 KILL MID · A#3 KILL HIGH · C#4 REWIND · D#4 OCT UP · F#4 FLANGER · G#4 AUTO-PAN · A#4 FREEZE · C#5 LOOP 8T · D#5 MONO · F#5 FADE OUT</td></tr>
+    <tr><td>knobs</td><td>K1 master FILTER (left LP, right HP) · K2 DUST · K3 DUCK · K4 TRK FILT (selected voice)</td></tr>
+    <tr><td>OCT- / OCT+</td><td>REV THROW / ECHO THROW (both: both)</td></tr>
+  </table>
+  <p class="note">The loops replay what you just heard, on the grid. FX keys never play or record.</p>
+</section>
+
+<section class="sl">
+  <h2>Mixer <small>hold GLO</small></h2>
+  <table>
+    <tr><td>KNOB 1-4</td><td>Levels of 1, 2, 3, drums</td></tr>
+    <tr><td>Keys 1-4</td><td>Mute (yellow M)</td></tr>
+    <tr><td>Keys 5-8</td><td>Solo (ice-blue S)</td></tr>
+    <tr><td>Key 9 (hold)</td><td>Fill while held</td></tr>
+    <tr><td>Key 10</td><td>Fill next bar (again cancels)</td></tr>
+    <tr><td>Key 16</td><td>Tap tempo</td></tr>
+    <tr><td>F#3</td><td>MIDI LEARN on / off</td></tr>
+  </table>
+  <p class="note">Hold GLO 0.7 s untouched and let go: the mixer stays. Tap GLO: GLOBAL, MASTER, DLY, REV/CHO, CLOUD, SYSTEM, DRUMS, MIDI, TEXTURE.</p>
+</section>
+
+<section class="sl">
+  <h2>Sections and songs <small>hold SAVE</small></h2>
+  <table>
+    <tr><td>Keys 1-4</td><td>Play A to D (next bar). Stopped: load as the loop. Several taps: a chain</td></tr>
+    <tr><td>Keys 5-8</td><td>Store the loop in A to D (a used one: again within 3 s)</td></tr>
+    <tr><td>Key 13</td><td>Loop / song mode</td></tr>
+    <tr><td>Key 14</td><td>SONG REC</td></tr>
+    <tr><td>Key 16</td><td>The SONG screen</td></tr>
+  </table>
+  <div class="how">SONG screen: K1 entry, K2 section, K3 bars (0 = LOOP), K4 entries. Hold an entry's key + OCT+ inserts, + OCT- deletes. SAVE: SONGS 1-3 (K2 ERASE, K3 LOAD, K4 SAVE, two clicks)</div>
+</section>
+
+<section class="sl">
+  <h2>Record <small>REC</small></h2>
+  <table>
+    <tr><td>tap REC</td><td>Playing: records now. Stopped: arms. Empty project: a free take. Again: cancel</td></tr>
+    <tr><td>hold REC</td><td>Clears the selected voice (a ring fills; let go early and nothing happens)</td></tr>
+    <tr><td>REC screen</td><td>K1 MODE, K2 length 1/2/4 bars, K3 START</td></tr>
+    <tr><td>EDIT + OCT-</td><td>Undo: brings a cleared track back</td></tr>
+  </table>
+</section>
+
+<section class="sl">
+  <h2>Key, scale, tempo</h2>
+  <table>
+    <tr><td>Tempo</td><td>SELECT on HOME · GLO + key 16 · GLO > GLOBAL > BPM</td></tr>
+    <tr><td>Swing</td><td>HOME K1 (all) · hold SEQ + K3 (voice)</td></tr>
+    <tr><td>Key / scale</td><td>Hold SEL + a key / K2</td></tr>
+    <tr><td>Chord</td><td>Hold SEL + K1 (OFF TRIAD 7TH 9TH SUS4 POWER)</td></tr>
+  </table>
+</section>
+
+<section class="sl">
+  <h2>Saving</h2>
+  <ul>
+    <li>White dot in the header: unsaved changes.</li>
+    <li>The working project saves itself after you stop, and comes back at power-on.</li>
+    <li>Sections, song order and SONGS 1-3: saved when you say so.</li>
+    <li>User presets: SAVE > USER.</li>
+  </ul>
+</section>
+
+<section class="sl">
+  <h2>MENU <small>hold HOME</small></h2>
+  <div class="how">SELECT = section (SCREEN, LIGHTS, AUDIO, SYSTEM) · K1-K3 set its rows · PRESETS moves the cursor · OCT+ steps / opens · OCT- closes</div>
+  <table>
+    <tr><td>USB AUDIO</td><td>MASTER, FULL, or STEMS (at the next start: six channels)</td></tr>
+    <tr><td>SYSTEM</td><td>HARDWARE CALIBRATION, MIDI LEARN CLEAR, ABOUT</td></tr>
+  </table>
+</section>
+
+<section class="sl">
+  <h2>Power-on and recovery</h2>
+  <table>
+    <tr><td>OCT-</td><td>Hold while switching on: USB rescue</td></tr>
+    <tr><td>OCT- + OCT+</td><td>Hold while switching on: hardware calibration</td></tr>
+    <tr><td>OCT- + OCT+ 5 s</td><td>Stopped: update mode (UBOOT). Let go to cancel</td></tr>
+  </table>
+  <p class="note">Some FM-1 hardware revisions can be bricked by custom firmware. Check your unit before flashing.</p>
+</section>
+
+<section class="sl">
+  <h2>Simulator</h2>
+  <table>
+    <tr><td>Double-click</td><td>Hold a button down (blue outline); click again to let go. Shift-click does the same.</td></tr>
+    <tr><td>1 2 3 4 5 6</td><td>FX · SEL · ENV · LFO · EDIT · GLO</td></tr>
+    <tr><td>7 8 9 0 - =</td><td>HOME · SAVE · ARP · SEQ · PLAY · REC</td></tr>
+    <tr><td>Z ... ' · Q ... O</td><td>The keyboard's notes</td></tr>
+    <tr><td>[ ]</td><td>OCT- / OCT+</td></tr>
+    <tr><td>Up Down / Left Right</td><td>SELECT / ALGORITHM</td></tr>
+  </table>
+</section>
+
+</div>
+
+<footer><span>PHEBUS · Ben's fork of KARMA by Ariel Muchnik · GPL-3.0-only</span><span>Based on SLOOP (isod89) and Felucca (Leo Kuroshita, Hügelton Instruments). M-VAVE and FM-1 are trademarks of their owners; PHEBUS is not affiliated with them.</span></footer>
+</div>
+
+<script>
+/* cards rise in as they scroll into view; without JS, without IntersectionObserver or with reduced motion, they are simply there */
+(function () {
+  var mq = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)");
+  if ((mq && mq.matches) || !("IntersectionObserver" in window)) return;
+  var cards = document.querySelectorAll(".grid section");
+  var io = new IntersectionObserver(function (es) {
+    es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
+  }, { rootMargin: "0px 0px -8% 0px" });
+  cards.forEach(function (c) { io.observe(c); });
+  document.documentElement.classList.add("rv");
+  window.addEventListener("beforeprint", function () { cards.forEach(function (c) { c.classList.add("in"); }); });
+})();
+</script>
+</body>
+</html>
