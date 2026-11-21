@@ -1,257 +1,129 @@
-# PHEBUS review, 21 November 2026
+# PHEBUS direction review, 21 November 2026
 
-**What was reviewed:** PHEBUS as it stands on branch `ben` (the firmware, its simulator, the editor and docs), against SPEC.md.
-**Depth:** full overnight pass. Ten journeys walked in a test harness, every screen rendered and judged, 29 test suites run, plus research into the best-regarded grooveboxes.
-**Overall state:** the bones are good and it already reads as one instrument. The new step GRID is the weakest part: it is silent, incomplete and has three real bugs. Nothing has run on a real FM-1.
-**Decisions waiting:** 22, most valuable first. Pictures are in `review/shots/`. The full lens reports and the research are in `review/`.
+**What was reviewed:** every feature, page, layer and gesture in PHEBUS against Ben's new direction (SPEC.md, 21 Nov 15:32): MiniFreak for the melodic voices, Analog Rytm MKII for drums, MPC for performance, and nothing else.
+**Depth:** read-only. The code, the guide's gesture table, every screen rendered, and sourced research on the three devices. No long test runs.
+**Overall state:** about half of PHEBUS already points the right way. The other half is either the old firmware's extras or the right job done the wrong way. The biggest gaps are not on the screen: they are in how drum steps and voice parameters are stored.
+**Decisions waiting:** 24, put to Ben as pickers.
 
-## Ben's decisions (21 Nov, by picker)
+Nothing has been built for this direction. The previous build (branch `f-play`: step-record, HOME knobs, ACID bass, long stutters, LFO trigger, HOME band) is held unmerged.
 
-| # | Finding | Decision |
+Detail: `review/direction/INVENTORY.md` (every item, limits, routes), `VISUAL.md` (screens and mock-ups), `RESEARCH-devices.md` (how the three devices work, with sources). Yesterday's finished review is `review/REVIEW-2026-11-21-polish.md`.
+
+---
+
+## A. Keep, change, cut
+
+### Already feels like its reference: KEEP
+- **MiniFreak:** the OSC > FILT > ENV > FX > MOD strip in signal order; graphs that draw the wave, filter and envelope as you turn; presets by kind; plain INIT starts; the arpeggiator; key, chord and scale; chords on a step; step-record (held build), which is how the MiniFreak takes notes.
+- **Rytm:** 16 keys as 16 steps; tap to place; hold a step for its detail; several steps at once; page slots; nudge; fill; undo; live record then refine.
+- **MPC:** held effects on the keys; quarter, eighth, sixteenth and thirty-second loops; reverse, tape stop, half speed; filter sweeps and kills; note repeat (hold ARP); the mixer with mute and solo; echo and reverb throws.
+- **Shared:** the colour rule, the bold knob row, autosave and the unsaved dot, MIDI and sync to the MPC, rescue and install, the simulator.
+
+### Right job, wrong feel: CHANGE
+| What | Today | What the reference does |
 |---|---|---|
-| 1 | Silent synth GRID | Play on change |
-| 2 | Three step editors | GRID only |
-| 3 | Filter locks | EDIT walks the chain |
-| 4 | Length and pages | Page slots, view follows the playhead |
-| 5 | Drum GRID one lane | SELECT toggles between the snake view and a full grid |
-| 6 | Saving | Unsaved dot, save on stop |
-| 7 | Undo | Full undo, shown on screen |
-| 8 | Sound pages | Sound big, character small |
-| 9 | Chain length | Merge one-knob pages, LFO SYNC, global effects to GLO |
-| 10 | Song screen | Insert and delete |
-| 11 | Four sequencer bugs | Fix all four |
-| 12 | Boot | Keep 3 s at full detail (the broken test still gets fixed) |
-| 13 | Strike pose | Fix |
-| 14 | Knob numbers | A: one bold face |
-| 15 | Bottom bar | A: heads with underline; mute and solo as badges |
-| 16 | Colour rule leftovers | Fix all |
-| 17 | Colour-blind | Skip |
-| 18 | Headers | Fix |
-| 19 | Small legibility fixes | Do all |
-| 20 | Screensavers | Drop all 11, build only the new pieces |
-| 21 | Words | Fix all |
-| 22 | Docs and site | Rewrite guide and cheat sheet, remove the analytics counter. Power-on kit: 606 |
+| Sound pages | Different knobs on every engine, 14 pages | MiniFreak: the same sections on every voice, four knobs each: Type + three macros; cutoff, resonance, envelope amount, type; A D S R; FX slot; matrix |
+| Oscillator choice | Engines fixed to tracks | One Type list on every voice; the three macro knobs rename themselves per type |
+| Filter | Plucked and alternate engines have a one-knob filter with no resonance | Cutoff, resonance, envelope amount and type on every voice |
+| Filter envelope | One shared ADSR | The filter follows the amp envelope through one knob; "its own envelope" is a second envelope routed to cutoff in the matrix |
+| Modulation | Fixed routes on two pages, one LFO | A visible grid of sources against destinations, last in the chain |
+| FX | Sends, an insert, a chorus and a slicer on separate pages | Three slots, each Type, Time, Intensity, Amount |
+| Parameter locks | Hold a step, press a button, then turn | Rytm: hold a step and turn whatever knob is on screen. No extra press |
+| Locked values | Locked bright, the rest dim | Rytm: the locked value is drawn inverted |
+| GRID knobs | Note, cursor, hit, velocity | Rytm: the knobs are always the sound page; step settings live on a TRIG page |
+| Drum sound pages | "OSC FILT ENV FX MOD", and a placeholder on most kits | Rytm: SRC, FLTR, AMP, LFO for the selected sound, always shown |
+| Drum steps | Level in four steps; condition and nudge shared by all sounds on a step | Rytm: velocity, condition, nudge and retrig per trig, per sound |
+| Drum locks | A lock changes the whole drum mix | Rytm: a lock changes one sound |
+| Retrig | Ratchet x1 to x4 | Rate, length and a velocity fade per trig |
+| Drum mute | Hidden gesture, shown in red | A visible mute mode on the keys |
+| Chromatic | None | Play the selected sound across the keys |
+| Performance effects | 27 labels in a keyboard-shaped list, no latch shown | MPC: a pad map, latch, and knobs that tweak the held effect |
+| SEQ and SAVE buttons | Cycle through several screens | One job each |
 
-Status, 21 Nov, complete: every decision is built, merged and live in the simulator, plus (asked for on 21 Nov) effects off by default, the stutter sequencer and plain sawtooth starts. GUIDE.md and the cheat sheet are rewritten for PHEBUS. 17 skipped at Ben's choice. Nothing has run on a real FM-1; the list of checks for the device is in GUIDE.md section 20.
+### Serves none of the three: CUT (each is a picker)
+Song mode and the SONG screen; the SONGS bank; chains; the pattern generators (GEN, ACID GEN, HARMONY, DRUM GEN, PLAY); CLOUD and TEXTURE; the SLICER page; user sample kits; free take; the screen reader; most of the web editor; nine novelty punch effects; the hidden lock gesture.
+Ben's own additions that are not one of the three, so his call: the characters, the snake view, the four screensavers, the HOME flow band.
 
----
+### Unsure
+- Whether sections A to D are "arranging" (cut) or the Rytm's pattern select (keep).
+- Whether the stutter lane is un-MPC (stutters are played) or the thing the MPC cannot do. The research found the MPC Sample cannot record its pad effects into patterns.
+- Whether ACID GEN is worth keeping as a MiniFreak-style "Dice".
+- How much processor the real FM-1 has spare. Never measured.
 
-Two facts that shape everything below:
-
-- **Space is nearly gone.** The firmware is 553,240 bytes of a 581,564 limit, so about 28 KB is left. The fierce characters used 12.7 KB of it. The working-memory pool has 16 bytes spare before the build fails. New screensavers must be code, not stored pictures, and must not need a buffer.
-- **Today's work changed no sound.** All 117 reference renders are identical before and after.
-
-Sizes: small is an hour or less, medium about a day, large several days or a design change.
+### A bug found on the way
+On the ACID engine, the envelope-to-filter and LFO-to-filter knobs do nothing. The engine never reads them. Verified in the code.
 
 ---
 
-## Using it
+## B. Where the FM-1 cannot match, and the honest substitute
 
-### 1. The synth GRID is silent
-- **Where:** GRID on tracks 1 to 3 (`ui_grid.c:91`).
-- **Wrong:** placing a step, turning the note knob and changing a held step's note all make no sound, and the keys are steps. You have to leave the GRID to hear a pitch. Your brief says "Choose a note, and place it into a step".
-- **Fix:** play a short note whenever the note changes or a step is placed.
-- **Alternative:** while a step is held, the black keys play and set its note.
-- **Size:** medium.
+| Reference has | FM-1 has | Closest honest substitute |
+|---|---|---|
+| A knob per function (MiniFreak), eight per page (Rytm) | Four knobs | One section per page of four. For the Rytm's eight, draw all eight and light the live four |
+| Velocity and pressure pads | Keys that are plain switches. Verified: no velocity in the hardware driver | OCT held for ghost and hard hits; velocity per trig by knob; play PHEBUS from the MPC's pads over MIDI, which works today |
+| Pad pressure for effect depth | None | A knob while the key is held |
+| Trig lights in colours | One colour per key, two brightness levels | Trig states by brightness on the keys, colour on the screen |
+| Analogue filter | Digital models. ACID and JUNO are faithful ladder models; the other two engines have a plain filter | A resonant filter on every voice. On chords it filters the whole voice, not each note |
+| Six-voice poly with a filter per note | Eight notes shared by three voices | Stated plainly as the limit |
+| Full-quality stereo stutter | 0.74 s, mono, low resolution | Cutting CLOUD doubles the resolution for free; cutting the slicer lengthens it to about 1.1 s; long stutters replay the steps |
+| Touch strips and macros pads | None | Macros on the knobs of a page |
 
-### 2. Three step editors for the same 16 steps
-- **Where:** GRID (2 rows of 8), the old STEP page (2 rows of 8, first two knobs swapped), the SEQ layer (4 by 4). Picture: `seq-layer-4x4-vs-grid-2x8.png`.
-- **Wrong:** three layouts and knob orders. Only the old STEP page lets you hear notes. A second SEQ press means STEP on synths and KIT on drums. From a sound page, SEQ drops you on the old STEP page (a dead "DRUM TRACK" page on drums), not back on the GRID.
-- **Fix:** the GRID becomes the only step editor. Remove the old STEP pages, move their heard note entry into the GRID, keep the SEQ layer for division, swing and length, and make SEQ always return to the GRID.
-- **Alternative:** keep all three but give them one layout and knob order.
-- **Size:** large.
-
-### 3. The filter cannot be locked to a step
-- **Where:** GRID with a step held (`ui_input.c:672`, `ui_grid.c:196`).
-- **Wrong:** holding a step and pressing EDIT only offers OSC and VOICE pages. Cutoff and resonance are unreachable except by a hidden six-press route, and the screen never names the parameter being locked. Filter locks are the heart of acid lines.
-- **Fix:** with a step held, EDIT walks OSC, FILT, ENV as it does everywhere else, and the title names the parameter.
-- **Alternative:** with a step held, SELECT walks every lockable page.
-- **Size:** small.
-
-### 4. Pattern length and pages are missing from the GRID
-- **Where:** GRID (`ui_grid.c:155`). Picture: `grid-synth-oct-does-nothing-at-16.png`.
-- **Wrong:** at 16 steps, the page keys silently do nothing. Length lives elsewhere under three names. The GRID also does not follow the playhead onto later pages.
-- **Fix:** show four page slots with unused ones dim. Pressing past the end adds a page (a copy of the last) and says "32 STEPS". The view follows the playhead while playing.
-- **Alternative:** put length on knob 4 when no step is held.
-- **Size:** small.
-
-### 5. The drum GRID shows one sound at a time
-- **Where:** drum GRID. Picture: `drum-grid-one-lane-only.png`.
-- **Wrong:** you see one lane and a tiny dot thumbnail, with the snake taking most of the screen. Kick, snare and hat cannot be seen together, and a three-part beat takes about 21 presses.
-- **Fix:** a readable multi-lane grid of the sounds in use, with the snake reduced to a small figure.
-- **Alternative:** SELECT toggles between the snake view and a full grid.
-- **Size:** medium.
-
-### 6. Nothing autosaves, and nothing shows unsaved work
-- **Where:** everywhere (`project.c:767`).
-- **Wrong:** no save happens while playing and no screen shows whether work is saved. "Save" means five different things. The research ranks lost work as the most resented groovebox failing.
-- **Fix:** an unsaved dot in the header and an autosave whenever you stop.
-- **Alternative:** autosave between bars while playing (needs a timing check on the real device).
-- **Size:** medium.
-
-### 7. Undo forgets parameter locks, and is two hidden buttons
-- **Where:** EDIT + OCT- (verified in a harness).
-- **Wrong:** undo after clearing a locked step restores the note but not its locks, nudge or condition. The GRID makes clearing a step one tap, so this will bite.
-- **Fix:** undo restores the whole step. Show "UNDO" on screen while EDIT is held.
-- **Alternative:** leave undo as it is and ask for a second tap to clear a step that has locks.
-- **Size:** medium.
-
-### 8. Sound pages show the character, not the sound
-- **Where:** OSC, VOICE, FILTER, FX, INSERT and LFO destination pages. Picture: `filter-page-shows-robot-not-filter.png`.
-- **Wrong:** half the screen is the character. There is no filter curve and no waveform, so turning a knob shows a number change and nothing else. Only ENV and LFO draw their shape. This is the gap between PHEBUS and the MiniFreak flow you love.
-- **Fix:** draw what the knobs do (filter curve, wave shape, send levels) with the character small beside it.
-- **Alternative:** keep the big character and add a thin live graph under it.
-- **Note:** this one is partly taste. You asked for the characters, so it is your call how much room they keep.
-- **Size:** large.
-
-### 9. The sound chain is 18 pages long
-- **Where:** EDIT chain on ACID.
-- **Wrong:** FILTER 2 and INSERT 2 hold one knob each, "LFO 2" is really LFO 1's sync page, and four global effect pages sit inside each voice's chain.
-- **Fix:** merge the one-knob pages, rename LFO 2 to LFO SYNC, and move global effects to the GLO button.
-- **Alternative:** keep the pages and show their names in the strip in place of dots.
-- **Size:** medium.
-
-### 10. The song screen cannot insert or delete
-- **Where:** SONG (`ui_song.c:274`). Picture: `song-screen-hints.png`.
-- **Wrong:** entries can only be added or removed at the end, edits are refused while playing, and the song/loop switch (OCT-) is not in the on-screen hints.
-- **Fix:** hold an entry and press OCT+ to insert or OCT- to delete, and add the hint.
-- **Alternative:** rebuild the song screen as rows of section, repeats and mutes, which is what the research says people want. Large.
-- **Size:** medium.
+Space: 23 KB of 581 KB is free today. The cuts on the table free roughly 90 to 100 KB (estimate, could be 30% either way).
 
 ---
 
-## Engine
+## C. Edit or rebuild
 
-### 11. Four real bugs in the new sequencer
-All verified with test harnesses. One decision: fix them all.
-- **Memory overflow:** a held step with several locks writes 49 characters into a 31-character buffer (`ui_grid.c:542`). On the device this silently corrupts memory.
-- **Wrong step deleted:** hold a step, leave the GRID, change track, let go: the same step on the new track is deleted.
-- **Tie tap:** tapping a tied step creates a note that steals the previous note's tail.
-- **Peek counts as a tap:** holding a layer button just long enough to see it, then letting go, also fires the button's tap action. Reproduced on SEQ, EDIT, ARP and FX.
-- **Size:** small each.
+**The finding that matters:** most of the distance to the Rytm and MiniFreak is not in the screens. It is in how things are stored: drum steps need per-sound velocity, conditions, retrig and locks; voices need a second envelope, a matrix, a filter and FX slots; and the saved project is full to the byte (verified: exactly 3,840 bytes, one flash object). That work is the same size whichever way the screens are done.
 
-### 12. The boot screen is heavy and has got longer
-- **Where:** boot (`ui_vis.c`).
-- **Wrong:** each boot frame costs about 13 times an ordinary visualiser frame. The boot is timed in frames, not seconds, so on the real device 3 seconds may stretch. I lengthened it from 2 seconds to 3 last night, which also broke one test that waits for boot to finish.
-- **Fix:** time the boot by the clock at 2 seconds, draw the pattern in 2 by 2 blocks under the smooth letters, and fix the test.
-- **Alternative:** keep full resolution and 3 seconds, and judge it on the device.
-- **Size:** small.
+Sizes are in build waves, where one wave is roughly one of today's subagent builds.
 
-### 13. The strike pose misses some notes
-- **Where:** character STRIKE.
-- **Wrong:** it never fires in UNISON mode or on legato accent-and-slide notes, because of how those notes are started.
-- **Fix:** trigger from the sequencer's accent flag as well as from loud notes.
-- **Size:** small.
+| Route | Size | What it means | Lost |
+|---|---|---|---|
+| Keep editing | 20 to 28 waves | Every change fights the old firmware's hidden gestures. The result keeps its shape | Least up front |
+| Rebuild the interface from blank | 28 to 36 waves | Clean, but rebuilds plumbing that works: lights, messages, menus, rescue screens | About 480 interface tests, the guide |
+| **Hybrid (recommended)** | 22 to 28 waves | Keep the drawing helpers, header, knob row, strip, graphs, menus and rescue screens. Replace the page table with one uniform layout, replace the step editor with a Rytm-model one, replace screens one module at a time. Delete whole modules for the cuts | The tests and guide for replaced screens |
+
+Why hybrid: the screens are not tangled into the sequencer or the engines (the sequencer calls no screen code), so they can be swapped one at a time with the simulator running at every step.
+
+Lost on every route: projects saved by PHEBUS will no longer load on stock KARMA, because a new save format is unavoidable. Old projects can still be read.
+Kept on every route: the engines, sequencer core, drivers, storage, MIDI and USB, install and rescue, the simulator and the build pipeline.
+
+Not knowable from here: real processor headroom, real drawing speed, and whether one Type list on every voice fits the processor.
 
 ---
 
-## Visual design
+## D. Visual review
 
-### 14. Knob values use three typefaces on four baselines
-- **Where:** every knob row. Pictures: `F01_value_type_now.png`, `F01_value_type_options.png`.
-- **Principle:** typography.
-- **Wrong:** values switch between segment digits, a large face and a small face depending on length, so neighbours sit at different sizes and heights. The digit 1 is a bare bar, so 11 reads as "||".
-- **Fix (A):** one bold face for everything on one baseline. Most legible.
-- **Alternative (B):** keep the segment digits, on one baseline, with a proper 1.
-- **Size:** medium.
+Sketches are in `review/direction/mock-*.png`.
 
-### 15. The bottom bar reads as page tabs, and hides mute and solo
-- **Where:** "1 2 3 DRUM" bar on every screen. Pictures: `F07_trackbar_options.png`, `F03_mute_solo_options.png`.
-- **Principle:** component meaning, colour.
-- **Wrong:** four boxes with one filled is the tab pattern, which is why you read it as pages. Mute only dims the tile, with no yellow. Solo is a tiny square in a blue almost identical to the alien's.
-- **Fix (A):** a slim status strip of the four character heads with numbers, an underline on the selected track, a yellow M badge and an ice-blue S badge.
-- **Alternative (B):** keep four boxes but put each head inside, with the same badges.
-- **Size:** small.
+**Reads as its reference already:** the signal-order strip; the wave, filter and envelope graphs; the full drum grid; the 4 by 4 kit tiles; the mixer; white and grey for shared effects.
 
-### 16. Your colour rule is still broken in a few places
-One decision: fix them all. Picture: `F02_voice_colour_mock.png`.
-- Menus colour their three knobs purple, blue and teal.
-- GLOBAL, MASTER, MIDI and SYSTEM pages, and the global delay and reverb pages, carry a purple tag and the purple robot.
-- The PUNCH layer has a coral title and voice-coloured stripes.
-- The downbeat light is red while only playing; red should mean record or erase.
-- A touched value turns white on a voice's page, which makes it look shared.
-- A per-voice SEND is drawn white.
-- The web editor's knob columns and the cheat sheet's colour legend still show the old scheme.
-- **Size:** small each.
+**Does not, with the fix:**
+1. **Knob values collide and change size** on several sound pages ("-34%-34%-34%33%"). Fixed columns, one size always, long values abbreviated.
+2. **The oscillator Type is the smallest thing on its page.** Make it the largest, with the waveform beside it (`mock-synth-osc-A`).
+3. **Four pages show empty boxes with a line.** Show the knob being touched, large, with a level meter, as the MiniFreak does (`mock-synth-osc-B`).
+4. **FX is four pictures, not slots.** Three slot boxes (`mock-synth-fx-A`).
+5. **No matrix.** A grid, dot size for amount (`mock-synth-mod-A`), or a list (`-B`).
+6. **Locks are shown backwards.** Invert the locked value.
+7. **Drum pages:** selected sound's name large, tabs SRC FLTR AMP LFO, a trig row with marks for locks and retrigs. Two layouts: eight dials in two rows (`mock-drum-A`) or four dials over the four knobs (`mock-drum-B`).
+8. **Performance:** a 4 by 4 pad map with held and latched states (`mock-perf-A`), or a keyboard-true map (`-B`).
+9. **Stutter lane:** show lengths as spans across the steps they cover, not numbers.
+10. **HOME:** voice lanes plus the stutter lane with a playhead (`mock-home-A`), or three zones, one per pillar (`-B`).
+11. **Shared list pages** still show the same four values twice.
 
-### 17. Purple and blue merge for colour-blind eyes
-- **Where:** everywhere. Picture: `F04_colour_blind.png`.
-- **Principle:** colour.
-- **Wrong:** with the commonest colour blindness the robot and alien are nearly identical, the crocodile turns grey, and the snake, mute yellow and record red all go olive. A few elements rely on colour alone.
-- **Fix:** add track numbers to the colour-only elements. No change to your palette.
-- **Alternative:** also shift the purple slightly deeper and the blue slightly lighter so they separate. This changes colours you approved, so it needs your eye.
-- **Size:** small.
-
-### 18. Sound page headers repeat the engine and bury the preset
-- **Where:** every sound page. Picture: `F06_header_redundancy.png`.
-- **Principle:** hierarchy.
-- **Wrong:** the tag says ACID and the next line says "ACID TB ACID". The preset name, the thing you change most, is the dimmest text. The FILTER page says "SYN1" where the others name the engine.
-- **Fix:** engine once in the tag, preset alone in white underneath, same on every page.
-- **Size:** small.
-
-### 19. Small legibility and tidiness fixes
-One decision: fix them all. Pictures: `F09_grid.png`, `F11_low_contrast.png`, `F15_envelope.png`, `F05_character_clipping.png`, `F16_characters_small_sizes.png`.
-- GRID note names touch their tile edges; show the note without its octave and mark the octave with ticks.
-- A held step lays out one way on synths and the other way on drums.
-- Several things are drawn too dim to read at 3 cm: muted tiles, unlocked lock values, HOME step dots, the one-pixel value bars.
-- The envelope curve is one pixel and tangles with the ghost character; make it two and dim the ghost.
-- Robot, crocodile and snake poses touch the edge of their frame and are cut flat; the strip trims their feet.
-- At small sizes the alien is faint, the crocodile is speckled and the snake's head reads as a duck.
-- The SONG screen leaves two rows of stray pixels under its header.
-- PUNCH tiles are uneven and their labels have no padding.
-- HOME shows "LEVEL 0" for a muted track whose level is really 81.
-- **Size:** small each, medium together.
-
-### 20. Screensavers: 11 exist, 4 are worth keeping
-- **Where:** HOME pressed on HOME. Picture: `F13_visualisers_keep_drop.png`.
-- **Wrong:** there are 11 visualisers, not the 7 I told you. Seven are now grey and dull. Four already do what you asked, with each voice in its own colour: ORBIT, WIRES, BOUNCE and the meters. The flowing backdrop only appears at boot, and nothing yet moves with each voice's level. The eyes and desert pieces do not exist.
-- **Fix:** keep the four, drop the seven, add the flowing backdrop driven by the four voices, then build eyes and desert as code. Dropping seven frees space for the new ones.
-- **Alternative:** drop all 11 and build only your new pieces.
-- **Size:** large.
+**Identity:** the boot wordmark is the strongest piece and costs little. The characters work as heads in the strip and figures in the mixer; on sound pages they say which voice it is for a third time. That is Ben's call, not a finding.
 
 ---
 
-## Words
+## Clashes with earlier decisions
 
-### 21. One name per thing
-One decision: fix them all. Full list in `review/findings-using-it.md`.
-- COND and FILL name the same feature. Use COND.
-- "Section" and "part" name the same thing. Use SECTION.
-- Pattern length is STEPS, LEN and LENGTH; LEN also means note length. Use STEPS for the pattern, LEN for the note.
-- Tracks are named five different ways.
-- Layer titles differ from their buttons (FX opens PUNCH, GLO opens MIX, SEL opens KEY). Title them "FX: PUNCH" and so on.
-- The SAVE layer's CHAIN tile opens SONG. Label it SONG and say how to chain.
-- Truncated labels: PRESE, LOCK VOIC, VCE, GLD, PRIO, CHANC, STRID and more.
-- "LFO 2" is LFO 1's sync page.
-- ABOUT, USB rescue and the crash screen still say KARMA or FELUCCA. Make them PHEBUS, with "based on KARMA" in the credits.
-- Messages linger onto the next screen.
-- **Size:** small each.
-
----
-
-## Consistency and spec
-
-### 22. Docs, the public site and the default kit
-- **GUIDE.md and the cheat sheet** still describe KARMA: old colours, "FX wizard", a drum grid that no longer exists. Rewrite for PHEBUS. Medium.
-- **Your public simulator and installer pages report visits to the original author's analytics counter.** Remove it. Small.
-- **The installer page says "install KARMA"** and has no chip check. It stays unused until your unit is checked by hand.
-- **Power-on kit is the 808.** You said you prefer 606 and 707 sounds, then chose to leave the kits alone. A 606 kit exists; making it the default is one line. Your call.
-- **SPEC.md** was missing last night's wordmark and backdrop instructions in your words. Now added.
-
----
-
-## Held for a second round
-
-**From the research: what the best grooveboxes do that PHEBUS does not.** Each is a feature, not a fix, so they wait until the list above is settled. The full research with sources is in `review/RESEARCH.md`.
-- **Capture:** keep a rolling record of what you just played on the keys, so a good idea is never lost (Ableton Move).
-- **Duplicate and switch:** one press copies the current section to the next slot and moves you there, for building variations (EP-133).
-- **Queued changes:** section changes wait for the end of the bar, with a modifier to jump at once (Circuit, OP-XY).
-- **Turn the playing chain into a song** with one press (Elektron).
-- **A perform page** on the 27 keys for mutes, section launches and punch-in effects together.
-- **Show what the keys do while a button is held**, so no gesture has to be remembered. PHEBUS has about 30 hidden gestures today; the table is in `review/findings-using-it.md`.
-
-**Housekeeping with no decision needed**, to do alongside whatever you approve: rename leftover KARMA and SLOOP names in the code, delete unused drawing code, correct stale comments, repair two tests that were already broken before this fork.
-
-**Cannot be known until the device arrives:** real drawing speed, how random the boot pattern is, timing of any autosave, and how it sounds.
-
-**Clean, no findings:** the recording screens, the KEY layer, the mixer layout, the preset browser, the boot wordmark and its balance, save and load (old patterns still load, new ones still load on stock KARMA).
+Each is asked in the pickers.
+- Song insert and delete, built this morning, against "never needs to arrange".
+- The 606 start kit against Rytm sound pages: the 606 cannot be edited today.
+- The snake view, the four screensavers, the HOME flow band and the characters against "nothing else".
+- JUNO on track 2 and fixed engines against "the same layout on every voice".
+- The stutter lane and the HOME stutter knob against MPC-style played stutters.
+- "EDIT walks the chain" for locks becomes unnecessary once hold-and-turn locks whatever is on screen.
+- "Keep the one-knob pages, name them" against one uniform layout.
+- CLOUD, moved to GLO this morning, against cutting it.
