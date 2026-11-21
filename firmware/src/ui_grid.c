@@ -561,11 +561,186 @@ static int sg_input(uint32_t pressed)
         }
     return 1;
 }
+/* ------------------------------------------------------- STEP REC --- */
+/* (PHEBUS, Ben 21 Nov 2026: "it's hard to input sequences that make sense when you're writing melodic parts"; picker
+ * "Yes, add it": "press REC in the GRID, play notes or chords on the keys, each lands on the next step") On a synth
+ * track's GRID with the transport stopped, REC starts STEP REC (again: it ends; playing, REC records live as before).
+ * The keys play again (seq.c: kb_grid off) and every note they or MIDI play reaches sr_event (seq.c step_in_q):
+ *   a note or a chord      (every key pressed before the last one comes up) is written on the cursor's step, whatever
+ *                          was there, and the cursor moves on a step (round at the pattern's end, onto its later pages)
+ *   SEQ (beside PLAY)      a rest: the step emptied, the cursor on. With keys still held: a tie (as ARP)
+ *   ARP                    a tie: the note before is a step longer (the keys held: written first, then tied)
+ *   OCT- / OCT+            the octave, as on HOME (both: 0)
+ *   SELECT, KNOB 2         the cursor (to fix a step); KNOB 1 the octave, KNOB 3 the velocity written, KNOB 4 STEPS
+ * One undo (EDIT + OCT-) takes back the whole pass, from REC to REC. Leaving the GRID (or the track) ends it */
+static uint8_t sr_vel = 100, sr_n, sr_nt[4], sr_down, sr_done, sr_trk;
+static uint32_t sr_sess;
+static int sr_here(void) { return grid_keys_on() && !is_drum(TSEL); }   /* a synth track's GRID shown */
+static void sr_set(uint32_t on)
+{
+    if (on && !sr_on) {
+        sr_sess = (undo_sess += 4u) | 3u;               /* (the pass: one undo) */
+        sr_trk = (uint8_t)song.sel;
+        sr_n = sr_down = sr_done = 0;
+        sg_drop();
+    }
+    sr_on = (uint8_t)(on != 0u);
+    ly_off = on ? ly_bit[LY_STEP] | ly_bit[LY_ROLL] : 0u;
+    ui.force = 1;
+}
+static void sr_next(const track_t *t)                   /* the cursor a step on, round at the end */
+{
+    uint32_t c = sg_cur() + 1u;
+    sg_cur_set(c < trk_len(t) ? c : 0u);
+    ui.force = 1;
+}
+static void sr_tail_rest(track_t *t, uint32_t c)        /* the TIEs after step c (a note's tail cut there): rests */
+{
+    uint32_t j, len = trk_len(t);
+    for (j = c + 1u; j < len && t->step[j].time == ST_TIE && !t->step[j].n; j++)
+        step_clear(&t->step[j]);
+}
+static void sr_note(track_t *t)                         /* the notes held, onto the cursor's step */
+{
+    uint32_t c = sg_cur(), i;
+    step_t *st = &t->step[c];
+    undo_mark(t, sr_sess);
+    fm1_irq_off();
+    sr_tail_rest(t, c);                                 /* (what was there goes: its tail too) */
+    memset(st, 0, sizeof *st);
+    for (i = 0; i < sr_n && i < 4u; i++)
+        st->note[i] = sr_nt[i];
+    st->n = (uint8_t)(t->p[P_VOICE] == V_POLY ? sr_n : 1u);   /* (a chord only on a polyphonic voice) */
+    st->time = ST_NOTE;
+    st->vel = sr_vel;
+    t->seq_active = 1;
+    fm1_irq_on();
+    last_note = st->note[0];
+    sync_reload = 1;
+    sr_done = 1;
+    sr_next(t);
+}
+static void sr_rest(track_t *t)
+{
+    uint32_t c = sg_cur();
+    undo_mark(t, sr_sess);
+    fm1_irq_off();
+    sr_tail_rest(t, c);
+    step_clear(&t->step[c]);
+    lock_del(t, c, P_COUNT);                            /* (an empty step keeps no lock, nudge or condition) */
+    t->micro[c] = 0;
+    step_fill_set(t, c, FC_NORM);
+    fm1_irq_on();
+    sync_reload = 1;
+    sr_next(t);
+}
+static void sr_tie(track_t *t)                          /* the note before the cursor one step longer */
+{
+    uint32_t c = sg_cur(), p = c;
+    while (p && t->step[p - 1u].time == ST_TIE && !t->step[p - 1u].n)
+        p--;
+    if (!p || !step_on(&t->step[p - 1u])) {
+        ui_message("NO NOTE TO TIE");
+        return;
+    }
+    undo_mark(t, sr_sess);
+    fm1_irq_off();
+    sr_tail_rest(t, c);
+    memset(&t->step[c], 0, sizeof t->step[c]);
+    t->step[c].time = ST_TIE;
+    lock_del(t, c, P_COUNT);
+    t->micro[c] = 0;
+    step_fill_set(t, c, FC_NORM);
+    fm1_irq_on();
+    sync_reload = 1;
+    sr_next(t);
+}
+/* a note of the selected track down / up (ui_input.c midi_entry: the keys' and MIDI's, seq.c step_in_q): a chord is
+ * every note down before the last comes up */
+static void sr_event(uint32_t note, uint32_t on)
+{
+    uint32_t i;
+    if (on) {
+        if (!sr_down)
+            sr_n = sr_done = 0;
+        sr_down++;
+        for (i = 0; i < sr_n && sr_nt[i] != note; i++)
+            ;
+        if (i == sr_n && sr_n < 4u)
+            sr_nt[sr_n++] = (uint8_t)note;
+        ui.force = 1;
+        return;
+    }
+    if (sr_down && !--sr_down) {
+        if (sr_n && !sr_done)
+            sr_note(TSEL);
+        sr_n = sr_done = 0;
+        ui.force = 1;
+    }
+}
+static void sr_input(uint32_t pressed)
+{
+    track_t *t = TSEL;
+    uint32_t k, len = trk_len(t), total, cur;
+    int32_t s;
+    if (pressed & (1u << panel.btn[B_OCTDN] | 1u << panel.btn[B_OCTUP])) {   /* the octave, as on HOME */
+        uint32_t both = (1u << panel.btn[B_OCTDN]) | (1u << panel.btn[B_OCTUP]);
+        if ((fm1_in.buttons & both) == both)
+            song.octave = 0;
+        else
+            song.octave += (pressed >> panel.btn[B_OCTDN]) & 1u ? (song.octave > -3 ? -1 : 0) : (song.octave < 3 ? 1 : 0);
+        ui.force = 1;
+    }
+    if (pressed & ly_bit[LY_ROLL]) {                    /* ARP: a tie (keys held: their notes first) */
+        if (sr_down && sr_n && !sr_done)
+            sr_note(t);
+        sr_tie(t);
+    } else if (pressed & ly_bit[LY_STEP]) {             /* SEQ: a rest; keys held: a tie */
+        if (sr_down) {
+            if (sr_n && !sr_done)
+                sr_note(t);
+            sr_tie(t);
+        } else {
+            sr_rest(t);
+        }
+    }
+    if (pressed & 1u << panel.btn[B_ENV])
+        open_family(FAM_ENV);
+    else if (pressed & 1u << panel.btn[B_LFO])
+        open_family(FAM_LFO);
+    if ((s = panel_enc(EN_PRESET)) != 0 && (cur = preset_pos(&total), total))   /* the sound, as on HOME */
+        preset_go((uint32_t)(((int32_t)cur + s % (int32_t)total + (int32_t)total) % (int32_t)total));
+    if ((s = panel_enc(EN_SELECT)) != 0)                /* SELECT: the cursor */
+        sg_cur_set((uint32_t)clamp((int32_t)sg_cur() + (s > 0 ? 1 : -1), 0, (int32_t)len - 1));
+    for (k = 0; k < 4u; k++) {
+        if ((s = panel_enc(EN_K1 + k)) == 0)
+            continue;
+        ui.hot_col = (uint8_t)k;
+        ui.hot_t = 40;
+        if (k == 0u)
+            song.octave = (int8_t)clamp(song.octave + (s > 0 ? 1 : -1), -3, 3);
+        else if (k == 1u)
+            sg_cur_set((uint32_t)clamp((int32_t)sg_cur() + s, 0, (int32_t)len - 1));
+        else if (k == 2u)
+            sr_vel = (uint8_t)clamp((int32_t)sr_vel + accel(EN_K3, s, 126), 1, 127);
+        else {                                          /* STEPS, as SEQ held + KNOB 4 */
+            t->p[P_SLEN] = (int16_t)clamp(t->p[P_SLEN] + accel(EN_K4, s, 63), 1, NSTEP);
+            if (sg_cur() >= trk_len(t))
+                sg_cur_set(trk_len(t) - 1u);
+            sync_reload = 1;
+        }
+    }
+}
+
 /* the synth GRID's input (the drum track's: drum_screen_input, which calls sg_input first) */
 static void sg_synth_input(uint32_t pressed)
 {
     uint32_t k, total, cur;
     int32_t s;
+    if (sr_on) {                                        /* STEP REC: its own controls */
+        sr_input(pressed);
+        return;
+    }
     if (sg_input(pressed) || !on_drum_page())
         return;
     if ((s = panel_enc(EN_PRESET)) != 0 && (cur = preset_pos(&total), total))   /* the sound, as on HOME */
@@ -730,6 +905,33 @@ static void sg_detail_draw(uint32_t y, uint32_t h, uint32_t idx, uint32_t held)
         cv_text(6, ty, &FONT_S, ln[i], i ? TE_G4 : C_WHITE);
     cv_blit(0, y);
 }
+/* STEP REC's band under the tiles: which step the next note goes on, the notes held (or the last written), how to
+ * rest, tie and leave */
+static void sr_detail_draw(uint32_t y, uint32_t h)
+{
+    const track_t *t = TSEL;
+    uint16_t col = TE_COL[song.sel & 3u];
+    char b[24], nm[20];
+    int32_t x;
+    cv_begin(240, h, C_BLACK);
+    cv_rect(0, 0, 240, 1, TE_G1);
+    str_cpy(b, "NEXT: STEP ", 24);
+    fmt_int(b + str_len(b), (int32_t)sg_cur() + 1);
+    x = cv_text(6, 4, &FONT_S, b, C_WHITE);
+    (void)x;
+    if (sr_down && sr_n)                                /* the keys held: what will be written */
+        sg_notes_str(nm, sr_nt, t->p[P_VOICE] == V_POLY ? sr_n : 1u, 20);
+    else
+        str_cpy(nm, "PLAY A NOTE", 20);
+    cv_text(234 - text_w(&FONT_S, nm), 4, &FONT_S, nm, sr_down && sr_n ? col : TE_G3);
+    x = cv_text(6, 24, &FONT_S, "SEQ", C_WHITE);       /* the controls, white on grey words */
+    x = cv_text(x + 4, 24, &FONT_S, "REST", TE_G3);
+    x = cv_text(x + 12, 24, &FONT_S, "ARP", C_WHITE);
+    x = cv_text(x + 4, 24, &FONT_S, "TIE", TE_G3);
+    x = cv_text(x + 12, 24, &FONT_S, "REC", TE_RED);
+    cv_text(x + 4, 24, &FONT_S, "DONE", TE_G3);
+    cv_blit(0, y);
+}
 /* the 16 steps of the page: two rows of eight tiles (keys 1..8, 9..16), a set step filled in the track's colour
  * with its note, a TIE as a bar from the note before, velocity as a bar under it; marks: a lock / nudge (dot,
  * top right), a condition (notch, top left); the cursor framed white, the playhead a white bar, a step held white */
@@ -774,8 +976,12 @@ static void sg_tiles_draw(uint32_t y, uint32_t big)
             if (step_fill(t, idx))
                 cv_rect(x + 1, ty + 1, 4, 2, step_on(st) ? C_BLACK : C_WHITE);
         }
-        if (idx == sg_cur() && !sg_held)
+        if (idx == sg_cur() && sr_on) {                 /* STEP REC: the step the next note goes on, framed red */
+            op_box(x - 1, ty - 1, w + 2, (int32_t)th + 2, TE_RED);
+            op_box(x - 2, ty - 2, w + 4, (int32_t)th + 4, TE_RED);
+        } else if (idx == sg_cur() && !sg_held) {
             op_box(x - 1, ty - 1, w + 2, (int32_t)th + 2, C_WHITE);
+        }
         if (song.playing && idx == t->seq_idx % len)
             cv_rect(x, ty + (int32_t)th + 1, w, 2, C_WHITE);
     }
@@ -869,6 +1075,7 @@ static void sg_knobs_held(uint32_t idx, uint32_t *footer)
 static void sg_draw(void)
 {
     static uint32_t head, tiles_sig, footer, bar;
+    static char v[4][12];                               /* (the knobs' values: no step held, or STEP REC) */
     const track_t *t = TSEL;
     const engine_t *e = ENGINES[t->eng_req % NENGINES];
     uint32_t len = trk_len(t), i, sig = 0, c, pages = (len + 15u) / 16u;
@@ -879,6 +1086,8 @@ static void sg_draw(void)
     c = h0 >= 0 ? (uint32_t)h0 : sg_cur();
     if (sg_lpage < NPAGES) {                             /* a lock page: its name, whole (the step band says LOCK) */
         str_cpy(title, sg_lock_title(), 20);
+    } else if (sr_on || (song.rec && sr_here())) {      /* (PHEBUS) the state: STEP REC, or a live take on the GRID */
+        str_cpy(title, sr_on ? "STEP REC" : "LIVE REC", 20);
     } else {
         str_cpy(title, "GRID ", 20);
         fmt_int(title + 5, (int32_t)sg_page() + 1);
@@ -895,6 +1104,8 @@ static void sg_draw(void)
         sig = sig * 31u + t->lock[i].step + t->lock[i].param * 257u + (uint32_t)t->lock[i].val * 65537u;
     sig = sig * 31u + sg_held * 3u + sg_cur() * 977u + len + song.sel * 7919u + pen_note[0] * 13u + pen_n +
           (song.playing ? t->seq_idx + 1u : 0u) * 71u;
+    sig = sig * 31u + sr_on * 5u + sr_down * 11u + sr_n * 13u + sr_nt[0] * 17u + sr_nt[1] * 19u + sr_nt[2] * 23u +
+          sr_nt[3] * 29u;
     if (ui.force || sig != tiles_sig) {
         tiles_sig = sig;
         if (h0 >= 0) {                                   /* a step held: a slim strip, then all it holds */
@@ -902,13 +1113,32 @@ static void sg_draw(void)
             sg_detail_draw(SG_BODY_Y + 36u, SG_KNOB_Y - SG_BODY_Y - 36u, c, 1);
         } else {
             sg_tiles_draw(SG_BODY_Y, 1);
-            sg_detail_draw(SG_BODY_Y + 72u, SG_KNOB_Y - SG_BODY_Y - 72u, c, 0);
+            if (sr_on)
+                sr_detail_draw(SG_BODY_Y + 72u, SG_KNOB_Y - SG_BODY_Y - 72u);
+            else
+                sg_detail_draw(SG_BODY_Y + 72u, SG_KNOB_Y - SG_BODY_Y - 72u, c, 0);
         }
     }
-    if (h0 >= 0 || sg_lpage < NPAGES) {
+    if (sr_on) {                                        /* STEP REC: OCT STEP VEL STEPS */
+        static const char *const LS[4] = {"oct", "step", "vel", "steps"};
+        const char *val[4] = {v[0], v[1], v[2], v[3]};
+        int32_t ratio[4];
+        if (song.octave > 0)
+            v[0][0] = '+', fmt_int(v[0] + 1, song.octave);
+        else
+            fmt_int(v[0], song.octave);
+        fmt_int(v[1], (int32_t)c + 1);
+        fmt_int(v[2], sr_vel);
+        fmt_int(v[3], (int32_t)len);
+        ratio[0] = (song.octave + 3) * 1000 / 6;
+        ratio[1] = (int32_t)c * 1000 / (int32_t)(len > 1u ? len - 1u : 1u);
+        ratio[2] = sr_vel * 1000 / 127;
+        ratio[3] = ((int32_t)len - 1) * 1000 / 63;
+        knob_tint_all(song.sel);
+        op_knobs(LS, val, 0, ratio, 0, 977u, &footer);
+    } else if (h0 >= 0 || sg_lpage < NPAGES) {
         sg_knobs_held(c, &footer);
     } else {
-        static char v[4][12];
         static const char *const LF[4] = {"note", "step", "hit", "vel"};
         const char *val[4] = {v[0], v[1], v[2], v[3]};
         const step_t *st = &t->step[c];

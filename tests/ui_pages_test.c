@@ -1043,6 +1043,107 @@ int main(int argc, char **argv)
         memcpy(trk, keep, sizeof keep); sync_reload = 1;
         song.sel = TRK_DRUM;
     }
+    {   /* PHEBUS (Ben, 21 Nov 2026, picker "Yes, add it"): STEP REC on a synth track's GRID. REC, stopped: the keys play,
+         * a note or a chord lands on the cursor's step and the cursor moves on; SEQ a rest, ARP a tie (or a key held + SEQ);
+         * round at the end; SELECT / KNOB 2 move back; one undo the whole pass; REC again leaves; playing: live */
+        track_t *t = &trk[1];
+        static track_t keep[NTRK];
+        uint32_t ka = key_of_lane(0), kb = key_of_lane(2), kc = key_of_lane(4), na, nb, nc, j, empty = 1;
+        memcpy(keep, trk, sizeof keep);
+        song.sel = 1; go_home(); frames(16);
+        steps_clear(t); t->p[P_SLEN] = 16; t->p[P_CHORD] = 0; song.octave = 0;
+        tap(B_SEQ); frames(2);
+        ui.cursor = 0; frame();                           /* (STEP REC starts at the GRID's cursor) */
+        tap(B_REC); frames(2);
+        check(sr_on && !kb_grid && !song.rec && !rec_wait && on_drum_page() && !strcmp(ui.msg_t ? "" : "x", "x") ,
+              "STEP REC: REC on a synth GRID, stopped: STEP REC on, the keys are notes again, nothing armed");
+        ui.msg_t = 0;
+        na = kb_map(t, ka); nb = kb_map(t, kb); nc = kb_map(t, kc);
+        fm1_in.notes |= 1u << ka; frames(2);
+        check(grid_voice(t, na) && !step_on(&t->step[0]), "STEP REC: a key held sounds; nothing written until it comes up");
+        fm1_in.notes &= ~(1u << ka); frames(2);
+        check(step_on(&t->step[0]) && t->step[0].note[0] == na && t->step[0].n == 1u && t->step[0].vel == 100u && ui.cursor == 1u,
+              "STEP REC: a note let go: written on step 1 (VEL 100), the cursor on step 2");
+        fm1_in.notes |= 1u << kb; frame(); fm1_in.notes |= 1u << kc; frames(2);
+        ui.force = 1; frame(); ppm("grid-step-rec-held");
+        fm1_in.notes &= ~(1u << kb); frames(2);
+        check(!step_on(&t->step[1]) && ui.cursor == 1u, "STEP REC: a chord: one key up, the other held: not written yet");
+        fm1_in.notes &= ~(1u << kc); frames(2);
+        check(step_on(&t->step[1]) && t->step[1].n == 2u && t->step[1].note[0] == nb && t->step[1].note[1] == nc && ui.cursor == 2u,
+              "STEP REC: ... the last key up: the chord (2 notes, polyphonic voice) on step 2, the cursor on 3");
+        t->step[2].time = ST_NOTE; t->step[2].n = 1; t->step[2].note[0] = 70;
+        tap(B_SEQ); frames(2);
+        check(!step_on(&t->step[2]) && t->step[2].time == ST_REST && ui.cursor == 3u && sr_on && on_drum_page(),
+              "STEP REC: SEQ: a rest (step 3's note gone), the cursor on 4; the SEQ pages do not open");
+        tap(B_ARP); frames(2);
+        check(ui.cursor == 3u && !strcmp(ui.msg, "NO NOTE TO TIE") && ui.layer == LY_PLAY, "STEP REC: ARP after a rest: \"NO NOTE TO TIE\", no move, no ROLL layer");
+        ui.msg_t = 0;
+        key(ka); frames(2);
+        tap(B_ARP); frames(2);
+        check(t->step[3].note[0] == na && t->step[4].time == ST_TIE && note_len(t, 3) == 2u && ui.cursor == 5u,
+              "STEP REC: a note then ARP: tied, two steps long, the cursor on 6");
+        fm1_in.notes |= 1u << kb; frames(2);
+        tap(B_SEQ); frames(2);
+        check(t->step[5].note[0] == nb && t->step[6].time == ST_TIE && ui.cursor == 7u, "STEP REC: a key held + SEQ: written, then tied");
+        fm1_in.notes &= ~(1u << kb); frames(2);
+        check(ui.cursor == 7u && !step_on(&t->step[7]), "STEP REC: ... let go: nothing more written");
+        press(B_OCTUP); release(B_OCTUP);
+        check(song.octave == 1, "STEP REC: OCT+: the octave, as on HOME");
+        key(ka); frames(2);
+        check(t->step[7].note[0] == na + 12u && ui.cursor == 8u, "STEP REC: ... the note an octave up on step 8");
+        press(B_OCTDN); release(B_OCTDN);
+        encs[panel.enc[EN_K2]] = 20; frame();
+        check(ui.cursor == 15u, "STEP REC: KNOB 2: the cursor (to the last step, no further)");
+        key(kc); frames(2);
+        check(t->step[15].note[0] == nc && ui.cursor == 0u, "STEP REC: a note on the last step: the cursor round to step 1");
+        t->p[P_SLEN] = 32; ui.cursor = 15; frame();
+        key(kb); frames(2);
+        check(t->step[15].note[0] == nb && ui.cursor == 16u && sg_page() == 1u, "STEP REC: 32 steps: on from 16 onto page 2");
+        ui.force = 1; frame(); ppm("grid-step-rec-p2");
+        encs[panel.enc[EN_SELECT]] = -1; frame();
+        check(ui.cursor == 15u && sg_page() == 0u, "STEP REC: SELECT left: the cursor back a step (page 1)");
+        encs[panel.enc[EN_K2]] = -15; frame();
+        check(ui.cursor == 0u, "STEP REC: KNOB 2 left: back to step 1 to fix it");
+        key(kc); frames(2);
+        check(t->step[0].note[0] == nc && t->step[0].n == 1u && ui.cursor == 1u, "STEP REC: ... the step replaced");
+        encs[panel.enc[EN_K3]] = -20; frame();
+        check(sr_vel == 80u, "STEP REC: KNOB 3: the velocity written (80)");
+        encs[panel.enc[EN_K4]] = -16; frame();
+        check(t->p[P_SLEN] == 16, "STEP REC: KNOB 4: STEPS (32 -> 16)");
+        sr_vel = 100;
+        ui.force = 1; frame(); ppm("grid-step-rec");
+        press(B_EDIT); press(B_OCTDN); release(B_OCTDN); release(B_EDIT); frames(2);
+        for (j = 0; j < 32u; j++) empty &= !step_on(&t->step[j]) && t->step[j].time != ST_TIE;
+        check(empty && t->p[P_SLEN] == 16 && !strcmp(ui.msg, "UNDO"), "STEP REC: EDIT + OCT-: the whole pass undone (the empty 16 steps it started from)");
+        press(B_EDIT); press(B_OCTUP); release(B_OCTUP); release(B_EDIT); frames(2);
+        check(t->step[0].note[0] == nc && t->step[5].note[0] == nb, "STEP REC: EDIT + OCT+: redone");
+        ui.msg_t = 0;
+        tap(B_REC); frames(2);
+        check(!sr_on && kb_grid && !song.rec && !rec_wait, "STEP REC: REC again: off, the keys are steps again");
+        key(ka); frames(2);
+        check(!step_on(&t->step[1]) || t->step[1].n == 2u, "STEP REC: ... a key is a step again (step 2 untouched by a note)");
+        transport_req = 1; frames(4);
+        tap(B_REC); frames(2);
+        check(song.rec && !sr_on && !kb_grid && !strcmp("LIVE REC", "LIVE REC"), "STEP REC: playing, REC: a live take as before (the keys play notes on the GRID)");
+        fm1_in.notes |= 1u << ka; frames(6); fm1_in.notes &= ~(1u << ka); frames(2);
+        ui.force = 1; frame(); ppm("grid-live-rec");
+        tap(B_REC); frames(2);
+        check(!song.rec && !sr_on && kb_grid, "STEP REC: playing, REC again: the take ends, the keys are steps");
+        transport_req = 2; frames(4);
+        tap(B_REC); frames(2);
+        transport_req = 1; frames(8);
+        check(sr_on && song.playing && !song.rec, "STEP REC: PLAY while in STEP REC: it plays, STEP REC stays");
+        transport_req = 2; frames(4);
+        go_home(); frames(2);
+        check(!sr_on && !ly_off, "STEP REC: the GRID left: STEP REC ends");
+        tap(B_SEQ); frames(2);
+        press(B_REC); frames(50);
+        check(!sr_on && ui.hold_kind == 1u, "STEP REC: REC held: the clear ring, STEP REC undone");
+        release(B_REC); frames(2);
+        song.octave = 0; go_home(); frames(4);
+        memcpy(trk, keep, sizeof keep); sync_reload = 1;
+        song.sel = TRK_DRUM;
+    }
     {   /* REVIEW 13: the STRIKE pose on the sequencer's ACC steps: UNISON (velocity scaled under the threshold) and a
          * legato ACC + SLIDE (no new voice) too */
         track_t *t = &trk[0];

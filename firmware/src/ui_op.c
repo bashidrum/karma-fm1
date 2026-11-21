@@ -31,7 +31,8 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
     char b[12];
     uint32_t beat = clk_beat, k, playing = song.playing;
     uint32_t sig = studio_hash((uint32_t)song.g[G_BPM] * 7u + playing * 3u + (song.rec != 0) * 1999u +
-                               (playing ? beat * 131u : 0u) + (ui.bpm_t != 0) * 104729u + (uint32_t)batt_shown() * 7777u + proj_unsaved * 31337u, title);
+                               (playing ? beat * 131u : 0u) + (ui.bpm_t != 0) * 104729u + (uint32_t)batt_shown() * 7777u + proj_unsaved * 31337u +
+                               sr_on * 3331u, title);
     sig = studio_hash(sig * 31u + tc, tag);
     if (!ui.force && sig == *cache)
         return;
@@ -59,7 +60,7 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
     }
     for (k = 0; k < 4u; k++)                           /* the four beats of the bar */
         cv_rect(172 + (int32_t)k * 8, 7, 6, 6, playing && beat % 4u == k ? (k || !song.rec ? C_WHITE : TE_RED) : TE_G2);   /* (red: recording only) */
-    if (song.rec)
+    if (song.rec || sr_on)                              /* (recording, or STEP REC: ui_grid.c) */
         te_disc(209, 10, 4, TE_RED);
     else if (proj_unsaved)                             /* (saved again at the next stop: project.c autosave_tick) */
         te_disc(209, 10, 2, C_WHITE);

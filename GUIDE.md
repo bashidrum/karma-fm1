@@ -232,6 +232,36 @@ On a synth voice, **tap SEQ on the GRID** to open the SEQ pages, starting with P
 
 The generators (ACID GEN, GEN, HARMONY) write a part into the pattern. EDIT + OCT- undoes what they wrote. PLAY settings belong to the FM-1, not to a project. These pages were carried over from KARMA and not re-tested in this pass: see [Checks still to do](#checks-still-to-do).
 
+### Step record (STEP REC)
+
+To write a melody or a chord part note by note, use STEP REC on a synth voice's GRID.
+
+1. Open the voice's GRID (**SEQ**) with the song **stopped**. The white frame is the cursor: STEP REC starts there (turn **KNOB 2** first to start somewhere else).
+2. Tap **REC**. The title reads **STEP REC**, a red dot shows in the header, and the cursor turns into a **red frame**: the step the next note goes on.
+3. Play the keys. They are notes again and you hear them. When you let go, the note goes onto the red step (replacing whatever was there) and the cursor moves on one step.
+4. For a **chord**, hold the keys down together: the chord is written when the last key comes up. A chord is kept whole only on a polyphonic voice (on a mono voice the first note is written).
+5. Tap **REC** again to finish. The keys are steps again.
+
+| While in STEP REC | Does |
+| --- | --- |
+| **SEQ** (the button beside PLAY) | a **rest**: the step is emptied and the cursor moves on |
+| **ARP** | a **tie**: the note before is made one step longer and the cursor moves on. "NO NOTE TO TIE" after a rest |
+| hold a key + **SEQ** | the held note is written and tied (press SEQ again for a longer note) |
+| **OCT-** / **OCT+** | the octave of the keys, as on HOME (both together: 0) |
+| **SELECT** or **KNOB 2** STEP | move the cursor, for example back to fix a step |
+| **KNOB 1** OCT | the octave |
+| **KNOB 3** VEL | the velocity of the notes written (100 to start) |
+| **KNOB 4** STEPS | the pattern length, 1 to 64 |
+| **PRESETS** | the sound |
+| **EDIT + OCT-** | undo the **whole STEP REC pass** (everything since REC was tapped) |
+
+- At the end of the pattern the cursor goes back to step 1. On a longer pattern it moves on through the later pages, and the view follows it. To make room for more pages, turn KNOB 4 first.
+- The screen shows the next step ("NEXT: STEP 5"), the notes held, and SEQ REST, ARP TIE, REC DONE.
+- A MIDI keyboard on the voice's channel writes notes the same way.
+- STEP REC ends by itself if you leave the GRID or change voice. **PLAY** works during STEP REC: the pattern plays while you write.
+- **With the song playing, REC on the GRID records live** (as everywhere): the title reads **LIVE REC**, the keys play notes and what you play is recorded into the pattern. Tap REC again to stop recording.
+- STEP REC is for the synth voices. On the drum GRID and the STUTTER lane, REC works as before.
+
 ### Undo and redo
 
 **EDIT + OCT-** undoes and **EDIT + OCT+** redoes. A full undo restores note, length, locks, nudge and condition. Everything you change by knob during one EDIT hold counts as one undo. See [section 11](#11-recording-live-erasing-and-clearing).
@@ -539,8 +569,8 @@ Each of ERASE, LOAD and SAVE needs a second click within about 1.5 seconds ("AGA
 
 | You do | Result |
 | --- | --- |
-| **Tap REC while playing** | recording starts at once |
-| **Tap REC while stopped** | arms it ("REC READY"). Recording starts when you play |
+| **Tap REC while playing** | recording starts at once (on a synth voice's GRID too: the keys play notes there while recording; the title reads LIVE REC) |
+| **Tap REC while stopped** | arms it ("REC READY"). Recording starts when you play. **On a synth voice's GRID it starts STEP REC instead** (see [Step record](#step-record-step-rec)) |
 | **Tap REC again** | cancels ("REC OFF") |
 | **Tap REC on an empty project** | a **free take**: it records without a tempo, and REC closes it |
 | **Hold REC** (about 0.7 s, then the ring fills over about 1.3 s more) | **clears the selected voice** ("TRACK 1 CLEARED"). Let go before the ring is full and nothing happens. EDIT + OCT- brings it back |
@@ -757,7 +787,7 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 | Gesture | Does |
 | --- | --- |
 | tap PLAY | start or stop |
-| tap REC | record, arm, or close a free take |
+| tap REC | record, arm, or close a free take (stopped, on a synth voice's GRID: STEP REC) |
 | hold REC about 2 s | clear the selected voice |
 | tap HOME | HOME screen (on the HOME screen: a screensaver) |
 | hold HOME 0.7 s | the menu |
@@ -812,6 +842,13 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 | ALGORITHM | change voice and stay on the GRID (past DRUM: STUTTER) |
 | tap SEQ | the SEQ pages |
 | tap SAVE | the SONG screen |
+| tap REC, stopped | STEP REC on or off |
+| tap REC, playing | record live (the keys play notes) |
+| STEP REC: keys | a note, or a chord (keys held together), on the red step; the cursor moves on |
+| STEP REC: SEQ, ARP | rest, tie (a key held + SEQ: tie) |
+| STEP REC: OCT- or OCT+ | the octave |
+| STEP REC: SELECT, KNOB 1 to 4 | the cursor; OCT, STEP, VEL, STEPS |
+| STEP REC: EDIT + OCT- | undo the whole pass |
 
 ### GRID (drum voice)
 

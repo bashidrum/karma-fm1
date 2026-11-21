@@ -464,6 +464,8 @@ static void midi_entry(void)                              /* (top of ui_input: e
     while (step_in_r != step_in_w) {
         uint32_t ev = step_in_q[step_in_r % STEP_IN_Q], tr = (ev >> 8) % NTRK;
         step_in_r++;
+        if (sr_on && tr == song.sel)                      /* (PHEBUS) STEP REC: the note goes on the GRID (ui_grid.c) */
+            sr_event(ev & 127u, (ev >> 7) & 1u);
         if (!(ev & 0x80u))
             continue;
         if (rh_st == 1u && tr != rec_trk) {               /* (2.6, a YouTube comment) the keyboard plays another track
@@ -610,7 +612,7 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         }
     }
     for (l = LY_FX; l < LY_COUNT; l++) {
-        uint32_t d = (fm1_in.buttons & ly_bit[l]) != 0u;
+        uint32_t d = (fm1_in.buttons & ly_bit[l] & ~ly_off) != 0u;   /* (STEP REC: SEQ and ARP are no layers) */
         if (d && !down[l]) {
             t0[l] = now;
             shown &= (uint8_t)~(1u << l);
@@ -746,7 +748,7 @@ static void rec_knobs(void)
  * (SAVE is the SONG layer: ui_layers.c; tapped, layer_tap) */
 static void holds_input(uint32_t pressed, uint32_t now_ms)
 {
-    static uint8_t prev_rec, prev_wait, eaten, rec_on, save_on;   /* *_on: pressed, *_t0 its time */
+    static uint8_t prev_rec, prev_wait, prev_sr, eaten, rec_on, save_on;   /* *_on: pressed, *_t0 its time */
     static uint32_t rec_t0, save_t0;
     uint32_t rb = 1u << panel.btn[B_REC], sb = 1u << panel.btn[B_SAVE];
     uint32_t rec_down = (fm1_in.buttons & rb) != 0u, save_down = (fm1_in.buttons & sb) != 0u;
@@ -757,13 +759,21 @@ static void holds_input(uint32_t pressed, uint32_t now_ms)
         eaten = (uint8_t)ft_owns_press();                 /* (the press closed a free take: seq.c) */
         prev_rec = song.rec;
         prev_wait = rec_wait;
+        prev_sr = sr_on;
         rec_t0 = now_ms;
         rec_on = 1;
-        rec_toggle();
+        if (sr_on)                                        /* (PHEBUS) a synth track's GRID: STEP REC ends; */
+            sr_set(0);
+        else if (sr_here() && !song.playing && !song.rec && !rec_wait && !ft_on && !eaten)
+            sr_set(1);                                    /* stopped, it starts (playing: live, as ever) */
+        else
+            rec_toggle();
     }
     if (rec_down && rec_on && !eaten && !ui.hold_kind && now_ms - rec_t0 >= 700u) {
         song.rec = prev_rec;                              /* a hold: the press is undone */
         rec_wait = prev_wait;
+        if (sr_on != prev_sr)
+            sr_set(prev_sr);
         ui.msg_t = 0;
         ui.hold_kind = 1;
         ui.hold_t0 = now_ms;
@@ -821,8 +831,11 @@ static void ui_input(void)
             song.seq_mode = 0;
         }
     }
-    kb_grid = (uint8_t)(grid_keys_on() || (on_song_page() && !song_bank && !ui.menu));   /* (seq.c: the keys are the
-                                                         * grid's steps; the SONG screen's entries, PHEBUS: no notes) */
+    if (sr_on && (!sr_here() || song.sel != sr_trk || ui.menu))
+        sr_set(0);                                      /* (STEP REC: the GRID or its track left) */
+    kb_grid = (uint8_t)((grid_keys_on() && !sr_on && !(song.rec && sr_here())) ||   /* (seq.c: the keys are the grid's
+                                                         * steps; STEP REC and a live take on a synth GRID: notes) */
+                        (on_song_page() && !song_bank && !ui.menu));   /* (the SONG screen's entries, PHEBUS: no notes) */
     if (sg_held && (!kb_grid || song.sel != sg_trk))
         sg_drop();                                      /* (the GRID left with steps held: their keys clear nothing) */
     if (ui.menu) {                                      /* HOME / REC taps do nothing here */
@@ -838,8 +851,8 @@ static void ui_input(void)
             home = BT_NONE;
         home_eat = 0;
     }
-    pressed &= ~(ly_bit[LY_FX] | ly_bit[LY_ERASE] | ly_bit[LY_ROLL] | ly_bit[LY_STEP] | ly_bit[LY_SCALE] | ly_bit[LY_MIX] |
-                 ly_bit[LY_SONG]);
+    pressed &= ~((ly_bit[LY_FX] | ly_bit[LY_ERASE] | ly_bit[LY_ROLL] | ly_bit[LY_STEP] | ly_bit[LY_SCALE] | ly_bit[LY_MIX] |
+                  ly_bit[LY_SONG]) & ~ly_off);           /* (STEP REC: SEQ and ARP reach the GRID, ui_grid.c sr_input) */
     holds_input(pressed, fm1_ms);
     pressed &= ~((on_song_page() ? 0u : 1u << panel.btn[B_REC]) | (1u << panel.btn[B_SAVE]));
     if (layered || ui.hold_kind) {                      /* a layer / a hold: the rest waits */

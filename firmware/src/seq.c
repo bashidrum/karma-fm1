@@ -150,7 +150,12 @@ static volatile uint8_t ly_lock = LY_PLAY;
 /* SEQ > GEN shown (the UI sets it every frame): a note played on the selected synth track (its keys, MIDI) is
  * gen_seed (note + 1), and the UI rolls a new loop starting on it (ui_studio.c gen_ui_sync) */
 static volatile uint8_t gen_keys, gen_seed;
-static uint32_t layer_buttons(void) { return fm1_in.buttons | (ly_lock != LY_PLAY ? ly_bit[ly_lock % LY_COUNT] : 0u); }
+/* (PHEBUS, Ben 21 Nov 2026: step-record, "press REC in the GRID, play notes or chords on the keys, each lands on the next
+ * step") STEP REC on a synth track's GRID (ui_grid.c sr_*): the keys play again and every note they play (and MIDI's) goes
+ * to the UI through step_in_q; ly_off: the layer buttons that are not layers meanwhile (SEQ: rest, ARP: tie) */
+static volatile uint8_t sr_on;
+static volatile uint32_t ly_off;
+static uint32_t layer_buttons(void) { return (fm1_in.buttons & ~ly_off) | (ly_lock != LY_PLAY ? ly_bit[ly_lock % LY_COUNT] : 0u); }
 /* the layer the keys are in: the held function button (FX, EDIT, ARP, SEQ, SEL, GLO in that order),
  * else the locked one */
 static uint32_t layer_now(void)
@@ -1614,6 +1619,8 @@ static void key_down(uint32_t k)
             input_on(t, kb_nt[k][i], 100);
             in_chord = 0;
             midi_out_note(mc, (uint32_t)kb_nt[k][i], 100u);
+            if (sr_on)                              /* (STEP REC: the UI writes it, ui_grid.c sr_event) */
+                step_in_push(kb_nt[k][i] | 0x80u | sel << 8);
         }
         in_key = 0;
         /* the pen of the SEQ layer: the keys down now (a chord), else this note */
@@ -1659,6 +1666,8 @@ static void key_up(uint32_t k)
         for (i = 0; i < kb_n[k]; i++) {
             input_off(t, kb_nt[k][i]);
             midi_out_note(mc, (uint32_t)kb_nt[k][i], 0);
+            if (sr_on)
+                step_in_push(kb_nt[k][i] | (uint32_t)kb_trk[k] << 8);
         }
         return;
     case KS_DRUM:
