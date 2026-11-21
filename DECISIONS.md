@@ -97,3 +97,23 @@ Screensavers
 - FLOW changes kind every 15 s or so with a wipe; kicks tear rows and ripple the sun.
 - Drawn every other frame in 2x2 blocks. Host cost against the old average: FLOW 1.5 to 1.8 times, EYES 2.7, DESERT 2.4, THIRD EYE 3.5. Device speed unknown.
 Device build after this wave: image 553,176 B (64 B smaller), working-memory pool 5.5 KB freer.
+
+## Review build, second wave (21 Nov): calls made that Ben did not specify
+Stutter lane
+- Reached with ALGORITHM past DRUM on the GRID. Knob 1 length for new steps, knob 2 lane on/off, knob 4 lane length.
+- A lit run repeats the span played just before it (capturing from the step onward sounded identical to the dry mix for short runs). Lit steps in a row with the same length are one continuous loop.
+- Lane steps are straight sixteenths and ignore swing. The shown page does not follow the playhead.
+- Inherited from the punch engine: the stutter is mono and low resolution; below about 84 BPM a quarter-note loop is cut to 0.72 s.
+- Stored in unused drum-track bytes, so the save format is unchanged; stock KARMA loads the project but drops the lane if it re-saves.
+Effects off
+- Sends zeroed on all three tracks at power-on and NEW. The delay's return level stays at 90 (silent with sends at zero).
+Visual pass
+- Layer screens (hold a button) keep small knob values: there is no room for the bold face under their dials. OPEN for Ben if he minds.
+- PUNCH key names were shortened to fit even tiles: STUTR, REVRS, WOW (for wobble), LP 4/8/16/32, RWND, FLNG, FRZ, -LOW/-MID/-HI.
+- Knob labels widened to six letters: VOICE, GLIDE, GLMODE, PRIOR, INSERT, SWING, PHASE, DIST, CHORUS, DELAY, REVERB, FEEDBK, COLOR, PSLOPE, CHROM, ENVMOD, DECAY, DRIVE. TRANSP and NEW LOOP kept.
+- Drum sounds: KICK 2, OP HAT, SNARE2, LO TOM, HI TOM, SHAKER, C-BELL.
+- A muted badge follows the track's own mute, not "silent because another is soloed".
+- GLO > DRUMS is treated as the drum track's page (coral), not a shared page.
+- Robot head sits 2 px lower with a shorter antenna; crocodile snout 2 px shorter; poses nudged inside their frames.
+- The strip is the same height as the old bar; freeing rows would have meant moving every screen.
+Device build after this wave: image 557,192 B, about 24 KB left.
