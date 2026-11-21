@@ -308,10 +308,8 @@ static void project_new(void)
         if (i < NPART)
             sound_change(t);                            /* (2.6: what sounds fades out with its own sound) */
         track_defaults(t);
-        if (i < NPART) {
-            set_engine_of(t, TRK_DEF[i][0]);
-            apply_preset_to(t, TRK_DEF[i][1]);
-        }
+        if (i < NPART)
+            trk_def_sound(t, i);                        /* (dry: ui.c) */
         fm1_irq_on();
     }
     TDRUM->p[P_E0] = DRUM_DEFAULT_KIT;

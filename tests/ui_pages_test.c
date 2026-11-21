@@ -168,8 +168,20 @@ int main(int argc, char **argv)
     settings.palette = 4;
     palette_set(4);
     host_tracks_init();
-    for (i = 0; i < NPART; i++) { set_engine_of(&trk[i], TRK_DEF[i][0]); apply_preset_to(&trk[i], TRK_DEF[i][1]); trk[i].engine = trk[i].eng_req; }
+    for (i = 0; i < NPART; i++) { trk_def_sound(&trk[i], i); trk[i].engine = trk[i].eng_req; }   /* (as main.c felucca_init) */
     TDRUM->p[P_E0] = DRUM_DEFAULT_KIT;
+    {   /* PHEBUS (21 Nov, Ben: "I don't like having fx on by default"): power-on is dry */
+        uint32_t ok = 1, l;
+        for (i = 0; i < NPART; i++)
+            ok &= !trk[i].p[P_DIST] && !trk[i].p[P_CHOR] && !trk[i].p[P_DLY] && !trk[i].p[P_REV] && !trk[i].p[P_ITYPE] &&
+                  !trk[i].p[P_SSWING] && !cloud_send[i];
+        for (l = 0; l < DRUM_LANES; l++)
+            ok &= !drum_send[l][0] && !drum_send[l][1] && !drum_cloud[l];
+        ok &= !TDRUM->p[P_DIST] && !TDRUM->p[P_DLY] && !TDRUM->p[P_REV] && !TDRUM->p[P_ITYPE] && !song.g[G_DRREV] &&
+              !song.g[G_DRDLY] && !song.g[G_CLSEND] && !song.g[G_CLFRZ] && !song.g[G_SWING] && !song.g[G_DUST] &&
+              !song.g[G_DUCK] && !song.g[G_FILT] && !song.g[G_TXSRC];
+        check(ok, "power-on: every send 0 (tracks, drum sounds, CLOUD), no DIST / INSERT, no swing, master FX off");
+    }
     sloop_splash(); ppm("page-splash");
     { static const uint32_t SEED[6] = {0u, 0x1231u, 0x2462u, 0x7733u, 0x51A4u, 0x9C55u}; uint32_t k;   /* the boot: FLOW, PHEBUS black in it */
       for (k = 0; k < 6u; k++) { char nm[16]; snprintf(nm, sizeof nm, "boot-%u", (unsigned)k); flow_seed = SEED[k]; boot_frame(60u + k * 9u); ppm(nm); } }
@@ -1887,6 +1899,21 @@ int main(int argc, char **argv)
         tap(B_LFO); frames(1); encs[panel.enc[EN_ALGO]] = 1; frames(2);
         check(song.sel == TRK_DRUM && on_chain() && fam_stage(cur_page()->fam) == 3, "chain: on MOD, to the drums: their FX (the stage before)");
         track_select(0); host_preset(&trk[0], ENGI_ACID, 0); go_home(); frames(2);
+    }
+    {   /* PHEBUS (21 Nov 2026): TOOLS > NEW: every send and effect off */
+        uint32_t ok = 1, l;
+        for (i = 0; i < NPART; i++) trk[i].p[P_REV] = 50, trk[i].p[P_DLY] = 40, trk[i].p[P_DIST] = 20, cloud_send[i] = 9;
+        drum_send[3][0] = 2; song.g[G_SWING] = 30; song.g[G_DRREV] = 20;
+        project_new(); frames(4);
+        for (i = 0; i < NPART; i++)
+            ok &= !trk[i].p[P_DIST] && !trk[i].p[P_CHOR] && !trk[i].p[P_DLY] && !trk[i].p[P_REV] && !trk[i].p[P_ITYPE] &&
+                  !trk[i].p[P_SSWING] && !cloud_send[i] && trk[i].eng_req == TRK_DEF[i][0] && trk[i].preset == TRK_DEF[i][1];
+        for (l = 0; l < DRUM_LANES; l++)
+            ok &= !drum_send[l][0] && !drum_send[l][1] && !drum_cloud[l];
+        ok &= !TDRUM->p[P_DIST] && !TDRUM->p[P_DLY] && !TDRUM->p[P_REV] && !TDRUM->p[P_ITYPE] && !song.g[G_DRREV] &&
+              !song.g[G_DRDLY] && !song.g[G_CLSEND] && !song.g[G_CLFRZ] && !song.g[G_SWING] && !song.g[G_DUST] &&
+              !song.g[G_DUCK] && !song.g[G_FILT] && !song.g[G_TXSRC];
+        check(ok, "TOOLS > NEW: the default sounds dry, every send 0, no swing, master FX off");
     }
     printf("ui: %s\n", fails ? "FAILED" : "pages, layers (punch, steps, erase, roll, key, mix), layer lock, song layer, REC hold, drums, REC, 20000-frame fuzz PASS");
     return fails;
