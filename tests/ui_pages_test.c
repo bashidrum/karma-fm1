@@ -772,6 +772,39 @@ int main(int argc, char **argv)
               "ENG-9: lock table one short for two steps held: neither locked, \"LOCKS FULL\" shown");
         fm1_in.notes = 0; frames(2);
         go_home(); frames(4);
+        /* REVIEW 7, full undo: a step with a note, length, locks, nudge and condition cleared by a tap; EDIT shows
+         * "oct- undo"; EDIT + OCT- brings all of it back, EDIT + OCT+ clears it again */
+        {
+            step_t st0;
+            int8_t m0;
+            uint32_t f0, nl0, nl = 0;
+            steps_clear(t); for (j = 0; j < NLOCK; j++) t->lock[j].step = LOCK_FREE;
+            tap(B_SEQ); frames(2);
+            fm1_in.notes |= 1u << k5; frame();
+            encs[panel.enc[EN_K1]] = 2; frame(); encs[panel.enc[EN_K2]] = 1; frame();
+            press(B_OCTUP); release(B_OCTUP);
+            encs[panel.enc[EN_SELECT]] = 1; frame(); encs[panel.enc[EN_K3]] = 5; frame(); encs[panel.enc[EN_SELECT]] = -1; frame();
+            tap(B_ENV); frame(); encs[panel.enc[EN_K1]] = 4; frame(); encs[panel.enc[EN_K2]] = 4; frame();
+            fm1_in.notes &= ~(1u << k5); frames(2); ui.msg_t = 0;
+            st0 = t->step[4]; m0 = t->micro[4]; f0 = step_fill(t, 4);
+            for (j = 0, nl0 = 0; j < NLOCK; j++) nl0 += t->lock[j].step == 4u;
+            check(step_on(&st0) && note_len(t, 4) == 2u && m0 == 5 && f0 == FC_FILL && nl0 == 2u, "undo: set up: note, LEN 2, NUDGE 5, FILL, 2 locks");
+            key(k5);
+            check(!step_on(&t->step[4]) && !t->micro[4] && !step_fill(t, 4) && !step_locked(t, 4), "undo: the step tapped: cleared, all of it");
+            press(B_EDIT); frames((SHOW_MS + 40u) / 16u); ui.force = 1; frame();
+            check(!strcmp(sub_line(), "oct- undo"), "undo: EDIT held: the screen says \"oct- undo\"");
+            ppm("layer-erase-undo");
+            edges_btn |= BT(B_OCTDN); fm1_in.buttons |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
+            ui.force = 1; frame();
+            for (j = 0; j < NLOCK; j++) nl += t->lock[j].step == 4u;
+            check(!memcmp(&t->step[4], &st0, sizeof st0) && note_len(t, 4) == 2u && t->micro[4] == m0 && step_fill(t, 4) == f0 && nl == nl0,
+                  "undo: EDIT + OCT-: the whole step back (note, LEN, locks, nudge, condition)");
+            check(!strcmp(sub_line(), "oct+ redo"), "undo: then the screen says \"oct+ redo\"");
+            edges_btn |= BT(B_OCTUP); fm1_in.buttons |= BT(B_OCTUP); frame(); fm1_in.buttons &= ~BT(B_OCTUP); frame();
+            check(!step_on(&t->step[4]) && !step_locked(t, 4) && !step_fill(t, 4), "undo: EDIT + OCT+: redo, cleared again");
+            release(B_EDIT); frames(20);                   /* (past LY_QUIET_MS) */
+            go_home(); frames(4);
+        }
         memcpy(trk, keep, sizeof keep); sync_reload = 1;
         song.sel = TRK_DRUM;
     }

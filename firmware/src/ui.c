@@ -253,8 +253,21 @@ static int undo_swap(int redo)
         uint32_t i;
         for (i = 0; i < NSTEP; i++) {
             step_t x = t->step[i];
+            int8_t m = t->micro[i];
             t->step[i] = undo.st[i];
             undo.st[i] = x;
+            t->micro[i] = undo.micro[i];
+            undo.micro[i] = m;
+        }
+        for (i = 0; i < NLOCK; i++) {                   /* (the locks in force follow at the next step: seq.c lock_step) */
+            plock_t l = t->lock[i];
+            t->lock[i] = undo.lock[i];
+            undo.lock[i] = l;
+        }
+        for (i = 0; i < NSTEP / 4u; i++) {
+            uint8_t f = t->fill[i];
+            t->fill[i] = undo.fill[i];
+            undo.fill[i] = f;
         }
     }
     len = t->p[P_SLEN];

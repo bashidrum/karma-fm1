@@ -445,12 +445,16 @@ static uint32_t trk_len(const track_t *t) { return t->p[P_SLEN] > 0 ? (uint32_t)
 
 /* ------------------------------------------------------------- undo --- */
 /* One step back (and forward again) for the pattern of one track: what it was before the last
- * recording pass, erase, step edit, tool or clear (a session: one mark). EDIT + OCT- / OCT+. */
+ * recording pass, erase, step edit, tool or clear (a session: one mark). EDIT + OCT- / OCT+. The whole of
+ * every step: its notes and length, and its locks, nudge and condition (REVIEW.md 7, 21 Nov 2026) */
 static struct {
     uint8_t valid, undone, trk;
     int16_t len;
     uint32_t sess;
     step_t st[NSTEP];
+    int8_t micro[NSTEP];
+    plock_t lock[NLOCK];
+    uint8_t fill[NSTEP / 4];
 } undo;
 static uint32_t undo_sess = 1;           /* UI sessions (seq.c: recording passes use the track's pass) */
 static void undo_mark(const track_t *t, uint32_t sess)
@@ -459,6 +463,9 @@ static void undo_mark(const track_t *t, uint32_t sess)
     if (undo.valid && !undo.undone && undo.trk == i && undo.sess == sess)
         return;                                          /* (this session is marked already) */
     memcpy(undo.st, t->step, sizeof undo.st);
+    memcpy(undo.micro, t->micro, sizeof undo.micro);
+    memcpy(undo.lock, t->lock, sizeof undo.lock);
+    memcpy(undo.fill, t->fill, sizeof undo.fill);
     undo.len = t->p[P_SLEN];
     undo.trk = (uint8_t)i;
     undo.sess = sess;
