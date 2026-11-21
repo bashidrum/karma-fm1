@@ -88,3 +88,12 @@ Characters, first draft feedback (Ben, 20 Nov, 23:08): "Let's go more classic on
 
 ## The dream (Ben, 20 Nov 2026, 23:39)
 "Go deep and maybe do some research first on the best groove box UI's and what most people complain about when using them. And how we can make ours the best one ever. I love the flow on the minifreak. If it could do drums, sequencing, patterns, song mode. It would be the dream"
+
+## Boot wordmark and backdrop, further (Ben, 20 Nov 2026, 22:45 to 23:00; added 21 Nov, missing until the review caught it)
+- "Can you make the word mark - I like the font. Can you use a screensaver visual as the background, a different one every time ofc.. and then use the PHEBUS work mark but the phebus is all black so it appears as the negative space in the trippy background visual?"
+- "Phebus should be heavier to stand up against the noise. Make it bold"
+- (of one boot picture) "This is also the limit for how busy these should get." (of a denser one) "This feels too dense"
+- "We don't need that light band of translucent white that runs horizontally behind the Phebus text."
+- "You're right. The title font should fill the square. PHE / BUS"
+- Characters: "I like them."
+This supersedes "Just do it in plain white" for the boot screen.
