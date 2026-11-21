@@ -135,3 +135,15 @@ Stutter lane
 Sound pages
 - The old FX "spells" scene was removed (unreachable). ELEMENTS and some PLAITS oscillator pictures are schematics, not exact waveforms.
 Device build: image 558,264 B of 581,564, about 23 KB left.
+
+## Rebuild wave 1, the cuts (21 Nov): calls made that Ben did not specify
+- A to D stay as four patterns; tapping SAVE now opens PRESETS everywhere. The SAVE layer's old song keys (13, 14, 16) do nothing and show as empty tiles. HOME's header title is empty.
+- The CHNC step condition is a fixed 50% until trigs get their own probability.
+- Stutter ring: 16-bit linear with 12 dB of headroom kept. Quality measured on a loud mix: 35 dB before, 66 dB after; on a quiet mix: -5 dB before, 21 dB after. Timing unchanged. OPEN: 6 dB of headroom would be about 6 dB cleaner but clips very loud mixes.
+- The slicer effect is untouched (the deleted file was the old sample-slicing engine).
+- Web editor page is now a small backup page (connect, save, restore). It also fixes a fault in the original: it refused to restore its own newer backups. The firmware keeps the read-only diagnostic figures the developer scripts use.
+- SELECT on the drum GRID now does nothing. OPEN: or open the KIT page.
+- Characters: also removed, because they used the big sprites: the figure beside the GLO/TOOLS menu pages and the hopping figure on the ARP page. Scene backgrounds (wave, speakers, spotlight) are kept without their figure. OPEN: keep or cut.
+- Deleted unused sample data and tools from the repository (about 6 MB).
+- The flash layout still reserves the old slots for songs and sample kits; they go when the new save format lands.
+- A fault the subagent caused and fixed: cutting CLOUD briefly removed the CLICK and CLRSQ settings; restored, with a new test that every setting shown has a label.
