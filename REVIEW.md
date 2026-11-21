@@ -32,7 +32,7 @@
 | 21 | Words | Fix all |
 | 22 | Docs and site | Rewrite guide and cheat sheet, remove the analytics counter. Power-on kit: 606 |
 
-Status, 21 Nov midday: built, merged and live in the simulator: 1 to 7, 11 to 16, 18 to 21, the 606 kit, the analytics removal, plus (asked for on 21 Nov) effects off by default and the stutter sequencer. Being built now: 8 (sound pages draw the sound), 9 (page names in the strip), 10 (song insert and delete by holding an entry's key), held SEQ without step keys, plain sawtooth starts with JUNO on track 2. Then: the guide and cheat sheet. 17 skipped at Ben's choice.
+Status, 21 Nov afternoon: every decision is built, merged and live in the simulator, plus (asked for on 21 Nov) effects off by default, the stutter sequencer and plain sawtooth starts. 17 skipped at Ben's choice. Left: the guide and cheat sheet rewrite (in progress). Nothing has run on a real FM-1.
 
 ---
 

@@ -117,3 +117,21 @@ Visual pass
 - Robot head sits 2 px lower with a shorter antenna; crocodile snout 2 px shorter; poses nudged inside their frames.
 - The strip is the same height as the old bar; freeing rows would have meant moving every screen.
 Device build after this wave: image 557,192 B, about 24 KB left.
+
+## Review build, last wave (21 Nov): calls made that Ben did not specify
+Plain starts
+- Track 1 JUNO INIT, mono (legato), keys an octave down. Track 2 JUNO INIT, polyphonic; track 2 may now run JUNO as well as ELEMENTS. Track 3 PLAITS INIT, mono.
+- INIT sits at the end of the JUNO and PLAITS preset lists (listed first in the browser under "INIT"). Not added to ACID or ELEMENTS.
+- The PLAITS lead is about 6 dB quieter than the JUNO saws.
+- Host processor cost of the new defaults with a six-note chord: 2476 against 2066 for the old defaults (a heavier mix already in the test suite is 2873). The second core's load is 1321 against 811. Unverified on the device.
+Held SEQ
+- Keys do nothing while SEQ is held. Knob 1 (pen note) went with the step keys. The screen draws the pattern in time, with swing shown.
+Strip
+- The page name sits inside the lit stage box, with "2/3" where the dots were.
+Song
+- All keys are silent on the SONG screen; pressing an entry's key also moves the cursor to it. Holding a key past the end and pressing OCT+ appends. Editing is still refused while playing.
+Stutter lane
+- Tag reads STUT; no track is underlined while on it.
+Sound pages
+- The old FX "spells" scene was removed (unreachable). ELEMENTS and some PLAITS oscillator pictures are schematics, not exact waveforms.
+Device build: image 558,264 B of 581,564, about 23 KB left.
