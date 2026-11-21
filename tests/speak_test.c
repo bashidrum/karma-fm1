@@ -75,12 +75,12 @@ int main(void)
     check(hellos >= 1u, "HELLO answered (name and words link)");
     check(nsaid >= 1u && heard("B P M") && heard("track"), "a new reader hears the whole screen (track, tempo)");
     check(heard("stopped"), "... and that it is stopped");
-    check(heard("home. track 1 selected") && heard("swing ") && heard("steps "), "HOME: the track, then SWING LEVEL STEPS PAN (issue #2)");
-    clear();
-    encs[panel.enc[EN_K3]] = 1; frame(); sframes(20);
-    check(heard("steps 17"), "HOME: KNOB 3 turned: \"steps 17\"");
+    check(heard("home. track 1 selected") && heard("cutoff ") && heard("stut "), "HOME: the track, then CUTOFF DECAY STUT LEVEL (issue #2; PHEBUS 21 Nov 2026)");
     clear();
     encs[panel.enc[EN_K3]] = -1; frame(); sframes(20);
+    check(heard("stut OFF"), "HOME: KNOB 3 turned left: \"stut OFF\" (the STUTTER lane)");
+    clear();
+    encs[panel.enc[EN_K3]] = 1; frame(); sframes(20);
     clear();
     encs[panel.enc[EN_SELECT]] = 2; frame(); sframes(20);
     check(heard("122 B P M"), "SELECT turned: the tempo");
@@ -181,7 +181,7 @@ int main(void)
     sframes(40);
     check(nsaid == 0u, "during the start-up animation: nothing said");
     sframes(BOOT_END - 40u + 30u);                      /* (to the end of the animation, ui_vis.c BOOT_END, and a little) */
-    check(heard("home. track") && heard("swing "), "after it: HOME, with its knobs");
+    check(heard("home. track") && heard("cutoff "), "after it: HOME, with its knobs");
     clear();
     {
         static const uint8_t bye[] = {0x7D, 0x53, 0x52, 2};
