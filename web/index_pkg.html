@@ -92,7 +92,6 @@
     Hold OCT− alone while switching on for USB rescue.<br>
     Font: Terminus (Dimitar Toshkov Zhekov, SIL OFL 1.1). Samples: Versilian Studios VSCO-2 Community Edition and VCSL (CC0 1.0), and the Hügelton Sample Pack (© Hügelton Instruments, not CC0).<br>
     M-VAVE and FM-1 are trademarks of their respective owners; KARMA is not affiliated with them.<br>
-    Visits and installs are counted anonymously with GoatCounter: no cookies, no personal data.<br>
     <span data-t="license"></span> <a href="https://github.com/eatyourgreensstudio-dotcom/karma-fm1" target="_blank" rel="noopener">github.com/eatyourgreensstudio-dotcom/karma-fm1</a></p>
 </main>
 <script type="module">
@@ -285,19 +284,6 @@ window.addEventListener("beforeunload", (e) => { if (writing) { e.preventDefault
   } catch (e) { sayK("loadfail", e.message); }
 })();
 
-/* anonymous counts (GoatCounter, karmafm1): a page opened, an install started / done / failed. No cookies, no
-   personal data, no script from elsewhere: one image request. Only from the live site (https), never with Do Not Track */
-const gc = (path, title, event) => {
-  try {
-    if (location.protocol !== "https:" || navigator.doNotTrack === "1") return;
-    const q = new URLSearchParams({ p: path, t: title || path, rnd: Math.random().toString(36).slice(2) });
-    if (event) q.set("e", "true");
-    else if (document.referrer) q.set("r", document.referrer);
-    new Image().src = "https://karmafm1.goatcounter.com/count?" + q;
-  } catch (e) { /* counting never gets in the way */ }
-};
-gc("/webapp/installer/", "Installer");
-
 const total = 74 + 1179;                           /* reads: step 1, step 2 (head + app area, SLOOP 2.0 loader) */
 const step = (k, a) => {
   log(`${k} ${a ?? ""}`);
@@ -306,19 +292,9 @@ const step = (k, a) => {
   if (k === "loader") sayK("loader");
   if (k === "write") { sayK("write"); $("bar").value = Math.min(100, ((74 + a) / total) * 100); }
   if (k === "reboot") sayK("reboot");
-  if (k === "done") { $("bar").value = 100; sayK("done"); gc(`${job}-done`, `${job} done`, true); }
+  if (k === "done") { $("bar").value = 100; sayK("done"); }
 };
-let job = "install";                               /* (what the counts call it: install, official) */
 const failed = (e, midi) => {
-  const why = e && e.code === "notfound" && e.reason ? `/${e.reason} (${OS})` : "";   /* (3.0.4: the counts say why, which system) */
-  /* (2026-11-08) other gear only: which names (a new FM-1 under a name the installer does not know?), anonymous */
-  const seen = e && e.reason === "nofm1" && e.names ? ` [${safeNames(e.names).join(" | ")}]` : "";
-  /* (2026-11-18) the reason and system in the event's name: GoatCounter keeps one title per name, so with one name
-   * for every failure only the first reason ever showed */
-  const slug = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32);
-  const kind = [slug(e && (e.code || e.message)) || "unknown", slug(e && e.code === "notfound" && e.reason)]
-    .filter(Boolean).join("-");
-  gc(`${job}-failed-${kind}-${OS}`, `${job} failed: ${(e && (e.code || e.message)) || "?"}${why}${seen}`.slice(0, 120), true);
   if (e && e.code === "notfound") {
     helpFound = false;
     showHelp(e.reason || "noports");
@@ -346,10 +322,8 @@ $("go").addEventListener("click", async () => {
   let midi;
   try { midi = await navigator.requestMIDIAccess({ sysex: true }); }
   catch (e) { sayK("denied"); lockAll(false); return; }
-  job = "install";
   showHelp(null);
   midi.onstatechange = null;
-  gc("install-start", `install KARMA ${meta.version}`, true);
   try {
     const up = new Updater(midi, log);
     const ota = await up.find((id) => /^ota-/i.test(id.model));
@@ -357,7 +331,6 @@ $("go").addEventListener("click", async () => {
       ota.link.close();
       const ok = await up.resume(image, step);
       sayK(ok ? "done" : "stopped");
-      gc(ok ? "install-done" : "install-stopped", ok ? "install done (resumed)" : "install stopped", true);
     } else {
       await up.install(image, meta.product, step);
     }
