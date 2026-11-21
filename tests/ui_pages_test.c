@@ -1694,6 +1694,8 @@ int main(int argc, char **argv)
         check(drum_page == 0, "DRUMS: SELECT left: grid");
         {   /* PHEBUS (21 Nov 2026): the STUTTER lane, after DRUM on the GRID (ui_stut.c, punch.c stl) */
             uint32_t j, kw0 = key_of_white(0), kw12 = key_of_white(12);
+            check(stl_new == 0u && !strcmp(STL_LEN[stl_new], "1/4"),
+                  "STUTTER (Ben, 21 Nov: \"1/4 is preferably\"): new steps start at 1/4");
             memset(&stl, 0, sizeof stl); stl.len = 16; stl.act = 1; stl_new = 1;
             ui.force = 1; frame();
             encs[panel.enc[EN_ALGO]] = 1; frames(2);
@@ -1723,6 +1725,24 @@ int main(int argc, char **argv)
             check(stl_code(14) == 0u, "STUTTER: EDIT + OCT-: undo (step 15 back to 1/4)");
             press(B_EDIT); press(B_OCTUP); release(B_OCTUP); release(B_EDIT); frames(2);
             check(stl_code(14) == 2u, "STUTTER: EDIT + OCT+: redo");
+            {   /* (PHEBUS, picker "Replay the steps") six lengths, KNOB 1 right shorter, left longer: 1/1 1/2 1/4 1/8 1/16 1/32 */
+                static const char *const ORD[6] = {"1/1", "1/2", "1/4", "1/8", "1/16", "1/32"};
+                uint32_t q, ok = 1;
+                frames(16);                             /* (the knobs quiet ~250 ms after the EDIT layer: #39) */
+                fm1_in.notes |= 1u << key_of_white(14); frame();
+                for (q = 0; q < 8u; q++) { encs[panel.enc[EN_K1]] = -1; frame(); }
+                ok &= stl_code(14) == 5u && !strcmp(STL_LEN[stl_code(14)], "1/1");
+                ui.force = 1; frame(); ppm("grid-stutter-long");
+                for (q = 1; q < 6u; q++) { encs[panel.enc[EN_K1]] = 1; frame(); ok &= !strcmp(STL_LEN[stl_code(14)], ORD[q]); }
+                encs[panel.enc[EN_K1]] = 1; frame();
+                ok &= stl_code(14) == 3u;
+                for (q = 0; q < 4u; q++) { encs[panel.enc[EN_K1]] = -1; frame(); }
+                ok &= stl_code(14) == 4u;
+                fm1_in.notes &= ~(1u << key_of_white(14)); frame();
+                check(ok && stl_lit(14), "STUTTER: hold a step + KNOB 1 left to 1/1 (no further), right 1/2 1/4 1/8 1/16 1/32 (no further)");
+                ui.force = 1; frame(); ppm("grid-stutter-half");
+                stl_put_step(14, 2);                    /* (back to 1/16 for what follows) */
+            }
             j = (uint32_t)TDRUM->p[P_SLEN];
             for (i = 0; i < 64u && stl.len < 32u; i++) { encs[panel.enc[EN_K4]] = 1; frame(); }
             check(stl.len == 32u && TDRUM->p[P_SLEN] == (int16_t)j, "STUTTER: KNOB 4: its own length, 32 steps (the drums keep theirs)");

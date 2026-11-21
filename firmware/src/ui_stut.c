@@ -5,14 +5,23 @@
  * On the GRID, ALGORITHM goes 1, 2, 3, DRUM, then STUTTER (left: back to DRUM). It is not a voice: white and grey.
  *   tap a step       an unlit one lights with the length for new steps; a lit one goes when its key comes up (unless
  *                    KNOB 1 turned meanwhile)
- *   hold a step      KNOB 1: that step's length (1/4 1/8 1/16 1/32), the steps held together
- *   KNOB 1           the length for new steps (1/8 to start); KNOB 2 the lane ON / OFF (its steps kept); KNOB 4 its
+ *   hold a step      KNOB 1: that step's length (1/1 1/2 1/4 1/8 1/16 1/32; right: shorter), the steps held together
+ *   KNOB 1           the length for new steps (1/4 to start); KNOB 2 the lane ON / OFF (its steps kept); KNOB 4 its
  *                    length, 1..64 steps, looping by itself under the tracks
  *   black keys 1..4  the page of steps; OCT- / OCT+ the page before / after
  * A lit step under the playhead: the mix repeats the span just played at the step's length (steps in a row with the
- * same length: one loop); FX held + a key comes first. Saved with the project and each section (project.c stl_put). */
-static const char *const STL_LEN[4] = {"1/4", "1/8", "1/16", "1/32"};
-static uint8_t stl_new = 1;                             /* the length a new step takes: 1/8 */
+ * same length: one loop); 1/2 and 1/1: the sequencer replays the half bar / bar before instead (punch.c rep_*); FX held
+ * + a key comes first. Saved with the project and each section (project.c stl_put). */
+/* the lengths by code (punch.c stl_code: 4 and 5 the sequencer's replay), and in the knobs' order, longest first: KNOB 1
+ * turned right goes shorter (as before), left longer (Ben, 21 Nov 2026: "1/4 is preferably ... 1/2 would even be nice to
+ * play with ... we may as well go the full 1/1"; picker "Replay the steps": 1/4 the default) */
+static const char *const STL_LEN[6] = {"1/4", "1/8", "1/16", "1/32", "1/2", "1/1"};
+static const uint8_t STL_BY_LEN[6] = {5, 4, 0, 1, 2, 3}, STL_RANK[6] = {2, 3, 4, 5, 1, 0};
+static uint8_t stl_new = 0;                             /* the length a new step takes: 1/4 */
+static uint32_t stl_turn(uint32_t code, int32_t s)      /* a length one longer (s < 0) or shorter */
+{
+    return STL_BY_LEN[clamp((int32_t)STL_RANK[code % 6u] + (s > 0 ? 1 : -1), 0, 5)];
+}
 static uint16_t stl_held, stl_pend;                     /* white keys held; of those, lit steps that go when let go */
 static uint8_t stl_pg;                                  /* the page of steps shown */
 static uint32_t stl_sess;                               /* the undo session (one hold, or one knob's turns) */
@@ -35,7 +44,8 @@ static void stl_put_step(uint32_t s, int32_t code)      /* code < 0: off (bytes:
     if (code < 0) {
         stl.on[s >> 3] &= (uint8_t)~(1u << (s & 7u));
     } else {                                            /* (its length first, then lit) */
-        stl.lc[s >> 2] = (uint8_t)((stl.lc[s >> 2] & ~(3u << 2u * (s & 3u))) | (uint32_t)code << 2u * (s & 3u));
+        stl.lc[s >> 2] = (uint8_t)((stl.lc[s >> 2] & ~(3u << 2u * (s & 3u))) | ((uint32_t)code & 3u) << 2u * (s & 3u));
+        stl.lx[s >> 3] = (uint8_t)((stl.lx[s >> 3] & ~(1u << (s & 7u))) | ((uint32_t)code >> 2 & 1u) << (s & 7u));
         stl.on[s >> 3] |= (uint8_t)(1u << (s & 7u));
     }
     ui.force = 1;
@@ -119,12 +129,12 @@ static void stl_input(uint32_t pressed)
             stl_mark();
             for (w = 0; w < 16u; w++)
                 if ((stl_held >> w) & 1u && stl_pg * 16u + w < stl.len && stl_lit(stl_pg * 16u + w))
-                    stl_put_step(stl_pg * 16u + w, clamp((int32_t)stl_code(stl_pg * 16u + w) + (s > 0 ? 1 : -1), 0, 3));
+                    stl_put_step(stl_pg * 16u + w, (int32_t)stl_turn(stl_code(stl_pg * 16u + w), s));
             stl_pend &= (uint16_t)~stl_held;            /* (edited: kept when let go) */
             continue;
         }
         if (k == 0u) {
-            stl_new = (uint8_t)clamp(stl_new + (s > 0 ? 1 : -1), 0, 3);
+            stl_new = (uint8_t)stl_turn(stl_new, s);
         } else if (k == 1u) {
             stl.act = (uint8_t)(s > 0);
         } else if (k == 3u) {
@@ -175,7 +185,7 @@ static void stl_draw(void)
     op_header("STUT", TE_G4, t, &head);       /* (the tag box holds five letters: STUT, not SYN) */
     sig = studio_hash(stl.len * 7u + stl.act * 131u + stl_pg * 977u + stl_held * 3u + stl_new * 7919u +
                       (song.playing ? stl_pos + 1u : 0u) * 71u, "");
-    for (j = 0; j < 24u; j++)
+    for (j = 0; j < sizeof stl; j++)
         sig = sig * 31u + ((const uint8_t *)&stl)[j];
     if (ui.force || sig != sig_was) {
         sig_was = sig;
@@ -186,7 +196,7 @@ static void stl_draw(void)
             if (s >= stl.len)
                 continue;
             if (stl_lit(s)) {
-                const char *n = STL_LEN[stl_code(s)] + 2;   /* ("1/16" -> "16") */
+                const char *n = STL_LEN[stl_code(s) % 6u] + 2;   /* ("1/16" -> "16", "1/2" -> "2", "1/1" -> "1") */
                 cv_rect(x, y, 27, 26, h ? C_WHITE : stl.act ? TE_G4 : TE_G2);
                 cv_text(x + (27 - text_w(&FONT_S, n)) / 2, y + 5, &FONT_S, n, stl.act || h ? C_BLACK : TE_G4);
             } else {
@@ -204,18 +214,18 @@ static void stl_draw(void)
             cv_text(6, 80, &FONT_S, t, C_WHITE);
         } else {                                        /* ON / OFF big, the length new steps take */
             cv_text(6, 96, &FONT_L, stl.act ? "ON" : "OFF", stl.act ? C_WHITE : TE_G3);
-            cv_text(6, 80, &FONT_S, stl.act ? "LIT STEPS REPEAT" : "STEPS KEPT, SILENT", TE_G3);
+            cv_text(6, 80, &FONT_S, !stl.act ? "STEPS KEPT, SILENT" : c >= 4u ? "THE STEPS REPLAY" : "LIT STEPS REPEAT", TE_G3);
             cv_text(234 - text_w(&FONT_S, "NEW STEPS"), 80, &FONT_S, "NEW STEPS", TE_G3);
         }
-        cv_text(234 - text_w(&FONT_L, STL_LEN[c]), 96, &FONT_L, STL_LEN[c], C_WHITE);
+        cv_text(234 - text_w(&FONT_L, STL_LEN[c % 6u]), 96, &FONT_L, STL_LEN[c % 6u], C_WHITE);
         cv_blit(0, SG_BODY_Y);
         if (ui.force) {                                 /* (the rows under it, to the knobs) */
             cv_begin(240, SG_KNOB_Y - SG_BODY_Y - 124u, C_BLACK);
             cv_blit(0, SG_BODY_Y + 124u);
         }
     }
-    str_cpy(v[0], STL_LEN[c], 8);
-    ratio[0] = (int32_t)c * 333;
+    str_cpy(v[0], STL_LEN[c % 6u], 8);
+    ratio[0] = (int32_t)STL_RANK[c % 6u] * 200;
     str_cpy(v[1], stl.act ? "ON" : "OFF", 8);
     ratio[1] = stl.act ? 1000 : 0;
     fmt_int(v[3], (int32_t)stl.len);

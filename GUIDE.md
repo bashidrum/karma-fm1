@@ -344,10 +344,11 @@ On the GRID, turn **ALGORITHM** past 1, 2, 3 and DRUM to reach **STUTTER** (turn
 
 | You do | Result |
 | --- | --- |
-| **Tap an unlit step** | it lights, with the length last set (new steps start at 1/8) |
+| **Tap an unlit step** | it lights, with the length last set (new steps start at **1/4**) |
 | **Tap a lit step** | it goes out when you let go of the key, unless you turned KNOB 1 meanwhile |
-| **Hold a step + KNOB 1** | that step's length: 1/4, 1/8, 1/16 or 1/32 |
-| **KNOB 2** | the whole lane ON or OFF (the steps are kept) |
+| **Hold a step + KNOB 1** | that step's length: **1/1, 1/2**, 1/4, 1/8, 1/16 or 1/32. Turn right for shorter, left for longer |
+| **KNOB 1** (no step held) | the length new steps take |
+| **KNOB 2** | the whole lane ON or OFF (the steps are kept). **KNOB 3 on HOME** does the same |
 | **KNOB 4** | the lane's length, 1 to 64 steps |
 | **Black keys 1 to 4**, **OCT-**, **OCT+** | change page |
 
@@ -355,9 +356,11 @@ How it behaves:
 
 - Steps are 1/16 on the grid and ignore swing. The page shown does not follow the playhead.
 - A lit step repeats the span that played just before the run of lit steps. It repeats the whole mix, not one voice. Lit steps in a row with the same length are one continuous loop.
+- **1/4, 1/8, 1/16 and 1/32** repeat the sound itself (an audio stutter). Their tiles read 4, 8, 16, 32.
+- **1/2 and 1/1 replay the sequencer** (tiles 2 and 1): for as long as the run of lit steps lasts, every voice and the drums play again the steps of the half bar (1/2) or the bar (1/1) just before the run, with their notes and locks, in a loop. The song position keeps counting underneath, so when the run ends every voice carries on from the step it would have played without the stutter. Notes ring on naturally (it is not a recording), so the replay is not sample-identical. A voice whose steps are longer than the span (a bar's steps on 1/2) is not replayed.
 - Holding **FX** and a key (see [Performance effects](#8-performance-effects-and-global-effects)) takes over while you hold it.
 - The lane is mono and low resolution. Below about 84 BPM a quarter-note loop is cut to 0.72 seconds.
-- It is saved with the project and with each section (it lives in unused drum-track bytes). Stock KARMA loads such a project but drops the stutter lane if it saves again.
+- It is saved with the project and with each section (it lives in unused drum-track bytes). Stock KARMA loads such a project but drops the stutter lane if it saves again. A lane saved before 1/2 and 1/1 existed loads as it was.
 - **EDIT + OCT-** undoes a stutter edit.
 
 ---
@@ -884,8 +887,9 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 | Gesture | Does |
 | --- | --- |
 | tap an unlit or lit step | light it, or put it out (on release) |
-| hold a step + KNOB 1 | that step's length |
-| KNOB 2 | lane on or off |
+| hold a step + KNOB 1 | that step's length (1/1 to 1/32; right: shorter) |
+| KNOB 1 | the length for new steps (1/4 to start) |
+| KNOB 2 | lane on or off (also KNOB 3 on HOME) |
 | KNOB 4 | lane length |
 | black keys 1 to 4, OCT-, OCT+ | page |
 | hold FX + key | a performance effect while held |

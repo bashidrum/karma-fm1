@@ -2134,6 +2134,27 @@ static int32_t micro_units(const track_t *t, uint32_t abs, uint32_t slen)
  * the recording stay on the grid (rec_target); seq_ratchets gets the time since the step fired. */
 #include "gen_seq.c"         /* SEQ > GEN: a loop that changes as it plays */
 
+/* (PHEBUS) the grid step whose content plays at grid step nabs: itself, or during a 1/2 or 1/1 run of the STUTTER lane
+ * (punch.c rep_*) one of the steps of the span before the run, in a loop. The run's start and span in this track's steps
+ * (its DIV): a span shorter than one of its steps (a bar's steps on 1/2: 0) replays nothing */
+static uint32_t seq_src(const track_t *t, uint32_t nabs)
+{
+    uint32_t div = trk_div(t), st, len;
+    if (!rep_l16)
+        return nabs;
+    if (div < NDIV_SHORT) {                          /* den steps a beat: den / 4 a 1/16 */
+        st = (rep_g0 * DIV_DEN[div] + 3u) / 4u;
+        len = rep_l16 * DIV_DEN[div] / 4u;
+    } else {                                         /* m beats a step: 4 m 1/16s */
+        uint32_t m4 = 4u * DIV_BEATS[(div - NDIV_SHORT) % 3u];
+        st = (rep_g0 + m4 - 1u) / m4;
+        len = rep_l16 / m4;
+    }
+    if (!len || nabs < st || st < len)
+        return nabs;                                 /* (before the run; nothing played before it yet) */
+    return st - len + (nabs - st) % len;
+}
+
 static void seq_tick(track_t *t, uint32_t adv)
 {
     uint32_t len = trk_len(t), into, slen, abs, idx, nabs, fire = 0;
@@ -2170,7 +2191,7 @@ static void seq_tick(track_t *t, uint32_t adv)
     }
     if (fire) {                                      /* a new step: one a block at most */
         t->seq_abs = nabs;
-        idx = play_idx(t, nabs, len);                /* (SEQ > PLAY: DIR, STRIDE) */
+        idx = play_idx(t, seq_src(t, nabs), len);    /* (SEQ > PLAY: DIR, STRIDE; a 1/2 or 1/1 STUTTER run: replayed) */
         t->seq_idx = (uint16_t)idx;
         t->rat_done[0] = t->rat_done[1] = t->rat_done[2] = t->rat_done[3] = 0;
         t->rat_lanes = 0;
@@ -2935,6 +2956,7 @@ static void events_block(uint32_t n)
         mi_pen[0] = mi_pen[1] = mi_pen[2] = mi_pen[3] = 0;
     }
     PC_MARK(PC_EV_MIDI);
+    stl_seq();                                        /* (PHEBUS) a 1/2 or 1/1 STUTTER run: the tracks replay (punch.c) */
     for (i = 0; i < NTRK; i++)
         seq_tick(&trk[i], adv);
     stl_tick();                                       /* (PHEBUS) the STUTTER lane's step (punch.c) */

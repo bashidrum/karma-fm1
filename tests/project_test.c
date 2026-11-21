@@ -505,6 +505,9 @@ int main(void)
         }
         stl.on[7] |= 0x80u;
         stl.lc[15] |= 0xC0u;                                /* (step 64 lit at 1/32: the last bits) */
+        stl.lc[0] = (uint8_t)((stl.lc[0] & ~0xC3u) | 0x01u);  /* (PHEBUS 21 Nov: steps 1 and 4 at 1/1 and 1/2: the 3rd bit) */
+        stl.lx[0] |= 0x09u;
+        stl.lx[7] |= 0x40u;
         memcpy(was, &stl, sizeof stl);
         proj_capture(&a);
         bad += check("STUTTER: in a project: format 7, 3840 bytes, its sum good, the drum track's byte says so",
@@ -528,6 +531,16 @@ int main(void)
         proj_apply(&b, 1);
         bad += check("STUTTER: a project without the lane: an empty one, 16 steps, ON",
                      !stl.on[0] && !stl.on[7] && stl.len == 16u && stl.act == 1u);
+        b = a;
+        b.t[TRK_DRUM].preset &= 0x7Fu;                      /* (a PHEBUS lane saved before 1/2 and 1/1: no 3rd bits) */
+        b.t[TRK_DRUM].p[P_ATK] = 0x5A5A;
+        b.sum = proj_sum(&b);
+        proj_apply(&b, 1);
+        bad += check("STUTTER: a lane saved before 1/2 and 1/1: loads as it was (its steps, no 1/2 or 1/1 bits)",
+                     !stl.lx[0] && !stl.lx[7] && !memcmp(stl.on, was, sizeof stl.on) && stl_code(0) == 1u && stl.len == 32u);
+        proj_apply(&a, 1);
+        bad += check("STUTTER: 1/2 and 1/1 steps saved and loaded (step 1 1/1, step 4 1/2)",
+                     stl_code(0) == 5u && stl_code(3) == 4u && stl.lx[7] == 0x40u);
         memcpy(&stl, was, sizeof stl);
         proj_capture(&a);
         memset(&stl, 0, sizeof stl);
@@ -537,6 +550,7 @@ int main(void)
             int lane = o < sizeof(proj_trk_t) &&
                        ((o >= offsetof(proj_trk_t, p[P_LRATE]) && o < offsetof(proj_trk_t, p[P_LD_AMP + 1])) ||
                         (o >= offsetof(proj_trk_t, p[P_GLMODE]) && o < offsetof(proj_trk_t, p[P_DETUNE + 1])) ||
+                        (o >= offsetof(proj_trk_t, p[P_ATK]) && o < offsetof(proj_trk_t, p[P_REL + 1])) ||
                         o == offsetof(proj_trk_t, preset));
             if (k >= offsetof(project_t, sum))
                 break;
