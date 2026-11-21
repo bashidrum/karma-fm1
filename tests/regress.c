@@ -927,6 +927,16 @@ int main(int argc, char **argv)
         cpu_parts[ncpu][NPART][0] = 1;
         j->parts = (const uint8_t (*)[3])cpu_parts[ncpu++];
         j->e = 0xFF;
+        j = add(J_CPU, "cpu/mix/plain_defaults_drums");        /* (PHEBUS, 21 Nov 2026) the power-on sounds: JUNO INIT
+                                                                 * bass, JUNO INIT chords (6 notes, its most), PLAITS
+                                                                 * INIT lead, drums */
+        memset(cpu_parts[ncpu], 0, sizeof cpu_parts[ncpu]);
+        cpu_parts[ncpu][0][0] = ENGI_JUNO, cpu_parts[ncpu][0][1] = JUNO_INIT, cpu_parts[ncpu][0][2] = 1;
+        cpu_parts[ncpu][1][0] = ENGI_JUNO, cpu_parts[ncpu][1][1] = JUNO_INIT, cpu_parts[ncpu][1][2] = 6;
+        cpu_parts[ncpu][2][0] = ENGI_PRISM, cpu_parts[ncpu][2][1] = PRISM_INIT, cpu_parts[ncpu][2][2] = 1;
+        cpu_parts[ncpu][NPART][0] = 1;
+        j->parts = (const uint8_t (*)[3])cpu_parts[ncpu++];
+        j->e = 0xFF;
         j = add(J_CPU, "cpu/mix/idle");
         memset(cpu_parts[ncpu], 0, sizeof cpu_parts[ncpu]);
         j->parts = (const uint8_t (*)[3])cpu_parts[ncpu++];

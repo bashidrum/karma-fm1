@@ -109,20 +109,8 @@ static uint32_t keys_lit(void)
     switch (ui.layer) {
     case LY_FX:
         return punch.req >= 0 ? 1u << punch_key_of_fx((uint32_t)punch.req) : 0u;
-    case LY_STEP: {                                /* the steps that play; the playhead blinks */
-        uint32_t len = trk_len(t);
-        for (i = 0; i < 16u; i++) {
-            uint32_t idx = ui.step_page * 16u + i, on;
-            if (idx >= len)
-                continue;
-            on = is_drum(t) ? dstep_has(&t->dstep[idx], pen_lane) : step_on(&t->step[idx]);
-            if (song.playing && idx == t->seq_idx)
-                on = !on || blink;
-            if (on)
-                m |= 1u << key_of_white(i);
-        }
-        return m | fm1_in.notes;
-    }
+    case LY_STEP:                                  /* (PHEBUS) SEQ held: its keys do nothing, none lit */
+        return 0u;
     case LY_SCALE:                                 /* the keys in the scale; the root blinks */
         if (lights_notes)                          /* NOTES: the scale goes dim (keys_notes_dim), what sounds lit */
             return (blink ? scale_keys(1) : 0u) | keys_sounding(t) | fm1_in.notes;
@@ -146,6 +134,11 @@ static uint32_t keys_lit(void)
     default:                                       /* playing, ARP roll, SAVE song, every page and the menu */
         break;
     }
+    if (kb_grid && on_song_page()) {               /* (PHEBUS) SONG: the keys of its entries */
+        for (i = 0; i < arrangement.count && i < 16u; i++)
+            m |= 1u << key_of_white(i);
+        return m;
+    }
     if (kb_grid)                                   /* the GRID: the steps of the page shown (ui_grid.c) */
         return grid_keys_lit(blink) | fm1_in.notes;
     m = fm1_in.notes;
@@ -163,7 +156,6 @@ static uint32_t keys_notes_dim(void)
         return 0u;
     switch (ui.layer) {
     case LY_FX:
-    case LY_STEP:
     case LY_MIX:
         return keys_sounding(TSEL);
     case LY_SCALE:
@@ -179,7 +171,7 @@ static uint32_t keys_notes_dim(void)
  * 1, 5, 9, 13) while a layer is held, and on the drum track (its 16 sounds, 4 x 4 as on KIT) */
 static uint32_t keys_guide(void)
 {
-    if (ui.layer == LY_PLAY && !is_drum(TSEL) && !kb_grid)
+    if ((ui.layer == LY_PLAY && !is_drum(TSEL) && !kb_grid) || ui.layer == LY_STEP)   /* (SEQ: no tiles, PHEBUS) */
         return 0u;
     return 1u << key_of_white(0) | 1u << key_of_white(4) | 1u << key_of_white(8) | 1u << key_of_white(12);
 }
@@ -659,7 +651,9 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         while (lk_r != lk_w) {                            /* a key let go after its layer: its release only */
             uint32_t e = lk_q[lk_r % LKQ];
             lk_r++;
-            if ((e >> 8) == KB_GRID) {                    /* the GRID: a step key (its release always) */
+            if ((e >> 8) == KB_GRID) {                    /* the GRID: a step key (its release always); the SONG
+                                                           * screen: an entry's key (PHEBUS) */
+                song_key(e & 31u, (e >> 7) & 1u);
                 if (!((e >> 7) & 1u) || grid_keys_on())
                     grid_key(e & 31u, (e >> 7) & 1u);
             } else if (!((e >> 7) & 1u)) {
@@ -669,7 +663,6 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         if (ui.layer != LY_PLAY) {
             ly_quiet_t = fm1_ms | 1u;                     /* a layer shown lets go: KNOB 1..4 quiet a while (#39) */
             ui.layer = LY_PLAY;
-            ui.step_held = 0;
             ui.force = 1;                                 /* the page comes back */
         }
         ui.step_sess = 0;
@@ -688,8 +681,6 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
     if (ui.layer == LY_PLAY && (used[held] || now - t0[held] >= SHOW_MS)) {
         ui.layer = (uint8_t)held;                         /* show it (not for a quick tap) */
         shown |= (uint8_t)(1u << held);
-        if (held == LY_STEP && (uint32_t)ui.step_page * 16u >= trk_len(TSEL))
-            ui.step_page = 0;
     }
     {   /* FX + OCT- / OCT+, held (2.6, after Felucca 1.5.1): REV THROW / ECHO THROW (fx.c); with punch-ins too */
         uint32_t q = 0;
@@ -713,22 +704,6 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
                 ui_message(undo_swap(0) ? "UNDO" : "NOTHING TO UNDO");
             else
                 ui_message(undo_swap(1) ? "REDO" : "NOTHING TO REDO");
-        }
-    }
-    if (held == LY_STEP) {                                /* SEQ + OCT- / OCT+: the page; a step held: OCT- its nudge, locks and
-                                                           * condition go, OCT+ its fill condition (normal, fill only, no fill) */
-        uint32_t ob = 1u << panel.btn[B_OCTDN], pb = 1u << panel.btn[B_OCTUP];
-        static uint32_t prev;
-        uint32_t b = fm1_in.buttons & (ob | pb), press = b & ~prev, pages = (trk_len(TSEL) + 15u) / 16u;
-        prev = b;
-        if (press) {
-            used[held] = 1;
-            if ((press & ob) && ui.step_held)
-                steps_held_clear();
-            else if ((press & pb) && ui.step_held)
-                steps_held_fill();
-            else
-                ui.step_page = (uint8_t)((ui.step_page + ((press & pb) ? 1u : pages - 1u)) % pages);
         }
     }
     return 1;
@@ -846,7 +821,8 @@ static void ui_input(void)
             song.seq_mode = 0;
         }
     }
-    kb_grid = (uint8_t)grid_keys_on();                  /* (seq.c: the keys are the grid's steps) */
+    kb_grid = (uint8_t)(grid_keys_on() || (on_song_page() && !song_bank && !ui.menu));   /* (seq.c: the keys are the
+                                                         * grid's steps; the SONG screen's entries, PHEBUS: no notes) */
     if (sg_held && (!kb_grid || song.sel != sg_trk))
         sg_drop();                                      /* (the GRID left with steps held: their keys clear nothing) */
     if (ui.menu) {                                      /* HOME / REC taps do nothing here */

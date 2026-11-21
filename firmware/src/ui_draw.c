@@ -416,9 +416,11 @@ static uint32_t graph_signature(void)
     if (ui.home)
         return h ^ (ui.frame / 2u);                  /* scope: redraw every other frame */
     h ^= (uint32_t)pg->graph * 131u + TSEL->eng_req + song.sel * 7777u;
-    if (pg->fam == FAM_FX && (pg->graph == GR_FX || big_page(pg)))   /* the character and its spells: move while the track sounds */
-        h ^= ((is_drum(t) ? drums.peak : t->peak) > 64 || op_mx[song.sel & 3u] || op_hop[song.sel & 3u] ? ui.frame / 2u : 0u) * 40503u;
-    else if (big_page(pg) && !is_drum(t))            /* the character's scene (ui_op.c): moves while the track sounds */
+    if (fam_stage(pg->fam) >= 0 && (pg->graph == GR_FX || big_page(pg))) {   /* a sound page (op_sound): as its knobs, the
+                                                     * beat and a strike (below) move it; a swept INSERT's notches run */
+        if (pg->graph == GR_INS && t->p[P_ITYPE] >= IT_PHASER)
+            h ^= (ui.frame + 1u) * 40503u;
+    } else if (big_page(pg) && !is_drum(t))          /* the character's scene (ui_op.c): moves while the track sounds */
         h ^= (t->peak > 64 || op_lvl || op_hit ? ui.frame / 2u : 0u) * 40503u + op_note * 977u + user_of(t) * 31u;
     if (pg->fam == FAM_FX || big_page(pg))           /* (the characters dance: a pose a beat) */
         h ^= (song.playing ? (clk_beat & 3u) + 1u : 0u) * 69069u + (op_strike[song.sel & 3u] ? 2246822519u : 0u);   /* (and the STRIKE pose) */
@@ -816,7 +818,7 @@ static void draw_graph(void)
             break;
         case GR_FX:
             cv_oy = 0;
-            op_fx_scene(opk.ratio);                  /* the track's character dancing, its spells (ui_op.c) */
+            op_sound(t, pg);              /* the sends, the character small (ui_op.c, review 8) */
             break;
         case GR_SLCR:
             graph_slicer(t, c);
@@ -838,10 +840,8 @@ static void draw_graph(void)
                 cv_oy = 0;
                 if (menu_page(pg)) {
                     graph_menu(t);
-                } else if (pg->fam == FAM_FX) {              /* FILTER, INSERT, DLY, REV/CHO: the character too */
-                    if (!is_drum(t))
-                        op_names(t);
-                    op_fx_scene(opk.ratio);
+                } else if (fam_stage(pg->fam) >= 0) {        /* a sound page: what its knobs do, big (review 8) */
+                    op_sound(t, pg);
                 } else if (is_drum(t)) {
                     graph_big();
                 } else {

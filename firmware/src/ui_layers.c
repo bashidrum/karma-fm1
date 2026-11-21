@@ -5,12 +5,9 @@
  *   FX    punch-in effects (punch.c)       knobs: FILTER  DUST  DUCK
  *   EDIT  erase that sound / note (seq.c)  knobs: SHIFT  LENGTH x2 / half  TRANSPOSE   OCT- undo  OCT+ redo
  *   ARP   note repeat (seq.c roll)         knobs: RATE
- *   SEQ   steps 1..16 of the page          knobs: SOUND / NOTE  DIV  SWING  LENGTH;  a step key held:
- *         (black keys 1..4: pages)                SOUND / NOTE  LEVEL  RATCHET  NUDGE, PRESETS the value of a
- *                                                 parameter lock, ALGORITHM its parameter (the sound parameter
- *                                                 last touched first); OCT+ cycles the step's fill condition
- *                                                 (normal, fill only, no fill), OCT- clears its nudge, locks and
- *                                                 condition
+ *   SEQ   the keys do nothing              knobs: -  DIV  SWING  STEPS (PHEBUS, Ben 21 Nov 2026: "Remove them": the
+ *                                                 GRID is the one place steps are edited); the screen draws the
+ *                                                 pattern's steps in time: their spacing, the swing, how many
  *   SEL   any key: the key of the song     knobs: CHORD  SCALE  KEYS  TRANSPOSE
  *   GLO   keys 1..4 mute, 5..8 solo,       knobs: the levels of tracks 1..4
  *         9 fill while held, 10 fill the next bar, the last white key: tap tempo
@@ -108,149 +105,7 @@ static void pattern_transpose(track_t *t, int32_t d)    /* every note a semitone
 }
 
 /* ------------------------------------------------------------- SEQ --- */
-/* a step key (white key w) of the SEQ layer, Elektron style: an empty step is set at once (drums: the
- * sound's lane; synth: the pen, the chord / note played last); a set one goes when its key is let go,
- * unless a knob changed it meanwhile (level, ratchet, note) */
-static uint16_t step_pend_off;                         /* the step keys that clear their step when let go */
-static int step_is_on(const track_t *t, uint32_t idx)
-{
-    return is_drum(t) ? dstep_has(&t->dstep[idx], pen_lane) : step_on(&t->step[idx]);
-}
-static void step_down(uint32_t w)
-{
-    track_t *t = TSEL;
-    uint32_t idx = ui.step_page * 16u + w;
-    if (idx >= trk_len(t))
-        return;
-    if (song.playing && arrangement_enabled) {
-        ui_message("STOP FIRST");
-        return;
-    }
-    if (step_is_on(t, idx)) {
-        step_pend_off |= (uint16_t)(1u << w);
-        return;
-    }
-    layer_undo_mark(t);
-    fm1_irq_off();
-    if (is_drum(t)) {
-        dstep_set(&t->dstep[idx], pen_lane, LV_NORM, 0);
-    } else {
-        step_t *s = &t->step[idx];
-        uint32_t i, n = pen_n ? pen_n : 1u;
-        memset(s, 0, sizeof *s);
-        for (i = 0; i < n && i < 4u; i++)
-            s->note[i] = pen_n ? pen_note[i] : last_note;
-        s->n = (uint8_t)(t->p[P_VOICE] == V_POLY ? n : 1u);
-        s->time = ST_NOTE;
-        s->vel = 100;
-    }
-    t->seq_active = 1;
-    fm1_irq_on();
-    sync_reload = 1;
-}
-static void step_up(uint32_t w)
-{
-    track_t *t = TSEL;
-    uint32_t idx = ui.step_page * 16u + w;
-    if (!((step_pend_off >> w) & 1u))
-        return;
-    step_pend_off &= (uint16_t)~(1u << w);
-    if (idx >= trk_len(t) || !step_is_on(t, idx))
-        return;
-    layer_undo_mark(t);
-    fm1_irq_off();
-    if (is_drum(t))
-        dstep_clr(&t->dstep[idx], pen_lane);
-    else
-        step_clear(&t->step[idx]);
-    if (!is_drum(t) || !dstep_mask(&t->dstep[idx])) {   /* an empty step keeps no lock, no nudge, no condition */
-        lock_del(t, idx, P_COUNT);
-        t->micro[idx] = 0;
-        step_fill_set(t, idx, FC_NORM);
-    }
-    fm1_irq_on();
-    sync_reload = 1;
-}
-/* the drum sound the SEQ layer sets (KNOB 1): heard when it changes */
-static void pen_lane_move(int32_t s)
-{
-    uint8_t l = (uint8_t)clamp(pen_lane + s, 0, DRUM_LANES - 1);
-    if (l != pen_lane)
-        audition_lane(l);
-    pen_lane = l;
-}
-/* KNOB 1..4 with step keys held: their sound / note (drums: the sound's lane; synth: every note), level,
- * ratchet, nudge (1/64 of a step, - early + late). knob 4 = PRESETS: a lock of ui.lock_par on them, made at
- * the track's value, then moved */
-static void steps_held_edit(uint32_t knob, int32_t s)
-{
-    track_t *t = TSEL;
-    uint32_t w, i;
-    /* the accelerated turn once for every step held (a second call would see no time pass: x3 on the others) */
-    int32_t sv = knob == 1u && !is_drum(t) ? accel(EN_K2, s, 126) : 0;
-    int32_t sk = knob == 4u ? accel(EN_PRESET, s, lock_desc(t, ui.lock_par % P_COUNT)->max -
-                                                  lock_desc(t, ui.lock_par % P_COUNT)->min) : 0;
-    if (knob == 4u && p_lockable(ui.lock_par % P_COUNT) && !locks_fit(t, ui.step_page, ui.step_held, ui.lock_par % P_COUNT))
-        return;                                           /* (all the steps held, or none: ui_grid.c) */
-    layer_undo_mark(t);
-    step_pend_off &= (uint16_t)~ui.step_held;            /* (edited: kept when let go) */
-    fm1_irq_off();
-    for (w = 0; w < 16u; w++) {
-        uint32_t idx = ui.step_page * 16u + w;
-        if (!((ui.step_held >> w) & 1u) || idx >= trk_len(t))
-            continue;
-        if (knob == 3u) {                                 /* NUDGE: the whole step (drums: every lane) */
-            t->micro[idx] = (int8_t)clamp(t->micro[idx] + s, MICRO_MIN, MICRO_MAX);
-            continue;
-        }
-        if (knob == 4u) {                                 /* LOCK (PRESETS): ui.lock_par on this step */
-            uint32_t id = ui.lock_par % P_COUNT;
-            int k = lock_find(t, idx, id, 0);
-            int32_t v = k >= 0 ? t->lock[k].val : t->p[id];
-            if (!lock_set(t, idx, id, v + sk))
-                ui_message(p_lockable(id) ? "NO LOCK LEFT" : "NOT LOCKABLE");
-            continue;
-        }
-        if (is_drum(t)) {
-            dstep_t *d = &t->dstep[idx];
-            uint32_t lv = dstep_lvl(d, pen_lane), rt = dstep_rat(d, pen_lane);
-            if (!dstep_has(d, pen_lane))
-                continue;
-            if (knob == 1u)
-                lv = LV_UP[clamp((int32_t)lvl_rank(lv) + s, 0, 3)];
-            else
-                rt = (uint32_t)clamp((int32_t)rt + s, 0, 3);
-            dstep_set(d, pen_lane, lv, rt);
-        } else {
-            step_t *st = &t->step[idx];
-            if (!step_on(st))
-                continue;
-            if (knob == 1u) {                             /* VEL (2.6): the step's velocity, 1..127; every note */
-                int32_t v = clamp((int32_t)step_vel_shown(st) + sv, 1, 127);   /* at it (NORM) */
-                st->vel = (uint8_t)v;
-                st->lvl = 0;
-                st->flags &= (uint8_t)~SF_ACCENT;         /* (ACC would play it at 127) */
-                continue;
-            }
-            for (i = 0; i < st->n; i++) {
-                uint32_t sh = 2u * i, lv = (st->lvl >> sh) & 3u, rt = (st->rat >> sh) & 3u;
-                if (knob == 0u) {
-                    st->note[i] = (uint8_t)clamp(st->note[i] + s, 0, 127);
-                    continue;
-                }
-                if (knob == 1u)
-                    lv = LV_UP[clamp((int32_t)lvl_rank(lv) + s, 0, 3)];
-                else
-                    rt = (uint32_t)clamp((int32_t)rt + s, 0, 3);
-                st->lvl = (uint8_t)((st->lvl & ~(3u << sh)) | lv << sh);
-                st->rat = (uint8_t)((st->rat & ~(3u << sh)) | rt << sh);
-            }
-        }
-    }
-    fm1_irq_on();
-    sync_reload = 1;
-}
-/* ALGORITHM with step keys held: the lock parameter, through the lockable ones (the drum track: not the
+/* ALGORITHM with GRID steps held (ui_grid.c): the lock parameter, through the lockable ones (the drum track: not the
  * engine parameters it has no use for), wrapping round */
 static void lock_par_step(int32_t s)
 {
@@ -262,50 +117,6 @@ static void lock_par_step(int32_t s)
                          (is_drum(t) && id > P_E0 && id <= P_E7)));
     ui.lock_par = (uint8_t)id;
 }
-/* OCT- with step keys held: their nudge, locks and fill condition go */
-static void steps_held_clear(void)
-{
-    track_t *t = TSEL;
-    uint32_t w, n = 0;
-    layer_undo_mark(t);
-    step_pend_off &= (uint16_t)~ui.step_held;
-    fm1_irq_off();
-    for (w = 0; w < 16u; w++) {
-        uint32_t idx = ui.step_page * 16u + w;
-        if (!((ui.step_held >> w) & 1u) || idx >= trk_len(t))
-            continue;
-        n += step_locked(t, idx) || step_fill(t, idx);
-        lock_del(t, idx, P_COUNT);
-        t->micro[idx] = 0;
-        step_fill_set(t, idx, FC_NORM);
-    }
-    fm1_irq_on();
-    sync_reload = 1;
-    ui_message(n ? "LOCKS, NUDGE, COND CLEARED" : "NO LOCK, NUDGE OR COND");
-}
-/* OCT+ with step keys held: their condition, round: normal -> fill only -> no fill -> chance (SEQ > PLAY CHANCE) */
-static void steps_held_fill(void)
-{
-    track_t *t = TSEL;
-    static const char *const MSG[4] = {"COND: NORMAL", "COND: FILL ONLY", "COND: NO FILL", "COND: CHANCE"};
-    uint32_t w, v = 0, first = 1;
-    layer_undo_mark(t);
-    step_pend_off &= (uint16_t)~ui.step_held;
-    fm1_irq_off();
-    for (w = 0; w < 16u; w++) {
-        uint32_t idx = ui.step_page * 16u + w;
-        if (!((ui.step_held >> w) & 1u) || idx >= trk_len(t))
-            continue;
-        if (first)
-            v = (step_fill(t, idx) + 1u) % 4u;
-        first = 0;
-        step_fill_set(t, idx, v);
-    }
-    fm1_irq_on();
-    sync_reload = 1;
-    ui_message(MSG[v % 4u]);
-}
-
 /* ------------------------------------------------------------- GLO --- */
 static void tap_tempo(void)
 {
@@ -326,7 +137,7 @@ static void tap_tempo(void)
     }
 }
 
-/* a key of the layers the UI runs (seq.c lk_q): SEQ steps, SEL key, GLO mix */
+/* a key of the layers the UI runs (seq.c lk_q): SEL key, GLO mix (SEQ's: taken, nothing done) */
 static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
 {
     int32_t w = punch_key(k);
@@ -336,26 +147,11 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
         return;
     }
     if (!down) {
-        if (w >= 0) {
-            ui.step_held &= (uint16_t)~(1u << w);
-            if (layer == LY_STEP)
-                step_up((uint32_t)w);
-            if (layer == LY_MIX && w == 8)
-                fill_held = 0;                              /* GLO + key 9 let go: the fill ends */
-        }
+        if (layer == LY_MIX && w == 8)
+            fill_held = 0;                                  /* GLO + key 9 let go: the fill ends */
         return;
     }
-    switch (layer) {
-    case LY_STEP:
-        if (w < 0) {                                    /* the first four black keys: pages 1..4 */
-            static const int8_t PG[12] = {-1, 0, -1, 1, -1, 2, -1, -1, 3, -1, -1, -1};
-            if (k < 12u && PG[k] >= 0 && (uint32_t)PG[k] * 16u < trk_len(TSEL))
-                ui.step_page = (uint8_t)PG[k];
-            return;
-        }
-        ui.step_held |= (uint16_t)(1u << w);
-        step_down((uint32_t)w);
-        return;
+    switch (layer) {                                    /* (SEQ: its keys do nothing, PHEBUS) */
     case LY_SCALE: {                                    /* the key of the song: every synth part */
         uint32_t i, root = (53u + k) % 12u;
         for (i = 0; i < NPART; i++)
@@ -479,17 +275,6 @@ static void layer_knobs(uint32_t layer)
     uint32_t k;
     int32_t s;
     track_t *t = TSEL;
-    if (layer == LY_STEP && ui.step_held) {              /* a step held: PRESETS the lock's value, ALGORITHM its parameter
-                                                          * (neither browses a sound nor selects a track meanwhile) */
-        if ((s = panel_enc(EN_PRESET)) != 0) {
-            ui.layer_used = 1;
-            steps_held_edit(4, s);
-        }
-        if ((s = panel_enc(EN_ALGO)) != 0) {
-            ui.layer_used = 1;
-            lock_par_step(s);
-        }
-    }
     for (k = 0; k < 4u; k++) {
         if ((s = panel_enc(EN_K1 + k)) == 0)
             continue;
@@ -519,28 +304,13 @@ static void layer_knobs(uint32_t layer)
             if (k == 0u)
                 song.g[G_ROLL] = (int16_t)clamp(song.g[G_ROLL] + s, 0, 4);
             break;
-        case LY_STEP:
-            if (ui.step_held) {                         /* SOUND / NOTE  LEVEL  RATCHET  NUDGE */
-                if (k == 0u && is_drum(t))
-                    pen_lane_move(s);
-                else
-                    steps_held_edit(k, s);
-            } else if (k == 0u) {
-                if (is_drum(t)) {
-                    pen_lane_move(s);
-                } else {
-                    pen_note[0] = (uint8_t)clamp(pen_note[0] + s, 0, 127);
-                    pen_n = 1;
-                }
-            } else if (k == 1u) {
+        case LY_STEP:                                   /* -  DIV  SWING  STEPS */
+            if (k == 1u)
                 t->p[P_SDIV] = (int16_t)clamp(t->p[P_SDIV] + s, 0, (int32_t)NDIV_STEP - 1);   /* (up to 2BAR) */
-            } else if (k == 2u) {
+            else if (k == 2u)
                 t->p[P_SSWING] = (int16_t)clamp(t->p[P_SSWING] + accel(EN_K3, s, 100), 0, 100);
-            } else {
+            else if (k == 3u)
                 t->p[P_SLEN] = (int16_t)clamp(t->p[P_SLEN] + accel(EN_K4, s, 63), 1, NSTEP);
-                if ((uint32_t)ui.step_page * 16u >= trk_len(t))
-                    ui.step_page = (uint8_t)((trk_len(t) - 1u) / 16u);
-            }
             break;
         case LY_SCALE:
             if (k == 0u) {
@@ -574,17 +344,13 @@ static void layer_knobs(uint32_t layer)
 typedef struct {
     char lab[8];
     uint16_t bg, fg, top;        /* fill, text, the 3-pixel top band (0 = none) */
-    uint8_t marks;               /* small marks under the label (a ratchet), 0 = none */
-    uint8_t tag;                 /* a dot in the top right corner (a nudge or a lock on the step), 0 = none */
-    uint8_t cond;                /* top left: the step's fill condition (FC_FILL an "F", FC_NOFILL an "x"), 0 = none */
 } tile_t;
 
 static void tiles_draw(const tile_t *tl, uint32_t *cache)
 {
     uint32_t r, c, sig = 7u;
     for (r = 0; r < 16u; r++)
-        sig = studio_hash(sig * 31u + tl[r].bg * 3u + tl[r].fg * 5u + tl[r].top * 7u + tl[r].marks + tl[r].tag * 11u + tl[r].cond * 13u,
-                          tl[r].lab);
+        sig = studio_hash(sig * 31u + tl[r].bg * 3u + tl[r].fg * 5u + tl[r].top * 7u, tl[r].lab);
     if (!ui.force && sig == *cache)
         return;
     *cache = sig;
@@ -593,7 +359,6 @@ static void tiles_draw(const tile_t *tl, uint32_t *cache)
         for (c = 0; c < 4u; c++) {
             const tile_t *t = &tl[r * 4u + c];
             int32_t x = 2 + (int32_t)c * 60;
-            uint32_t m;
             if (!t->lab[0] && t->bg == TE_G1)           /* a key that does nothing here: an outline (review 19) */
                 op_box(x, 2, 56, 32, TE_G1);
             else
@@ -601,26 +366,6 @@ static void tiles_draw(const tile_t *tl, uint32_t *cache)
             if (t->top)
                 cv_rect(x, 2, 56, 3, t->top);
             te_text_c(x + 28, 9, t->lab, t->fg);
-            for (m = 0; m < t->marks; m++)
-                cv_rect(x + 22 + (int32_t)m * 5, 27, 3, 3, t->fg);
-            if (t->tag)
-                cv_rect(x + 50, 7, 3, 3, t->fg);
-            if (t->cond == FC_FILL) {                   /* an F, 5 x 7: plays in a fill only */
-                cv_rect(x + 4, 7, 2, 7, t->fg);
-                cv_rect(x + 4, 7, 5, 2, t->fg);
-                cv_rect(x + 4, 10, 4, 2, t->fg);
-            } else if (t->cond == FC_CHANCE) {          /* a ?, 5 x 7: plays at the track's CHANCE */
-                cv_rect(x + 4, 7, 5, 2, t->fg);
-                cv_rect(x + 7, 9, 2, 2, t->fg);
-                cv_rect(x + 6, 11, 2, 1, t->fg);
-                cv_rect(x + 6, 13, 2, 2, t->fg);
-            } else if (t->cond == FC_NOFILL) {          /* an x, 7 x 7: silent in a fill */
-                int32_t d;
-                for (d = 0; d < 6; d++) {
-                    cv_rect(x + 4 + d, 7 + d, 2, 2, t->fg);
-                    cv_rect(x + 9 - d, 7 + d, 2, 2, t->fg);
-                }
-            }
         }
         cv_blit(0, 40 + r * 36);
     }
@@ -688,11 +433,59 @@ static void layer_title(const char *name, const char *sub, uint16_t col, uint32_
     cv_blit(0, 0);
 }
 
-static const char *lock_label(const track_t *t, uint32_t id)   /* the lock parameter's name, lower case */
+/* the SEQ layer (PHEBUS): the pattern's steps in time, a bar a row (more bars a row when it is longer than four): each
+ * step a bar where it starts and as long as it lasts (DIV), the odd ones late by the swing, as many as STEPS; a step
+ * that plays filled in the voice's colour, an empty one outlined; the playing one white. What the three knobs do,
+ * seen as they turn */
+#define BAR_U (4u * BEAT_U)
+static void seq_time_draw(const track_t *t, uint16_t col, uint32_t *cache)
 {
-    static char b[8];
-    te_lower(b, track_desc(t, id % P_COUNT)->label, 8);
-    return b;
+    uint32_t len = trk_len(t), div = trk_div(t), u = div_units(div), i, k;
+    uint32_t sw = swings(div) ? swing_units(t->p[P_SSWING] + song.g[G_SWING], u) : 0u;
+    uint32_t bars = (len * u + BAR_U - 1u) / BAR_U, per = 1, rows, sig = len * 977u + div * 31u + sw;
+    int32_t play = song.playing ? (int32_t)t->seq_idx : -1;
+    while (bars > per * 4u)                             /* bars a row: 1, 2, 4 .. so that four rows hold them */
+        per *= 2u;
+    rows = (bars + per - 1u) / per;
+    for (i = 0; i < len; i++)
+        sig = sig * 3u + (is_drum(t) ? dstep_mask(&t->dstep[i]) != 0 : step_on(&t->step[i]) ? 1u : t->step[i].time == ST_TIE ? 2u : 0u);
+    sig += (uint32_t)(play + 1) * 7919u + col;
+    if (!ui.force && sig == *cache)
+        return;
+    *cache = sig;
+    cv_begin(240, 124, C_BLACK);
+    {
+        int32_t pitch = rows <= 2u ? 46 : 31, top = (124 - (int32_t)rows * pitch + 3) / 2, h = pitch - 11;
+        for (k = 0; k < rows; k++) {                    /* the rows: a line at each beat, brighter at each bar */
+            int32_t y = top + (int32_t)k * pitch, b;
+            for (b = 0; b <= (int32_t)per * 4; b++)
+                cv_rect(4 + b * 231 / ((int32_t)per * 4), y, 1, h + 8, b % 4 ? TE_G1 : TE_G2);
+        }
+        for (i = 0; i < len; i++) {                     /* the steps: from where they start (the odd ones swung), three
+                                                         * fifths of a step long, so the swing shows as pairs */
+            uint64_t a = (uint64_t)i * u + (i & 1u ? sw : 0u), e = a + (u * 3u + 4u) / 5u;
+            uint32_t on = is_drum(t) ? dstep_mask(&t->dstep[i]) != 0
+                        : step_on(&t->step[i]) ? 1u : t->step[i].time == ST_TIE ? 2u : 0u;
+            uint16_t c = (int32_t)i == play ? C_WHITE : on == 1u ? col : on ? TE_DIM[song.sel & 3u] : TE_G2;
+            if (t->step[i].time == ST_TIE && !is_drum(t))
+                e = a + u;                              /* (a tie runs on to the next step) */
+            while (a < e) {                             /* (a step longer than a row: on into the next) */
+                uint64_t row = a / (BAR_U * per), re = (row + 1u) * BAR_U * per, b2 = e < re ? e : re;
+                int32_t x0 = 4 + (int32_t)((a - row * BAR_U * per) * 231u / (BAR_U * per)) + 1;
+                int32_t x1 = 4 + (int32_t)((b2 - row * BAR_U * per) * 231u / (BAR_U * per)) - 1, y = top + 4 + (int32_t)row * pitch;
+                if (row >= 4u)
+                    break;
+                if (x1 < x0)
+                    x1 = x0;
+                if (on || (int32_t)i == play)
+                    cv_rect(x0, y, x1 - x0 + 1, h, c);
+                else
+                    op_box(x0, y, x1 - x0 + 1, h, c);
+                a = b2;
+            }
+        }
+    }
+    cv_blit(0, 46);
 }
 
 static uint8_t layer_shown;                              /* the screen holds a layer (or a hold) */
@@ -811,107 +604,19 @@ static void layer_screen_draw(void)
         }
         break;
     }
-    case LY_STEP: {                                     /* the 16 steps of the page */
-        uint32_t len = trk_len(t), page = ui.step_page;
-        for (i = 0; i < 16u; i++) {
-            uint32_t idx = page * 16u + i, on, lv = LV_NORM, rt = 0;
-            if (idx >= len) {
-                tl[i].bg = C_BLACK;
-                continue;
-            }
-            if (is_drum(t)) {
-                const dstep_t *d = &t->dstep[idx];
-                on = dstep_has(d, pen_lane);
-                if (on) {
-                    lv = dstep_lvl(d, pen_lane);
-                    rt = dstep_rat(d, pen_lane);
-                }
-            } else {
-                const step_t *st = &t->step[idx];
-                on = step_on(st);
-                if (on) {
-                    lv = st->lvl & 3u;
-                    rt = st->rat & 3u;
-                    note_name(tl[i].lab, st->note[0]);
-                } else if (st->time == ST_TIE) {
-                    str_cpy(tl[i].lab, "--", 8);
-                }
-            }
-            if (!tl[i].lab[0])
-                fmt_int(tl[i].lab, (int32_t)idx + 1);
-            tl[i].bg = on ? (lv == LV_GHOST ? TE_DIM[sel & 3u] : lv == LV_SOFT ? TE_MID[sel & 3u] : lv == LV_HARD ? C_WHITE : col)
-                          : TE_G1;
-            tl[i].fg = on ? C_BLACK : TE_G3;
-            tl[i].marks = (uint8_t)(on ? rt : 0u);
-            tl[i].tag = (uint8_t)step_locked(t, idx);   /* a nudge or a lock on it */
-            tl[i].cond = (uint8_t)step_fill(t, idx);   /* its condition (fill, no fill, chance) */
-            if (song.playing && idx == t->seq_idx)
-                tl[i].top = C_WHITE;
-            if ((ui.step_held >> i) & 1u)
-                tl[i].top = TE_RED;
-        }
-        if (len > 16u) {
-            char p[4] = {'1', '/', '1', 0};
-            p[0] = (char)('1' + page);
-            p[2] = (char)('0' + (len + 15u) / 16u);
-            str_cpy(sub, "page ", sizeof sub);
-            str_cpy(sub + 5, p, 4);
-        }
-        lab[0] = is_drum(t) ? "sound" : "note";
-        if (is_drum(t))
-            str_cpy(v[0], LANE_SHORT[pen_lane], 8);
-        else
-            note_name(v[0], pen_note[0]);
-        ratio[0] = is_drum(t) ? pen_lane * 1000 / 15 : pen_note[0] * 1000 / 127;
-        if (ui.step_held) {                             /* the first step held: its nudge; the title: its lock */
-            uint32_t id = ui.lock_par % P_COUNT, w, idx;
-            int k;
-            for (w = 0; w < 16u && !((ui.step_held >> w) & 1u); w++)
-                ;
-            idx = (page * 16u + w) % NSTEP;
-            lab[1] = is_drum(t) ? "level" : "vel", lab[2] = "ratchet", lab[3] = "nudge";
-            str_cpy(v[1], "-  +", 8);
-            if (!is_drum(t)) {                          /* (2.6) the first held step's velocity */
-                const step_t *st = &t->step[idx];
-                if (step_on(st)) {
-                    fmt_int(v[1], (int32_t)step_vel_shown(st));
-                    ratio[1] = (int32_t)step_vel_shown(st) * 1000 / 127;
-                } else {
-                    str_cpy(v[1], "--", 8);
-                }
-            }
-            str_cpy(v[2], "x1 x4", 8);
-            {
-                int32_t m = t->micro[idx];
-                if (m > 0) {
-                    v[3][0] = '+';
-                    fmt_int(v[3] + 1, m);
-                } else {
-                    fmt_int(v[3], m);
-                }
-                ratio[3] = (m - MICRO_MIN) * 1000 / (MICRO_MAX - MICRO_MIN);
-            }
-            str_cpy(sub, "lock ", sizeof sub);          /* "lock flt +12" / "lock flt --" (PRESETS, ALGORITHM) */
-            str_cpy(sub + 5, lock_label(t, id), 8);
-            str_cpy(sub + str_len(sub), " ", 2);
-            k = lock_find(t, idx, id, 0);
-            if (k >= 0) {
-                const char *u;
-                char b[8];
-                param_format(lock_desc(t, id), t->lock[k].val, b, &u);
-                te_lower(sub + str_len(sub), b, 8);
-            } else {
-                str_cpy(sub + str_len(sub), "--", 3);
-            }
-        } else {
-            lab[1] = "div", lab[2] = "swing", lab[3] = "steps";
-            str_cpy(v[1], N_SDIV[t->p[P_SDIV] % NDIV_STEP], 8);
-            swing_str(v[2], t->p[P_SSWING]);
-            fmt_int(v[3], t->p[P_SLEN]);
-            ratio[1] = t->p[P_SDIV] * 1000 / (NDIV_STEP - 1);
-            ratio[2] = t->p[P_SSWING] * 10;
-            ratio[3] = (t->p[P_SLEN] - 1) * 1000 / 63;
-        }
+    case LY_STEP: {                                     /* DIV  SWING  STEPS, the pattern drawn in time below */
+        uint32_t len = trk_len(t), bars = (len * div_units(trk_div(t)) + BAR_U - 1u) / BAR_U;
+        fmt_int(sub, (int32_t)len);                     /* "16 steps = 1 bar" */
+        str_cpy(sub + str_len(sub), len == 1u ? " step = " : " steps = ", 10);
+        fmt_int(sub + str_len(sub), (int32_t)bars);
+        str_cpy(sub + str_len(sub), bars == 1u ? " bar" : " bars", 6);
+        lab[1] = "div", lab[2] = "swing", lab[3] = "steps";
+        str_cpy(v[1], N_SDIV[t->p[P_SDIV] % NDIV_STEP], 8);
+        swing_str(v[2], t->p[P_SSWING]);
+        fmt_int(v[3], t->p[P_SLEN]);
+        ratio[1] = t->p[P_SDIV] * 1000 / (NDIV_STEP - 1);
+        ratio[2] = t->p[P_SSWING] * 10;
+        ratio[3] = (t->p[P_SLEN] - 1) * 1000 / 63;
         break;
     }
     case LY_SCALE: {                                    /* the white keys' notes / chords; the root lit */
@@ -1045,6 +750,8 @@ static void layer_screen_draw(void)
     layer_title(LAYER_NAME[layer % LY_COUNT], sub, col, &head);
     if (layer == LY_FX)
         punch_tiles_draw(tl, &tiles);
+    else if (layer == LY_STEP)
+        seq_time_draw(t, col, &tiles);
     else
         tiles_draw(tl, &tiles);
     {   /* (a message shows in the title: the dials stay) */

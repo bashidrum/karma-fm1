@@ -159,7 +159,7 @@ static void op_badge(int32_t x, int32_t y, char ch, uint16_t bg)   /* 10 x 14: a
 static void op_trackbar(uint32_t *cache)
 {
     static const char *const NAME[NTRK] = {"1", "2", "3", "DR"};
-    uint32_t i, sig = 1u + song.sel + song.rec * 16u + song.solo * 256u;
+    uint32_t i, sig = 1u + song.sel + song.rec * 16u + song.solo * 256u + (uint32_t)(on_drum_page() && stl_shown()) * 4096u;
     for (i = 0; i < NTRK; i++)
         sig = sig * 3u + (trk[i].p[P_MUTE] != 0);
     if (!ui.force && sig == *cache)
@@ -169,7 +169,7 @@ static void op_trackbar(uint32_t *cache)
     cv_rect(0, 0, 240, 1, TE_G1);
     for (i = 0; i < NTRK; i++) {
         int32_t x = 4 + 58 * (int32_t)i, nx = x + OP_HM_W + 4, bx;
-        uint32_t sel = song.sel == i;
+        uint32_t sel = song.sel == i && !(on_drum_page() && stl_shown());   /* (the STUTTER lane, after DR: no track underlined, PHEBUS) */
         op_sprite_wh(OP_SPR_HM[i], OP_HM_W, OP_HM_H, x, 5, 0, TE_COL[i], 1);
         bx = cv_text(nx, 5, &FONT_S, NAME[i], sel ? TE_COL[i] : TE_G3) + 3;
         if ((song.rec >> i) & 1u)
@@ -557,19 +557,20 @@ static void op_scene_croc(const int32_t ratio[4])
  * harmonics; SWARM: the eight oscillators, as far apart as HARM spreads them, as long as MRPH makes their grains;
  * CHORD: its notes on an octave of keys (green: CHORD's knob), the inversion under it (white: INVRT's). Kept until
  * a control moves. */
-static void op_prism_panel(const track_t *t)
+static void op_prism_panel(const track_t *t, int32_t x0, int32_t y0, int32_t k)   /* (at x0, y0, k times as big) */
 {
     static int8_t pts[80];
     static uint32_t key = 0xFFFFFFFFu;
     static const uint16_t TONES[11] = {0x001, 0x081, 0x0A1, 0x089, 0x489, 0x40D, 0x429, 0x215, 0x815, 0x891, 0x091};
     static const uint8_t WHITE[7] = {0, 2, 4, 5, 7, 9, 11}, BLACK[5] = {1, 3, 6, 8, 10}, BX[5] = {7, 17, 37, 47, 57};
-    uint32_t model = prism_model(t), k = (uint32_t)t->p[P_E0] | (uint32_t)t->p[P_E1] << 4 | (uint32_t)t->p[P_E2] << 12 |
-                                         (uint32_t)t->p[P_E3] << 20, i;
-    int32_t h = t->p[P_E1] * 258, tb = t->p[P_E2] * 258, mo = t->p[P_E3] * 258, x0 = 152, y0 = 22, x;
+    uint32_t model = prism_model(t), kk = (uint32_t)t->p[P_E0] | (uint32_t)t->p[P_E1] << 4 | (uint32_t)t->p[P_E2] << 12 |
+                                          (uint32_t)t->p[P_E3] << 20, i;
+    int32_t h = t->p[P_E1] * 258, tb = t->p[P_E2] * 258, mo = t->p[P_E3] * 258, x;
+#define PK(v) ((v) * k)
     if (model == PRM_FOLD || model == PRM_WAVE || model == PRM_HARM) {
-        if (k != key) {                                 /* a control moved: the picture again */
+        if (kk != key) {                                /* a control moved: the picture again */
             int16_t b[32];
-            key = k;
+            key = kk;
             if (model == PRM_HARM) {
                 pr_harm_t hs;
                 int32_t top = 1;
@@ -601,42 +602,47 @@ static void op_prism_panel(const track_t *t)
             }
         }
         if (model == PRM_HARM) {
-            for (i = 0; i < PR_HARM_N; i++) {
-                cv_rect(x0 + 4 + (int32_t)i * 3, y0 + 38 - pts[i], 2, pts[i] + 1, tint_col(0u, 0));
-            }
+            for (i = 0; i < PR_HARM_N; i++)
+                cv_rect(x0 + PK(4 + (int32_t)i * 3), y0 + PK(38 - pts[i]), PK(2), PK(pts[i] + 1), tint_col(0u, 0));
         } else {
             for (x = 0; x < 80; x += 4)
-                cv_pset(x0 + x, y0 + 20, OP_PUR_D);
-            for (i = 1; i < 80u; i++)
-                cv_line(x0 + (int32_t)i - 1, y0 + 20 - pts[i - 1], x0 + (int32_t)i, y0 + 20 - pts[i], tint_col(0u, 0));
+                cv_pset(x0 + PK(x), y0 + PK(20), OP_PUR_D);
+            for (i = 1; i < 80u; i++) {
+                cv_line(x0 + PK((int32_t)i - 1), y0 + PK(20 - pts[i - 1]), x0 + PK((int32_t)i), y0 + PK(20 - pts[i]), tint_col(0u, 0));
+                if (k > 1)
+                    cv_line(x0 + PK((int32_t)i - 1), y0 + PK(20 - pts[i - 1]) - 1, x0 + PK((int32_t)i), y0 + PK(20 - pts[i]) - 1,
+                            tint_col(0u, 0));
+            }
         }
     } else if (model == PRM_SWARM) {
         int32_t spread = h, len = 8 + mo * 30 / 32767, n = 2 + tb * 10 / 32767;   /* (HARM as it is: its cube is the pitch) */
         for (i = 0; i < 8u; i++) {                      /* (their ranks: -1 .. 1.33, as the model's) */
-            int32_t y = y0 + 22 - (((int32_t)i - 3) * spread * 13 / 3) / 32767;
-            cv_line(x0 + 40 - len, y + 2, x0 + 40 + len, y - 2, tint_col(0u, 0));
-            cv_line(x0 + 40 + len, y - 2, x0 + 40 + len, y + 2, tint_col(0u, 0));
+            int32_t y = y0 + PK(22 - (((int32_t)i - 3) * spread * 13 / 3) / 32767);
+            cv_line(x0 + PK(40 - len), y + PK(2), x0 + PK(40 + len), y - PK(2), tint_col(0u, 0));
+            cv_line(x0 + PK(40 + len), y - PK(2), x0 + PK(40 + len), y + PK(2), tint_col(0u, 0));
         }
         for (i = 0; i < (uint32_t)n; i++)               /* TIMB: the grains' rate */
-            cv_rect(x0 + 2 + (int32_t)i * 6, y0, 3, 2, tint_col(2u, 0));
+            cv_rect(x0 + PK(2 + (int32_t)i * 6), y0, PK(3), PK(2), tint_col(2u, 0));
     } else {                                            /* CHORD */
         uint32_t tones = TONES[(uint32_t)t->p[P_E1] * 11u / 128u];
         for (i = 0; i < 7u; i++) {
             int32_t on = (tones >> WHITE[i]) & 1u;
             if (on)
-                cv_rect(x0 + 5 + (int32_t)i * 10, y0 + 2, 9, 30, WHITE[i] ? tint_col(1u, 0) : C_WHITE);
+                cv_rect(x0 + PK(5 + (int32_t)i * 10), y0 + PK(2), PK(9), PK(30), WHITE[i] ? tint_col(1u, 0) : C_WHITE);
             else
-                op_box(x0 + 5 + (int32_t)i * 10, y0 + 2, 9, 30, OP_PUR);
+                op_box(x0 + PK(5 + (int32_t)i * 10), y0 + PK(2), PK(9), PK(30), OP_PUR);
         }
         for (i = 0; i < 5u; i++) {
             int32_t on = (tones >> BLACK[i]) & 1u;
-            cv_rect(x0 + 5 + BX[i], y0 + 2, 5, 17, on ? tint_col(1u, 0) : C_BLACK);
+            cv_rect(x0 + PK(5 + BX[i]), y0 + PK(2), PK(5), PK(17), on ? tint_col(1u, 0) : C_BLACK);
             if (!on)
-                op_box(x0 + 5 + BX[i], y0 + 2, 5, 17, OP_PUR);
+                op_box(x0 + PK(5 + BX[i]), y0 + PK(2), PK(5), PK(17), OP_PUR);
         }
         for (i = 0; i < 20u; i++)                       /* INVRT: twenty steps up */
-            cv_rect(x0 + 1 + (int32_t)i * 4, y0 + 36, 3, 2, (int32_t)i <= t->p[P_E2] * 20 / 128 ? tint_col(2u, 0) : OP_PUR_D);
+            cv_rect(x0 + PK(1 + (int32_t)i * 4), y0 + PK(36), PK(3), PK(2),
+                    (int32_t)i <= t->p[P_E2] * 20 / 128 ? tint_col(2u, 0) : OP_PUR_D);
     }
+#undef PK
 }
 
 static void op_synth_scene(track_t *t, const int32_t ratio[4], int analog_wave)
@@ -657,7 +663,7 @@ static void op_synth_scene(track_t *t, const int32_t ratio[4], int analog_wave)
     default: op_scene_croc(ratio); break;
     }
     if (op_px)
-        op_prism_panel(t);
+        op_prism_panel(t, 152, 22, 1);
 }
 
 /* the pages of the family, the one shown filled (one page: nothing) */
@@ -677,44 +683,43 @@ static void op_pages(uint32_t k, uint32_t n, uint32_t *cache)
     cv_blit(0, 146);
 }
 
-/* the sound chain's signal path, in place of the dots (Ben, 20 Nov 2026: the MiniFreak's flow): OSC > FILT > ENV >
- * FX > MOD, always all five in the same places, in the voice's colour: the stage shown filled, a stage the voice
- * does not have dark; at the right the stage's pages (k of n), when it has more than one. The bottom rows of the
- * graph above it give way (draw_graph) */
+/* the sound chain's signal path (Ben, 20 Nov 2026: the MiniFreak's flow): OSC > FILT > ENV > FX > MOD, always all five
+ * in the same order, in the voice's colour, a stage the voice does not have dark. The stage shown is filled and holds
+ * the name of the page shown (Ben, 21 Nov: "Keep, name the pages": FILTER 2, LFO SYNC, so a one-knob page says what it
+ * is); at the right its place among the stage's pages, "2/2", when it has more than one. The bottom rows of the graph
+ * above it give way (draw_graph) */
 #define OP_CHAIN_H 13                                   /* (a row apart from the graph, then 12) */
 #define OP_CHAIN_Y (OP_KNOB_Y - OP_CHAIN_H)
 static void op_chain(uint32_t st, uint32_t have, uint32_t k, uint32_t n, uint32_t *cache)
 {
-    uint32_t v = song.sel & 3u, s, i, sig = 0x51u + st + have * 8u + k * 256u + n * 4096u + v * 65536u;
-    int32_t x = 3, p, sz;
+    uint32_t v = song.sel & 3u, s, sig = 0x51u + st + have * 8u + k * 256u + n * 4096u + v * 65536u;
+    const char *pn = cur_page()->title;
+    char pos[6] = {(char)('0' + k % 10u), '/', (char)('0' + n % 10u), 0};
+    int32_t x = 3, w;
+    sig = studio_hash(sig, pn);
     if (!ui.force && sig == *cache)
         return;
     *cache = sig;
+    for (s = 0, w = 0; s < NSTAGE; s++)                 /* (a name too long for the line: the stage's own) */
+        w += text_w(&FONT_S, s == st ? pn : STAGE_NAME[s]) + 4 + (s ? 4 : 0);
+    if (w + 3 + (n > 1u ? 5 + text_w(&FONT_S, pos) : 0) > 237)
+        pn = STAGE_NAME[st];
     cv_begin(240, OP_CHAIN_H, C_BLACK);
     for (s = 0; s < NSTAGE; s++) {
-        int32_t w = text_w(&FONT_S, STAGE_NAME[s]) + 6;
+        const char *nm = s == st ? pn : STAGE_NAME[s];
+        w = text_w(&FONT_S, nm) + 4;
         if (s) {                                        /* the arrow between two stages */
-            cv_line(x + 1, 4, x + 3, 6, TE_G2);
-            cv_line(x + 3, 7, x + 1, 9, TE_G2);
-            x += 6;
+            cv_line(x + 1, 4, x + 2, 6, TE_G2);
+            cv_line(x + 2, 7, x + 1, 9, TE_G2);
+            x += 4;
         }
         if (s == st)
             cv_rect(x, 1, w, OP_CHAIN_H - 1, TE_COL[v]);
-        cv_text(x + 3, 0, &FONT_S, STAGE_NAME[s], s == st ? C_BLACK : (have >> s) & 1u ? TE_MID[v] : TE_G2);
+        cv_text(x + 2, 0, &FONT_S, nm, s == st ? C_BLACK : (have >> s) & 1u ? TE_MID[v] : TE_G2);
         x += w;
     }
-    if (n > 1u) {                                       /* the stage's pages, right-aligned */
-        p = (237 - x - 6) / (int32_t)n;
-        p = p > 9 ? 9 : p;
-        sz = p > 7 ? (p - 3 > 6 ? 6 : p - 3) : p - 2;   /* (FX's eight or nine: 4 px, 2 apart) */
-        for (i = 0; i < n; i++) {
-            int32_t bx = 237 - (int32_t)(n - i) * p + (p - sz), by = 1 + (OP_CHAIN_H - 1 - sz) / 2;
-            if (i + 1u == k)
-                cv_rect(bx, by, sz, sz, TE_COL[v]);
-            else
-                op_box(bx, by, sz, sz, TE_DIM[v]);
-        }
-    }
+    if (n > 1u)                                         /* the page's place in the stage, right-aligned */
+        cv_text(238 - text_w(&FONT_S, pos), 0, &FONT_S, pos, TE_MID[v]);
     cv_blit(0, OP_CHAIN_Y);
 }
 
@@ -906,74 +911,273 @@ static void op_hex_scene(void)
 }
 
 /* ------------------------------------------------------------------- FX --- */
-/* the FX pages (the sends, and those without a graph: FILTER, INSERT, DLY, REV/CHO): the selected track's character
- * dancing to the beat (op_dance), and beside it a spell a knob, each in the knob's colour and as strong as the knob
- * is turned: KNOB 1 a bolt of lightning, KNOB 2 two ribbons that wave, KNOB 3 stars that bounce away, smaller each,
- * KNOB 4 rings that spread. The selected track's sound moves them, each note makes the character hop. */
-static void op_fx_scene(const int32_t ratio[4])
+/* ---------------------------------------------------------- SOUND PAGES --- */
+/* (Ben, 21 Nov 2026, review 8: "Sound big, character small") a sound page (OSC, VOICE, FILTER, the DEST pages, FX,
+ * CHORUS, INSERT) draws what its four knobs do, big, as they turn, in the voice's colour (tint_col: a shared page
+ * neutral): the wave the oscillator makes, the filter's response, the sends, the INSERT's curve, the voice's ways. Its
+ * character small (the mixer's size) at the top right, still dancing and striking; the sound's name at the top left.
+ * MiniFreak's rule: the picture shows the consequence the instant a knob moves, not the number. One 2 px line
+ * helper (gp_to) draws every curve in the plot SP_L..SP_R x SP_T..SP_B (graph canvas rows) */
+#define SP_L 8
+#define SP_R 232
+#define SP_T 40
+#define SP_B 114
+#define SP_M ((SP_T + SP_B) / 2)
+static int32_t gp_x, gp_y;
+static uint8_t gp_go;                                   /* 0: the next point starts a line */
+static void gp_to(int32_t x, int32_t y, uint16_t c)
 {
-    static uint32_t ph;
-    uint32_t sel = song.sel & 3u, live, rnd, j, pose;
-    int32_t flick, tx = 114, ty, x, py = 0, i, n;
+    y = clamp(y, SP_T, SP_B);
+    if (gp_go) {
+        cv_line(gp_x, gp_y, x, y, c);
+        cv_line(gp_x, gp_y - 1, x, y - 1, c);
+    }
+    gp_x = x, gp_y = y, gp_go = 1;
+}
+static void gp_dots(int32_t y)                          /* a dotted rule across the plot */
+{
+    int32_t x;
+    for (x = SP_L; x <= SP_R; x += 4)
+        cv_pset(x, y, OP_PUR_D);
+}
+/* a filter's response in px down from 0 dB at x: cutoff at xc, resonance r px of peak, k/8 px down a px past it, hp */
+static int32_t gp_resp(int32_t x, int32_t xc, int32_t r, int32_t k, int hp)
+{
+    int32_t d = hp ? xc - x : x - xc, v = d > 0 ? d * k / 8 : 0;
+    if (d > -16 && d < 16)
+        v -= r * (256 - d * d) / 256;
+    return v;
+}
+/* the filter page: the response (cutoff 0..127, resonance 0..127, the slope k), the envelope's sweep (env 0..127) as a
+ * shaded wedge out to where it opens, fading as fast as dec (0..127, -1: no decay shown), and the track's own LP / HP
+ * filter (tf, -64..63) on top of it */
+static void gp_filter(int32_t cut, int32_t res, int32_t env, int32_t dec, int32_t k, int32_t tf, uint16_t c)
+{
+    const int32_t y0 = SP_T + 18, w = SP_R - SP_L - 20;
+    int32_t xc = SP_L + 10 + cut * w / 127, xe = clamp(xc + env * w / 2 / 127, SP_L, SP_R), x, h = (SP_B - y0) << 8;
+    int32_t xt = tf < 0 ? SP_R - (-tf) * (SP_R - SP_L) / 64 : SP_L + tf * (SP_R - SP_L) / 63;
+    gp_dots(y0);
+    for (x = xe; x > xc; x -= 3) {                      /* the sweep: from where the envelope opens it, back */
+        cv_rect(x, SP_B - (h >> 8), 1, h >> 8, tint_col(2u, 2));
+        if (dec >= 0)
+            h -= h * 3 / (8 + dec);
+    }
+    gp_go = 0;
+    for (x = SP_L; x <= SP_R; x += 2)
+        gp_to(x, y0 + gp_resp(x, xc, res * 26 / 127, k, 0) + (tf ? gp_resp(x, xt, 0, 5, tf > 0) : 0), c);
+    cv_rect((tf && cut == 127 ? xt : xc) - 1, SP_B - 3, 3, 4, C_WHITE);   /* where the cutoff is */
+}
+/* the oscillators: two cycles across the plot (x: 0..2047 a phase), each engine's own way */
+static int32_t gp_noise(int32_t x) { uint32_t h = (uint32_t)x * 2654435761u; h ^= h >> 13; h *= 2246822519u; return (int32_t)(h >> 16) - 32768; }
+static void gp_osc(const track_t *t, uint16_t c)
+{
+    const int16_t *p = t->p;
+    uint32_t e = t->eng_req % NENGINES, m = e == ENGI_PRISM ? prism_model(t) : 0u;
+    int32_t x, a = SP_M - SP_T - 4;
+    gp_dots(SP_M);
+    if (e == ENGI_PRISM && m < PRM_PLX) {               /* FOLD, WAVE, HARM, SWARM, CHORD: the model's own picture, big */
+        op_prism_panel(t, 40, SP_T - 4, 2);
+        return;
+    }
+    gp_go = 0;
+    for (x = SP_L; x <= SP_R; x += 2) {
+        uint32_t ph = (uint32_t)(x - SP_L) * 2048u / (SP_R - SP_L), q = ph & 1023u;
+        int32_t saw = (int32_t)q * 64 - 32768, v;
+        if (e == ENGI_JUNO) {                           /* WAVE (saw, pulse, both), PW, SUB an octave down, NOISE */
+            int32_t wv = clamp(p[P_E0], 0, 2), pw = 512 + clamp(p[P_E1], 0, 127) * 460 / 127;
+            int32_t sub = clamp(p[P_E2], 0, 127), noi = clamp(p[P_E3], 0, 127);
+            int32_t sum = (wv != 1 ? saw * 127 : 0) + (wv ? ((int32_t)q < pw ? 32767 : -32767) * 127 : 0) +
+                          (ph & 1024u ? -32767 : 32767) * sub + gp_noise(x) * noi;
+            v = sum / ((wv == 2 ? 254 : 127) + sub + noi);
+        } else if (e == ENGI_ACID) {                    /* WAVE (saw, square) through DRV */
+            v = p[P_E0] ? ((int32_t)q < 512 ? 32767 : -32767) : saw;
+            v = softclip(v * (8 + p[P_E6] / 4) / 8) * 5 / 6;
+        } else if (e == ENGI_PRISM && m == PRM_PLX) {   /* PLAITS VA (a schematic): MRPH a triangle to a saw (then a
+                                                         * notch), TIMB a pulse from narrow to square, HARM a second
+                                                         * wave drifting off, SUB an octave down */
+            int32_t mo = p[P_E3], tb = p[P_E2];
+            uint32_t q2 = (q + (uint32_t)((p[P_E1] - 64) * (int32_t)(ph >> 4) / 64)) & 1023u;
+            int32_t tri = q2 < 512u ? (int32_t)q2 * 128 - 32768 : 32767 - ((int32_t)q2 - 512) * 128;
+            v = tri + ((int32_t)q2 * 64 - 32768 - tri) * (mo > 64 ? 64 : mo) / 64;
+            if (mo > 64 && q2 + (uint32_t)(mo - 64) * 6u > 512u && q2 < 512u)
+                v = 0;
+            v = (v * 2 + ((int32_t)q < 40 + tb * 4 ? 32767 : -32767) * (tb > 16 ? 16 : tb) / 16) / 3;
+            v += p[P_E5] * (ph & 1024u ? -128 : 128);
+        } else if (e == ENGI_PRISM) {                   /* the other PLAITS models: brighter with TIMB, HARM the cycles */
+            v = op_wave((uint32_t)(ph * (2u + (uint32_t)p[P_E1] / 32u) / 2u), 5u, p[P_E2] * 8);
+            v = v * (128 - p[P_E3] / 3) / 128 + op_wave(ph * 2u, 3u, 0) * p[P_E3] / 384;
+        } else {                                        /* ELEMENTS (a schematic): a struck body ringing down, BRIT its
+                                                         * edge, DAMP how soon it dies, STRC its partials */
+            int32_t env = p[P_E0] == EM_BOW || p[P_E0] == EM_BLOW ? 32767   /* (BOW, BLOW: held on; the others ring down) */
+                        : 32767 - (x - SP_L) * (32 + (127 - clamp(p[P_E3], 0, 127)) / 2) * 4;
+            v = op_wave((uint32_t)(x - SP_L) * (24u + (uint32_t)p[P_E1] / 8u), 5u, p[P_E2] * 8);
+            v = (int32_t)((int64_t)v * (env < 0 ? 0 : env) >> 15);
+        }
+        gp_to(x, SP_M - v * a / 32768, c);
+    }
+    if (e == ENGI_ACID) {                               /* ACC and SLIDE, small, top left: a note, then one slid up
+                                                         * to (as long as SLIDE), accented (taller, as ACC) */
+        int32_t sl = p[P_E7] * 24 / 127, ac = 3 + p[P_E5] * 6 / 127;
+        cv_rect(SP_L, 35, 24, 4, tint_col(1u, 1));
+        gp_go = 0;
+        gp_to(SP_L + 24, 37, tint_col(2u, 0));
+        gp_to(SP_L + 26 + sl, 30, tint_col(2u, 0));
+        cv_rect(SP_L + 26 + sl, 30 - ac, 24, ac, c);
+    }
+}
+/* the four knobs as bars under their columns (OSC 2, the DEST pages, VOICE 2), each from its value; a value that goes
+ * below 0 (the DEST amounts, PAN) from the middle */
+static void gp_bars(const track_t *t, const page_t *pg)
+{
+    uint32_t k;
+    for (k = 0; k < 4u; k++) {
+        const param_desc_t *d;
+        int32_t x = 6 + (int32_t)k * 60, h, y, bi;
+        if (pg->id[k] >= P_COUNT || (d = track_desc(t, pg->id[k]))->max <= d->min)
+            continue;
+        bi = d->min < 0;
+        op_box(x, SP_T, 48, SP_B - SP_T + 1, tint_col(k, 2));
+        h = (t->p[pg->id[k]] - (bi ? 0 : d->min)) * (SP_B - SP_T) / (d->max - (bi ? 0 : d->min)) / (bi ? 2 : 1);
+        y = bi ? SP_M - (h > 0 ? h : 0) : SP_B - h;
+        cv_rect(x + 3, y, 42, h < 0 ? -h : h > 0 ? h : 1, tint_col(k, 0));
+        if (bi)
+            cv_rect(x, SP_M, 48, 1, OP_PUR);
+    }
+}
+/* FX: the four sends as they sound, each in a box under its knob, as strong as the knob: DIST a wave clipped harder,
+ * CHORUS a second voice further off, DELAY its echoes, longer lasting, REVERB its tail */
+static void gp_sends(const track_t *t, uint16_t c)
+{
+    uint32_t k;
+    int32_t x, i;
+    for (k = 0; k < 4u; k++) {
+        int32_t x0 = 6 + (int32_t)k * 60, a = clamp(t->p[P_DIST + k], 0, 127), h = (SP_B - SP_T - 8) << 8;
+        op_box(x0, SP_T, 48, SP_B - SP_T + 1, tint_col(k, 2));
+        for (i = k == 1u ? 1 : 0; i >= 0; i--) {        /* DIST, CHORUS: a cycle (CHORUS: and its second voice) */
+            if (k > 1u)
+                break;
+            gp_go = 0;
+            for (x = 0; x <= 40; x += 2) {
+                int32_t v = SINE[((uint32_t)x * 25u + (uint32_t)(i * a * 2)) & 1023u];
+                if (!k)
+                    v = clamp(v * (16 + a) / 16, -32767, 32767);
+                gp_to(x0 + 4 + x, SP_M - ((v * 28) >> 15), i ? tint_col(k, 1) : c);
+            }
+        }
+        if (k == 2u)                                    /* DELAY: the sound, then its echoes, each FDBK of the last */
+            for (i = 0; i < 5; i++, h = h * a / 127)
+                cv_rect(x0 + 5 + i * 9, SP_B - 2 - (h >> 8), 3, h >> 8, i ? c : tint_col(k, 1));
+        if (k == 3u)                                    /* REVERB: the tail, longer as more goes in */
+            for (x = 0; x < 40; x += 2, h -= h * 10 / (10 + a))
+                cv_rect(x0 + 4 + x, SP_B - 2 - (h >> 8) * a / 127, 1, (h >> 8) * a / 127 + 1, c);
+    }
+}
+/* the INSERT: its curve, the output for an input from -1 to 1 (SOFT .. CRUSH: the shape itself, fx.c ins_shape, after
+ * DRIVE, at LEVEL), mixed with the dry line by MIX; the swept ones (PHASR, FLANG, CHOR): the notches they comb into
+ * the sound, as deep as DEPTH, peaked by FDBK, moving at RATE; OFF: the dry line */
+static void gp_insert(const track_t *t, uint16_t c)
+{
+    const int16_t *p = t->p;
+    int32_t ty = clamp(p[P_ITYPE], 0, IT_N - 1), mix = ins_mixq(p[P_IMIX]), x;
+    gp_dots(SP_M);
+    gp_go = 0;
+    if (ty >= IT_PHASER) {
+        int32_t n = ty == IT_PHASER ? 4 : ty == IT_FLANGER ? 9 : 2, sh = (int32_t)(ui.frame * (uint32_t)(1 + p[P_IA] / 8)) % 64;
+        for (x = SP_L; x <= SP_R; x += 2) {
+            int32_t ph = ((x - SP_L) * n * 1024 / (SP_R - SP_L) + sh * 16) & 1023, s = SINE[ph];
+            int32_t g = s > 0 ? s * p[P_IC] / 127 : s * p[P_IB] / 127;   /* FDBK the peaks, DEPTH the notches */
+            gp_to(x, SP_M - 16 - ((g * 28) >> 15) * mix / 32768, c);
+        }
+        return;
+    }
+    for (x = 120 - 37; x <= 120 + 37; x += 1) {         /* a square, 75 px: in across, out up */
+        int32_t in = (x - 120) * 32767 / 37, out = in, g = 4096 + p[P_IA] * p[P_IA] * 3;
+        if (ty == IT_CRUSH)
+            out = ins_shape(IT_CRUSH, in, ins_bits_sh(p[P_IA]));
+        else if (ty)
+            out = (int32_t)((int64_t)ins_shape((uint32_t)ty, (in * (g >> 4)) >> 8, 0) * LEVEL_Q12[p[P_IC] & 127] >> 12);
+        out = ins_mix(in, out, mix);
+        gp_to(x, SP_M - clamp(out, -32767, 32767) * 37 / 32768, c);
+    }
+    cv_line(120 - 37, SP_M + 37, 120 + 37, SP_M - 37, OP_PUR_D);   /* the dry line */
+    if (!ty)
+        return;
+    gp_go = 0;                                          /* right: TONE (CRUSH: LPF), the low-pass after it */
+    for (x = 172; x <= SP_R; x += 2)
+        gp_to(x, SP_M - 10 + gp_resp(x, 176 + p[ty == IT_CRUSH ? P_IC : P_IB] * 52 / 127, 0, 6, 0), tint_col(2u, 0));
+    if (ty == IT_CRUSH) {                               /* left: RATE, a wave held at the rate */
+        int32_t step = 2 + (127 - p[P_IB]) / 8;
+        gp_go = 0;
+        for (x = 0; x <= 60; x++)
+            gp_to(SP_L + x, SP_M - ((SINE[(uint32_t)(x - x % step) * 17u & 1023u] * 20) >> 15), tint_col(1u, 0));
+    }
+}
+/* VOICE: three keys held (low first, high next, the middle last): POLY plays them all, the others one, by PRIO (LAST,
+ * LOW, HIGH); MONO starts it apart from the note before, LEGATO tied on; UNISON thick. GLIDE how long the pitch
+ * slides, GLMODE RATE (the longer jump slides longer) or TIME (both the same) */
+static void gp_voice(const track_t *t, uint16_t c)
+{
+    int32_t vm = clamp(t->p[P_VOICE], 0, 3), pr = clamp(t->p[P_PRIO], 0, 2), gl = t->p[P_GLIDE] * 50 / 127, i;
+    for (i = 0; i < 3; i++) {                           /* the notes, left: high, middle, low */
+        int32_t y = SP_T + 8 + i * 26, xs = SP_L + (i == 0 ? 20 : i == 1 ? 40 : 0);
+        if (vm == V_POLY || i == (pr == 0 ? 1 : pr == 1 ? 2 : 0)) {
+            cv_rect(xs, y - (vm == V_UNISON ? 4 : 0), SP_L + 104 - xs, vm == V_UNISON ? 14 : 6, c);
+            if (vm == V_MONO || vm == V_LEGATO)         /* the note before: a gap (MONO), tied on (LEGATO) */
+                cv_rect(xs - 20, y, vm == V_LEGATO ? 20 : 15, 6, tint_col(0u, 1));
+        } else {
+            op_box(xs, y, SP_L + 104 - xs, 6, tint_col(0u, 2));
+        }
+    }
+    for (i = 0; i < 2; i++) {                           /* the slides, right: a step of 1, then of 3 */
+        int32_t y0 = SP_B - 4 - i * 40, len = t->p[P_GLMODE] ? gl : gl * (1 + i * 2) / 3;
+        gp_go = 0;
+        gp_to(128, y0, c);
+        gp_to(152, y0, c);
+        gp_to(152 + len, y0 - 10 - i * 20, c);
+        gp_to(SP_R, y0 - 10 - i * 20, c);
+    }
+}
+/* JUNO's CHORUS: OFF one line; I, II, I+II two, three, four, wider apart */
+static void gp_chorus(const track_t *t, uint16_t c)
+{
+    int32_t n = clamp(t->p[P_E7], 0, 3), i, x;
+    for (i = n; i >= 0; i--) {
+        gp_go = 0;
+        for (x = SP_L; x <= SP_R; x += 3)
+            gp_to(x, SP_M - ((SINE[((uint32_t)(x - SP_L) * 9u + (uint32_t)(i * (40 + n * 30))) & 1023u] * 30) >> 15),
+                  i ? tint_col(0u, 1) : c);
+    }
+}
+static void op_sound(const track_t *t, const page_t *pg)
+{
+    uint32_t e = t->eng_req % NENGINES, si = song.sel & 3u, pose;
+    uint16_t c = tint_col(0u, 0);
     int flip;
-    op_band_tick();
-    live = op_mx[sel] != 0u || op_hop[sel] != 0u;
-    if (live)
-        ph += 48u;
-    flick = op_hop[sel] ? 2 : 0;                        /* (a hop: 2 px at most, review 19) */
-    ty = 58 - flick;
-    for (x = 8; x < 232; x += 8)
-        cv_pset(x, OP_FLOOR_Y, OP_PUR_D);
-    /* the character: it hops as the track sounds; the spells start at (tx, ty), beside it */
-    pose = op_dance(&flip);
-    op_char(sel, pose, flip, 4, OP_SPR_Y - flick);
-    if (ratio[3] > 0) {                                 /* KNOB 4: the rings */
-        int32_t maxr = 16 + ratio[3] * 30 / 1000;
-        n = 1 + ratio[3] * 3 / 1000;
-        for (i = 0; i < n; i++) {
-            int32_t r = 6 + (int32_t)((ph / 6u + (uint32_t)i * (uint32_t)maxr / (uint32_t)n) % (uint32_t)maxr);
-            op_arc(tx, ty, r, r, 800, 1248, r > maxr - 6 ? tint_col(3u, 2) : tint_col(3u, 0));
-        }
-    }
-    if (ratio[0] > 0) {                                 /* KNOB 1: the bolt, new at each frame while it sounds */
-        int32_t len = 50 + ratio[0] * 64 / 1000, jag = 2 + ratio[0] * 9 / 1000, px = tx + 2;
-        rnd = (live ? ui.frame / 2u : 7u) * 2654435761u + 1u;
-        py = ty - 2;
-        for (i = 1; i <= 6; i++) {
-            int32_t nx = tx + 2 + len * i / 6, ny;
-            rnd = rnd * 1664525u + 1013904223u;
-            ny = ty - 2 - (len * i / 6) * 26 / 114 + (i == 6 ? 0 : (int32_t)((rnd >> 12) % (uint32_t)(2 * jag + 1)) - jag);
-            cv_line(px, py, nx, ny, i > 4 && live ? C_WHITE : tint_col(0u, 0));
-            px = nx;
-            py = ny;
-        }
-    }
-    if (ratio[1] > 0) {                                 /* KNOB 2: the ribbons */
-        int32_t amp = 2 + ratio[1] * 7 / 1000;
-        for (j = 0; j < 2u; j++)
-            for (x = tx + 6; x <= 232; x += (int32_t)j + 1) {
-                int32_t y = ty + 12 + (int32_t)j * 7 + ((SINE[((uint32_t)x * 22u + ph * 2u + j * 300u) & 1023u] * amp) >> 15);
-                if (j == 0 && x > tx + 6)
-                    cv_line(x - 1, py, x, y, tint_col(1u, 0));
-                else
-                    cv_pset(x, y, tint_col(1u, 0));
-                py = y;
-            }
-    }
-    if (ratio[2] > 0) {                                 /* KNOB 3: the stars */
-        n = 1 + ratio[2] * 5 / 1000;
-        for (i = 0; i < n; i++) {
-            int32_t sx = tx + 14 + i * 19, s = 5 - i * 4 / 5, b = SINE[(ph * 3u + (uint32_t)i * 170u) & 1023u];
-            int32_t sy = ty + 44 - (((b < 0 ? -b : b) * (9 - i)) >> 15);
-            cv_rect(sx - s, sy, 2 * s + 1, 1, tint_col(2u, 0));
-            cv_rect(sx, sy - s, 1, 2 * s + 1, tint_col(2u, 0));
-            if (s > 2) {
-                cv_pset(sx - 2, sy - 2, tint_col(2u, 0));
-                cv_pset(sx + 2, sy - 2, tint_col(2u, 0));
-                cv_pset(sx - 2, sy + 2, tint_col(2u, 0));
-                cv_pset(sx + 2, sy + 2, tint_col(2u, 0));
-            }
-        }
+    const int16_t *p = t->p;
+    if (!is_drum(t))
+        op_names(t);
+    pose = op_dance(&flip);                             /* the character, small, top right */
+    op_k = 3;
+    op_band_member(si, 218, 35, pose, flip, TE_COL[si]);
+    if (pg->fam == FAM_FLT) {
+        if (pg->id[0] == P_TFLT || is_drum(t))
+            gp_filter(127, 0, 0, -1, 0, p[P_TFLT], c);
+        else if (e == ENGI_ACID)                        /* CUT RES ENV DEC: 18 dB */
+            gp_filter(p[P_E1], p[P_E2], p[P_E3], p[P_E4], 8, 0, c);
+        else                                            /* JUNO: CUT RES ENV, 24 dB, then FILT */
+            gp_filter(p[P_E4], p[P_E5], p[P_E6], -1, 10, p[P_TFLT], c);
+    } else if (pg->graph == GR_INS) {
+        gp_insert(t, c);
+    } else if (pg->id[0] == P_VOICE) {
+        gp_voice(t, c);
+    } else if (pg->id[0] == P_E7 && pg->fam == FAM_FX) {
+        gp_chorus(t, c);
+    } else if (pg->graph == GR_FX) {
+        gp_sends(t, c);
+    } else if (pg->fam == FAM_OSC && pg->id[0] == P_E0) {
+        gp_osc(t, c);
+    } else {                                            /* OSC 2, ENV DEST, LFO DEST (from the middle), VOICE 2 */
+        gp_bars(t, pg);
     }
 }
 

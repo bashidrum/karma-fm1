@@ -95,7 +95,12 @@ static const preset_t JUNO_PRESETS[] = {
     {"JUNO SWEEP", {0, 0, 40, 10, 10, 100, 110, 2}, {70, 110, 60, 80}, 0, 0, FX(0, 0, 10, 24)},
     {"JUNO ORGAN", {1, 0, 60, 0, 90, 0, 0, 3}, {0, 0, 127, 10}, 0, 0, FX(0, 0, 0, 14)},
     {"JUNO HOOVER", {1, 90, 60, 0, 60, 20, 30, 3}, {10, 60, 100, 40}, 0, 1, FX(0, 0, 0, 16), XP(P_LD_SHP + 1, 90, P_LRATE + 1, 70)},
+    /* (PHEBUS, Ben 21 Nov 2026: "just a plain sawtooth is fine for the bass, chords, and lead") the power-on and NEW
+     * sound of tracks 1 and 2: the bare saw, filter open, no envelope on it, no chorus, every send 0. Last, so the
+     * other presets keep their numbers and level trims */
+    {"INIT", {0, 0, 0, 0, 127, 0, 0, 0}, {0, 0, 127, 10}, 0, 0, FX(0, 0, 0, 0)},
 };
+#define JUNO_INIT (NELEM(JUNO_PRESETS) - 1u)
 
 static const engine_t ENG_JUNO = {
     .name = "JUNO",
