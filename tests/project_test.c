@@ -478,6 +478,17 @@ int main(void)
     q2 = q;
     bad += check("2.6 SAVE > PROJECT > ERASE: an object of no bytes is no project (an empty slot, older SLOOP too)",
                  !proj_import(&q2, &q, 0));
+    /* PHEBUS (21 Nov, Ben: "Dot + save on stop"): autosave_due(stop, stop_quiet, quiet, idle ms, ms since the last save) */
+    bad += check("save on stop: 0.3 s after STOP, silent, 5 s since the last save: saved",
+                 autosave_due(1, 1, 1, AUTOSAVE_STOP_IDLE, AUTOSAVE_STOP_GAP) == 1);
+    bad += check("save on stop: not while a voice sounds, nor under a tail, nor with a hand on the panel",
+                 !autosave_due(1, 1, 0, 9999, 99999) && !autosave_due(1, 0, 1, 1000, 6000) &&
+                 !autosave_due(1, 1, 1, AUTOSAVE_STOP_IDLE - 1u, 99999));
+    bad += check("save on stop: at most every 5 s (flash wear); else waits",
+                 !autosave_due(1, 1, 1, 1000, AUTOSAVE_STOP_GAP - 1u));
+    bad += check("no stop: as before, 2.5 s untouched and 20 s apart (a tail does not block it)",
+                 !autosave_due(0, 1, 1, 1000, 99999) && !autosave_due(0, 1, 1, 9999, 10000) &&
+                 autosave_due(0, 0, 1, AUTOSAVE_IDLE, AUTOSAVE_GAP) && autosave_due(1, 0, 1, AUTOSAVE_IDLE, AUTOSAVE_GAP));
     printf("%s\n", bad ? "PROJECT FORMAT TEST FAILED" : "project format test passed");
     return bad != 0;
 }

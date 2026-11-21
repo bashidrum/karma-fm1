@@ -180,7 +180,7 @@ int main(void)
     boot_t = 0; sp.started = 0; clear();                 /* a reader there while the FM-1 starts */
     sframes(40);
     check(nsaid == 0u, "during the start-up animation: nothing said");
-    sframes(120);
+    sframes(BOOT_END - 40u + 30u);                      /* (to the end of the animation, ui_vis.c BOOT_END, and a little) */
     check(heard("home. track") && heard("swing "), "after it: HOME, with its knobs");
     clear();
     {

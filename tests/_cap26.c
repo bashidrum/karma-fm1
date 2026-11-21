@@ -84,7 +84,7 @@ int main(int argc, char **argv)
     /* LFO 2 */
     song.sel = 1;
     trk[1].p[P_LSYNC] = 5, trk[1].p[P_LTRIG] = 1, trk[1].p[P_LPOL] = 1;
-    open_page("LFO 2"); frames(4); shot("lfo2");
+    open_page("LFO SYNC"); frames(4); shot("lfo2");
     /* the STEP page, LEN on a note */
     song.sel = 2;
     open_page("STEP"); ui.cursor = 0; note_set_len(&trk[2], 0, 2); ui.force = 1; frames(3); shot("step_len");

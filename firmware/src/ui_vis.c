@@ -715,7 +715,8 @@ static void vis_select(int32_t s)
 
 /* ---- FLOW (Ben, 20 Nov 2026: "acid psychedelic modern glitch art ... flowing and morphing"; the four voices' colours
  * only): a field of warped sines, posterised into bands of the voices' colours and black. Three kinds by the seed:
- * 0 liquid marble, 1 wavy stripes (two voices), 2 marble torn sideways in rows (glitch). Drawn in 2x2 blocks. */
+ * 0 liquid marble, 1 wavy stripes (two voices), 2 marble torn sideways in rows (glitch). flow_band draws it in st x st
+ * blocks; the boot draws every pixel (st 1). */
 static uint32_t flow_seed;
 static uint8_t flow_lit;                                /* 1: no black here (behind the black wordmark): dim voices instead */
 static uint16_t flow_px(int32_t x, int32_t y, uint32_t t)
