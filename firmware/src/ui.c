@@ -53,7 +53,7 @@ static struct {
     uint8_t page;                /* index into PAGES */
     uint8_t fam_last[FAM_COUNT]; /* last page used per family */
     uint8_t bank;                /* SEQ: 16-step bank (follows the cursor) */
-    uint8_t cursor;              /* SEQ: step being edited (STEP page KNOB 1 moves it) */
+    uint8_t cursor;              /* the synth GRID's cursor step (KNOB 2 moves it) */
     uint8_t entry_open;          /* SEQ: keys held since the first press of this entry */
     uint8_t hot_col, hot_t;      /* column whose knob was just turned (drawn white) */
     uint8_t menu;                /* 0 off, 1 list, 2 about (HOME held) */
@@ -197,7 +197,7 @@ static void midi_chan_fix(void)
 
 static int step_on(const step_t *st) { return st->time == ST_NOTE && st->n; }
 /* LEN (SLOOP 2.6, after Felucca 1.5 by Leo Kuroshita, Discussions #178, #173): a NOTE step's length is the step and
- * the TIE steps after it (inside LEN, no wrap); SEQ > STEP's KNOB 3 on a note sets it (ui_input.c step_edit). Longer:
+ * the TIE steps after it (inside LEN, no wrap); the GRID's LEN (a step held, KNOB 2) sets it (ui_grid.c). Longer:
  * the steps after it become clean TIEs (a REST or an empty step; it stops at the next step holding notes, which stays,
  * and at LEN); shorter: its last TIEs become RESTs (one holding notes keeps them). The steps' locks and nudges stay;
  * the turns on one step are one undo (ui_input.c). Returns the length it got */
@@ -253,8 +253,21 @@ static int undo_swap(int redo)
         uint32_t i;
         for (i = 0; i < NSTEP; i++) {
             step_t x = t->step[i];
+            int8_t m = t->micro[i];
             t->step[i] = undo.st[i];
             undo.st[i] = x;
+            t->micro[i] = undo.micro[i];
+            undo.micro[i] = m;
+        }
+        for (i = 0; i < NLOCK; i++) {                   /* (the locks in force follow at the next step: seq.c lock_step) */
+            plock_t l = t->lock[i];
+            t->lock[i] = undo.lock[i];
+            undo.lock[i] = l;
+        }
+        for (i = 0; i < NSTEP / 4u; i++) {
+            uint8_t f = t->fill[i];
+            t->fill[i] = undo.fill[i];
+            undo.fill[i] = f;
         }
     }
     len = t->p[P_SLEN];

@@ -4,8 +4,9 @@
  * Included by ui_studio.c. The GRID is the DRUMS screen's page (the SC_DRUM page): on the drum track it is the drum
  * grid as before, on a synth track the synth's steps. With no layer held the 16 white keys are the 16 steps of the
  * page of steps shown (seq.c kb_grid: they play nothing):
- *   tap a step       an empty one is set (synth: the pen, the note / chord played last; drums: the sound KNOB 1
- *                    picks), a set one is cleared when its key comes up (unless a knob changed it meanwhile)
+ *   tap a step       an empty one is set and heard (synth: the pen, the note / chord played last or KNOB 1 picks;
+ *                    drums: the sound KNOB 1 picks), a set one is cleared when its key comes up (unless a knob
+ *                    changed it meanwhile). A synth note is heard whenever it changes (the pen, a step's NOTE)
  *   hold a step      KNOB 1..4 edit it (synth: NOTE in the scale, LEN, VEL, COND; SELECT: FLAG, RATCH, NUDGE;
  *                    drums: LEVEL, RATCH, NUDGE, COND); ENV / LFO / FX / EDIT tapped: that button's page on the
  *                    knobs, and each knob turned LOCKS its parameter on the step (again: the next page); PRESETS a
@@ -22,6 +23,7 @@ static uint16_t sg_held;                                /* the white keys held o
 static uint16_t sg_pend;                                /* of those, the set steps that clear when let go (untouched) */
 static uint8_t sg_alt;                                  /* a synth step held: 0 NOTE LEN VEL COND, 1 FLAG RATCH NUDGE */
 static uint8_t sg_lpage = 0xFF;                         /* a step held + ENV / LFO / FX / EDIT: the page that locks */
+static uint8_t sg_trk;                                  /* the track the steps held are on (from the first key down) */
 static void lock_par_step(int32_t s);                   /* (ui_layers.c) */
 static const char *const SG_COND[4] = {"-", "FILL", "NOFL", "CHNC"};
 static const char *const SG_COND_L[4] = {"", "FILL ONLY", "NO FILL", "CHANCE"};
@@ -34,7 +36,7 @@ static void sg_cur_set(uint32_t c)
     if (is_drum(TSEL)) {
         drum_cursor = (uint8_t)c;
     } else {
-        ui.cursor = (uint8_t)c;                         /* (the STEP page's cursor: the same step there) */
+        ui.cursor = (uint8_t)c;
         ui.bank = (uint8_t)(c / 16u);
         ui.entry_open = 0;
     }
@@ -52,9 +54,10 @@ static int sg_on(const track_t *t, uint32_t idx)
 {
     return is_drum(t) ? dstep_has(&t->dstep[idx], drum_lane) : step_on(&t->step[idx]);
 }
+static uint32_t sg_sess;                                /* the undo session of the steps held (one hold: one undo) */
 static void sg_undo(track_t *t)
 {
-    undo_mark(t, ui.step_sess ? ui.step_sess : (ui.step_sess = (undo_sess += 4u) | 3u));
+    undo_mark(t, sg_held ? sg_sess : ui.step_sess ? ui.step_sess : (ui.step_sess = (undo_sess += 4u) | 3u));
 }
 /* a note moved d degrees of the track's scale (CHR: semitones), 1..127 */
 static int32_t sg_scale_move(const track_t *t, int32_t n, int32_t d)
@@ -94,18 +97,23 @@ static void sg_set(track_t *t, uint32_t idx)            /* an empty step set: th
         dstep_set(&t->dstep[idx], drum_lane, LV_NORM, 0);
     } else {
         step_t *s = &t->step[idx];
-        uint32_t i, n = pen_n ? pen_n : 1u;
+        uint32_t i, n = pen_n ? pen_n : 1u, tie = s->time == ST_TIE;
         memset(s, 0, sizeof *s);
         for (i = 0; i < n && i < 4u; i++)
             s->note[i] = pen_n ? pen_note[i] : last_note;
         s->n = (uint8_t)(t->p[P_VOICE] == V_POLY ? n : 1u);
         s->time = ST_NOTE;
         s->vel = 100;
+        if (tie)                                        /* set on a TIE: the note before ends here, this one is one
+                                                         * step long (the rest of the old tail goes, not to it) */
+            note_set_len(t, idx, 1);
     }
     t->seq_active = 1;
     fm1_irq_on();
     if (is_drum(t))
         audition_lane(drum_lane);
+    else                                                /* heard as it is placed (REVIEW.md 1: play on change) */
+        audition_notes(song.sel, t->step[idx].note, t->step[idx].n);
     sync_reload = 1;
 }
 static void sg_clear(track_t *t, uint32_t idx)          /* a set step cleared (drums: the sound's hit) */
@@ -126,6 +134,67 @@ static void sg_clear(track_t *t, uint32_t idx)          /* a set step cleared (d
     fm1_irq_on();
     sync_reload = 1;
 }
+/* the steps held let go of without a change (the GRID left, or another track: a key let go later clears nothing) */
+static void sg_drop(void)
+{
+    sg_held = sg_pend = 0;
+    sg_lpage = 0xFF;
+    sg_alt = 0;
+}
+/* a page of steps added after the last, a copy of it (its steps, nudges, conditions and locks; REVIEW.md 4, 21 Nov
+ * 2026): the pattern 16 steps longer, the GRID on the new page, "32 STEPS" said. Never past 64; a pattern whose
+ * last page is short is first made whole (its steps past the end, out of sight, emptied) */
+static void sg_page_add(track_t *t)
+{
+    uint32_t len = trk_len(t), pages = (len + 15u) / 16u, src = (pages - 1u) * 16u, dst = pages * 16u, i, k, lost = 0;
+    char b[24];
+    if (pages >= 4u) {
+        ui_message("64 STEPS: THE MOST");
+        return;
+    }
+    if (song.playing && arrangement_enabled) {
+        ui_message("STOP THE SONG FIRST");
+        return;
+    }
+    sg_undo(t);
+    fm1_irq_off();
+    for (i = len; i < dst; i++) {                       /* (the short last page made whole: empty steps) */
+        memset(&t->step[i], 0, sizeof t->step[i]);
+        if (!is_drum(t))
+            t->step[i].time = ST_REST;
+        lock_del(t, i, P_COUNT);
+        t->micro[i] = 0;
+        step_fill_set(t, i, FC_NORM);
+    }
+    for (i = 0; i < 16u; i++) {
+        t->step[dst + i] = t->step[src + i];            /* (a drum step is the same 10 bytes: the union) */
+        t->micro[dst + i] = t->micro[src + i];
+        step_fill_set(t, dst + i, step_fill(t, src + i));
+        lock_del(t, dst + i, P_COUNT);
+    }
+    for (k = 0; k < NLOCK; k++)
+        if (t->lock[k].step >= src && t->lock[k].step < src + 16u)
+            lost += !lock_set(t, t->lock[k].step + 16u, t->lock[k].param, t->lock[k].val);
+    t->p[P_SLEN] = (int16_t)(dst + 16u);
+    fm1_irq_on();
+    sync_reload = 1;
+    sg_cur_set(dst + sg_cur() % 16u);
+    ui.force = 1;
+    fmt_int(b, (int32_t)(dst + 16u));
+    ui_say(b, lost ? " STEPS, LOCKS FULL" : " STEPS");
+}
+/* the shown page follows the playhead as it goes onto another page (a page picked by hand stays until it does) */
+static void sg_follow(void)
+{
+    static uint8_t was = 0xFF;
+    const track_t *t = TSEL;
+    uint32_t pg = song.playing ? t->seq_idx % trk_len(t) / 16u : 0xFFu;
+    if (pg != was && pg != 0xFFu && !sg_held && pg != sg_page()) {
+        sg_cur_set(pg * 16u + sg_cur() % 16u < trk_len(t) ? pg * 16u + sg_cur() % 16u : trk_len(t) - 1u);
+        ui.force = 1;
+    }
+    was = (uint8_t)pg;
+}
 /* the GRID shown, no layer held: its keys are steps (seq.c kb_grid). The drum track's KIT page: its pads */
 static int grid_keys_on(void) { return on_drum_page() && (song.sel != TRK_DRUM || !drum_page) && !ui.menu; }
 /* a key of the GRID (seq.c lk_q KB_GRID), down or up: a white key is a step of the page shown, the first four
@@ -137,10 +206,17 @@ static void grid_key(uint32_t k, uint32_t down)
     uint32_t len = trk_len(t), idx;
     int32_t w = punch_key(k);
     if (w < 0) {
-        if (down && !sg_held && k < 12u && PG[k] >= 0 && (uint32_t)PG[k] * 16u < len) {
+        if (!down || sg_held || k >= 12u || PG[k] < 0)
+            return;
+        if ((uint32_t)PG[k] * 16u < len) {
             idx = (uint32_t)PG[k] * 16u + sg_cur() % 16u;
             sg_cur_set(idx < len ? idx : len - 1u);
             ui.force = 1;
+        } else if ((uint32_t)PG[k] == (len + 15u) / 16u) {
+            sg_page_add(t);                             /* the slot after the last: a page added */
+        } else {
+            char b[4] = {(char)('1' + (len + 15u) / 16u), 0};
+            ui_say("ADD PAGE ", b);                     /* (one at a time: the slot after the last first) */
         }
         return;
     }
@@ -167,8 +243,11 @@ static void grid_key(uint32_t k, uint32_t down)
         ui_message("STOP THE SONG FIRST");
         return;
     }
-    if (!sg_held)
+    if (!sg_held) {
         sg_cur_set(idx);
+        sg_trk = (uint8_t)song.sel;
+        sg_sess = (undo_sess += 4u) | 3u;               /* (the step set by this press, and every edit of the hold) */
+    }
     sg_held |= (uint16_t)(1u << w);
     if (sg_on(t, idx))
         sg_pend |= (uint16_t)(1u << w);                 /* (cleared on release, if untouched) */
@@ -192,21 +271,48 @@ static int sg_lock_page_ok(const page_t *pg)
     }
     return 0;
 }
-/* a step held + a page button: its page on the knobs (again: the next one of that button that can lock) */
+/* the pages a button walks with a step held: EDIT the chain's first three stages, OSC > FILT > ENV (REVIEW.md 3,
+ * 21 Nov 2026: the filter locks from the GRID), ENV / LFO / FX their own */
+static int sg_fam_in(uint32_t pfam, uint32_t fam)
+{
+    return fam == FAM_EDIT ? pfam == FAM_OSC || pfam == FAM_FLT || pfam == FAM_ENV : pfam == fam;
+}
+/* the lock page's name ("FILTER 2"): the page's title, an engine page its engine's */
+static const char *sg_lock_title(void)
+{
+    const page_t *pg = &PAGES[sg_lpage % NPAGES];
+    return pg->scope == SC_ENGINE ? ENGINES[TSEL->eng_req % NENGINES]->page_title[pg->id[0] != P_E0] : pg->title;
+}
+/* a step held + a page button: its page on the knobs (again: the next one of that button that can lock, in the
+ * chain's order, round) */
 static void sg_lock_open(uint32_t fam)
 {
     uint32_t i, start = 0, n;
-    if (sg_lpage < NPAGES && PAGES[sg_lpage].fam == fam)
+    if (sg_lpage < NPAGES && sg_fam_in(PAGES[sg_lpage].fam, fam))
         start = sg_lpage + 1u;
     for (n = 0; n < NPAGES; n++) {
         i = (start + n) % NPAGES;
-        if (PAGES[i].fam == fam && sg_lock_page_ok(&PAGES[i])) {
+        if (sg_fam_in(PAGES[i].fam, fam) && sg_lock_page_ok(&PAGES[i])) {
             sg_lpage = (uint8_t)i;
             ui.force = 1;
             return;
         }
     }
     ui_message("NOTHING TO LOCK HERE");
+}
+/* the steps held (bits of page pg) can all take a lock of id: the new ones fit in the free slots. Else none is made
+ * (never a half: the first steps locked, the rest not) and the screen says why */
+static int locks_fit(const track_t *t, uint32_t pg, uint32_t held, uint32_t id)
+{
+    uint32_t w, need = 0, fr = 0;
+    for (w = 0; w < NLOCK; w++)
+        fr += t->lock[w].step == LOCK_FREE;
+    for (w = 0; w < 16u; w++)
+        need += ((held >> w) & 1u) && pg * 16u + w < trk_len(t) && lock_find(t, pg * 16u + w, id, 0) < 0;
+    if (need <= fr)
+        return 1;
+    ui_message(fr ? "LOCKS FULL: HOLD FEWER STEPS" : "LOCKS FULL: 24 A TRACK");
+    return 0;
 }
 /* the steps held: a lock of id moved s (made at the track's value first) */
 static void sg_lock_turn(uint32_t id, int32_t s, uint32_t role)
@@ -219,6 +325,9 @@ static void sg_lock_turn(uint32_t id, int32_t s, uint32_t role)
         return;
     }
     sk = accel(role, s, lock_desc(t, id)->max - lock_desc(t, id)->min);
+    if (!locks_fit(t, sg_page(), sg_held, id))
+        return;
+    sg_undo(t);
     fm1_irq_off();
     for (w = 0; w < 16u; w++) {
         uint32_t idx = sg_page() * 16u + w;
@@ -243,6 +352,7 @@ static void sg_held_knob(uint32_t k, int32_t s)
 {
     track_t *t = TSEL;
     uint32_t w, len = trk_len(t);
+    int32_t heard = -1;                                 /* a step whose NOTE moved: heard */
     if (sg_lpage < NPAGES) {
         sg_lock_turn(PAGES[sg_lpage].id[k], s, EN_K1 + k);
         return;
@@ -288,6 +398,8 @@ static void sg_held_knob(uint32_t k, int32_t s)
                 for (i = 0; i < st->n && i < 4u; i++)
                     st->note[i] = (uint8_t)clamp(st->note[i] + d, 1, 127);
                 last_note = st->note[0];
+                if (d && heard < 0)
+                    heard = (int32_t)idx;
             } else if (sl == 1u) {                      /* LEN: the TIEs after it (ui.c note_set_len) */
                 uint32_t was = note_len(t, idx), n = note_set_len(t, idx, (uint32_t)clamp((int32_t)was + (s > 0 ? 1 : -1), 1, NSTEP));
                 if (s > 0 && n == was)
@@ -308,8 +420,10 @@ static void sg_held_knob(uint32_t k, int32_t s)
     }
     fm1_irq_on();
     sync_reload = 1;
+    if (heard >= 0)
+        audition_notes(song.sel, t->step[heard].note, t->step[heard].n);
 }
-/* KNOB k, no step held, a synth track: NOTE (the pen, by degrees of the scale), STEP (the cursor), HIT (right:
+/* KNOB k, no step held, a synth track: NOTE (the pen, by degrees of the scale; heard), STEP (the cursor), HIT (right:
  * the pen on the cursor's step, left: cleared), VEL (of the cursor's step) */
 static void sg_free_knob(uint32_t k, int32_t s)
 {
@@ -326,6 +440,8 @@ static void sg_free_knob(uint32_t k, int32_t s)
         for (i = 0; i < pen_n && i < 4u; i++)
             pen_note[i] = (uint8_t)clamp(pen_note[i] + d, 1, 127);
         last_note = pen_note[0];
+        if (d)
+            audition_notes(song.sel, pen_note, pen_n);  /* the note chosen, heard before it is placed */
         return;
     }
     if (k == 1u) {
@@ -405,7 +521,9 @@ static int sg_input(uint32_t pressed)
         uint32_t up = (pressed >> panel.btn[B_OCTUP]) & 1u, pages = (trk_len(TSEL) + 15u) / 16u, pg;
         if (sg_held) {
             sg_held_oct(up);
-        } else {                                        /* the page of steps before / after */
+        } else if (up && sg_page() + 1u == pages && pages < 4u) {
+            sg_page_add(TSEL);                          /* past the last page: one added, a copy of it */
+        } else {                                        /* the page of steps before / after (64 steps: round) */
             pg = (sg_page() + (up ? 1u : pages - 1u)) % pages;
             sg_cur_set((uint32_t)clamp((int32_t)(pg * 16u + sg_cur() % 16u), 0, (int32_t)trk_len(TSEL) - 1));
             ui.force = 1;
@@ -413,9 +531,9 @@ static int sg_input(uint32_t pressed)
     }
     if (sg_held && (pressed & (1u << panel.btn[B_ENV] | 1u << panel.btn[B_LFO])))
         sg_lock_open((pressed >> panel.btn[B_ENV]) & 1u ? FAM_ENV : FAM_LFO);
-    else if (!sg_held && !is_drum(TSEL) && (pressed & 1u << panel.btn[B_ENV]))
-        open_family(FAM_ENV);
-    else if (!sg_held && !is_drum(TSEL) && (pressed & 1u << panel.btn[B_LFO]))
+    else if (!sg_held && (pressed & 1u << panel.btn[B_ENV]))   /* (every track, as from HOME: the drums' ENV is the */
+        open_family(FAM_ENV);                                  /* sound's HEX AEG, their LFO says there is none) */
+    else if (!sg_held && (pressed & 1u << panel.btn[B_LFO]))
         open_family(FAM_LFO);
     if (!on_drum_page())
         return 1;
@@ -523,30 +641,31 @@ static uint32_t sg_lines(const track_t *t, uint32_t idx, char ln[4][31])
         }
         n = 2;
     }
-    for (k = 0; k < NLOCK; k++) {                       /* the locks, three a line */
+    for (k = 0; k < NLOCK && n < 4u; k++) {             /* the locks, as many a line as fit (30 characters, 228 px) */
         const plock_t *l = &t->lock[k];
-        char *b;
+        char e[18];
+        uint32_t el;
         if (l->step != idx || l->param >= P_COUNT)
             continue;
-        if (n >= 4u) {
-            str_cpy(ln[3] + (str_len(ln[3]) > 26u ? 26u : str_len(ln[3])), " +", 3);
-            break;
-        }
-        b = ln[n];
-        if (!nl)
-            str_cpy(b, "LOCK", 31);
-        str_cpy(b + str_len(b), " ", 2);
-        str_cpy(b + str_len(b), lock_desc(t, l->param)->label, 7);
+        e[0] = ' ';
+        str_cpy(e + 1, lock_desc(t, l->param)->label, 7);
+        el = str_len(e);
+        e[el++] = ' ';
         param_format(lock_desc(t, l->param), l->val, v, &u);
-        str_cpy(b + str_len(b), " ", 2);
-        str_cpy(b + str_len(b), v, 8);
-        if (++nl % 3u == 0u) {
-            n++;
-            if (n < 4u)
-                str_cpy(ln[n], "    ", 31);
+        str_cpy(e + el, v, 8);
+        if (!nl)
+            str_cpy(ln[n], "LOCK", 31);
+        else if (str_len(ln[n]) + str_len(e) > 30u || text_w(&FONT_S, ln[n]) + text_w(&FONT_S, e) > 228) {
+            if (++n >= 4u) {                            /* (no room left: "+" says there are more) */
+                str_cpy(ln[3] + (str_len(ln[3]) > 28u ? 28u : str_len(ln[3])), " +", 3);
+                break;
+            }
+            str_cpy(ln[n], "    ", 31);
         }
+        str_cpy(ln[n] + str_len(ln[n]), e, 31u - str_len(ln[n]));
+        nl++;
     }
-    if (nl % 3u)
+    if (nl && n < 4u)
         n++;
     return n > 4u ? 4u : n;
 }
@@ -563,6 +682,10 @@ static void sg_detail_draw(uint32_t y, uint32_t h, uint32_t idx, uint32_t held)
     fmt_int(top + 5, (int32_t)idx + 1);
     if (held && (sg_held & (sg_held - 1u)))
         str_cpy(top + str_len(top), " +", 3);           /* (more steps held: edited together) */
+    if (held && sg_lpage < NPAGES) {                    /* its knobs lock: on which page */
+        str_cpy(top + str_len(top), " LOCK ", 7);
+        str_cpy(top + str_len(top), sg_lock_title(), 32u - str_len(top));
+    }
     if (is_drum(t)) {
         str_cpy(nm, LANE_SHORT[drum_lane], 20);
     } else if (step_on(&t->step[idx])) {
@@ -641,10 +764,14 @@ static void sg_tiles_draw(uint32_t y, uint32_t big)
         if (song.playing && idx == t->seq_idx % len)
             cv_rect(x, ty + (int32_t)th + 1, w, 2, C_WHITE);
     }
-    for (j = 0; j < 4u && big; j++) {                    /* the pages: the one shown filled, the one playing marked */
+    for (j = 0; j < 4u && big; j++) {                    /* the four page slots: the one shown filled, the others in
+                                                         * use grey, the unused ones an outline (OCT+ past the last
+                                                         * adds one); the one playing marked */
         int32_t x = 4 + (int32_t)j * 58;
-        if (j >= pages)
+        if (j >= pages) {
+            op_box(x, 64, 54, 5, TE_G2);
             continue;
+        }
         cv_rect(x, 64, 54, 5, j == sg_page() ? TE_COL[sel] : TE_G2);
         if (song.playing && t->seq_idx / 16u == j)
             cv_rect(x + 22, 70, 10, 2, C_WHITE);
@@ -735,9 +862,8 @@ static void sg_draw(void)
     if (ui.cursor >= len)
         sg_cur_set(len - 1u);
     c = h0 >= 0 ? (uint32_t)h0 : sg_cur();
-    if (sg_lpage < NPAGES) {                             /* a lock page: its name */
-        str_cpy(title, "LOCK ", 20);
-        str_cpy(title + 5, PAGES[sg_lpage].scope == SC_ENGINE ? e->page_title[PAGES[sg_lpage].id[0] != P_E0] : PAGES[sg_lpage].title, 14);
+    if (sg_lpage < NPAGES) {                             /* a lock page: its name, whole (the step band says LOCK) */
+        str_cpy(title, sg_lock_title(), 20);
     } else {
         str_cpy(title, "GRID ", 20);
         fmt_int(title + 5, (int32_t)sg_page() + 1);

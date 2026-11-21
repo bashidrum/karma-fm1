@@ -51,7 +51,7 @@ static uint8_t pen_n = 1, pen_note[4] = {60};   /* the last chord / note played:
 static uint8_t pen_lane;                       /* the last drum lane played: the SEQ layer's lane */
 /* SLOOP 2.6: the MIDI keyboard's notes. mi_pen: the notes held on the selected track (its pen, as the keys: the notes
  * down together are a chord). step_in_q: every synth note-on / note-off from MIDI, note | on << 7 | track << 8, for the
- * STEP page's entry (ui_input.c midi_entry): the audio side writes, the UI reads; a full queue drops and says so */
+ * UI (ui_input.c midi_entry: the MIDI hint while recording): the audio side writes, the UI reads; a full queue drops and says so */
 static uint32_t mi_pen[4];
 #define STEP_IN_Q 32u
 static volatile uint16_t step_in_q[STEP_IN_Q];
@@ -445,12 +445,16 @@ static uint32_t trk_len(const track_t *t) { return t->p[P_SLEN] > 0 ? (uint32_t)
 
 /* ------------------------------------------------------------- undo --- */
 /* One step back (and forward again) for the pattern of one track: what it was before the last
- * recording pass, erase, step edit, tool or clear (a session: one mark). EDIT + OCT- / OCT+. */
+ * recording pass, erase, step edit, tool or clear (a session: one mark). EDIT + OCT- / OCT+. The whole of
+ * every step: its notes and length, and its locks, nudge and condition (REVIEW.md 7, 21 Nov 2026) */
 static struct {
     uint8_t valid, undone, trk;
     int16_t len;
     uint32_t sess;
     step_t st[NSTEP];
+    int8_t micro[NSTEP];
+    plock_t lock[NLOCK];
+    uint8_t fill[NSTEP / 4];
 } undo;
 static uint32_t undo_sess = 1;           /* UI sessions (seq.c: recording passes use the track's pass) */
 static void undo_mark(const track_t *t, uint32_t sess)
@@ -459,6 +463,9 @@ static void undo_mark(const track_t *t, uint32_t sess)
     if (undo.valid && !undo.undone && undo.trk == i && undo.sess == sess)
         return;                                          /* (this session is marked already) */
     memcpy(undo.st, t->step, sizeof undo.st);
+    memcpy(undo.micro, t->micro, sizeof undo.micro);
+    memcpy(undo.lock, t->lock, sizeof undo.lock);
+    memcpy(undo.fill, t->fill, sizeof undo.fill);
     undo.len = t->p[P_SLEN];
     undo.trk = (uint8_t)i;
     undo.sess = sess;
@@ -1686,9 +1693,44 @@ static void audition_step(const dstep_t *s)            /* every sound of a drum 
             lv |= dstep_lvl(s, l) << (2u * l);
     audition_req(m, lv);
 }
+/* the UI asks to hear a synth step (the GRID: a step set, its NOTE turned; REVIEW.md 1, 21 Nov 2026): its notes on
+ * track aud_syn_trk, played here and let go AUD_SYN_BLOCKS blocks (~150 ms) later. Only the voices: nothing recorded,
+ * nothing to the arp or MIDI out. A new one ends the one before */
+#define AUD_SYN_BLOCKS 200u
+static volatile uint8_t aud_syn_trk = 0xFF, aud_syn_n, aud_syn_nt[4];
+static uint8_t aud_on_trk, aud_on_n, aud_on_nt[4];
+static uint16_t aud_on_left;
+static void audition_notes(uint32_t ti, const uint8_t *nt, uint32_t n)
+{
+    uint32_t i;
+    fm1_irq_off();
+    for (i = 0; i < n && i < 4u; i++)
+        aud_syn_nt[i] = nt[i];
+    aud_syn_n = (uint8_t)i;
+    aud_syn_trk = (uint8_t)ti;
+    fm1_irq_on();
+}
+static void audition_syn_block(void)
+{
+    uint32_t i;
+    if (aud_on_left && (--aud_on_left == 0u || aud_syn_trk < NPART))
+        for (i = 0; i < aud_on_n; i++)
+            trk_note_off(&trk[aud_on_trk % NTRK], aud_on_nt[i]);
+    if (aud_syn_trk >= NPART)
+        return;
+    aud_on_trk = aud_syn_trk;
+    aud_on_n = trk[aud_on_trk].p[P_VOICE] == V_POLY ? aud_syn_n : (aud_syn_n ? 1u : 0u);
+    for (i = 0; i < aud_on_n; i++) {
+        aud_on_nt[i] = aud_syn_nt[i];
+        trk_note_on(&trk[aud_on_trk], aud_on_nt[i], 100);
+    }
+    aud_on_left = (uint16_t)AUD_SYN_BLOCKS;
+    aud_syn_trk = 0xFF;
+}
 static void audition_block(void)
 {
     uint32_t m = aud_lanes, lv = aud_lvl, l;
+    audition_syn_block();
     if (!m)
         return;
     aud_lanes = 0;
@@ -1946,6 +1988,9 @@ static uint32_t step_vel(const step_t *s, uint32_t i)
     return lvl_vel((s->lvl >> (2u * i)) & 3u, base);
 }
 
+/* the synth steps played with ACC, a bit a track: the UI's characters strike a pose on them (ui_studio.c pads_tick;
+ * REVIEW.md 13: the voices' velocity misses UNISON's scaled one and a legato ACC + SLIDE, which starts no voice) */
+static volatile uint8_t seq_acc;
 /* play one synth step: TIE extends, REST releases, NOTE (re)triggers; a SLIDE on the previous
  * step makes this one legato with a glide (acid style). skip: bit k = note k already sounds
  * from live recording (not triggered, not released here). len: the step's length (units). */
@@ -2000,6 +2045,8 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
     for (i = 0; i < s->n; i++)
         if (!((skip >> i) & 1u))
             t->seq_notes[t->seq_n++] = s->note[i];
+    if ((s->flags & SF_ACCENT) && t->seq_n)
+        seq_acc |= (uint8_t)(1u << trk_index(t));
     t->seq_off = gate;
     t->seq_hold = !s->rat && ((s->flags & SF_SLIDE) != 0 || next_tie);   /* next step a TIE: keep the notes to it */
 }

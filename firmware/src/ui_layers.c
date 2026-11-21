@@ -188,6 +188,8 @@ static void steps_held_edit(uint32_t knob, int32_t s)
     int32_t sv = knob == 1u && !is_drum(t) ? accel(EN_K2, s, 126) : 0;
     int32_t sk = knob == 4u ? accel(EN_PRESET, s, lock_desc(t, ui.lock_par % P_COUNT)->max -
                                                   lock_desc(t, ui.lock_par % P_COUNT)->min) : 0;
+    if (knob == 4u && p_lockable(ui.lock_par % P_COUNT) && !locks_fit(t, ui.step_page, ui.step_held, ui.lock_par % P_COUNT))
+        return;                                           /* (all the steps held, or none: ui_grid.c) */
     layer_undo_mark(t);
     step_pend_off &= (uint16_t)~ui.step_held;            /* (edited: kept when let go) */
     fm1_irq_off();
@@ -785,8 +787,9 @@ static void layer_screen_draw(void)
             str_cpy(v[0], "<  >", 8);
             fmt_int(v[1], t->p[P_SLEN]);
             str_cpy(v[2], is_drum(t) ? "" : "-  +", 8);
-            if (!mute)
-                str_cpy(sub, undo.valid ? (undo.undone ? "oct+ redo" : "oct- undo") : sub, sizeof sub);
+            if (!mute)                                  /* what OCT- / OCT+ do now (one step: undo, then redo) */
+                str_cpy(sub, undo.valid ? (undo.undone ? "oct+ redo" : "oct- undo") : is_drum(t) ? sub : "nothing to undo",
+                        sizeof sub);
         } else {
             lab[0] = "rate";
             str_cpy(v[0], N_ROLL[clamp(song.g[G_ROLL], 0, 4)], 8);
