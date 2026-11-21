@@ -387,13 +387,19 @@ A page the sound does not have is skipped. On the drum voice, **ENV** opens HEX 
 | **FILT** | ACID **FILTER**: CUT, RES, ENV, DEC; **FILTER 2**: FILT. JUNO **FILTER**: CUT, RES, ENV, FILT. ELEMENTS and PLAITS: **FILTER** with FILT. Drums: HEX FILT |
 | **ENV** | **ENV**: ATK, DEC, SUS, REL. **ENV DEST**: FLT, PIT, SHP, ESYNC. Drums: HEX AEG |
 | **FX** | **FX**: DIST, CHORUS, DELAY, REVERB (this voice's sends). **CHORUS** (JUNO's own chorus). **INSERT**: TYPE, A, B, C. **INSERT 2**: MIX. **SLICER** |
-| **MOD** | **LFO**: RATE, WAVE, PHASE, FADE. **LFO DEST**: PIT, FLT, SHP, AMP. **LFO SYNC**: SYNC, TRIG, POL |
+| **MOD** | **LFO**: RATE, WAVE, PHASE, FADE. **LFO DEST**: PIT, FLT, SHP, AMP. **LFO SYNC**: SYNC, TRIG (NOTE, FREE, PATT), POL |
 
 On the drum voice, the sound pages are HEX OSC, HEX MOD, HEX CLICK, HEX MORE, HEX FILT and HEX AEG (see [Drums](#5-drums)).
 
 **FILT** (in ELEMENTS, PLAITS and the JUNO and ACID pages above) is the voice's own one-knob filter: left of centre is a low-pass, right of centre is a high-pass, centre is off.
 
-**ESYNC** (ENV DEST) makes ATK, DEC and REL note values of the tempo. **LFO SYNC**: SYNC locks the LFO to a note value, TRIG chooses whether it restarts on each phrase or runs free, POL chooses bipolar or unipolar.
+**ESYNC** (ENV DEST) makes ATK, DEC and REL note values of the tempo. **LFO SYNC**: SYNC locks the LFO to a note value; TRIG chooses what restarts it; POL chooses bipolar or unipolar.
+
+| TRIG | The LFO restarts (at its PHASE) |
+| --- | --- |
+| **NOTE** | at each new phrase: a note played when no other note of the voice is held (as before) |
+| **FREE** | never: it runs on by itself |
+| **PATT** (pattern) | each time the voice's pattern comes round to step 1, and when PLAY starts. Notes in between do not restart it, so the LFO lines up with the pattern |
 
 ### What the graphs show
 

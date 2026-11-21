@@ -349,6 +349,17 @@ int main(int argc, char **argv)
         memcpy(trk, keep, sizeof keep); trk[2].p[P_TFLT] = tf; TDRUM->p[P_E0] = kit; stl.act = (uint8_t)act; sync_reload = 1;
         song.sel = 0; go_home(); frames(16);
     }
+    {   /* PHEBUS (Ben, 21 Nov 2026, picker "Add PATTERN"): LFO SYNC > TRIG is NOTE, FREE or PATTERN */
+        int16_t tr = trk[0].p[P_LTRIG];
+        song.sel = 0; go_home(); frames(16);
+        trk[0].p[P_LTRIG] = 0;
+        check(chain_goto(FAM_LFO, "LFO SYNC") && cur_page()->id[1] == P_LTRIG, "LFO SYNC: KNOB 2 is TRIG");
+        encs[panel.enc[EN_K2]] = 1; frame(); encs[panel.enc[EN_K2]] = 1; frame(); encs[panel.enc[EN_K2]] = 1; frame();
+        check(trk[0].p[P_LTRIG] == 2 && !strcmp(TP[P_LTRIG].names[2], "PATT") && TP[P_LTRIG].max == 2,
+              "LFO SYNC: TRIG NOTE -> FREE -> PATT (PATTERN, the last)");
+        ui.force = 1; frame(); ppm("page-lfo-sync-pattern");
+        trk[0].p[P_LTRIG] = tr; go_home(); frames(16);
+    }
     go_home(); open_family(FAM_EDIT); ui.force = 1; frame(); ppm("page-edit");   /* (EDIT: the chain's start, OSC) */
     open_family(FAM_FX); ui.force = 1; frame(); ppm("page-fx");
     open_family(FAM_SEQ); ui.force = 1; frame(); ppm("page-pattern");

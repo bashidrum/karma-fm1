@@ -2195,8 +2195,12 @@ static void seq_tick(track_t *t, uint32_t adv)
         t->seq_idx = (uint16_t)idx;
         t->rat_done[0] = t->rat_done[1] = t->rat_done[2] = t->rat_done[3] = 0;
         t->rat_lanes = 0;
-        if (!idx)
+        if (!idx) {
             t->pass++;                               /* a new pass of the loop (recording: one undo) */
+            if (t->p[P_LTRIG] == 2 && !is_drum(t))   /* (PHEBUS, Ben 21 Nov 2026, picker "Add PATTERN") LFO SYNC > TRIG
+                                                      * PATTERN: the LFO starts again as the pattern does (and at PLAY) */
+                t->lfo_ph = (uint32_t)t->p[P_LPHASE] << 25;
+        }
         if (!is_drum(t))
             gen_tick(t, idx);
         else
