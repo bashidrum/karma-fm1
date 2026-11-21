@@ -1240,8 +1240,36 @@ int main(int argc, char **argv)
         memset(pad_lit, 0, sizeof pad_lit);
         drum_cursor = 19; encs[panel.enc[EN_K2]] = 1; frames(2);
         check(drum_cursor == 20 && pad_lit[5] && pad_lit[7] && !pad_lit[3], "grid: KNOB 2 onto a step plays what it holds");
-        encs[panel.enc[EN_SELECT]] = 1; frame();
-        check(drum_page == 1, "DRUMS: SELECT right: kit");
+        {   /* REVIEW 5: SELECT right on the drum GRID: the full view (a row a sound in use), the keys still the steps */
+            uint32_t j, bpm = (uint32_t)song.g[G_BPM];
+            for (j = 0; j < 32u; j += 4u) dstep_set(&TDRUM->dstep[j], 0, LV_NORM, 0);
+            for (j = 4; j < 32u; j += 8u) dstep_set(&TDRUM->dstep[j], 2, LV_HARD, 0);
+            for (j = 2; j < 32u; j += 2u) dstep_set(&TDRUM->dstep[j], 4, j % 4u ? LV_SOFT : LV_NORM, 0);
+            encs[panel.enc[EN_SELECT]] = 1; frame();
+            check(drum_full && drum_page == 0u && grid_keys_on() && song.g[G_BPM] == (int16_t)bpm,
+                  "DRUMS: SELECT right on the GRID: the full view (the keys still steps, the tempo untouched)");
+            {
+                uint8_t row[DRUM_LANES];
+                uint32_t n = dg_rows(row);
+                check(n == 6u && row[0] == 0u && row[1] == 2u && row[2] == 3u && row[3] == 4u && row[4] == 5u && row[5] == 7u,
+                      "full view: a row for each sound in use and the one picked (KICK SNARE CLAP HAT OPEN RIM)");
+            }
+            ui.force = 1; frame(); ppm("grid-drum-full");
+            transport_req = 1; frames(12); ui.force = 1; frame(); ppm("grid-drum-full-play");
+            transport_req = 2; frames(2);
+            drum_cursor = 20; frame();
+            key(key_of_white(9)); frame();
+            check(dstep_has(&TDRUM->dstep[25], 3), "full view: a white key sets the step of the sound picked");
+            key(key_of_white(9)); frame();
+            encs[panel.enc[EN_SELECT]] = 1; frame();
+            check(drum_full && drum_page == 0u, "full view: SELECT right again: stays");
+            encs[panel.enc[EN_SELECT]] = -1; frame();
+            check(!drum_full && drum_page == 0u, "full view: SELECT left: the snake view again");
+            for (j = 0; j < 32u; j++) { dstep_clr(&TDRUM->dstep[j], 0); dstep_clr(&TDRUM->dstep[j], 2); dstep_clr(&TDRUM->dstep[j], 4); }
+            ui.force = 1; frame();
+        }
+        tap(B_SEQ); frames(2);
+        check(drum_page == 1, "DRUMS: SEQ on the GRID: kit");
         frame();
         memset(pad_lit, 0, sizeof pad_lit);
         key(key_of_white(9)); frame();
