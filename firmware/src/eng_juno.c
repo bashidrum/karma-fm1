@@ -107,7 +107,7 @@ static const engine_t ENG_JUNO = {
         {"NOISE", F_PCT, 0, 127, 0, 0, 0},
         {"CUT", F_PCT, 0, 127, 64, 0, 0},
         {"RES", F_PCT, 0, 127, 0, 0, 0},
-        {"ENV", F_PCT, 0, 127, 40, 0, 0},
+        {"ENVMOD", F_PCT, 0, 127, 40, 0, 0},
         {"CHOR", F_ENUM, 0, 3, 1, N_JN_CHO, 0},
     },
     .presets = JUNO_PRESETS,

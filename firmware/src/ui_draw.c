@@ -18,10 +18,10 @@ static int is_eng_name(const char *s)                 /* one of the ENGINES[]->n
     return 0;
 }
 
-/* at most 5 characters, and no wider than maxw */
+/* at most 6 characters, and no wider than maxw (review 21: CHANCE, STRIDE, BOUNCE whole) */
 static void fit(char *d, const char *src, const felucca_font_t *f, int32_t maxw)
 {
-    str_cpy(d, src, is_eng_name(src) ? 8 : 6);           /* engine names are kept whole */
+    str_cpy(d, src, is_eng_name(src) ? 8 : 7);           /* engine names are kept whole */
     while (d[0] && text_w(f, d) > maxw)
         d[str_len(d) - 1u] = 0;
 }
@@ -39,17 +39,30 @@ static int32_t batt_shown(void)
     return batt_level();
 }
 
-/* the header (ui_op.c): the track's tag, the page's title; a message shows in the knob band */
+/* a page every voice shares (Ben's colour rule, review 16b): GLO's GLOBAL, MASTER, the shared effects (DLY, REV/CHO,
+ * CLOUD, CLOUD 2), SYSTEM, MIDI, TEXTURE; not GLO > DRUMS (the drum track's level and sends) */
+static int shared_page(const page_t *pg)
+{
+    return !ui.home && pg->fam == FAM_GLO && pg->scope == SC_GLOBAL && pg->id[1] != G_DRLVL;
+}
+static int drums_page(const page_t *pg) { return !ui.home && pg->fam == FAM_GLO && pg->id[1] == G_DRLVL; }   /* GLO > DRUMS */
+
+/* the header (ui_op.c): the track's tag, the page's title; a message shows in the knob band. A shared page: "ALL" in
+ * neutral grey; GLO > DRUMS: the drum track's */
 static void draw_head(void)
 {
-    static const char *const TAG[NTRK] = {"SYN1", "SYN2", "SYN3", "DRUM"};
     const page_t *pg = cur_page();
     const engine_t *e = ENGINES[TSEL->eng_req % NENGINES];
     const char *title = ui.home ? "HOME" : pg->scope == SC_ENGINE && !is_drum(TSEL) ? e->page_title[pg->id[0] != P_E0] : pg->title;
     if (mlu.on)                                       /* MIDI LEARN on (2.6, GLO + F#3) */
         title = "LEARN";
-    op_header(!is_drum(TSEL) && e != &ENG_GONE ? e->name : TAG[song.sel & 3u],   /* a synth track: its engine, by name */
-              TE_COL[song.sel & 3u], title, &ui.head_sig);
+    if (shared_page(pg))
+        op_header("ALL", TE_G4, title, &ui.head_sig);
+    else if (drums_page(pg))
+        op_header("DRUM", TE_COL[TRK_DRUM], title, &ui.head_sig);
+    else
+        op_header(!is_drum(TSEL) ? e->name : "DRUM",   /* a synth track: its engine, by name (review 18: never SYN1) */
+                  TE_COL[song.sel & 3u], title, &ui.head_sig);
 }
 /* (the bands cover the screen: header, graph, the pages strip, the knob band, the track bar) */
 static void draw_frame(void) {}
@@ -121,6 +134,8 @@ static void graph_adsr(const track_t *t, uint16_t c)
     int32_t stage = v ? v->stage : 0, cur = v ? clamp(((v->env >> 14) * 1000) >> 10, 0, 1000) : 0, gate = stage == 1 || stage == 2;
     (void)c;
 #define EGY(lvl) (bot - (lvl) * (bot - top) / 1000)
+#define EGL(ax, ay, bx, by, col) (cv_line(ax, ay, bx, by, col), cv_line((ax) + 1, ay, (bx) + 1, by, col), \
+                                 cv_line(ax, (ay) - 1, bx, (by) - 1, col))   /* the curve 2 px (review 19) */
     ty = bot;
     op_env_ghost((uint32_t)(t - trk), 128, 93, cur);                    /* the track's character, behind it all */
     cv_rect(0, bot + 1, 240, 1, TE_G1);
@@ -130,34 +145,34 @@ static void graph_adsr(const track_t *t, uint16_t c)
         cv_pset(x2, y, OP_PUR_D);
         cv_pset(x3, y, OP_PUR_D);
     }
-    cv_line(x0, bot, x1, top, tint_col(0u, 0));                               /* attack: linear */
+    EGL(x0, bot, x1, top, tint_col(0u, 0));                                   /* attack: linear */
     px = x1;
     py = top;
     for (i = 1; i <= d; i++) {                                          /* decay: exponential to SUS */
         int32_t lvl;
         e = (e * (32768 - 150733 / d)) >> 15;           /* k^d = exp(-4.6) */
         lvl = sus + ((1000 - sus) * e >> 15);
-        cv_line(px, py, x1 + i, EGY(lvl), tint_col(1u, 0));
+        EGL(px, py, x1 + i, EGY(lvl), tint_col(1u, 0));
         px = x1 + i;
         py = EGY(lvl);
         if (dpos < 0 && lvl <= cur)
             dpos = px;
     }
-    cv_line(px, py, x3, EGY(sus), tint_col(2u, 0));                            /* sustain */
+    EGL(px, py, x3, EGY(sus), tint_col(2u, 0));                                /* sustain */
     px = x3;
     py = EGY(sus);
     e = 32768;
     for (i = 1; i <= r; i++) {                                          /* release: exponential to 0 */
         e = (e * (32768 - 150733 / r)) >> 15;
-        cv_line(px, py, x3 + i, EGY(sus * e >> 15), tint_col(3u, 0));
+        EGL(px, py, x3 + i, EGY(sus * e >> 15), tint_col(3u, 0));
         px = x3 + i;
         py = EGY(sus * e >> 15);
         if (rpos < 0 && (sus * e >> 15) <= cur)
             rpos = px;
     }
-    te_disc(x1, top, 2, tint_col(1u, 0));                                      /* a dot where the next knob takes over */
-    te_disc(x2, EGY(sus), 2, tint_col(2u, 0));
-    te_disc(x3, EGY(sus), 2, tint_col(3u, 0));
+    cv_rect(x1 - 1, top - 1, 3, 3, C_WHITE);                                   /* a handle where the next knob takes over */
+    cv_rect(x2 - 1, EGY(sus) - 1, 3, 3, C_WHITE);
+    cv_rect(x3 - 1, EGY(sus) - 1, 3, 3, C_WHITE);
     if (stage == 1) {                                                   /* where the voice is on the line */
         plat = 0;
         tx = x0 + a * cur / 1000;
@@ -176,13 +191,16 @@ static void graph_adsr(const track_t *t, uint16_t c)
     } else {
         plat = 0;
     }
-    te_digit(4, -2, 12, 26, 2, (uint32_t)(cur * 99 / 1000) / 10u, v ? C_WHITE : TE_G2);
-    te_digit(20, -2, 12, 26, 2, (uint32_t)(cur * 99 / 1000) % 10u, v ? C_WHITE : TE_G2);
-    op_box(196, 0, 40, 18, gate ? C_WHITE : TE_G2);
-    te_text_c(216, 1, "GATE", gate ? C_WHITE : TE_G2);
-    if (v)                                                              /* where the voice is on the line */
+    if (v) {                                                            /* a note playing: its level, GATE (hidden
+                                                                         * until then, review 19), where it is */
+        te_digit(4, -2, 12, 26, 2, (uint32_t)(cur * 99 / 1000) / 10u, C_WHITE);
+        te_digit(20, -2, 12, 26, 2, (uint32_t)(cur * 99 / 1000) % 10u, C_WHITE);
+        op_box(196, 0, 40, 18, gate ? C_WHITE : TE_G4);
+        te_text_c(216, 1, "GATE", gate ? C_WHITE : TE_G4);
         te_disc(tx, ty, 3, C_WHITE);
+    }
 #undef EGY
+#undef EGL
 }
 
 /* LFO: two cycles of the wave, running (KARMA 3.0): it scrolls with the track's LFO, "now" at x = LFO_NOW with a dot
@@ -706,7 +724,7 @@ static void graph_big(void)
             y0 = 30;
         }
         cv_text(x0, y0 + 2, &FONT_S, ui.big_l[c], tint_col(c, 0));
-        x = cv_text(x0, y0 + 20, &FONT_L, ui.big_v[c], ui.big_c[c] == C_DIM ? C_DIM : ui.big_c[c] == C_WHITE ? C_WHITE : C_HI);
+        x = cv_text(x0, y0 + 20, &FONT_L, ui.big_v[c], ui.big_c[c] == C_DIM ? C_DIM : ui.big_c[c] == C_WHITE && knob_tint[c] >= TINT_NEUTRAL ? C_WHITE : C_HI);   /* (a voice's: no white, review 16e) */
         if (ui.big_u[c][0])
             cv_text(x + 4, y0 + 34, &FONT_S, ui.big_u[c], C_GRAY);
     }
@@ -724,7 +742,7 @@ static void graph_menu(const track_t *t)
     (void)t;
     for (c = 0; c < 4u; c++) {
         int32_t y = 2 + (int32_t)c * 30, x, lw, vw, uw;
-        uint16_t vc = ui.big_c[c] == C_DIM ? C_DIM : ui.big_c[c] == C_WHITE ? C_WHITE : tint_col(c, 0);   /* (the page's tint; dim: does nothing now) */
+        uint16_t vc = ui.big_c[c] == C_DIM ? C_DIM : ui.big_c[c] == C_WHITE && knob_tint[c] >= TINT_NEUTRAL ? C_WHITE : tint_col(c, 0);   /* (the page's tint; dim: does nothing now; a voice's touched: its colour, review 16e) */
         char n[2] = {(char)('1' + c), 0};
         if (!ui.big_l[c][0])
             continue;
@@ -744,7 +762,10 @@ static void graph_menu(const track_t *t)
         }
         cv_rect(22, y + 28, 146, 1, C_LINE);
     }
-    op_sprite_scaled(song.sel & 3u, 210, 100, TE_COL[song.sel & 3u]);
+    if (drums_page(cur_page()))                         /* (a shared page: no character, review 16b) */
+        op_sprite_scaled(TRK_DRUM, 210, 100, TE_COL[TRK_DRUM]);
+    else if (!shared_page(cur_page()))
+        op_sprite_scaled(song.sel & 3u, 210, 100, TE_COL[song.sel & 3u]);
 }
 
 static void draw_graph(void)
@@ -892,7 +913,10 @@ static void draw_columns(void)                         /* the four knobs of the 
     {                                                   /* a track's page: its colour; a song or global page: neutral */
         uint32_t sc = cur_page()->scope;
         knob_tint_all(cur_page()->graph == GR_HEX && !ui.home ? TRK_DRUM   /* (the drum voice's sound: its colour) */
+                      : drums_page(cur_page()) ? TRK_DRUM
                       : sc == SC_GLOBAL || sc == SC_SONG ? TINT_NEUTRAL : sc == SC_DRUM ? TRK_DRUM : song.sel);
+        if (!ui.home && cur_page()->id[0] == G_CLSEND && sc == SC_GLOBAL)
+            knob_tint[0] = (uint8_t)song.sel;           /* CLOUD's SEND is the selected track's (review 16b) */
     }
     op_knobs(lab, val, unit, opk.ratio, opk.dim, song.sel * 7u + ui.page * 31u + ui.home, &ui.col_sig);
     {                                                   /* the track bar under them: it follows the track selected here */
@@ -935,7 +959,7 @@ static void draw_columns_set(void)
         }
         draw_column(1, "LEVEL", val, unit, lvl && !t->p[P_MUTE] ? VAL(1u) : C_DIM, (int32_t)lvl * 1000 / 127, ICON_AUTO);
         param_format(&TP[P_SLEN], t->p[P_SLEN], val, &unit);
-        draw_column(2, "LEN", val, unit, VAL(2u), RATIO(&TP[P_SLEN], t->p[P_SLEN]), ICON_AUTO);
+        draw_column(2, "STEPS", val, unit, VAL(2u), RATIO(&TP[P_SLEN], t->p[P_SLEN]), ICON_AUTO);
         param_format(&TP[P_PAN], t->p[P_PAN], val, &unit);
         draw_column(3, "PAN", val, unit, VAL(3u), RATIO(&TP[P_PAN], t->p[P_PAN]), param_icon(&TP[P_PAN], t->p[P_PAN]));
         return;
@@ -1015,6 +1039,16 @@ static void ui_draw(void)
     if (boot_draw())                                    /* (KARMA 3.0: the boot animation first) */
         return;
     pads_tick();
+    {   /* a message belongs to the screen it showed on: another screen, it goes (review 21) */
+        uint16_t k = (uint16_t)((ui.menu * 1000003u + ui.layer * 7919u + ui.hold_kind * 131u + (rec_wait || ft_on) * 17u +
+                                 ui.home * 3u + ui.page * 977u + drum_page * 5u + vis_on * 11u) % 65521u);
+        if (!ui.msg_t)
+            ;
+        else if (msg_scr == 0xFFFFu)
+            msg_scr = k;
+        else if (msg_scr != k)
+            ui.msg_t = 0;
+    }
     if (rec_go) {                                       /* the take started: say so */
         rec_go = 0;
         ui_message("RECORDING");

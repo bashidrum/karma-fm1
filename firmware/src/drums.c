@@ -116,9 +116,9 @@ static const uint8_t LANE_NOTE[DRUM_LANES] = {36, 35, 38, 39, 42, 46, 44, 37, 40
 static const char *const LANE_NAME[DRUM_LANES] = {
     "KICK", "KICK 2", "SNARE", "CLAP", "HAT", "OPEN HAT", "PEDAL", "RIM",
     "SNARE 2", "LOW TOM", "HI TOM", "CRASH", "RIDE", "SHAKER", "CONGA", "COWBELL"};
-static const char *const LANE_SHORT[DRUM_LANES] = {           /* 5 characters: tiles, dials */
-    "kick", "kick2", "snare", "clap", "hat", "open", "pedal", "rim",
-    "snr 2", "tom l", "tom h", "crash", "ride", "shake", "conga", "bell"};
+static const char *const LANE_SHORT[DRUM_LANES] = {           /* 6 characters: tiles, dials (review 21) */
+    "kick", "kick 2", "snare", "clap", "hat", "op hat", "pedal", "rim",
+    "snare2", "lo tom", "hi tom", "crash", "ride", "shaker", "conga", "c-bell"};
 /* a GM note (MIDI in, old projects) -> its lane: the nearest sound of the 16 (35..81; below: kick, above: shaker) */
 static const uint8_t LANE_OF_GM[81 - 35 + 1] = {
     /* 35 */ 1, 0, 7, 2, 3, 8, 9, 4, 9, 6,

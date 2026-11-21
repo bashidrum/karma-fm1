@@ -37,8 +37,8 @@ static void song_screen_draw(void)
     for (i = 0; i < ARR_SCENES; i++) sig = sig * 3u + (uint32_t)project_used(i);
     if (!ui.force && !ui.msg_t && sig == previous) return;
     previous = ui.msg_t ? ~sig : sig;               /* redraw after a message expires */
-    /* Draw one small band at a time: never exceed the 124-row canvas. */
-    cv_begin(240, 40, C_BLACK);
+    /* Draw one small band at a time: never exceed the 124-row canvas. (42 rows: down to the list, review 19) */
+    cv_begin(240, 42, C_BLACK);
     cv_text(4, 4, &FONT_L, "SONG", C_WHITE);
     cv_text(76, 4, &FONT_S, "oct-: mode", RGB(196, 196, 204));   /* (PHEBUS, 21 Nov: the song / loop switch named) */
     cv_text(76, 20, &FONT_S, arrangement_enabled ? "song mode" : "loop mode", arrangement_enabled ? C_WHITE : RGB(118, 118, 126));
@@ -89,7 +89,7 @@ static void song_screen_draw(void)
         cv_rect(0, 4, 240, 30, C_WHITE);
         cv_text((240 - text_w(&FONT_S, ui.msg)) / 2, 11, &FONT_S, ui.msg, C_BLACK);
     } else {
-        static const char *const L[4] = {"entry", "section", "bars", "length"};
+        static const char *const L[4] = {"entry", "section", "bars", "entries"};
         for (i = 0; i < 4u; i++) {
             cv_rect((int32_t)i * 60 + 4, 6, 52, 3, SC[i]);
             cv_text((int32_t)i * 60 + 30 - text_w(&FONT_S, L[i]) / 2, 12, &FONT_S, L[i], RGB(118, 118, 126));
@@ -152,7 +152,7 @@ static void song_bank_draw(void)
         }
     }
     cv_text(4, 34, &FONT_S, "erase load save: twice", RGB(196, 196, 204));
-    cv_text(4, 50, &FONT_S, "song: parts order loop", RGB(118, 118, 126));
+    cv_text(4, 50, &FONT_S, "song: sections order loop", RGB(118, 118, 126));
     cv_blit(0, 172);
 }
 static void song_bank_input(uint32_t pressed, uint32_t home)
@@ -205,7 +205,7 @@ static void song_edit_tap(void)
     if (song_bank)
         return;
     if (song.playing || transport_req) { ui_message("STOP FIRST"); return; }
-    if (!project_used(scene)) { ui_message("EMPTY PART"); return; }
+    if (!project_used(scene)) { ui_message("EMPTY SECTION"); return; }
     if (song_erase_armed && (int32_t)(fm1_ms - song_store_deadline) <= 0) {
         song_erase_armed = 0;
         project_erase(scene);
@@ -217,7 +217,7 @@ static void song_edit_tap(void)
     song_store_deadline = fm1_ms + 3000u;
     {
         char b[2] = {(char)('A' + scene), 0};
-        ui_say("EDIT AGAIN: ERASE ", b);
+        ui_say("AGAIN: ERASE ", b);
     }
 }
 
@@ -259,13 +259,13 @@ static void song_screen_input(uint32_t pressed, uint32_t home)
                     song_load_armed = 1;
                     song_store_armed = 0;
                     song_store_deadline = fm1_ms + 3000u;
-                    ui_message("OCT+ AGAIN: LOAD");
+                    ui_message("AGAIN: LOAD");
                 }
             } else if (project_used(scene) &&
                        (!song_store_armed || (int32_t)(fm1_ms - song_store_deadline) > 0)) {
                 song_store_armed = 1;
                 song_store_deadline = fm1_ms + 3000u;
-                ui_message("REC AGAIN: REPLACE");
+                ui_message("AGAIN: REPLACE");
             } else {
                 project_save(scene);
                 settings_save();

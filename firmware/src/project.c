@@ -723,7 +723,7 @@ static void project_erase(uint32_t slot)
     if (song.playing || transport_req) { ui_message("STOP BEFORE ERASE"); return; }
 #endif
     if (!proj_ok(&proj_slot[slot])) {
-        ui_message("EMPTY PART");
+        ui_message("EMPTY SECTION");
         return;
     }
 #if FELUCCA_FLASH
@@ -776,7 +776,7 @@ static void project_load(uint32_t slot)
         proj_fetch(slot);
 #endif
     if (!proj_ok(p)) {
-        ui_message("EMPTY PART");
+        ui_message("EMPTY SECTION");
         return;
     }
     project_apply(p);
@@ -1340,7 +1340,7 @@ static void sections_flush(void)                        /* main loop */
         if (song_dirty) {
             char b[8];
             fmt_int(b, srec_done);
-            ui_say("SONG PARTS ", b);
+            ui_say("SONG ENTRIES ", b);
         } else {
             ui_message("NO SONG");
         }

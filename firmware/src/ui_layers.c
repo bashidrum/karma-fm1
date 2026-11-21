@@ -22,6 +22,8 @@
  * project (a ring fills; let go before and nothing happens). */
 static const uint8_t LAYER_BTN[LY_COUNT] = {NB, B_FX, B_EDIT, B_ARP, B_SEQ, B_SCL, B_GLO, B_SAVE};
 static const char *const LAYER_NAME[LY_COUNT] = {"", "punch", "erase", "roll", "steps", "key", "mix", "song"};
+static const char *const LAYER_BTN_NAME[LY_COUNT] = {"", "fx:", "edit:", "arp:", "seq:", "sel:", "glo:", "save:"};   /* the button
+                                                         * held, before the layer's name: "FX: PUNCH" (review 21) */
 static void section_store(uint32_t s);                  /* project.c */
 static void section_load(uint32_t s);
 static uint8_t sec_armed;                               /* store over a used section: the key again within 3 s */
@@ -121,7 +123,7 @@ static void step_down(uint32_t w)
     if (idx >= trk_len(t))
         return;
     if (song.playing && arrangement_enabled) {
-        ui_message("STOP THE SONG FIRST");
+        ui_message("STOP FIRST");
         return;
     }
     if (step_is_on(t, idx)) {
@@ -279,13 +281,13 @@ static void steps_held_clear(void)
     }
     fm1_irq_on();
     sync_reload = 1;
-    ui_message(n ? "NUDGE, LOCKS, FILL CLEARED" : "NO NUDGE, LOCK OR FILL");
+    ui_message(n ? "LOCKS, NUDGE, COND CLEARED" : "NO LOCK, NUDGE OR COND");
 }
 /* OCT+ with step keys held: their condition, round: normal -> fill only -> no fill -> chance (SEQ > PLAY CHANCE) */
 static void steps_held_fill(void)
 {
     track_t *t = TSEL;
-    static const char *const MSG[4] = {"FILL: NORMAL", "FILL ONLY", "NO FILL", "CHANCE"};
+    static const char *const MSG[4] = {"COND: NORMAL", "COND: FILL ONLY", "COND: NO FILL", "COND: CHANCE"};
     uint32_t w, v = 0, first = 1;
     layer_undo_mark(t);
     step_pend_off &= (uint16_t)~ui.step_held;
@@ -415,7 +417,7 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
             } else {
                 arrangement_enabled = 0;
                 srec = 1;
-                ui_message(live_sec < 0 ? "PICK A PART" : "REC: NEXT BAR");
+                ui_message(live_sec < 0 ? "PICK A SECTION" : "REC: NEXT BAR");
             }
         } else if (w == 15) {
             studio_open(SC_SONG);
@@ -592,7 +594,10 @@ static void tiles_draw(const tile_t *tl, uint32_t *cache)
             const tile_t *t = &tl[r * 4u + c];
             int32_t x = 2 + (int32_t)c * 60;
             uint32_t m;
-            cv_rect(x, 2, 56, 32, t->bg);
+            if (!t->lab[0] && t->bg == TE_G1)           /* a key that does nothing here: an outline (review 19) */
+                op_box(x, 2, 56, 32, TE_G1);
+            else
+                cv_rect(x, 2, 56, 32, t->bg);
             if (t->top)
                 cv_rect(x, 2, 56, 3, t->top);
             te_text_c(x + 28, 9, t->lab, t->fg);
@@ -624,7 +629,7 @@ static void tiles_draw(const tile_t *tl, uint32_t *cache)
 /* the punch layer (2.6): the 27 keys as a keyboard, four rows of four white keys (as the other layers' 16
  * tiles) with the black keys over them, between the white keys they sit between (the one after the
  * row's last white key at its right end); a held effect lit white */
-#define PT_BW 52                                        /* a black key's tile */
+#define PT_BW 40                                        /* a black key's tile: centred on the gap (review 19) */
 static void punch_tiles_draw(const tile_t *tl, uint32_t *cache)
 {
     uint32_t r, c, i, sig = 11u;
@@ -666,8 +671,14 @@ static void layer_title(const char *name, const char *sub, uint16_t col, uint32_
         return;
     *cache = sig;
     cv_begin(240, 40, C_BLACK);
-    cv_text(4, 2, &FONT_L, name, col);
-    cv_text(4 + text_w(&FONT_L, name) + 10, 18, &FONT_S, ui.msg_t ? ui.msg : sub, ui.msg_t ? C_WHITE : TE_G3);
+    {   /* (a sub line or message too long for the line with the button's name: the name alone, as before) */
+        const char *btn = LAYER_BTN_NAME[ui.layer % LY_COUNT], *s2 = ui.msg_t ? ui.msg : sub;
+        int32_t x = 4;
+        if (text_w(&FONT_S, btn) + 2 + text_w(&FONT_L, name) + 8 + text_w(&FONT_S, s2) <= 232)
+            x = cv_text(4, 14, &FONT_S, btn, TE_G4) + 2;   /* (on the name's baseline) */
+        x = cv_text(x, 2, &FONT_L, name, col);
+        cv_text(x + 8, 18, &FONT_S, s2, ui.msg_t ? C_WHITE : TE_G3);
+    }
     if (locked) {                                         /* locked open (HOME): any button lets it go */
         int32_t w = (int32_t)text_w(&FONT_S, "LOCK") + 8;
         cv_rect(236 - w, 4, w, 15, C_WHITE);
@@ -708,24 +719,27 @@ static void layer_screen_draw(void)
         tl[i].bg = TE_G1;
         tl[i].fg = TE_G3;
     }
-    str_cpy(sub, "track ", sizeof sub);
+    str_cpy(sub, "track ", sizeof sub);                 /* (in words: TRACK 1, the DRUM TRACK, review 21) */
     sub[6] = (char)('1' + sel);
     sub[7] = 0;
+    if (sel == TRK_DRUM)
+        str_cpy(sub, "drum track", sizeof sub);
     switch (layer) {
-    case LY_FX:                                         /* the 27 punch-in effects: 16 white keys, 11 black */
-        col = TE_DRUM;
-        str_cpy(sub, thr_req == 3u ? "rev + echo throw" : thr_req == 2u ? "echo throw" : thr_req ? "rev throw" : "hold + key",
+    case LY_FX:                                         /* the 27 punch-in effects: 16 white keys, 11 black (the mix's:
+                                                         * neutral, review 16c) */
+        col = C_WHITE;
+        str_cpy(sub, thr_req == 3u ? "rev+echo throw" : thr_req == 2u ? "echo throw" : thr_req ? "rev throw" : "hold + key",
                 sizeof sub);
         for (i = 0; i < PUNCH_NFX; i++) {
-            static const char *const PSHORT[PUNCH_NFX] = {"loop 4", "loop 8", "loop16", "loop32", "stutt", "rev", "stop",
+            static const char *const PSHORT[PUNCH_NFX] = {"lp 4", "lp 8", "lp 16", "lp 32", "stutr", "revrs", "stop",
                                                           "half", "low", "high", "phone", "crush", "alias", "gate", "echo",
-                                                          "wobble", "k low", "k mid", "k high", "rewind", "oct up", "flange",
-                                                          "pan", "freeze", "loop8t", "mono", "fade"};
+                                                          "wow", "-low", "-mid", "-hi", "rwnd", "oct+", "flng",
+                                                          "pan", "frz", "lp8t", "mono", "fade"};   /* (5 characters at most; the
+                                                         * black keys' 4: 3 px of their 40 px tile left each side, review 19) */
             int on = punch.req == (int8_t)i, black = i >= 16u;
             str_cpy(tl[i].lab, PSHORT[i], 8);
             tl[i].bg = on ? C_WHITE : black ? C_BLACK : TE_G1;
             tl[i].fg = on ? C_BLACK : black ? TE_G3 : TE_G4;
-            tl[i].top = on || black ? 0 : TE_DIM[i / 4u];
         }
         lab[0] = "filter", lab[1] = "dust", lab[2] = "duck", lab[3] = "trk flt";
         {
@@ -747,7 +761,7 @@ static void layer_screen_draw(void)
         uint32_t held = fm1_in.notes;
         int mute = layer == LY_ERASE && is_drum(t) && er_mute;   /* (2.6) EDIT + a black key: the mutes */
         col = layer == LY_ERASE ? TE_RED : col;
-        str_cpy(sub, mute ? "mute: key = sound" : layer == LY_ERASE ? (song.playing ? "as it plays" : "every step") : "hold + key", sizeof sub);
+        str_cpy(sub, mute ? "keys mute" : layer == LY_ERASE ? (song.playing ? "as it plays" : "every step") : "hold + key", sizeof sub);
         for (i = 0; i < 16u; i++) {
             uint32_t k = key_of_white(i), down = (held >> k) & 1u, present = 0, j;
             if (is_drum(t)) {
@@ -781,14 +795,14 @@ static void layer_screen_draw(void)
             }
         }
         if (layer == LY_ERASE && is_drum(t) && !mute && !undo.valid)
-            str_cpy(sub, "black key: mute", sizeof sub);
+            str_cpy(sub, "black = mute", sizeof sub);
         if (layer == LY_ERASE) {
-            lab[0] = "shift", lab[1] = "length", lab[2] = is_drum(t) ? "" : "transp";
+            lab[0] = "shift", lab[1] = "steps", lab[2] = is_drum(t) ? "" : "transp";   /* (STEPS: the pattern's length) */
             str_cpy(v[0], "<  >", 8);
             fmt_int(v[1], t->p[P_SLEN]);
             str_cpy(v[2], is_drum(t) ? "" : "-  +", 8);
             if (!mute)                                  /* what OCT- / OCT+ do now (one step: undo, then redo) */
-                str_cpy(sub, undo.valid ? (undo.undone ? "oct+ redo" : "oct- undo") : is_drum(t) ? sub : "nothing to undo",
+                str_cpy(sub, undo.valid ? (undo.undone ? "oct+ redo" : "oct- undo") : is_drum(t) ? sub : "no undo yet",
                         sizeof sub);
         } else {
             lab[0] = "rate";
@@ -970,7 +984,7 @@ static void layer_screen_draw(void)
         tl[14].bg = C_BLACK;
         for (i = 0; i < 4u; i++) {
             uint32_t lv = trk_level(i);
-            static const char *const L[4] = {"1", "2", "3", "4"};
+            static const char *const L[4] = {"1", "2", "3", "dr"};   /* (the strip's numbers) */
             lab[i] = L[i];
             fmt_int(v[i], (int32_t)lv * 100 / 127);
             ratio[i] = (int32_t)lv * 1000 / 127;
@@ -991,7 +1005,7 @@ static void layer_screen_draw(void)
         } else if (chain_taps >= 2u || chain_n) {
             chain_sub(sub, sizeof sub);                 /* "chain A B B C" */
         } else {
-            str_cpy(sub, arrangement_enabled ? "song mode" : srec ? "rec armed" : "play  store", sizeof sub);
+            str_cpy(sub, srec ? "rec armed" : "tap 2+ = chain", sizeof sub);   /* (how to chain, review 21; the mode: key 13) */
         }
         for (i = 0; i < 4u; i++) {                      /* (the chain's next entry framed as the one asked for) */
             int used = (ready >> i) & 1u, playing = live_sec == (int8_t)i && !arrangement_clock.running;
@@ -1014,7 +1028,7 @@ static void layer_screen_draw(void)
         tl[13].bg = srec == 2u ? TE_RED : TE_G1;
         tl[13].fg = srec == 2u ? C_BLACK : TE_RED;
         tl[13].top = srec == 1u ? TE_RED : 0;
-        str_cpy(tl[15].lab, "chain", 8);
+        str_cpy(tl[15].lab, "song", 8);                /* (it opens the SONG screen, review 21) */
         tl[15].bg = TE_G1;
         tl[15].fg = TE_G4;
         break;
@@ -1039,7 +1053,10 @@ static void layer_screen_draw(void)
         if (layer == LY_MIX)                            /* GLO layer: the levels of tracks 1..4 */
             knob_tint_voices();
         else
-            knob_tint_all(layer == LY_SCALE || layer == LY_SONG ? TINT_NEUTRAL : song.sel);   /* the key, the song: everyone's */
+            knob_tint_all(layer == LY_SCALE || layer == LY_SONG || layer == LY_FX ? TINT_NEUTRAL : song.sel);   /* the key,
+                                                         * the song, the mix's effects: everyone's */
+        if (layer == LY_FX)
+            knob_tint[3] = (uint8_t)song.sel;           /* TRK FLT: the selected track's own filter */
         te_dials(184, lab, val, ratio, layer * 7919u, &foot);
         ui.msg_t = m;
     }
@@ -1080,9 +1097,11 @@ static void hold_screen_draw(void)
     if (ui.hold_kind == 1u) {
         str_cpy(b, "track 1", sizeof b);
         b[6] = (char)('1' + ui.hold_trk);
+        if (ui.hold_trk == TRK_DRUM)
+            str_cpy(b, "drum track", sizeof b);
     } else {
-        str_cpy(b, "into part A", sizeof b);
-        b[10] = (char)('A' - 1 + clamp(song.g[G_SLOT], 1, 4));
+        str_cpy(b, "into section A", sizeof b);
+        b[13] = (char)('A' - 1 + clamp(song.g[G_SLOT], 1, 4));
     }
     te_text_c(120, 4, b, TE_G4);
     te_text_c(120, 30, "keep holding", TE_G3);

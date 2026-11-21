@@ -155,7 +155,7 @@ static void sg_page_add(track_t *t)
         return;
     }
     if (song.playing && arrangement_enabled) {
-        ui_message("STOP THE SONG FIRST");
+        ui_message("STOP FIRST");
         return;
     }
     sg_undo(t);
@@ -246,7 +246,7 @@ static void grid_key(uint32_t k, uint32_t down)
     if (idx >= len)
         return;
     if (song.playing && arrangement_enabled) {
-        ui_message("STOP THE SONG FIRST");
+        ui_message("STOP FIRST");
         return;
     }
     if (!sg_held) {
@@ -455,7 +455,7 @@ static void sg_free_knob(uint32_t k, int32_t s)
         return;
     }
     if (song.playing && arrangement_enabled) {
-        ui_message("STOP THE SONG FIRST");
+        ui_message("STOP FIRST");
         return;
     }
     if (k == 2u) {
@@ -509,7 +509,7 @@ static void sg_held_oct(uint32_t up)
     fm1_irq_on();
     sync_reload = 1;
     if (up) {
-        static const char *const MSG[4] = {"COND: NORMAL", "FILL ONLY", "NO FILL", "CHANCE"};
+        static const char *const MSG[4] = {"COND: NORMAL", "COND: FILL ONLY", "COND: NO FILL", "COND: CHANCE"};
         ui_message(MSG[v % 4u]);
     } else if (sg_lpage < NPAGES) {
         ui_message(n ? "PAGE LOCKS CLEARED" : "NO LOCK ON THIS PAGE");
@@ -605,8 +605,10 @@ static uint32_t grid_keys_lit(uint32_t blink)
 
 /* ---------------------------------------------------------- drawing --- */
 /* what step idx holds, as up to 4 lines of text (the knobs show the values being turned; this shows all of it) */
+static uint8_t sg_lines_held;                           /* a step held: the knobs show LEVEL, the lines leave it out */
 static uint32_t sg_lines(const track_t *t, uint32_t idx, char ln[4][31])
 {
+    uint32_t held = sg_lines_held;
     uint32_t n = 0, k, nl = 0, f = step_fill(t, idx);
     char v[12];
     const char *u;
@@ -614,9 +616,13 @@ static uint32_t sg_lines(const track_t *t, uint32_t idx, char ln[4][31])
     if (is_drum(t)) {
         const dstep_t *d = &t->dstep[idx];
         if (dstep_has(d, drum_lane)) {
-            str_cpy(ln[0], "LEVEL ", 31);
-            str_cpy(ln[0] + 6, LV_NAME[dstep_lvl(d, drum_lane)], 8);
-            str_cpy(ln[0] + str_len(ln[0]), "  RATCH X", 10);
+            ln[0][0] = 0;
+            if (!held) {
+                str_cpy(ln[0], "LEVEL ", 31);
+                str_cpy(ln[0] + 6, LV_NAME[dstep_lvl(d, drum_lane)], 8);
+                str_cpy(ln[0] + str_len(ln[0]), "  ", 3);
+            }
+            str_cpy(ln[0] + str_len(ln[0]), "RATCH X", 8);
             fmt_int(ln[0] + str_len(ln[0]), (int32_t)dstep_rat(d, drum_lane) + 1);
         } else {
             str_cpy(ln[0], "NO HIT", 31);
@@ -624,10 +630,8 @@ static uint32_t sg_lines(const track_t *t, uint32_t idx, char ln[4][31])
     } else {
         const step_t *st = &t->step[idx];
         if (step_on(st)) {
-            str_cpy(ln[0], "LEN ", 31);
+            str_cpy(ln[0], "LEN ", 31);                /* (VEL: the knob row has it, review 19) */
             fmt_int(ln[0] + 4, (int32_t)note_len(t, idx));
-            str_cpy(ln[0] + str_len(ln[0]), "  VEL ", 7);
-            fmt_int(ln[0] + str_len(ln[0]), (int32_t)step_vel_shown(st));
             if (st->flags & (SF_ACCENT | SF_SLIDE)) {
                 str_cpy(ln[0] + str_len(ln[0]), "  ", 3);
                 str_cpy(ln[0] + str_len(ln[0]), SG_FLAG[(st->flags & SF_ACCENT ? 1u : 0u) | (st->flags & SF_SLIDE ? 2u : 0u)], 4);
@@ -683,7 +687,7 @@ static void sg_detail_draw(uint32_t y, uint32_t h, uint32_t idx, uint32_t held)
     const track_t *t = TSEL;
     uint16_t col = TE_COL[song.sel & 3u];
     char ln[4][31], top[32], nm[20];
-    uint32_t i, n = sg_lines(t, idx, ln);
+    uint32_t i, n = (sg_lines_held = (uint8_t)held, sg_lines(t, idx, ln));
     int32_t ty, x;
     cv_begin(240, h, C_BLACK);
     str_cpy(top, "STEP ", 8);
@@ -709,10 +713,10 @@ static void sg_detail_draw(uint32_t y, uint32_t h, uint32_t idx, uint32_t held)
         else
             cv_text(x + 8, 4, &FONT_S, nm, col);
         ty = 36;
-    } else {                                            /* the cursor's step; the pen at the right */
+    } else {                                            /* the cursor's step's notes (its number: the knob row's STEP,
+                                                         * review 19); the pen at the right */
         char pen[24];
-        x = cv_text(6, 2, &FONT_S, top, TE_G3);
-        cv_text(x + 8, 2, &FONT_S, nm, col);
+        cv_text(6, 2, &FONT_S, nm, col);
         if (!is_drum(t)) {
             sg_notes_str(pen, pen_n ? pen_note : &last_note, pen_n ? pen_n : 1u, 24);
             x = 234 - text_w(&FONT_S, pen);
@@ -745,14 +749,17 @@ static void sg_tiles_draw(uint32_t y, uint32_t big)
             const step_t *st = &t->step[idx];
             if (step_on(st)) {
                 cv_rect(x, ty, w, (int32_t)th, held ? C_WHITE : TE_COL[sel]);
-                if (big) {
-                    char nm[6];
-                    note_name(nm, st->note[0]);
-                    cv_text(x + (w - text_w(&FONT_S, nm)) / 2, ty + 4, &FONT_S, nm,
-                            held || !(st->flags & SF_ACCENT) ? C_BLACK : C_WHITE);   /* an accent: white */
+                if (big) {                              /* the note without its octave, centred; the octave as 1..4
+                                                         * ticks over the velocity bar (review 19) */
+                    const char *nm = N_NOTE[st->note[0] % 12u];
+                    int32_t o = clamp((int32_t)st->note[0] / 12 - 2, 1, 4), q;
+                    uint16_t ink = held || !(st->flags & SF_ACCENT) ? C_BLACK : C_WHITE;   /* an accent: white */
+                    cv_text(x + (w - text_w(&FONT_S, nm)) / 2, ty + 4, &FONT_S, nm, ink);
+                    for (q = 0; q < o; q++)
+                        cv_rect(x + (w - (o * 4 - 2)) / 2 + q * 4, ty + (int32_t)th - 7, 2, 2, ink);
                 }
-                if (st->flags & SF_SLIDE)                   /* a slide: a white link to the next step */
-                    cv_rect(x + w - 1, ty + (int32_t)th / 2 - 1, 3, 3, C_WHITE);
+                if (st->flags & SF_SLIDE)                   /* a slide: a 3 x 3 mark, 2 px in from the top right */
+                    cv_rect(x + w - 5, ty + 2, 3, 3, held ? C_BLACK : C_WHITE);
                 cv_rect(x + 2, ty + (int32_t)th - 3, (w - 4) * (int32_t)step_vel_shown(st) / 127, 2, C_BLACK);   /* velocity */
                 if (st->n > 1u)                         /* a chord: a second line */
                     cv_rect(x + 2, ty + 2, 2, (int32_t)th - 8, C_BLACK);
@@ -762,8 +769,8 @@ static void sg_tiles_draw(uint32_t y, uint32_t big)
             } else {
                 op_box(x, ty, w, (int32_t)th, held ? C_WHITE : j % 4u ? TE_DIM[sel] : TE_MID[sel]);
             }
-            if (step_locked(t, idx))
-                cv_rect(x + w - 5, ty + 2, 3, 3, step_on(st) ? C_BLACK : C_WHITE);
+            if (step_locked(t, idx))                    /* a lock / nudge: a dot top centre (top right: the slide) */
+                cv_rect(x + w / 2 - 1, ty + 1, 3, 2, step_on(st) ? C_BLACK : C_WHITE);
             if (step_fill(t, idx))
                 cv_rect(x + 1, ty + 1, 4, 2, step_on(st) ? C_BLACK : C_WHITE);
         }

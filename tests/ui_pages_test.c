@@ -125,7 +125,9 @@ static int grid_voice(const track_t *t, uint32_t note)   /* a voice of t sounds 
 { uint32_t v; for (v = 0; v < NVOICE; v++) if (t->v[v].active && t->v[v].gate && t->v[v].note == note) return 1; return 0; }
 static int fails;
 static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok ? "ok" : "FAIL"); fails += !ok; }
-static const char *sub_line(void) { return layer_sub_shown; }   /* the layer's sub line as last drawn (ui_layers.c) */
+static const char *sub_line(void) { return layer_sub_shown; }
+static uint32_t px_count(uint32_t x0, uint32_t y0, uint32_t w, uint32_t h, uint16_t c)   /* pixels of colour c in a box */
+{ uint32_t x, y, n = 0; for (y = y0; y < y0 + h; y++) for (x = x0; x < x0 + w; x++) n += swap16(screen[y * 240u + x]) == c; return n; }   /* the layer's sub line as last drawn (ui_layers.c) */
 
 #ifndef UI_PAGES_HARNESS_ONLY                       /* (tests/stress_test.c: the harness, its own main) */
 int main(int argc, char **argv)
@@ -201,11 +203,53 @@ int main(int argc, char **argv)
         check(swap16(screen[10 * 240 + 209]) == was, "saved: the dot goes");
         check(!strcmp(DRUM_KIT_NAMES[DRUM_DEFAULT_KIT], "606"), "power-on drum kit: the 606 (Ben, 21 Nov)");
     }
+    {   /* review 21: a message stays on the screen it showed on; another screen, it goes */
+        go_home(); ui.force = 1; frame();
+        ui_message("STOP FIRST"); frame(); frame();
+        check(ui.msg_t != 0, "a message shows on HOME");
+        open_family(FAM_ENV); frame(); frame();
+        check(ui.msg_t == 0, "... and clears when the screen changes (review 21)");
+        open_family(FAM_ENV); ui_message("NOT ON THIS SOUND"); frame(); frame();
+        check(ui.msg_t != 0, "a message made as the screen changes stays on the new screen");
+        go_home(); ui.force = 1; frame();
+    }
+    {   /* review 16d: the downbeat light white while playing, red only while recording */
+        uint32_t c = 0, b = clk_beat, pl = song.playing, rc = song.rec;
+        clk_beat = 4u; song.playing = 1; song.rec = 0; ui.force = 1;
+        op_header("HOME", TE_G3, "loop", &c);
+        check(swap16(screen[9 * 240 + 174]) == C_WHITE, "header: the downbeat white while playing");
+        song.rec = 1; ui.force = 1;
+        op_header("HOME", TE_G3, "loop", &c);
+        check(swap16(screen[9 * 240 + 174]) == TE_RED, "header: the downbeat red while recording");
+        clk_beat = b; song.playing = pl; song.rec = rc;
+        go_home(); ui.force = 1; frame();
+    }
     open_family(FAM_ENV); ui.force = 1; ui.hot_col = 1; ui.hot_t = 30; frame(); ppm("page-env");
+    check(px_count(0, Y_GRAPH + G_OY, 40, 26, C_WHITE) + px_count(0, Y_GRAPH + G_OY, 40, 26, TE_G2) == 0 &&
+          px_count(190, Y_GRAPH + G_OY, 50, 20, TE_G2) == 0,
+          "ENV, no note playing: the level and GATE readout hidden (review 19)");
+    check(px_count(0, OP_KNOB_Y + 5, 240, 16, C_WHITE) == 0, "ENV: the touched knob keeps the voice colour (no white, review 16e)");
+    {   /* review 19: HOME, a muted track: its real level, dim, with MUTE (not LEVEL 0) */
+        int16_t m = trk[0].p[P_MUTE];
+        song.sel = 0; trk[0].p[P_MUTE] = 1; go_home(); ui.force = 1; frame();
+        check(px_count(62, OP_KNOB_Y + 26, 56, 26, TE_G3) > 40 && px_count(62, OP_KNOB_Y + 26, 56, 26, TE_COL[0]) == 0,
+              "HOME, track 1 muted: LEVEL shows its level in grey, with MUTE");
+        trk[0].p[P_MUTE] = m; go_home(); ui.force = 1; frame();
+        open_family(FAM_ENV); ui.force = 1; frame();
+    }
     go_home(); open_family(FAM_EDIT); ui.force = 1; frame(); ppm("page-edit");   /* (EDIT: the chain's start, OSC) */
     open_family(FAM_FX); ui.force = 1; frame(); ppm("page-fx");
     open_family(FAM_SEQ); ui.force = 1; frame(); ppm("page-pattern");
     open_family(FAM_GLO); ui.force = 1; frame(); ppm("page-global");
+    {   /* review 16b (Ben, 21 Nov: "Fix all"): a page every voice shares is neutral: the tag "ALL" in grey, no voice colour
+         * in the header, no character, the knobs grey */
+        uint32_t k, voice = 0;
+        for (k = 0; k < 4u; k++)
+            voice += px_count(0, 0, 240, OP_HEAD_H, TE_COL[k]) + px_count(0, OP_BODY_Y, 240, OP_KNOB_Y - OP_BODY_Y, TE_COL[k]) +
+                     px_count(0, OP_KNOB_Y, 240, OP_KNOB_H, TE_COL[k]);
+        check(!strcmp(cur_page()->title, "GLOBAL") && px_count(2, 1, 46, 18, TE_G4) > 60 && voice == 0,
+              "GLO > GLOBAL: tag ALL in grey, no voice colour above the strip (no character, neutral knobs)");
+    }
     open_family(FAM_GLO); ui.force = 1; frame(); ppm("page-master");
     open_family(FAM_SCL); ui.force = 1; frame(); ppm("page-scale");
     {   /* (2.4) GLO > SYSTEM: KNOB 1 is MIDI OUT (KEYS / SEQ), shown as such; the USB status in the third column */
@@ -368,6 +412,19 @@ int main(int argc, char **argv)
     key(0); check(trk[0].p[P_MUTE] == 1, "GLO + key 1: track 1 muted");
     key(9); check(song.solo == 2u, "GLO + key 6: track 2 soloed");
     ppm("layer-mix");
+    {   /* review 15 (Ben, 21 Nov: "A: heads, underline", "A: badges"): the track strip under the knobs: a yellow M badge
+         * on the muted track, an ice-blue S on the soloed one, the selected track underlined in its colour; the mixer's
+         * S in the same ice blue, never the alien's */
+        check(px_count(4, OP_BAR_Y, 56, OP_BAR_H, TE_MUTE) >= 60 && px_count(62, OP_BAR_Y, 56, OP_BAR_H, TE_MUTE) == 0,
+              "strip: a yellow M badge on track 1 (muted), none on track 2");
+        check(px_count(62, OP_BAR_Y, 56, OP_BAR_H, TE_SOLO) >= 60 && px_count(4, OP_BAR_Y, 56, OP_BAR_H, TE_SOLO) == 0,
+              "strip: an ice-blue S badge on track 2 (soloed)");
+        check(TE_SOLO == RGB(150, 215, 255) && TE_SOLO != TE_COL[1] && px_count(0, OP_BODY_Y, 240, 96, TE_SOLO) >= 60,
+              "mixer: its S badge ice blue (150,215,255), not the alien's blue");
+        check(px_count(4, OP_BAR_Y + 24, 54, 3, TE_COL[0]) == 54 * 3 && px_count(62, OP_BAR_Y + 24, 54, 3, TE_COL[1]) == 0,
+              "strip: the selected track underlined in its colour, 3 px");
+        check(px_count(0, OP_BAR_Y + 1, 240, OP_BAR_H - 1, C_WHITE) < 40, "strip: no filled tab (the old bar's look)");
+    }
     for (i = 0; i < 4u; i++) { fm1_in.notes = 1u << 26; frame(); fm1_in.notes = 0; frames(36); }   /* ~0.6 s apart */
     check(song.g[G_BPM] >= 95 && song.g[G_BPM] <= 105, "GLO + the last key, tapped at ~0.6 s: ~100 BPM");
     key(0); key(9);
@@ -555,7 +612,9 @@ int main(int argc, char **argv)
     release(B_SAVE);
     check(!on_song_page() && saves == 0, "SAVE held and let go: no song page, no save");
     tap(B_SAVE); check(on_song_page(), "SAVE tapped on TRACKS: the song page");
+    lcd_fill(0, 40, 240, 2, C_WHITE);
     ui.force = 1; frame(); ppm("page-song");
+    check(px_count(0, 40, 240, 2, C_WHITE) == 0, "SONG: the header covers rows 40 and 41 (no stray pixels, review 19)");
     {   /* (PHEBUS, 21 Nov) the song / loop switch (OCT-) is named on the screen, above the mode */
         uint32_t x, y, lit = 0;
         for (y = 4; y < 16; y++) for (x = 76; x < 150; x++) lit += screen[y * 240 + x] != 0;
@@ -585,12 +644,12 @@ int main(int argc, char **argv)
         check(on_song_page() && !song_bank, "SONGS, SAVE: back to the song");
         song_cursor = 0; arrangement.entry[0].scene = 1;    /* (part B: used, the stub) */
         tap(B_EDIT); frames(2);
-        check(erases == e0 && !strcmp(ui.msg, "EDIT AGAIN: ERASE B"), "SONG, EDIT: EDIT AGAIN: ERASE B, nothing erased");
+        check(erases == e0 && !strcmp(ui.msg, "AGAIN: ERASE B"), "SONG, EDIT: AGAIN: ERASE B (one confirm pattern, review 21), nothing erased");
         tap(B_EDIT); frames(2);
         check(erases == e0 + 1u && on_song_page(), "SONG, EDIT again: part B erased, still the song");
         arrangement.entry[0].scene = 3;
         tap(B_EDIT); frames(2);
-        check(erases == e0 + 1u && !strcmp(ui.msg, "EMPTY PART"), "SONG, EDIT on an empty part: EMPTY PART");
+        check(erases == e0 + 1u && !strcmp(ui.msg, "EMPTY SECTION"), "SONG, EDIT on an empty section: EMPTY SECTION (review 21)");
         tap(B_SAVE); frames(2); go_home(); frames(2);
         studio_open(SC_SONG); frames(2);
         check(!song_bank, "  the song screen opens on the song, not the saved songs");
@@ -1664,8 +1723,8 @@ int main(int argc, char **argv)
             go_home(); frame();
             pc_req[1] = 1;                                /* PC 0 on track 2's channel: the first sound of the list */
             frame();
-            check(trk[1].eng_req == BANK[x0].e && trk[1].preset == bank_pi[x0] && !strncmp(ui.msg, "T2 PROG 0", 9),
-                  "MIDI Program Change 0: track 2 takes the first sound of its PRESETS list (T2 PROG 0)");
+            check(trk[1].eng_req == BANK[x0].e && trk[1].preset == bank_pi[x0] && !strncmp(ui.msg, "TRACK 2 PROG 0", 14),
+                  "MIDI Program Change 0: track 2 takes the first sound of its PRESETS list (TRACK 2 PROG 0)");
             pc_req[3] = 3;                                /* PC 2 on the drum channel: kit 2 */
             frame();
             check(TDRUM->p[P_E0] == 2, "MIDI Program Change on the drum channel: kit 2");

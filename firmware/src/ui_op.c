@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The three bands every LIVE screen shares, top to bottom: the header (a tag that says where you are,
- * the tempo, the transport), the four knob readouts (KNOB 1..4 in blue, green, white, orange: the label
- * and its value in the knob's colour) and the track bar (the four tracks, the selected one filled).
+ * the tempo, the transport), the four knob readouts (each knob's label and value in the colour of what it acts
+ * on: a voice's colour, or neutral grey for what everyone shares) and the track strip (the four tracks).
  * The screen's own picture goes between the header and the readouts, rows OP_BODY_Y .. OP_KNOB_Y - 1.
  * Each band is its own canvas with its own signature, as the rest of ui_studio.c. */
 #define OP_HEAD_H 22
@@ -37,9 +37,10 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
         return;
     *cache = sig;
     cv_begin(240, OP_HEAD_H, C_BLACK);
-    {   /* the tag in its box (four characters, or as wide as a longer one), the title up to the tempo */
-        int32_t w = text_w(&FONT_S, tag) + 6;
-        w = w < 38 ? 38 : w;
+    {   /* the tag in its box, one width for every tag (five characters: the title always starts at x 52; review 18) */
+        int32_t w = 46;
+        if (str_len(tag) > 5u)                          /* (ELEMENTS, PLAITS: their five-letter tags) */
+            tag = tag[0] == 'E' ? "ELEM" : tag[0] == 'P' ? "PLTS" : "SYN";
         op_box(2, 1, w, 18, tc);
         te_text_c(2 + w / 2, 2, tag, tc);
         str_cpy(b, title, 10);
@@ -57,7 +58,7 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
         cv_rect(156, 5, 10, 10, TE_G3);
     }
     for (k = 0; k < 4u; k++)                           /* the four beats of the bar */
-        cv_rect(172 + (int32_t)k * 8, 7, 6, 6, playing && beat % 4u == k ? (k ? C_WHITE : TE_RED) : TE_G2);
+        cv_rect(172 + (int32_t)k * 8, 7, 6, 6, playing && beat % 4u == k ? (k || !song.rec ? C_WHITE : TE_RED) : TE_G2);   /* (red: recording only) */
     if (song.rec)
         te_disc(209, 10, 4, TE_RED);
     else if (proj_unsaved)                             /* (saved again at the next stop: project.c autosave_tick) */
@@ -73,22 +74,13 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
     cv_blit(0, 0);
 }
 
-/* a value of up to three digits (and a sign): drawn tall and thin */
-static int op_is_num(const char *s)
-{
-    uint32_t n = 0;
-    if (*s == '-')
-        s++;
-    for (; *s; s++, n++)
-        if (*s < '0' || *s > '9')
-            return 0;
-    return n >= 1u && n <= 3u;
-}
-
-/* the knob readouts: under each knob its label, a thin gauge and the value (then its unit, small), all
- * in the knob's colour; the knob being turned: its value white, underlined; a value that does nothing
- * now (dim: a bit per knob): grey. A label left empty: an empty column. unit may be 0. A message
- * replaces the band (as te_dials) */
+/* the knob readouts: under each knob its label, a 2 px gauge and the value (then its unit, small, grey), all
+ * in one face on one baseline (Ben, 21 Nov 2026, review 14 "A: one bold face"): the value large when it fits its
+ * column, else small, the same baseline either way; label and gauge in what the knob acts on's colour (knob_tint).
+ * The knob being turned keeps its colour: its label inverted, its value underlined (review 16e). A value that does
+ * nothing now (dim: a bit per knob): grey. A label left empty: an empty column. unit may be 0. A message replaces
+ * the band (as te_dials) */
+#define OPK_BASE 50                                     /* the values' baseline, in the band */
 #if KARMA_ANN
 static void opk_take(const char *const lab[4], const char *const val[4], const char *const *unit);   /* (ui_draw.c) */
 #endif
@@ -118,67 +110,76 @@ static void op_knobs(const char *const lab[4], const char *const val[4], const c
         return;
     }
     for (k = 0; k < 4u; k++) {
-        int32_t x0 = 4 + 58 * (int32_t)k, x = x0;
+        int32_t x0 = 4 + 58 * (int32_t)k, x;
         uint32_t hot = ui.hot_t && ui.hot_col == k;
-        uint16_t c = hot ? C_WHITE : (dim >> k) & 1u ? TE_G2 : tint_col(k, 0);
+        uint16_t c = (dim >> k) & 1u ? TE_G3 : tint_col(k, 0);
         const char *v = val[k], *u = unit ? unit[k] : "";
-        int32_t uw = u[0] ? text_w(&FONT_S, u) + 3 : 0;
+        int32_t uw = u[0] ? text_w(&FONT_S, u) + 2 : 0; /* (3 px after the value's ink, the unit's last column blank) */
         if (!lab[k][0])
             continue;
-        cv_text(x0, 5, &FONT_S, lab[k], tint_col(k, 0));
-        if (ratio[k] >= 0) {
-            cv_rect(x0, 22, 52, 1, TE_G1);
-            cv_rect(x0, 22, ratio[k] * 52 / 1000, 1, tint_col(k, 1));
-        }
-        if (op_is_num(v) && (int32_t)str_len(v) * 16 + uw <= 58) {   /* (with a unit that fits beside them) */
-            if (*v == '-') {
-                cv_rect(x, 39, 7, 2, c);
-                x += 10;
-                v++;
-            }
-            for (; *v; v++) {                           /* (a 1 is a bar: it takes less room) */
-                int32_t w = *v == '1' ? 4 : 12;
-                te_digit(x, 27, w, 26, 2, (uint32_t)(*v - '0'), c);
-                x += w + 4;
-            }
-        } else if (text_w(&FONT_L, v) + uw <= 56) {
-            x = cv_text(x0, 24, &FONT_L, v, c);
+        if (hot) {                                      /* touched: the label inverted */
+            cv_rect(x0 - 1, 5, text_w(&FONT_S, lab[k]) + 1, 16, tint_col(k, 0));
+            cv_text(x0, 5, &FONT_S, lab[k], C_BLACK);
         } else {
-            x = cv_text(x0, 32, &FONT_S, v, c);
+            cv_text(x0, 5, &FONT_S, lab[k], tint_col(k, 0));
         }
-        if (uw && x + uw <= x0 + 57)
-            cv_text(x + 3, 38, &FONT_S, u, TE_G3);
+        if (ratio[k] >= 0) {                            /* where the value is in its range */
+            cv_rect(x0, 22, 52, 2, TE_G2);
+            cv_rect(x0, 22, ratio[k] * 52 / 1000, 2, tint_col(k, 0));
+        }
+        {   /* large if it fits 54 px (4 px clear of the next column); a unit 3 px after it, 1 px where only that fits */
+            int32_t lw = text_w(&FONT_L, v) - 2, gap = 3;   /* (FONT_L: 2 blank columns after the last letter) */
+            if (lw + uw > 54 && lw + uw - 2 <= 54)
+                gap = 1;
+            if (lw + uw - (3 - gap) <= 54)
+                x = cv_text(x0, OPK_BASE - 24, &FONT_L, v, c) - 2;
+            else
+                x = cv_text(x0, OPK_BASE - 12, &FONT_S, v, c) - 1, gap = 3;
+            if (uw && x + uw - (3 - gap) <= x0 + 55)
+                cv_text(x + gap, OPK_BASE - 12, &FONT_S, u, TE_G3);
+        }
         if (hot)
-            cv_rect(x0, 55, 52, 2, tint_col(k, 0));
+            cv_rect(x0, 54, 52, 3, tint_col(k, 0));
     }
     cv_blit(0, OP_KNOB_Y);
 }
 
-/* the track bar: 1 2 3 DRUM, the selected track filled in its colour; a muted track dim, a soloed one
- * marked white, the one that records marked red */
+#include "op_sprites.h"
+/* the track strip (Ben, 21 Nov 2026, review 15 "A: heads, underline"; mute / solo "A: badges"): a status line, not
+ * tabs. Each track its character's head and its number (1 2 3 DR); the selected track underlined, its number in its
+ * colour (the others grey); a muted track a yellow M badge, a soloed one an ice-blue S, the one that records a red
+ * dot. A 1 px rule above */
+static void op_sprite_wh(const uint8_t *d, int32_t w, int32_t h, int32_t x0, int32_t y0, int flip, uint16_t c, int32_t s);
+static void op_badge(int32_t x, int32_t y, char ch, uint16_t bg)   /* 10 x 14: a black letter on bg */
+{
+    char b[2] = {ch, 0};
+    cv_rect(x, y, 10, 14, bg);
+    cv_text(x + 1, y - 1, &FONT_S, b, C_BLACK);
+}
 static void op_trackbar(uint32_t *cache)
 {
-    static const char *const NAME[NTRK] = {"1", "2", "3", "DRUM"};
+    static const char *const NAME[NTRK] = {"1", "2", "3", "DR"};
     uint32_t i, sig = 1u + song.sel + song.rec * 16u + song.solo * 256u;
     for (i = 0; i < NTRK; i++)
-        sig = sig * 3u + (trk_silent(&trk[i]) != 0);
+        sig = sig * 3u + (trk[i].p[P_MUTE] != 0);
     if (!ui.force && sig == *cache)
         return;
     *cache = sig;
     cv_begin(240, OP_BAR_H, C_BLACK);
+    cv_rect(0, 0, 240, 1, TE_G1);
     for (i = 0; i < NTRK; i++) {
-        int32_t x = 4 + 58 * (int32_t)i;
-        uint32_t sel = song.sel == i, mute = trk_silent(&trk[i]) != 0;
-        uint16_t c = mute && !sel ? TE_DIM[i] : TE_COL[i];
-        if (sel)
-            cv_rect(x, 3, 55, 22, c);
-        else
-            op_box(x, 3, 55, 22, c);
-        te_text_c(x + 27, 6, NAME[i], sel ? C_BLACK : mute ? TE_G3 : c);
+        int32_t x = 4 + 58 * (int32_t)i, nx = x + OP_HM_W + 4, bx;
+        uint32_t sel = song.sel == i;
+        op_sprite_wh(OP_SPR_HM[i], OP_HM_W, OP_HM_H, x, 5, 0, TE_COL[i], 1);
+        bx = cv_text(nx, 5, &FONT_S, NAME[i], sel ? TE_COL[i] : TE_G3) + 3;
         if ((song.rec >> i) & 1u)
-            te_disc(x + 47, 14, 3, TE_RED);
+            te_disc(bx + 4, 12, 3, TE_RED);
+        else if (trk[i].p[P_MUTE])
+            op_badge(bx, 6, 'M', TE_MUTE);
         else if ((song.solo >> i) & 1u)
-            cv_rect(x + 45, 11, 6, 6, sel ? C_BLACK : TE_SOLO);
+            op_badge(bx, 6, 'S', TE_SOLO);
+        if (sel)
+            cv_rect(x, 24, 54, 3, TE_COL[i]);
     }
     cv_blit(0, OP_BAR_Y);
 }
@@ -186,7 +187,6 @@ static void op_trackbar(uint32_t *cache)
 /* the characters (op_sprites.h, drawn by tools/gen_sprites.py): a robot (track 1), an alien (2), a crocodile (3), a
  * snake (the drums), each in its track's colour; pictures in flash, 4 bits a pixel: 1 dark, 2 the colour, 3 light
  * (shades of the track's colour), 4 white, 5 black. They dance to the beat: op_dance */
-#include "op_sprites.h"
 static uint8_t op_dim;                                  /* the next pictures dim (a muted, a silent track) */
 static uint16_t op_mix(uint16_t c, uint16_t to, uint32_t k)   /* c, k eighths of the way to "to" */
 {
@@ -307,6 +307,8 @@ static void op_drum_scene(uint32_t bank, uint32_t len)
 
 /* the 16 steps of KNOB 1's sound: a hit filled in its level's colour (a notch per ratchet), the cursor
  * framed white, the step that plays underlined */
+static uint8_t op_steps_y = OP_BODY_Y + OP_SCENE_H;     /* where: under the snake; a step held: at the top, as on a
+                                                         * synth's GRID (review 19) */
 static void op_drum_steps(uint32_t bank, uint32_t len)
 {
     uint32_t j, r;
@@ -329,7 +331,7 @@ static void op_drum_steps(uint32_t bank, uint32_t len)
         if (song.playing && p == TDRUM->seq_idx % len)
             cv_rect(x, 31, 12, 2, C_WHITE);
     }
-    cv_blit(0, OP_BODY_Y + OP_SCENE_H);
+    cv_blit(0, (uint32_t)op_steps_y);
 }
 
 /* ---------------------------------------------------------------- SYNTH --- */
@@ -360,18 +362,18 @@ static int32_t op_wave(uint32_t ph, uint32_t kind, int32_t morph)
 static int32_t op_k = 3;
 static uint16_t op_ink = OP_PUR;
 
-/* the sound of the track, at the top of the graph canvas: engine, preset */
+/* the sound of the track, at the top of the graph canvas: its preset alone, in white (the engine is the header's tag,
+ * review 18) */
 static void op_names(const track_t *t)
 {
     char b[16];
     const engine_t *e = ENGINES[t->eng_req % NENGINES];
-    int32_t x = cv_text(4, 2, &FONT_S, e->name, TE_G4);
     b[0] = 0;
     if (user_of(t) < UP_SLOTS)
         up_name(user_of(t), b);
     else if (e->npresets)
         str_cpy(b, e->presets[t->preset % e->npresets].name, sizeof b);
-    cv_text(x + 8, 2, &FONT_S, b, TE_G3);
+    cv_text(4, 2, &FONT_S, b, C_WHITE);
 }
 
 /* the voice whose envelope the ENV page follows: the one earliest in its envelope (a new note first), then
@@ -396,9 +398,9 @@ static void op_env_ghost(uint32_t trk_i, int32_t cx, int32_t bot, int32_t lvl)
     uint16_t pal[6];
     const uint8_t *d = OP_SPR_BIG[trk_i & 3u][0];
     int32_t w = OP_BIG_W, h = OP_BIG_H, k = 240 + lvl * 200 / 1000, ow = w * k >> 8, oh = h * k >> 8, x, y;   /* the size, of 256 */
-    op_pal(pal, TE_MID[trk_i & 3u], 1);                 /* (dim: behind the line) */
-    pal[3] = TE_MID[trk_i & 3u];
-    pal[4] = TE_G2;
+    op_pal(pal, TE_DIM[trk_i & 3u], 1);                 /* (the dim shade: behind the line, review 19) */
+    pal[3] = TE_DIM[trk_i & 3u];
+    pal[4] = TE_DIM[trk_i & 3u];
     for (y = 0; y < oh; y++) {
         const uint8_t *row = d + (uint32_t)((y << 8) / k) * (uint32_t)(w / 2);
         for (x = 0; x < ow; x++) {
@@ -412,6 +414,10 @@ static void op_env_ghost(uint32_t trk_i, int32_t cx, int32_t bot, int32_t lvl)
 /* The three scenes draw into the graph canvas (240 x 124, ui_draw.c draw_graph). ratio: the four knobs,
  * 0..1000 (-1: none); each owns a part of the picture, in its colour. */
 
+/* the scenes' character: its top in the graph canvas (screen y 36) so the sound chain's strip (y 141) leaves its feet
+ * whole, the floor just under them (review 19) */
+#define OP_SPR_Y 14
+#define OP_FLOOR_Y 118
 /* synth 1, the robot (the bass): it dances to the beat (op_dance); a note: a little hop. KNOB 1 the wave behind it
  * (ANALOG's WAVE as it is, else from round to sharp; its ripples the last note's pitch), KNOB 2 the rays round
  * its head, KNOB 3 a moon that rises, KNOB 4 sparks off the floor on a note */
@@ -434,12 +440,12 @@ static void op_scene_robot(track_t *t, const int32_t ratio[4], int analog_wave)
     n = ratio[1] <= 0 ? 0 : 3 + ratio[1] * 10 / 1000;   /* KNOB 2: the rays, round its head */
     for (i = 0; i < n; i++) {
         uint32_t a = 512u + 64u + (uint32_t)i * 384u / (uint32_t)(n > 1 ? n - 1 : 1);
-        int32_t hx = cx + (pose == 1u ? (flip ? -10 : 10) : 0), hy = 46 - (pose == 2u ? 4 : 0) - hop;
+        int32_t hx = cx + (pose == 1u ? (flip ? -10 : 10) : 0), hy = 42 - (pose == 2u ? 4 : 0) - hop;
         int32_t co = SINE[(a + 256u) & 1023u], si = SINE[a & 1023u];
         cv_line(hx + ((co * 30) >> 15), hy + ((si * 26) >> 15), hx + ((co * 36) >> 15), hy + ((si * 32) >> 15), tint_col(1u, 0));
     }
-    op_ell(120, 121, 70, 2, op_hit > 4u ? C_WHITE : OP_PUR_D);   /* the floor: it rings under a note */
-    op_char(0, pose, flip, cx - 56, 18 - hop);
+    op_ell(120, OP_FLOOR_Y, 70, 2, op_hit > 4u ? C_WHITE : OP_PUR_D);   /* the floor: it rings under a note */
+    op_char(0, pose, flip, cx - 56, OP_SPR_Y - hop);
     n = ratio[3] <= 0 ? 0 : 2 + ratio[3] * 7 / 1000;    /* KNOB 4: sparks off the floor */
     for (i = 0; op_hit > 4u && i < n; i++) {
         int32_t fx = cx + (i & 1 ? 30 : -30), d = (9 - (int32_t)op_hit) * 3;
@@ -464,7 +470,7 @@ static void op_scene_alien(const int32_t ratio[4])
     prev = op_hit;
     pose = op_dance(&flip);
     for (x = 8; x < 232; x += 8)
-        cv_pset(x, 122, OP_PUR_D);
+        cv_pset(x, OP_FLOOR_Y, OP_PUR_D);
     if (ratio[2] >= 0)                                  /* KNOB 3: the moon */
         op_ell(222 - (op_px ? 146 : 0), 70 - ratio[2] * 34 / 1000, 5, 5, tint_col(2u, 0));
     n = ratio[1] < 0 ? 0 : 1 + ratio[1] * 5 / 1000;     /* KNOB 2: strings of lights from above, swinging with the sound */
@@ -479,7 +485,7 @@ static void op_scene_alien(const int32_t ratio[4])
         for (k = 1; k <= 3; k++)                        /* its bulbs */
             cv_rect(x + sw * k / 3 - 1, y0 + len * k / 3 - 1, 3, 3, tint_col(1u, 0));
     }
-    op_char(1, pose, flip, 64, 18 - hop);
+    op_char(1, pose, flip, 64, OP_SPR_Y - hop);
     for (s = -1; s <= 1; s += 2) {                      /* KNOB 1: the speakers, at the sides */
         int32_t dx = 120 + s * 82, hw = 11 + big, top = 88 - big * 2, hot = op_hit > 3u && (s > 0) == (side != 0);
         int32_t r = 6 + big / 2;
@@ -539,10 +545,10 @@ static void op_scene_croc(const int32_t ratio[4])
         int32_t up = (int32_t)(((h >> 7) + op_ph / 12u) % 64u), y = 120 - up * 96 / 64, half = 6 + (bw - 6) * (y - 22) / 98;
         cv_rect(cx - half + (int32_t)((h >> 3) % (uint32_t)(half * 2 + 1)), y, 2, 2, tint_col(3u, 0));
     }
-    op_char(2, pose, flip, cx - 56, 18 - hop);
+    op_char(2, pose, flip, cx - 56, OP_SPR_Y - hop);
     for (i = 0; i < 7; i++) {                           /* the floor lights: one runs along; all of them on a note */
         int on = op_hit > 4u || (live && (uint32_t)i == (op_ph / 160u) % 7u);
-        cv_rect(24 + i * 30, 122, 12, 2, on ? tint_col(3u, 0) : tint_col(3u, 2));
+        cv_rect(24 + i * 30, OP_FLOOR_Y, 12, 2, on ? tint_col(3u, 0) : tint_col(3u, 2));
     }
 }
 
@@ -914,13 +920,13 @@ static void op_fx_scene(const int32_t ratio[4])
     live = op_mx[sel] != 0u || op_hop[sel] != 0u;
     if (live)
         ph += 48u;
-    flick = op_hop[sel] > 3u ? 5 : op_hop[sel] ? 2 : 0;
-    ty = 62 - flick;
+    flick = op_hop[sel] ? 2 : 0;                        /* (a hop: 2 px at most, review 19) */
+    ty = 58 - flick;
     for (x = 8; x < 232; x += 8)
-        cv_pset(x, 122, OP_PUR_D);
+        cv_pset(x, OP_FLOOR_Y, OP_PUR_D);
     /* the character: it hops as the track sounds; the spells start at (tx, ty), beside it */
     pose = op_dance(&flip);
-    op_char(sel, pose, flip, 4, 18 - flick);
+    op_char(sel, pose, flip, 4, OP_SPR_Y - flick);
     if (ratio[3] > 0) {                                 /* KNOB 4: the rings */
         int32_t maxr = 16 + ratio[3] * 30 / 1000;
         n = 1 + ratio[3] * 3 / 1000;
@@ -979,12 +985,13 @@ static void op_fx_scene(const int32_t ratio[4])
  * flags: 1 a fill now, 2 the next bar is one, 4 it is asked for, 8 the beat. */
 static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32_t flags)
 {
-    static const char *const LAB[4] = {"SYN1", "SYN2", "SYN3", "DRUM"};
-    static const char KEYS[17] = "MMMMSSSSFB     T";
+    static const char *const LAB[4] = {"1", "2", "3", "DR"};   /* (the tracks by number, as the strip: review 21) */
+    static const char KEYS[17] = "123D123DFB     T";
     static uint32_t head, scene, keys, knobs, bar;
     const uint8_t *mx = op_mx, *hop = op_hop;
     uint32_t i, sig = 7u;
-    op_header("MIX", C_WHITE, ui.msg_t ? ui.msg : "", &head);   /* (a message: in the title, the levels stay) */
+    op_header("GLO", C_WHITE, ui.msg_t ? ui.msg : "MIX", &head);   /* (GLO: MIX, the button and the layer, review 21; a
+                                                         * message: in the title, the levels stay) */
     op_band_tick();
     for (i = 0; i < NTRK; i++)
         sig = sig * 131u + mx[i] + hop[i] * 97u + (uint32_t)ratio[i] * 7u + (trk[i].p[P_MUTE] != 0) * 3u;
@@ -999,7 +1006,7 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
             int32_t cx = 4 + 58 * (int32_t)i + 27, h = 6 + ratio[i] * 46 / 1000, top = 94 - h, y, n = (h - 3) / 4, lit;
             int32_t air = hop[i] ? (SINE[(6 - hop[i]) * 85] * 5) >> 15 : 0;
             uint32_t mute = trk[i].p[P_MUTE] != 0;
-            uint16_t c = mute ? TE_DIM[i] : TE_COL[i];
+            uint16_t c = mute ? TE_G3 : TE_COL[i];   /* (muted: grey, never darker, review 19) */
             if (mute) {                                 /* a muted podium: dashed */
                 for (y = top; y < 94; y += 4) {
                     cv_rect(cx - 17, y, 1, 2, c);
@@ -1031,7 +1038,10 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
     sig = flags + song.solo * 16u;
     for (i = 0; i < NTRK; i++)
         sig = sig * 2u + (trk[i].p[P_MUTE] != 0);
-    if (ui.force || sig != keys) {                      /* the 16 white keys */
+    if (ui.force || sig != keys) {                      /* the 16 white keys: the track's number on its mute and solo
+                                                         * keys, what each group does under it (review 21) */
+        static const char *const GRP[4] = {"MUTE", "SOLO", "FILL", "TAP"};
+        static const uint8_t GX[4] = {0, 4, 8, 15};
         keys = sig;
         cv_begin(240, 36, C_BLACK);
         for (i = 0; i < 16u; i++) {
@@ -1041,12 +1051,16 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
             uint16_t c = i < 4u ? TE_COL[i] : i < 8u ? TE_MID[i - 4u] : KEYS[i] == ' ' ? OP_PUR_D : TE_G4;
             char ch[2] = {KEYS[i], 0};
             if (on)
-                cv_rect(x, 4, 12, 22, i < 4u ? TE_MUTE : i < 8u ? TE_SOLO : C_WHITE);
+                cv_rect(x, 2, 12, 20, i < 4u ? TE_MUTE : i < 8u ? TE_SOLO : C_WHITE);
             else
-                op_box(x, 4, 12, 22, c);
+                op_box(x, 2, 12, 20, c);
             if (i == 9u && (flags & 4u))
-                cv_rect(x, 4, 12, 2, C_WHITE);
-            cv_text(x + 2, 7, &FONT_S, ch, on ? C_BLACK : c);
+                cv_rect(x, 2, 12, 2, C_WHITE);
+            cv_text(x + 2, 4, &FONT_S, ch, on ? C_BLACK : c);
+        }
+        for (i = 0; i < 4u; i++) {
+            int32_t x = 4 + (int32_t)GX[i] * 14 + (int32_t)(GX[i] / 4u) * 2;
+            cv_text(i == 3u ? 236 - text_w(&FONT_S, GRP[i]) : x, 21, &FONT_S, GRP[i], TE_G3);
         }
         cv_blit(0, OP_BODY_Y + 96);
     }
@@ -1080,8 +1094,8 @@ static void op_home_body(void)
         top_sig = sig;
         cv_begin(240, 44, C_BLACK);
         te_digit(4, 7, 12, 28, 2, bar / 10u, playing ? C_WHITE : TE_G3);
-        te_digit(20, 7, bar % 10u == 1u ? 4 : 12, 28, 2, bar % 10u, playing ? C_WHITE : TE_G3);   /* (a 1: a bar) */
-        cv_text(bar % 10u == 1u ? 30 : 38, 20, &FONT_S, "BAR", TE_G3);
+        te_digit(20, 7, 12, 28, 2, bar % 10u, playing ? C_WHITE : TE_G3);
+        cv_text(38, 20, &FONT_S, "BAR", TE_G3);
         for (k = 0; k < 2; k++) {
             int32_t cx = 100 + k * 48, pack = k ? 5 + done : 13 - done, sp;
             op_ell(cx, 21, 16, 16, OP_PUR);
@@ -1115,10 +1129,16 @@ static void op_home_body(void)
         uint32_t rec = (song.rec >> song.sel) & 1u, solo = (song.solo >> song.sel) & 1u, silent = trk_silent(ts) != 0;
         if (song.sel == TRK_DRUM) {
             str_cpy(b, DRUM_KIT_NAMES[drum_kit()], sizeof b);
-            str_cpy(e, "DRUMS", sizeof e);
+            str_cpy(e, "DRUM", sizeof e);
         } else {
+            uint32_t k, n;
             trk_short_name(song.sel, b);
             str_cpy(e, ENGINES[ts->eng_req % NENGINES]->name, sizeof e);
+            for (k = 0, n = str_len(e); b[k]; k++)       /* the engine's name already in the sound's: once (review 21) */
+                if (!memcmp(b + k, e, n)) {
+                    e[0] = 0;
+                    break;
+                }
         }
         b[13] = 0;
         sig = studio_hash(studio_hash(song.sel + rec * 8u + solo * 16u + silent * 32u, b), e);
@@ -1127,7 +1147,7 @@ static void op_home_body(void)
             name_sig = sig;
             cv_begin(240, 16, C_BLACK);
             x = cv_text(4, 0, &FONT_S, b, C_WHITE);
-            if (x + 8 + text_w(&FONT_S, e) < 196)
+            if (e[0] && x + 8 + text_w(&FONT_S, e) < 196)
                 cv_text(x + 8, 0, &FONT_S, e, TE_COL[song.sel & 3u]);
             if (rec)
                 cv_text(236 - text_w(&FONT_S, "REC"), 0, &FONT_S, "REC", TE_RED);
@@ -1144,7 +1164,7 @@ static void op_home_body(void)
         uint32_t level = i == TRK_DRUM ? (uint32_t)song.g[G_DRLVL] : (uint32_t)t->p[P_LEVEL], silent = trk_silent(t) || !level;
         uint32_t rec = (song.rec >> i) & 1u;
         int32_t lo = 127, hi = 0, air = op_hop[i] > 2u ? 2 : 0;
-        uint16_t col = silent ? TE_G2 : sel ? TE_COL[i] : TE_MID[i];
+        uint16_t col = silent ? TE_G3 : sel ? TE_COL[i] : TE_MID[i];   /* (muted: grey, never darker, review 19) */
         sig = sel + level * 7u + silent * 997u + rec * 1999u + len * 37u + playing * 3u + (playing ? pos * 71u : 0u) + bank * 13u +
               (uint32_t)air * 5003u + ((song.solo >> i) & 1u) * 4999u;
         for (j = 0; j < len; j++) {
@@ -1169,7 +1189,7 @@ static void op_home_body(void)
             op_box(24, 0, 214, 18, TE_COL[i]);
         op_k = 1;                                       /* the character, half size */
         op_ink = silent ? OP_PUR_D : sel ? C_WHITE : OP_PUR;
-        op_band_member(i, 12, 17 - air, 0, 0, silent ? TE_G2 : TE_COL[i]);
+        op_band_member(i, 12, 17 - air, 0, 0, silent ? TE_G3 : TE_COL[i]);
         op_ink = OP_PUR;
         op_k = 3;
         for (j = 0; j < 16u; j++) {
@@ -1184,22 +1204,21 @@ static void op_home_body(void)
                 if (n)
                     cv_rect(x + 2, 14 - (int32_t)(n > 4u ? 4u : n) * 3, 5, (int32_t)(n > 4u ? 4u : n) * 3, col);
                 else
-                    cv_rect(x + 4, 13, 1, 1, TE_G2);
+                    cv_rect(x + 3, 12, 2, 2, TE_G3);    /* (an empty step: a 2 x 2 dot, grey, review 19) */
             } else if (step_on(&t->step[p])) {          /* a note at its height (the first of a chord) */
                 cv_rect(x, 13 - (t->step[p].note[0] - lo) * 9 / (hi - lo), 9, 2, col);
                 if (t->step[p].n > 1)
                     cv_rect(x, 9 - (t->step[p].note[0] - lo) * 9 / (hi - lo), 9, 1, col);
             } else if (t->step[p].time == ST_TIE) {
-                cv_rect(x, 13, 9, 1, TE_G2);
+                cv_rect(x, 13, 9, 1, TE_G3);
             } else {
-                cv_rect(x + 4, 13, 1, 1, TE_G2);
+                cv_rect(x + 3, 12, 2, 2, TE_G3);
             }
             if (playing && p == pos)
                 cv_rect(x, 15, 9, 2, C_WHITE);
         }
         cv_rect(207, 8, 28, 3, TE_G1);                  /* the level; REC: a red dot */
-        if (!silent)
-            cv_rect(207, 8, (int32_t)level * 28 / 127, 3, col);
+        cv_rect(207, 8, (int32_t)level * 28 / 127, 3, col);   /* (muted: its real level, grey) */
         if (rec)
             te_disc(232, 4, 2, TE_RED);
         cv_blit(0, OP_BODY_Y + 60 + i * 18);

@@ -441,7 +441,7 @@ static void edit_param(uint32_t slot, int32_t steps)
         *vp = 0;
 #if FELUCCA_ARRANGER
         if (song.playing && arrangement_enabled) {      /* (the song's stop would bring the old loop back) */
-            ui_message("STOP THE SONG FIRST");
+            ui_message("STOP FIRST");
             break;
         }
 #endif

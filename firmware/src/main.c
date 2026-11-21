@@ -97,7 +97,7 @@ static void fm1_fault(const fm1_crash_t *c)
 #endif
     fm1_audio_stop();
     lcd_fill(0, 0, 240, 240, RGB(160, 0, 0));
-    draw_text_box(0, 8, 240, &FONT_S, "FELUCCA CRASH", C_WHITE, 1);
+    draw_text_box(0, 8, 240, &FONT_S, "PHEBUS CRASH", C_WHITE, 1);
     hexs(b, c->vec);
     draw_text_box(10, 40, 220, &FONT_S, b, C_WHITE, 0);
     hexs(b, c->pc);

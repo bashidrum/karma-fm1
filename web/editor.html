@@ -131,7 +131,7 @@
   footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--s3); }
   footer a { color: var(--dim); }
 
-  /* ---- cards and the parameter pages (the device's 4 knobs a page, one colour per knob) ---- */
+  /* ---- cards and the parameter pages (the device's 4 knobs a page, in the colour of what they act on) ---- */
   .card { background: var(--s1); border: 1px solid var(--line); padding: 14px 16px 16px; margin: 0 0 16px; min-width: 0; }
   .card > h2, .group > h2 { color: var(--fg); text-transform: uppercase; margin: 0 0 12px; display: flex; align-items: center; gap: 8px;
                             font-size: 32px; line-height: 32px; }
@@ -150,12 +150,13 @@
   .dslanes button { --c: var(--t4); padding: 8px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .dslanes button[aria-pressed=true] { background: var(--c); border-color: var(--c); color: #000; }
   #dsgroups .knob { --c: var(--t4); }
-  .knob { --c: var(--t1); position: relative; padding: 8px 10px 10px; min-width: 0; border-left: 1px solid var(--line);
+  .knob { --c: var(--trk); position: relative; padding: 8px 10px 10px; min-width: 0; border-left: 1px solid var(--line);
           display: flex; flex-direction: column; gap: 4px; }
   .knob:first-child { border-left: 0; padding-left: 0; }
-  .knobs > .knob:nth-child(4n + 2) { --c: var(--t2); }
-  .knobs > .knob:nth-child(4n + 3) { --c: var(--t3); }
-  .knobs > .knob:nth-child(4n + 4) { --c: var(--t4); }
+  /* Ben's colour rule (as the device): a voice's knobs in its colour (--trk, the selected track), what every voice
+     shares neutral, the drum track's settings in the drums' colour */
+  .knob.g { --c: var(--fg2); }
+  .knob.dr { --c: var(--t4); }
   .knob .kl { color: var(--c); text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .knob .v { color: var(--fg); font-size: 32px; line-height: 32px; white-space: nowrap; overflow: hidden; cursor: ns-resize;
              user-select: none; touch-action: none; }
@@ -2113,20 +2114,20 @@ function makeMockDevice(opt = {}) {
     D("LVL", F.DB, 0, 127, 104),
     D("ATK", F.TIME, 0, 127, 10), D("DEC", F.TIME, 0, 127, 70), D("SUS", F.PCT, 0, 127, 90), D("REL", F.TIME, 0, 127, 60),
     D("FLT", F.BIPCT, -64, 63, 0), D("PIT", F.BIPCT, -64, 63, 0), D("SHP", F.BIPCT, -64, 63, 0), D("FX", F.BIPCT, -64, 63, 0),
-    D("RATE", F.LFOHZ, 0, 127, 60), E("WAVE", ["SIN", "TRI", "SAW", "SQR", "S&H"], 0), D("PHS", F.INT, 0, 127, 0), D("FADE", F.TIME, 0, 127, 0),
+    D("RATE", F.LFOHZ, 0, 127, 60), E("WAVE", ["SIN", "TRI", "SAW", "SQR", "S&H"], 0), D("PHASE", F.INT, 0, 127, 0), D("FADE", F.TIME, 0, 127, 0),
     D("PIT", F.BIPCT, -64, 63, 0), D("FLT", F.BIPCT, -64, 63, 0), D("SHP", F.BIPCT, -64, 63, 0), D("AMP", F.PCT, 0, 127, 0),
     E("MODE", ["OFF", "UP", "DN", "UPDN", "RND", "ORD"], 0), E("RATE", NDIV, 2), D("OCT", F.INT, 1, 4, 1), D("GATE", F.PCT, 1, 127, 64),
-    D("SWG", F.SWING, 0, 100, 0), D("PROB", F.PCT, 0, 127, 127), E("HOLD", NONOFF, 0), E("ORD", ["NOTE", "PLAY"], 0),
-    D("ROOT", F.NOTE, 0, 11, 0), E("SCL", ["CHR", "MAJ", "MIN", "DOR", "MIX", "PEN", "MPEN", "HARM", "PHRY", "LYD", "LOC", "MEL", "BLUES", "WHOLE", "DIMHW", "DIMWH"], 0), E("QNT", ["OFF", "SNAP", "WHITE"], 0), D("TRN", F.SEMI, -24, 24, 0),
-    D("LEN", F.STEPS, 1, 64, 16), E("DIV", NSDIV, 2), D("SWG", F.SWING, 0, 100, 0), D("GATE", F.PCT, 1, 127, 64),
-    D("DST", F.PCT, 0, 127, 0), D("CHO", F.PCT, 0, 127, 0), D("DLY", F.PCT, 0, 127, 0), D("REV", F.PCT, 0, 127, 0),
-    E("VCE", ["POLY", "MONO", "LEG", "UNI"], 0), D("GLD", F.TIME, 0, 127, 0), D("PAN", F.BIPCT, -64, 63, 0), E("MUTE", NONOFF, 0),
-    E("GLMOD", ["RATE", "TIME"], 0), E("PRIO", ["LAST", "LOW", "HIGH"], 0), E("ALLOC", ["ROT", "REUSE"], 0), D("DTUNE", F.INT, 0, 127, 40),
+    D("SWING", F.SWING, 0, 100, 0), D("PROB", F.PCT, 0, 127, 127), E("HOLD", NONOFF, 0), E("ORD", ["NOTE", "PLAY"], 0),
+    D("ROOT", F.NOTE, 0, 11, 0), E("SCL", ["CHROM", "MAJ", "MIN", "DOR", "MIX", "PEN", "MPEN", "HARM", "PHRY", "LYD", "LOC", "MEL", "BLUES", "WHOLE", "DIMHW", "DIMWH"], 0), E("QNT", ["OFF", "SNAP", "WHITE"], 0), D("TRN", F.SEMI, -24, 24, 0),
+    D("STEPS", F.STEPS, 1, 64, 16), E("DIV", NSDIV, 2), D("SWING", F.SWING, 0, 100, 0), D("GATE", F.PCT, 1, 127, 64),
+    D("DIST", F.PCT, 0, 127, 0), D("CHORUS", F.PCT, 0, 127, 0), D("DELAY", F.PCT, 0, 127, 0), D("REVERB", F.PCT, 0, 127, 0),
+    E("VOICE", ["POLY", "MONO", "LEG", "UNI"], 0), D("GLIDE", F.TIME, 0, 127, 0), D("PAN", F.BIPCT, -64, 63, 0), E("MUTE", NONOFF, 0),
+    E("GLMODE", ["RATE", "TIME"], 0), E("PRIOR", ["LAST", "LOW", "HIGH"], 0), E("ALLOC", ["ROT", "REUSE"], 0), D("DTUNE", F.INT, 0, 127, 40),
     E("SLCR", ["OFF", "GATE", "STUT"], 0), D("PAT", F.INT, 1, 16, 1), E("RATE", ["1/8", "1/16", "1/32", "8T", "16T", "32T"], 1), D("DEPTH", F.PCT, 0, 127, 127),
     E("CHORD", ["OFF", "TRIAD", "7TH", "9TH", "SUS4", "POWER"], 0),
     D("FILT", F.FILT, -64, 63, 0), D("STRUM", F.INT, -60, 60, 0), E("VLEAD", NONOFF, 0),
     /* SLOOP 2.6 (after Felucca 1.4 / 1.5): INSERT, ANALOG's filter TYPE, ENV SYNC, LFO 2 */
-    E("INSRT", ["OFF", "SOFT", "HARD", "FOLD", "FUZZ", "CRUSH", "PHASR", "FLANG", "CHOR"], 0),
+    E("INSERT", ["OFF", "SOFT", "HARD", "FOLD", "FUZZ", "CRUSH", "PHASR", "FLANG", "CHOR"], 0),
     D("INS A", F.PCT, 0, 127, 64), D("INS B", F.PCT, 0, 127, 96), D("INS C", F.PCT, 0, 127, 96), D("MIX", F.PCT, 0, 127, 127),
     E("TYPE", ["LP", "BP", "HP"], 0), E("ESYNC", NONOFF, 0),
     E("SYNC", ["OFF", "4BAR", "2BAR", "1BAR", "1/2", "1/4", "1/8", "8T", "1/16", "16T", "1/32"], 0),
@@ -2134,16 +2135,16 @@ function makeMockDevice(opt = {}) {
   ];
   const GP = [
     D("BPM", F.BPM, 40, 240, 90), D("SWING", F.SWING, 0, 100, 0), E("CLICK", ["OFF", "REC", "ON"], 0), D("TUNE", F.INT, -50, 50, 0),
-    E("TIME", NDLY, 1), D("FDBK", F.PCT, 0, 120, 60), D("COLR", F.PCT, 0, 127, 70), D("MIX", F.PCT, 0, 127, 90),
+    E("TIME", NDLY, 1), D("FEEDBK", F.PCT, 0, 120, 60), D("COLOR", F.PCT, 0, 127, 70), D("MIX", F.PCT, 0, 127, 90),
     D("SIZE", F.PCT, 0, 127, 90), D("DAMP", F.PCT, 0, 127, 60), D("CRT", F.LFOHZ, 0, 127, 40), D("CDP", F.PCT, 0, 127, 60),
     E("OUT", ["KEYS", "SEQ"], 0), E("SYNC", ["INT", "USB", "TRS"], 0), E("IN", ["NOTES", "CLOCK", ...Array.from({ length: 16 }, (_, k) => `CH ${k + 1}`)], 0), D("CPU", F.INT, 0, 0, 0),
     D("SLOT", F.INT, 1, 4, 1), E("NAME", NDASH, 0), E("LOAD", NGO, 0), E("SAVE", NGO, 0),
     E("ENG", ["ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL",
       "GRAIN", "FM6", "PHYS", "NOISE"], 0), E("SET", NGO, 0),
     E("CLRSQ", NGO, 0), E("INIT", NGO, 0),
-    E("CH4", ["OFF", ...Array.from({ length: 16 }, (_, i) => String(i + 1))], 10), D("LVL", F.INT, 0, 127, 100), D("REV", F.INT, 0, 127, 16),
+    E("CH4", ["OFF", ...Array.from({ length: 16 }, (_, i) => String(i + 1))], 10), D("LVL", F.INT, 0, 127, 100), D("REVERB", F.INT, 0, 127, 16),
     D("DUST", F.PCT, 0, 127, 0), D("DUCK", F.PCT, 0, 127, 0), D("FILT", F.FILT, -64, 63, 0),
-    E("ROLL", ["1/8", "1/16", "1/32", "32T", "1/64"], 1), E("NEW", NGO, 0), D("DLY", F.INT, 0, 127, 0),
+    E("ROLL", ["1/8", "1/16", "1/32", "32T", "1/64"], 1), E("NEW", NGO, 0), D("DELAY", F.INT, 0, 127, 0),
     /* SLOOP 2.6: GLO > MIDI, each synth track's channel (OFF, 1..16) and the other channels (SEL / OFF) */
     ...[1, 2, 3].map((k) => E("CH" + k, ["OFF", ...Array.from({ length: 16 }, (_, i) => String(i + 1))], k)), E("OTHER", ["SEL", "OFF"], 0),
     /* GLO > TEXTURE (2.6): the bed under the mix */
@@ -3432,7 +3433,7 @@ const DSYN = {
       case "model": return ["MODEL", 0, 4, DSYN.MODELS];
       case "wave": return ["WAVE", 0, 7, DSYN.WAVES];
       case "coarse": return ["TUNE", 0, 127, null];
-      case "fine": return [cy ? "FINE" : "P.SLP", -64, 62, null];
+      case "fine": return [cy ? "FINE" : "PSLOPE", -64, 62, null];
       case "atk": return ["ATK", 0, 127, null];
       case "dec": return ["DEC", 0, 127, null];
       case "slope": return ["SLOPE", 0, 127, null];
@@ -4129,7 +4130,7 @@ const LAYOUT = (pe0) => {
   const opt = (yes, ...pages) => (yes ? pages : []);
   return [
     { t: "ENV", pages: [["ENV", 0, [1, 2, 3, 4]], ["ENV DEST", 0, [5, 6, 7, 8]], ...opt(v251, ["ENV SYNC", 0, [59]])] },
-    { t: "LFO", pages: [["LFO", 0, [9, 10, 11, 12]], ...opt(v251, ["LFO 2", 0, [60, 61, 62]]), ["LFO DEST", 0, [13, 14, 15, 16]]] },
+    { t: "LFO", pages: [["LFO", 0, [9, 10, 11, 12]], ...opt(v251, ["LFO SYNC", 0, [60, 61, 62]]), ["LFO DEST", 0, [13, 14, 15, 16]]] },
     { t: "EDIT", engine: true, pages: [["EDIT 1", 0, [pe0, pe0 + 1, pe0 + 2, pe0 + 3]], ["EDIT 2", 0, [pe0 + 4, pe0 + 5, pe0 + 6, pe0 + 7]],
       ...opt(v251, ["FILTER", 0, [58], 0])] },     /* (4th: the engine it is shown with: ANALOG's filter TYPE) */
     { t: "VOICE", pages: [["LEVEL", 0, [0]], ["VOICE", 0, [37, 38, 41, 42]], ["VOICE 2", 0, [43, 44, 39, 40]]] },
@@ -4465,7 +4466,7 @@ function buildGroups() {
   const known = EXPECT.pcount.indexOf(info.pcount);
   if (known >= 0 && EXPECT.gcount.includes(info.gcount) && info.pe0 === EXPECT.pe0[known]) {
     for (const g of LAYOUT(info.pe0)) {
-      /* a card per button of the device (ENV, LFO, EDIT ...), its pages as rows of four knobs, one colour per knob */
+      /* a card per button of the device (ENV, LFO, EDIT ...), its pages as rows of four knobs, in the track's colour */
       const div = el("div", { class: "group" }, el("h2", { ic: HEAD_IC[g.t] },
         g.engine ? `EDIT ${info.engines[dev.dump.engine] || ""}` : g.t));
       let pages = 0;
@@ -4473,6 +4474,7 @@ function buildGroups() {
         if (onlyEng != null && dev.dump.engine !== onlyEng) continue;
         const rows = ids.map((id) => paramRow(s, id)).filter(Boolean);
         if (!rows.length) continue;
+        if (s === 1) for (const r of rows) r.classList.add(title === "DRUMS" ? "dr" : "g");   /* shared: neutral */
         const tt = g.engine && (dev.titles[dev.dump.engine] || [])[g.pages.findIndex((x) => x[0] === title)];
         if (g.pages.length > 1) div.append(el("h3", { ic: PAGE_IC[tt || title], text: tt || title }));
         div.append(el("div", { class: "knobs" }, ...rows));
@@ -4488,7 +4490,7 @@ function buildGroups() {
     const b = box("EDIT", "EDIT"), c = box("GLOBAL", "GLOBAL");
     const ka = el("div", { class: "knobs" }), kb = el("div", { class: "knobs" }), kc = el("div", { class: "knobs" });
     for (let i = 0; i < info.pcount; i++) { const r = paramRow(0, i); if (r) (i >= info.pe0 ? kb : ka).append(r); }
-    for (let i = 0; i < info.gcount; i++) { const r = paramRow(1, i); if (r) kc.append(r); }
+    for (let i = 0; i < info.gcount; i++) { const r = paramRow(1, i); if (r) { r.classList.add("g"); kc.append(r); } }
     a.append(ka); b.append(kb); c.append(kc);
     groups.groups.push(a, b);
     groups.setgroups.push(c);
