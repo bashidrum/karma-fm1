@@ -1280,43 +1280,35 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
 }
 
 /* ----------------------------------------------------------------- HOME --- */
-/* TRACKS, between the header and the knobs. A tape deck: the bar in large digits, two reels that turn
- * while it plays (the tape goes from the left one to the right one over the selected track's loop), the
- * song's sections A..D (the one playing filled). Then the selected track's sound and state, and a lane a
- * track: its character in small (it hops as the track sounds), the 16 steps in view (a synth: each note
- * at its height; the drums: a bar, taller with more sounds), the step that plays, its level. */
+static uint32_t home_band_tick(void);                   /* ui_vis.c */
+static void home_band(int32_t x0, int32_t y0, uint32_t w, uint32_t h);
+/* TRACKS, between the header and the knobs. The deck: the bar in large digits, a strip of the FLOW backdrop moving with
+ * the four voices' levels (PHEBUS: it replaced the tape reels; ui_vis.c home_band), the song's sections A..D (the one
+ * playing filled). Then the selected track's sound and state, and a lane a track: its character in small (it hops as
+ * the track sounds), the 16 steps in view (a synth: each note at its height; the drums: a bar, taller with more
+ * sounds), the step that plays, its level. */
+#define HB_X 74                                         /* the strip: x, y in the deck, its size (2 x 2 blocks) */
+#define HB_Y 6
+#define HB_W 106u
+#define HB_H 32u
 static void op_home_body(void)
 {
     static uint32_t top_sig, name_sig, lane_sig[NTRK];
     track_t *ts = TSEL;
-    uint32_t i, j, playing = song.playing, slen = trk_len(ts), spos = ts->seq_idx % slen, sig;
+    uint32_t i, j, playing = song.playing, slen = trk_len(ts), spos = ts->seq_idx % slen, sig, moving;
     uint32_t ready = arrangement_ready();
     op_band_tick();
-    sig = playing * 3u + (playing ? ui.frame / 2u * 7919u + spos * 31u : 0u) + ready * 5u + (uint32_t)(live_sec + 1) * 77u + slen * 13u;
+    moving = home_band_tick();                          /* (the voices' levels into the strip; 1: it flows) */
+    sig = playing * 3u + (playing ? spos / 16u * 31u : 0u) + ready * 5u + (uint32_t)(live_sec + 1) * 77u + slen * 13u +
+          (moving ? ui.frame / 2u * 7919u + 1u : 0u);
     if (ui.force || sig != top_sig) {                   /* the deck */
-        uint32_t bar = playing ? spos / 16u + 1u : 1u, a = playing ? (ui.frame * 12u) & 1023u : 0u;
-        int32_t k, done = playing ? (int32_t)(spos * 8u / slen) : 0;
+        uint32_t bar = playing ? spos / 16u + 1u : 1u;
         top_sig = sig;
         cv_begin(240, 44, C_BLACK);
         te_digit(4, 7, 12, 28, 2, bar / 10u, playing ? C_WHITE : TE_G3);
         te_digit(20, 7, 12, 28, 2, bar % 10u, playing ? C_WHITE : TE_G3);
         cv_text(38, 20, &FONT_S, "BAR", TE_G3);
-        for (k = 0; k < 2; k++) {
-            int32_t cx = 100 + k * 48, pack = k ? 5 + done : 13 - done, sp;
-            op_ell(cx, 21, 16, 16, OP_PUR);
-            op_ell(cx, 21, pack, pack, TE_G4);      /* the tape on this reel */
-            op_ell(cx, 21, 3, 3, OP_PUR);
-            for (sp = 0; sp < 3; sp++) {                /* three spokes */
-                uint32_t an = (a + (uint32_t)sp * 341u) & 1023u;
-                cv_line(cx + ((SINE[(an + 256u) & 1023u] * 4) >> 15), 21 + ((SINE[an] * 4) >> 15),
-                        cx + ((SINE[(an + 256u) & 1023u] * 14) >> 15), 21 + ((SINE[an] * 14) >> 15), OP_PUR);
-            }
-        }
-        cv_line(88, 33, 112, 41, TE_G4);            /* the tape, past the head */
-        cv_line(112, 41, 136, 41, TE_G4);
-        cv_line(136, 41, 160, 33, TE_G4);
-        cv_rect(119, 37, 10, 6, C_BLACK);
-        op_box(119, 37, 10, 6, playing ? C_WHITE : TE_G3);
+        home_band(HB_X, HB_Y, HB_W, HB_H);
         for (i = 0; i < 4u; i++) {                      /* the sections */
             char ch[2] = {(char)('A' + i), 0};
             int32_t x = 188 + (int32_t)i * 12;

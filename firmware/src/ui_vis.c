@@ -69,17 +69,21 @@ static int32_t vis_abs(int32_t v) { return v < 0 ? -v : v; }
 static uint32_t vis_hash(uint32_t a, uint32_t b) { a = a * 2654435761u ^ b * 40503u; return (a ^ (a >> 15)) * 2246822519u; }
 
 /* ---- the frame's data ---- */
-static void vis_update(void)
+/* the levels (0..256 a voice, or -1: the peaks, read here), the notes that started, the kick; the clock runs when go (the
+ * screensaver: always; HOME's band: while playing or a voice sounds). Returns 1 while anything moves */
+static uint32_t vis_step(const int32_t *lv, uint32_t go)
 {
-    uint32_t i, hit, now = fm1_ms, dt, emax = 0;
+    uint32_t i, hit, now = fm1_ms, dt, emax = 0, fl = 0;
     int32_t pk[4];
     fm1_irq_off();                                  /* the tracks' peaks since the last look, the notes that started */
-    for (i = 0; i < NPART; i++) {
-        pk[i] = trk[i].peak;
-        trk[i].peak = 0;
+    if (!lv) {
+        for (i = 0; i < NPART; i++) {
+            pk[i] = trk[i].peak;
+            trk[i].peak = 0;
+        }
+        pk[3] = drums.peak;
+        drums.peak = 0;
     }
-    pk[3] = drums.peak;
-    drums.peak = 0;
     hit = vis_hit;
     vis_hit = 0;
     if (vis_kick_hit) {
@@ -88,9 +92,10 @@ static void vis_update(void)
     }
     fm1_irq_on();
     for (i = 0; i < 4u; i++) {
-        int32_t v = trk_level(i) && !trk[i].p[P_MUTE] ? vis_lvl(pk[i]) * 256 / 1000 : 0;   /* (as the TRACKS meters) */
+        int32_t v = lv ? lv[i] : trk_level(i) && !trk[i].p[P_MUTE] ? vis_lvl(pk[i]) * 256 / 1000 : 0;   /* (as the TRACKS meters) */
         vs.e[i] = (uint16_t)(v > vs.e[i] ? vs.e[i] + (v - vs.e[i]) / 2 : vs.e[i] - (vs.e[i] - v) / 12);
         vs.flash[i] = (uint8_t)((hit >> i) & 1u ? 8u : vs.flash[i] ? vs.flash[i] - 1u : 0u);
+        fl |= vs.flash[i];
         if (vs.e[i] > emax)
             emax = vs.e[i];
     }
@@ -99,9 +104,13 @@ static void vis_update(void)
     vs.last_ms = now;
     if (dt > 200u)
         dt = 200u;
-    vs.tq += dt * (40u * 256u + emax * 48u) / 1000u;
+    go |= emax | fl | vs.kick;
+    if (go)
+        vs.tq += dt * (40u * 256u + emax * 48u) / 1000u;
     vs.rip += 1u + vs.kick / 40u;
+    return go != 0u;
 }
+static void vis_update(void) { vis_step(0, 1); }
 /* the voices' colours for this picture, from their levels (a quiet voice breathes, dim, near black) */
 static void vis_palette(void)
 {
@@ -135,6 +144,7 @@ static void vis_canvas(void)                        /* (cv_begin without the cle
  * (x2): never busier than Ben's limit. */
 static uint16_t fl_lut[256];                        /* the bands along one turn of the field (byte-swapped) */
 static uint32_t fl_t, fl_cyc, fl_wipe;
+static uint8_t fl_noline;                           /* (HOME's strip: the morph without its white line) */
 static void flow_prep(void)
 {
     uint32_t T = vs.tq >> 8, j, p = 0, w[4], sum = 0, rot;
@@ -157,22 +167,25 @@ static void flow_prep(void)
     for (; p < 256u; p++)
         fl_lut[p] = C_BLACK;
 }
-static void flow_row(uint16_t *q, uint32_t sy, uint32_t xa, uint32_t xb)   /* (columns xa..xb-1 left: covered) */
+static void flow_row(uint16_t *q, uint32_t sy, uint32_t xa, uint32_t xb, uint32_t xn)   /* (columns xa..xb-1 left: covered;
+                                                                                           * xn: the row's width) */
 {
     uint32_t T = fl_t, kind = sy < fl_wipe ? fl_cyc % 3u : (fl_cyc + 2u) % 3u, h = vis_hash(sy >> 2, (T >> 3) + kind) >> 24, x;
     int32_t ra = (isin(sy * 5u + T * 3u) * 150) >> 15, tear = (kind == 2u && h < 14u) || h < vs.kick / 24u ? (int32_t)(h * 4u % 56u) - 28 : 0;
-    for (x = 0; x < 240u; x += 2u) {
+    for (x = 0; x < xn; x += 2u) {
         int32_t a, b, v;
         if (x == xa)
             x = xb;
+        if (x >= xn)
+            break;
         a = ((int32_t)x + tear) * 2 + ra;
         b = (int32_t)sy * 2 + ((isin((uint32_t)a + T * 2u) * 110) >> 15);
         a += (isin((uint32_t)b + T * 5u) * 90) >> 15;
         v = kind == 1u ? a * 2 + b : (isin((uint32_t)a) + isin((uint32_t)(b + (a >> 1)))) >> 6;
         q[x] = q[x + 1u] = fl_lut[((uint32_t)(v + (int32_t)(T * 4u)) >> 2) & 255u];
     }
-    if (sy - fl_wipe < 2u)                          /* (the morph's edge: a white line) */
-        for (x = 0; x < 240u; x++)
+    if (sy - fl_wipe < 2u && !fl_noline)            /* (the morph's edge: a white line) */
+        for (x = 0; x < xn; x++)
             q[x] = C_WHITE;
 }
 
@@ -461,7 +474,7 @@ static void vis_paint(void)
             uint16_t *q = &cv_px[y * 240u];
             int32_t sy = (int32_t)(pass * 120u + y);
             if (st == 0u)
-                flow_row(q, (uint32_t)sy, 1u, 1u), VIS_ROW2(q);
+                flow_row(q, (uint32_t)sy, 1u, 1u, 240u), VIS_ROW2(q);
             else if (st == 1u)
                 eyes_back_row(q, sy), eyes_over(q, sy);
             else if (st == 2u)
@@ -471,7 +484,7 @@ static void vis_paint(void)
                     int32_t ay = vis_abs(sy - ey[0].y) + ey[0].c, w2 = ey[0].r2 - (ay + 1) * (ay + 1), w;
                     w = w2 > 0 ? (int32_t)vis_sqrt((uint32_t)w2) - 2 : 0;
                     w = w > 0 ? w : 0;
-                    flow_row(q, (uint32_t)sy, (uint32_t)(ey[0].x - w + 1) & ~1u, (uint32_t)(ey[0].x + w) & ~1u);
+                    flow_row(q, (uint32_t)sy, (uint32_t)(ey[0].x - w + 1) & ~1u, (uint32_t)(ey[0].x + w) & ~1u, 240u);
                 }
                 else
                     desert_row(q, sy, 0);
@@ -513,6 +526,33 @@ static void vis_select(int32_t s)
     vis_name_t = 30;
     ui.force = 1;
     settings_later = 1;                                 /* (kept with the settings, once stopped) */
+}
+
+/* ---- HOME's band (PHEBUS, Ben 21 Nov 2026: "I don't like how the tape reel looks"; picker "A strip of the flowing
+ * backdrop": "a band of the FLOW pattern moving with the four voices' levels"): FLOW's voice-driven field in a strip of the
+ * deck, each voice's band swelling with its own level (HOME's meters, ui_op.c op_mx), sinking dim when quiet. It flows
+ * while the song plays or a voice sounds and stands still otherwise. home_band_tick once a frame (1: it moves, draw it
+ * again, every other frame), home_band into the deck's canvas: w x h at (x0, y0), in 2 x 2 blocks */
+static uint32_t home_band_tick(void)
+{
+    int32_t lv[4];
+    uint32_t i;
+    for (i = 0; i < 4u; i++)
+        lv[i] = (int32_t)op_mx[i] * 256 / (TS_H - 2);
+    return vis_step(lv, song.playing);
+}
+static void home_band(int32_t x0, int32_t y0, uint32_t w, uint32_t h)
+{
+    uint32_t y;
+    vis_palette();
+    flow_prep();
+    fl_noline = 1;                                  /* (a white line standing still across it, stopped: no) */
+    for (y = 0; y < h; y += 2u) {
+        uint16_t *q = &cv_px[(uint32_t)(y0 + (int32_t)y) * cv_w + (uint32_t)x0];
+        flow_row(q, y, w, w, w);                    /* (the screensaver's scale: no busier than Ben's limit) */
+        memcpy(q + cv_w, q, w * sizeof(uint16_t));
+    }
+    fl_noline = 0;
 }
 
 /* ---- the boot's FLOW (Ben, 20 Nov 2026: "acid psychedelic modern glitch art ... flowing and morphing"; the four voices'

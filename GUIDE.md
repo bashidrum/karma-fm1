@@ -107,7 +107,7 @@ After a layer lets go, the knobs ignore you for a quarter of a second, so a knob
 
 ### The HOME screen
 
-Tap **HOME** for the HOME screen. At the top: the bar counter, and the sections A to D. Under them, the selected voice's sound and engine (and REC, SOLO or MUTE), then a lane for each voice: its character, the 16 steps in view, the step playing and its level.
+Tap **HOME** for the HOME screen. At the top: the bar counter, a strip of the **FLOW** backdrop, and the sections A to D. In the strip each voice has a band in its colour that swells as that voice gets louder and sinks to a dim line when it is quiet. It flows while the song plays or a voice sounds, and stands still otherwise. Under them, the selected voice's sound and engine (and REC, SOLO or MUTE), then a lane for each voice: its character, the 16 steps in view, the step playing and its level.
 
 The four knobs play the selected voice, for quick changes while it plays:
 

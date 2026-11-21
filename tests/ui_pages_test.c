@@ -360,6 +360,48 @@ int main(int argc, char **argv)
         ui.force = 1; frame(); ppm("page-lfo-sync-pattern");
         trk[0].p[P_LTRIG] = tr; go_home(); frames(16);
     }
+    {   /* PHEBUS (Ben, 21 Nov 2026: "I don't like how the tape reel looks"; picker "A strip of the flowing backdrop"): HOME's
+         * deck: a strip of FLOW (2 x 2 blocks) in the voices' colours where the reels were; still when nothing plays or
+         * sounds, flowing while the song plays, each voice's band swelling with its level */
+        static uint16_t a[HB_W * HB_H];
+        static track_t keep[NTRK];
+        uint32_t x, y, same, n0, voice = 0, pur = 0, blocks = 1, k;
+        memcpy(keep, trk, sizeof keep);
+        song.sel = 0; go_home(); frames(80);              /* (silent: the levels sink, the strip stops) */
+        ui.force = 1; frame();
+        for (y = 0; y < HB_H; y++) for (x = 0; x < HB_W; x++) a[y * HB_W + x] = screen[(OP_BODY_Y + HB_Y + y) * 240 + HB_X + x];
+        frames(6);
+        for (same = 1, y = 0; y < HB_H; y++) for (x = 0; x < HB_W; x++) same &= a[y * HB_W + x] == screen[(OP_BODY_Y + HB_Y + y) * 240 + HB_X + x];
+        check(same && !song.playing, "HOME strip: stopped and silent: it stands still (not redrawn)");
+        for (y = 0; y < HB_H; y += 2) for (x = 0; x < HB_W; x += 2) {
+            uint16_t c = screen[(OP_BODY_Y + HB_Y + y) * 240 + HB_X + x];
+            blocks &= c == screen[(OP_BODY_Y + HB_Y + y) * 240 + HB_X + x + 1] && c == screen[(OP_BODY_Y + HB_Y + y + 1) * 240 + HB_X + x];
+        }
+        check(blocks, "HOME strip: drawn in 2 x 2 blocks");
+        pur = px_count(84, OP_BODY_Y, 80, 44, OP_PUR);
+        check(pur == 0u, "HOME: the tape reels are gone (no reel line art in the deck)");
+        ppm("home-band-still");
+        for (k = 0; k < 16u; k++) {                       /* a bass line, chords, a lead and a beat */
+            uint8_t nb = (uint8_t)(36 + (k % 3u) * 7u), ch[3] = {60, 64, 67}, ld = (uint8_t)(72 + (k % 4u) * 2u), kk = 36, hh = 42;
+            put_step(&trk[0], k, k % 2u ? 0u : 1u, &nb, k % 2u ? ST_REST : ST_NOTE, 0);
+            put_step(&trk[1], k, k % 8u ? 0u : 3u, ch, k % 8u ? (k % 8u < 6u ? ST_TIE : ST_REST) : ST_NOTE, 0);
+            put_step(&trk[2], k, k % 4u == 2u ? 1u : 0u, &ld, k % 4u == 2u ? ST_NOTE : ST_REST, 0);
+            put_step(TDRUM, k, 1, k % 4u ? &hh : &kk, ST_NOTE, 0);
+            trk[0].p[P_SLEN] = trk[1].p[P_SLEN] = trk[2].p[P_SLEN] = TDRUM->p[P_SLEN] = 16;
+        }
+        for (k = 0; k < NTRK; k++) trk[k].seq_active = 1;
+        transport_req = 1; frames(60);
+        for (y = 0; y < HB_H; y++) for (x = 0; x < HB_W; x++) a[y * HB_W + x] = screen[(OP_BODY_Y + HB_Y + y) * 240 + HB_X + x];
+        frames(4);
+        for (n0 = 0, y = 0; y < HB_H; y++) for (x = 0; x < HB_W; x++) n0 += a[y * HB_W + x] != screen[(OP_BODY_Y + HB_Y + y) * 240 + HB_X + x];
+        for (k = 0; k < 4u; k++) voice += px_count(HB_X, OP_BODY_Y + HB_Y, HB_W, HB_H, vp[k][1]) + px_count(HB_X, OP_BODY_Y + HB_Y, HB_W, HB_H, vp[k][2]);
+        check(n0 > HB_W * HB_H / 8u && voice > 0u, "HOME strip: playing, it flows (redrawn), in the voices' colours");
+        check(vs.e[0] > 0u && vs.e[3] > 0u, "HOME strip: the voices' levels drive it (bass and drums sounding)");
+        ui.force = 1; frame(); ppm("home-band-play");
+        transport_req = 2; frames(4);
+        memcpy(trk, keep, sizeof keep); sync_reload = 1;
+        go_home(); frames(4);
+    }
     go_home(); open_family(FAM_EDIT); ui.force = 1; frame(); ppm("page-edit");   /* (EDIT: the chain's start, OSC) */
     open_family(FAM_FX); ui.force = 1; frame(); ppm("page-fx");
     open_family(FAM_SEQ); ui.force = 1; frame(); ppm("page-pattern");
