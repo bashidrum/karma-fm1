@@ -66,3 +66,34 @@ Ben asked (20 Nov 2026) for a full first version of his brief without stopping f
 - Alien: unchanged from the first draft.
 - STRIKE pose: shown for 8 frames when the character's own voice starts a note at the hard/accent velocity level; nothing in the sound or sequencer changes. In the mixer row the small figures strike too.
 - Sprite data grew from 22,944 to 31,216 bytes.
+
+## Review build, first wave (21 Nov): calls made that Ben did not specify
+Sequencer
+- Heard notes on the GRID are about 150 ms at velocity 100; they are not recorded, not sent to the arp or to MIDI out.
+- SEQ on the GRID: synth goes to SEQ > PATTERN; drums go GRID > KIT > DRUM GEN as before. The other SEQ pages are walked with SELECT.
+- The SEQ layer (hold SEQ) still has its 4x4 step keys. OPEN: Ben to decide whether they go.
+- Lock pages: "LOCK" moved from the header into the step band so the page name fits.
+- Page add: one page per press; a short last page is filled to 16 before copying; at 64 steps OCT+ wraps to page 1.
+- Follow: a page picked by hand stays until the playhead moves to a new page.
+- Full drum grid: up to 7 rows (the sounds in use plus the picked one). SELECT on the drum GRID no longer reaches the KIT page; SEQ still does.
+- Tapping a tie makes a one-step note; the old note ends before it and the rest of its tail becomes rests.
+- A press longer than about 0.14 s no longer counts as a tap (was 0.45 s).
+- Lock table full with several steps held: the lock goes on all of them or none.
+Saving
+- The unsaved dot is white, in the header where the record disc sits (record wins while recording); checked twice a second.
+- Save on stop waits 0.3 s, needs the output silent, and happens at most every 5 s. The older idle autosave stays as a fallback.
+- Not checkable without the device: that the save never stalls the screen, and that the silence threshold suits the real noise floor.
+Chain
+- The four shared effect pages now follow MASTER under GLO. CLOUD's SEND is per voice but now sits on a shared page.
+- OPEN: no one-knob page has a neighbour with a free knob, so none were merged. Ben to choose.
+Song
+- OPEN: insert and delete not built; both OCT buttons are already taken on that screen. Ben to choose how.
+- Hint added: "OCT-: MODE".
+Site
+- The analytics counter was also removed from the published copies in docs/.
+Screensavers
+- A fourth piece, THIRD EYE, was added and named by the subagent. Ben has not approved it.
+- Colours by track order; in DESERT purple is the farthest dune, coral the nearest.
+- FLOW changes kind every 15 s or so with a wipe; kicks tear rows and ripple the sun.
+- Drawn every other frame in 2x2 blocks. Host cost against the old average: FLOW 1.5 to 1.8 times, EYES 2.7, DESERT 2.4, THIRD EYE 3.5. Device speed unknown.
+Device build after this wave: image 553,176 B (64 B smaller), working-memory pool 5.5 KB freer.
