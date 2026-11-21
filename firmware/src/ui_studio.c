@@ -880,6 +880,14 @@ static void te_digit(int32_t x, int32_t y, int32_t w, int32_t h, int32_t t, uint
     static const uint8_t SEG[10] = {0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F};   /* gfedcba */
     uint32_t m = SEG[d % 10u];
     int32_t hh = h / 2;
+    if (d % 10u == 1u) {                                /* a real 1 (review 14): a centred stem, a two-step flag, a foot */
+        int32_t sx = x + (w - t) / 2;
+        cv_rect(sx, y, t, h, c);
+        cv_rect(sx - t, y + t, t, t, c);
+        cv_rect(sx - 2 * t, y + 2 * t, t, t, c);
+        cv_rect(x + w / 6, y + h - t, w - w / 3, t, c);
+        return;
+    }
     if (m & 0x01) cv_rect(x + t, y, w - 2 * t, t, c);                       /* a */
     if (m & 0x02) cv_rect(x + w - t, y + t, t, hh - t, c);                  /* b */
     if (m & 0x04) cv_rect(x + w - t, y + hh, t, hh - t, c);                 /* c */

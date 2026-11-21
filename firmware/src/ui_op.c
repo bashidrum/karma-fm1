@@ -73,22 +73,13 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
     cv_blit(0, 0);
 }
 
-/* a value of up to three digits (and a sign): drawn tall and thin */
-static int op_is_num(const char *s)
-{
-    uint32_t n = 0;
-    if (*s == '-')
-        s++;
-    for (; *s; s++, n++)
-        if (*s < '0' || *s > '9')
-            return 0;
-    return n >= 1u && n <= 3u;
-}
-
-/* the knob readouts: under each knob its label, a thin gauge and the value (then its unit, small), all
- * in the knob's colour; the knob being turned: its value white, underlined; a value that does nothing
- * now (dim: a bit per knob): grey. A label left empty: an empty column. unit may be 0. A message
- * replaces the band (as te_dials) */
+/* the knob readouts: under each knob its label, a 2 px gauge and the value (then its unit, small, grey), all
+ * in one face on one baseline (Ben, 21 Nov 2026, review 14 "A: one bold face"): the value large when it fits its
+ * column, else small, the same baseline either way; label and gauge in what the knob acts on's colour (knob_tint).
+ * The knob being turned keeps its colour: its label inverted, its value underlined (review 16e). A value that does
+ * nothing now (dim: a bit per knob): grey. A label left empty: an empty column. unit may be 0. A message replaces
+ * the band (as te_dials) */
+#define OPK_BASE 50                                     /* the values' baseline, in the band */
 #if KARMA_ANN
 static void opk_take(const char *const lab[4], const char *const val[4], const char *const *unit);   /* (ui_draw.c) */
 #endif
@@ -118,38 +109,31 @@ static void op_knobs(const char *const lab[4], const char *const val[4], const c
         return;
     }
     for (k = 0; k < 4u; k++) {
-        int32_t x0 = 4 + 58 * (int32_t)k, x = x0;
+        int32_t x0 = 4 + 58 * (int32_t)k, x;
         uint32_t hot = ui.hot_t && ui.hot_col == k;
-        uint16_t c = hot ? C_WHITE : (dim >> k) & 1u ? TE_G2 : tint_col(k, 0);
+        uint16_t c = (dim >> k) & 1u ? TE_G3 : tint_col(k, 0);
         const char *v = val[k], *u = unit ? unit[k] : "";
-        int32_t uw = u[0] ? text_w(&FONT_S, u) + 3 : 0;
+        int32_t uw = u[0] ? text_w(&FONT_S, u) + 2 : 0; /* (3 px after the value's ink, the unit's last column blank) */
         if (!lab[k][0])
             continue;
-        cv_text(x0, 5, &FONT_S, lab[k], tint_col(k, 0));
-        if (ratio[k] >= 0) {
-            cv_rect(x0, 22, 52, 1, TE_G1);
-            cv_rect(x0, 22, ratio[k] * 52 / 1000, 1, tint_col(k, 1));
-        }
-        if (op_is_num(v) && (int32_t)str_len(v) * 16 + uw <= 58) {   /* (with a unit that fits beside them) */
-            if (*v == '-') {
-                cv_rect(x, 39, 7, 2, c);
-                x += 10;
-                v++;
-            }
-            for (; *v; v++) {                           /* (a 1 is a bar: it takes less room) */
-                int32_t w = *v == '1' ? 4 : 12;
-                te_digit(x, 27, w, 26, 2, (uint32_t)(*v - '0'), c);
-                x += w + 4;
-            }
-        } else if (text_w(&FONT_L, v) + uw <= 56) {
-            x = cv_text(x0, 24, &FONT_L, v, c);
+        if (hot) {                                      /* touched: the label inverted */
+            cv_rect(x0 - 1, 5, text_w(&FONT_S, lab[k]) + 1, 16, tint_col(k, 0));
+            cv_text(x0, 5, &FONT_S, lab[k], C_BLACK);
         } else {
-            x = cv_text(x0, 32, &FONT_S, v, c);
+            cv_text(x0, 5, &FONT_S, lab[k], tint_col(k, 0));
         }
+        if (ratio[k] >= 0) {                            /* where the value is in its range */
+            cv_rect(x0, 22, 52, 2, TE_G2);
+            cv_rect(x0, 22, ratio[k] * 52 / 1000, 2, tint_col(k, 0));
+        }
+        if (text_w(&FONT_L, v) - 2 + uw <= 56)          /* (FONT_L: 2 blank columns after the last letter) */
+            x = cv_text(x0, OPK_BASE - 24, &FONT_L, v, c) - 2;
+        else
+            x = cv_text(x0, OPK_BASE - 12, &FONT_S, v, c) - 1;
         if (uw && x + uw <= x0 + 57)
-            cv_text(x + 3, 38, &FONT_S, u, TE_G3);
+            cv_text(x + 3, OPK_BASE - 12, &FONT_S, u, TE_G3);
         if (hot)
-            cv_rect(x0, 55, 52, 2, tint_col(k, 0));
+            cv_rect(x0, 54, 52, 3, tint_col(k, 0));
     }
     cv_blit(0, OP_KNOB_Y);
 }
@@ -1080,8 +1064,8 @@ static void op_home_body(void)
         top_sig = sig;
         cv_begin(240, 44, C_BLACK);
         te_digit(4, 7, 12, 28, 2, bar / 10u, playing ? C_WHITE : TE_G3);
-        te_digit(20, 7, bar % 10u == 1u ? 4 : 12, 28, 2, bar % 10u, playing ? C_WHITE : TE_G3);   /* (a 1: a bar) */
-        cv_text(bar % 10u == 1u ? 30 : 38, 20, &FONT_S, "BAR", TE_G3);
+        te_digit(20, 7, 12, 28, 2, bar % 10u, playing ? C_WHITE : TE_G3);
+        cv_text(38, 20, &FONT_S, "BAR", TE_G3);
         for (k = 0; k < 2; k++) {
             int32_t cx = 100 + k * 48, pack = k ? 5 + done : 13 - done, sp;
             op_ell(cx, 21, 16, 16, OP_PUR);
