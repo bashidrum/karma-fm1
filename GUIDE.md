@@ -105,6 +105,21 @@ After a layer lets go, the knobs ignore you for a quarter of a second, so a knob
 
 **Graphs.** Sound pages draw what their knobs do: the filter's response curve (with the envelope's sweep), the insert effect's curve, the oscillator's waveform, the envelope, the LFO, and bars for the rest. A small dancing character sits at the top right, and the sound's name is at the top left.
 
+### The HOME screen
+
+Tap **HOME** for the HOME screen. At the top: the bar counter, and the sections A to D. Under them, the selected voice's sound and engine (and REC, SOLO or MUTE), then a lane for each voice: its character, the 16 steps in view, the step playing and its level.
+
+The four knobs play the selected voice, for quick changes while it plays:
+
+| Knob | Does |
+| --- | --- |
+| **KNOB 1 CUTOFF** | the voice's filter: the engine's own cutoff on ACID and JUNO (CUT); the voice's FILTER on PLAITS and ELEMENTS (left of centre a low-pass, right a high-pass); the drum track's FILTER on the drums |
+| **KNOB 2 DECAY** | the decay of the envelope that shapes the sound: ACID's own DECAY (the 303's envelope, which moves its filter); the ENV page's DEC on JUNO, PLAITS and ELEMENTS; on the drums, the selected sound's DEC on a HEX kit ("--" on the other kits) |
+| **KNOB 3 STUT** | the STUTTER lane **ON** (turn right) or **OFF** (turn left). It is drawn in white and grey because it acts on the whole mix. See [The STUTTER lane](#6-the-stutter-lane) |
+| **KNOB 4 LEVEL** | the voice's level. On a muted voice the first turn unmutes it |
+
+Swing and the pattern length are on **hold SEQ**. Pan is on the mixer (**GLO + key 11**) and on VOICE 2.
+
 ---
 
 ## 3. Your first sound
@@ -201,7 +216,7 @@ A pattern is up to 64 steps, in four pages of 16.
 - **OCT-** and **OCT+** with no step held go to the previous and next page. **OCT+** on the last page adds a page. At 64 steps the message says "64 STEPS: THE MOST" and OCT+ wraps to page 1.
 - Under the tiles, four page slots: the used pages are filled, the unused ones outlined, and the page that is playing is marked.
 - **Follow.** While playing, the view follows the playhead onto a new page. A page you pick by hand stays until the playhead moves to a different page.
-- The pattern length can also be set with **hold SEQ + KNOB 4** (see [section 13](#13-tempo-swing-key-and-scale)) or on the HOME screen with KNOB 3.
+- The pattern length can also be set with **hold SEQ + KNOB 4** (see [section 13](#13-tempo-swing-key-and-scale)), or with KNOB 4 during STEP REC.
 
 ### With no step held (synth voice)
 
@@ -317,7 +332,7 @@ The kit list is: five HEX kits (HEX BOOM, HEX ACID, HEX METAL, HEX GLITCH, HEX R
 - **Edit a sound.** Tap **EDIT** on the drum voice for HEX OSC. EDIT again steps to the next page of the sound (HEX MOD, HEX CLICK, HEX MORE, then HEX FILT). **ENV** opens HEX AEG. **LFO** says "NO LFO ON DRUMS". Turning a knob on a built-in HEX kit copies the kit into the next free MY HEX kit.
 - **Drum mutes.** Hold **EDIT** and press a **black key** on the drum voice to switch between erase mode and mute mode. In mute mode the white keys mute sounds (shown "off" in red).
 - **DRUM GEN** and **DRUM GEN 2** write kick, snare and hat patterns: MODE (OFF, MAP, EUCL), MAP X, MAP Y, CHAOS; then KICK, SNARE, HATS, ROT.
-- **HOME knobs** for the drum voice: LEVEL, REV, PAN, LEN.
+- **HOME knobs** for the drum voice: CUTOFF (the drum track's own FILTER), DECAY (the selected sound's DEC on a HEX or MY HEX kit; "--" on the other kits, which have none), STUT and LEVEL. See [The HOME screen](#the-home-screen).
 
 ---
 
@@ -487,7 +502,7 @@ Tap **GLO**. Tap again, or turn SELECT, for the next page. These pages are share
 
 ## 9. Mixer, mute and solo
 
-**Hold GLO** for the mixer (or hold GLO untouched for about 0.7 seconds and let go to keep it open). It shows a podium for each voice, the characters, and M and S badges. The key legend reads "123D123DFB T".
+**Hold GLO** for the mixer (or hold GLO untouched for about 0.7 seconds and let go to keep it open). It shows a podium for each voice, the characters, and M and S badges. The key legend reads "123D123DFBP T".
 
 | Control | Does |
 | --- | --- |
@@ -496,11 +511,14 @@ Tap **GLO**. Tap again, or turn SELECT, for the next page. These pages are share
 | **keys 5 to 8** | solo voices 1, 2, 3, drums (ice-blue S). Several solos add up |
 | **key 9** | fill while held |
 | **key 10** | fill on the next bar (again cancels it) |
+| **key 11** | the knobs set the **pans** instead of the levels (title PAN); again: levels |
 | **key 16** | tap tempo |
 | **F#3** (black key) | MIDI LEARN on or off (the title reads "LEARN") |
 | **SELECT** | tempo |
 
-A muted voice fades out in a few milliseconds and plays no new notes, but its pattern runs on in time. On the HOME screen, KNOB 2 sets the selected voice's level (on a muted voice it unmutes it), and KNOB 4 sets its pan. **VOICE 2** has PAN and MUTE. **GLO > DRUMS** has the drum level, reverb and delay.
+**Pan.** With GLO held (or the mixer kept open), press **key 11** (P): the title reads **PAN** and KNOB 1 to 4 set the pans of voices 1, 2, 3 and the drums (L, C, R). Press key 11 again for the levels. When the mixer closes, its knobs are the levels again. A synth voice's pan is also on **VOICE 2** (KNOB 3).
+
+A muted voice fades out in a few milliseconds and plays no new notes, but its pattern runs on in time. On the HOME screen, KNOB 4 sets the selected voice's level (on a muted voice the first turn unmutes it). **VOICE 2** has PAN and MUTE. **GLO > DRUMS** has the drum level, reverb and delay.
 
 ---
 
@@ -624,7 +642,7 @@ Hold **ARP** and a key for a note-repeat roll. KNOB 1 sets the rate (1/8, 1/16, 
 
 **Tempo** (40 to 240 BPM): **SELECT** on HOME, inside any layer or on the REC screen; **GLO + key 16** (tap tempo); or GLO > GLOBAL > BPM. With SYNC set to USB or TRS, the tempo follows the master clock.
 
-**Swing:** HOME KNOB 1 (global), hold SEQ + KNOB 3 (per voice), or GLO > GLOBAL > SWING.
+**Swing:** hold SEQ + KNOB 3 (per voice), or GLO > GLOBAL > SWING (global).
 
 **Metronome:** GLO > GLOBAL > CLICK.
 
@@ -806,8 +824,7 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 
 | Gesture | Does |
 | --- | --- |
-| KNOB 1 to 4 (synth) | SWING, LEVEL, STEPS, PAN |
-| KNOB 1 to 4 (drums) | LEVEL, REV, PAN, LEN |
+| KNOB 1 to 4 | CUTOFF, DECAY, STUT (the STUTTER lane on or off), LEVEL of the selected voice |
 | SELECT | tempo |
 | PRESETS | the sound list |
 | tap EDIT (drums) | the drum GRID |
@@ -893,6 +910,7 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 | GLO | KNOB 1 to 4 | levels of 1, 2, 3, drums |
 | GLO | keys 1 to 4, 5 to 8 | mute, solo |
 | GLO | keys 9, 10, 16 | fill while held, fill next bar, tap tempo |
+| GLO | key 11 | the knobs set the pans (again: levels) |
 | GLO | F#3 | MIDI LEARN |
 | SAVE | keys 1 to 4 | play A to D (several taps: chain) |
 | SAVE | keys 5 to 8 | store into A to D |

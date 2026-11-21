@@ -1191,11 +1191,11 @@ static void op_sound(const track_t *t, const page_t *pg)
 static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32_t flags)
 {
     static const char *const LAB[4] = {"1", "2", "3", "DR"};   /* (the tracks by number, as the strip: review 21) */
-    static const char KEYS[17] = "123D123DFB     T";
+    static const char KEYS[17] = "123D123DFBP    T";   /* (PHEBUS: P, key 11, the knobs are the pans) */
     static uint32_t head, scene, keys, knobs, bar;
     const uint8_t *mx = op_mx, *hop = op_hop;
     uint32_t i, sig = 7u;
-    op_header("GLO", C_WHITE, ui.msg_t ? ui.msg : "MIX", &head);   /* (GLO: MIX, the button and the layer, review 21; a
+    op_header("GLO", C_WHITE, ui.msg_t ? ui.msg : flags & 16u ? "PAN" : "MIX", &head);   /* (GLO: MIX, the button and the layer, review 21; a
                                                          * message: in the title, the levels stay) */
     op_band_tick();
     for (i = 0; i < NTRK; i++)
@@ -1240,7 +1240,7 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
         op_k = 3;
         cv_blit(0, OP_BODY_Y);
     }
-    sig = flags + song.solo * 16u;
+    sig = flags + song.solo * 64u;
     for (i = 0; i < NTRK; i++)
         sig = sig * 2u + (trk[i].p[P_MUTE] != 0);
     if (ui.force || sig != keys) {                      /* the 16 white keys: the track's number on its mute and solo
@@ -1252,7 +1252,7 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
         for (i = 0; i < 16u; i++) {
             int32_t x = 4 + (int32_t)i * 14 + (int32_t)(i / 4u) * 2;
             uint32_t on = i < 4u ? trk[i].p[P_MUTE] != 0 : i < 8u ? (song.solo >> (i - 4u)) & 1u : i == 8u ? flags & 1u :
-                          i == 9u ? (flags >> 1) & 1u : i == 15u ? (flags >> 3) & 1u : 0u;
+                          i == 9u ? (flags >> 1) & 1u : i == 10u ? (flags >> 4) & 1u : i == 15u ? (flags >> 3) & 1u : 0u;
             uint16_t c = i < 4u ? TE_COL[i] : i < 8u ? TE_MID[i - 4u] : KEYS[i] == ' ' ? OP_PUR_D : TE_G4;
             char ch[2] = {KEYS[i], 0};
             if (on)

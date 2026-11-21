@@ -282,10 +282,66 @@ int main(int argc, char **argv)
     {   /* review 19: HOME, a muted track: its real level, dim, with MUTE (not LEVEL 0) */
         int16_t m = trk[0].p[P_MUTE];
         song.sel = 0; trk[0].p[P_MUTE] = 1; go_home(); ui.force = 1; frame();
-        check(px_count(62, OP_KNOB_Y + 26, 56, 26, TE_G3) > 40 && px_count(62, OP_KNOB_Y + 26, 56, 26, TE_COL[0]) == 0,
-              "HOME, track 1 muted: LEVEL shows its level in grey, with MUTE");
+        check(px_count(178, OP_KNOB_Y + 26, 56, 26, TE_G3) > 40 && px_count(178, OP_KNOB_Y + 26, 56, 26, TE_COL[0]) == 0,
+              "HOME, track 1 muted: LEVEL (KNOB 4, PHEBUS) shows its level in grey, with MUTE");
         trk[0].p[P_MUTE] = m; go_home(); ui.force = 1; frame();
         open_family(FAM_ENV); ui.force = 1; frame();
+    }
+    {   /* PHEBUS (Ben, 21 Nov 2026, picker "Cutoff, decay, FX, level"; FX: "just turned on and off the stutter"): HOME's
+         * knobs: CUTOFF and DECAY of the selected voice (its engine's CUT / DECAY, else FILTER / the ENV's DEC; drums: the
+         * track filter, a HEX sound's DEC), STUTTER (the lane on / off, drawn neutral), LEVEL; pan on the mixer (GLO + 11) */
+        static track_t keep[NTRK];
+        const param_desc_t *d;
+        int16_t lv, *vp, tf = trk[2].p[P_TFLT], kit = TDRUM->p[P_E0];
+        uint32_t act = stl.act, k, ok;
+        memcpy(keep, trk, sizeof keep);
+        set_engine_of(&trk[0], ENGI_ACID); song.sel = 0; frame();
+        check(home_knob(0, &d) == &trk[0].p[P_E1] && home_knob(1, &d) == &trk[0].p[P_E4] && str_eq(d->label, "DECAY"),
+              "HOME knobs, ACID: CUTOFF its CUT, DECAY its own DECAY (the 303's envelope)");
+        set_engine_of(&trk[0], ENGI_JUNO); frame();
+        check(home_knob(0, &d) == &trk[0].p[P_E4] && str_eq(d->label, "CUT") && home_knob(1, &d) == &trk[0].p[P_DEC],
+              "HOME knobs, JUNO: CUTOFF its VCF CUT, DECAY the ENV's DEC");
+        song.sel = 2; frame();
+        check(trk[2].eng_req == ENGI_PRISM && home_knob(0, &d) == &trk[2].p[P_TFLT] && home_knob(1, &d) == &trk[2].p[P_DEC],
+              "HOME knobs, PLAITS: CUTOFF the voice's FILTER, DECAY the ENV's DEC");
+        set_engine_of(&trk[1], ENGI_ELEM); song.sel = 1; frame();
+        check(home_knob(0, &d) == &trk[1].p[P_TFLT] && home_knob(1, &d) == &trk[1].p[P_DEC], "HOME knobs, ELEMENTS: FILTER, DEC");
+        song.sel = TRK_DRUM; TDRUM->p[P_E0] = 0; frame();
+        check(home_knob(0, &d) == &TDRUM->p[P_TFLT] && home_knob(1, &d) == &song.g[G_HXDEC],
+              "HOME knobs, drums (HEX kit): CUTOFF the drum track's FILTER, DECAY the selected sound's DEC");
+        TDRUM->p[P_E0] = DRUM_DEFAULT_KIT; frame();
+        check(home_knob(1, &d) == 0, "HOME knobs, drums (606): no DEC to turn (drawn --)");
+        go_home(); ui.force = 1; frame(); ppm("home-knobs-drum");
+        song.sel = 2; go_home(); frames(16);
+        trk[2].p[P_TFLT] = 0;
+        encs[panel.enc[EN_K1]] = -5; frame();
+        check(trk[2].p[P_TFLT] < 0, "HOME KNOB 1 on PLAITS: the FILTER goes low-pass");
+        lv = trk[2].p[P_DEC]; encs[panel.enc[EN_K2]] = 3; frame();
+        check(trk[2].p[P_DEC] > lv, "HOME KNOB 2: DECAY (the ENV's DEC) up");
+        stl.act = 1; encs[panel.enc[EN_K3]] = -1; frame();
+        ok = !stl.act; encs[panel.enc[EN_K3]] = 1; frame();
+        check(ok && stl.act, "HOME KNOB 3: the STUTTER lane OFF (left), ON (right)");
+        lv = trk[2].p[P_LEVEL]; encs[panel.enc[EN_K4]] = -4; frame();
+        check(trk[2].p[P_LEVEL] < lv, "HOME KNOB 4: LEVEL");
+        trk[2].p[P_MUTE] = 1; lv = trk[2].p[P_LEVEL]; encs[panel.enc[EN_K4]] = 3; frame();
+        check(!trk[2].p[P_MUTE] && trk[2].p[P_LEVEL] == lv, "HOME KNOB 4 on a muted voice: the first turn unmutes (as before)");
+        ui.force = 1; frame(); ppm("home-knobs");
+        for (ok = 1, k = 0; k < 4u; k++) {
+            uint32_t c = px_count(4 + 58 * k, OP_KNOB_Y, 54, OP_KNOB_H - 4, TE_COL[2]);
+            ok &= k == 2u ? c == 0u : c > 30u;
+        }
+        check(ok, "HOME knobs: CUTOFF, DECAY, LEVEL in the voice's colour; STUTTER neutral (shared)");
+        press(B_GLO); frames(10); key(key_of_lane(10)); frames(2);
+        lv = trk[0].p[P_PAN]; encs[panel.enc[EN_K1]] = 5; frame();
+        check(mix_pan && trk[0].p[P_PAN] == lv + 5, "pan: GLO held + key 11: the mixer's knobs are the pans (KNOB 1: voice 1's)");
+        ui.force = 1; frame(); ppm("layer-mix-pan");
+        release(B_GLO); frames(2);
+        check(!mix_pan, "pan: GLO let go: the mixer's knobs are the levels again");
+        for (ok = 0, k = 0; k < NPAGES; k++)
+            ok |= !strcmp(PAGES[k].title, "VOICE 2") && PAGES[k].id[2] == P_PAN;
+        check(ok, "pan: still on VOICE 2 (KNOB 3) too");
+        memcpy(trk, keep, sizeof keep); trk[2].p[P_TFLT] = tf; TDRUM->p[P_E0] = kit; stl.act = (uint8_t)act; sync_reload = 1;
+        song.sel = 0; go_home(); frames(16);
     }
     go_home(); open_family(FAM_EDIT); ui.force = 1; frame(); ppm("page-edit");   /* (EDIT: the chain's start, OSC) */
     open_family(FAM_FX); ui.force = 1; frame(); ppm("page-fx");

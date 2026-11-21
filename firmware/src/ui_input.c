@@ -244,39 +244,32 @@ static int32_t accel(uint32_t role, int32_t s, int32_t range)
     return s;
 }
 
-/* TRACKS page: KNOB 1 SWING (the groove of every track, MPC 50..75 %), 2 LEVEL (0 = mute; the drum
- * track: GLO > DRUMS LEVEL), 3 LEN of its pattern, 4 PAN. A track muted with MUTE (GLO + key, the
- * editor): the first turn of KNOB 2 unmutes it */
+/* TRACKS page (HOME, PHEBUS 21 Nov 2026): KNOB 1 CUTOFF and 2 DECAY of the selected voice (ui_studio.c home_knob),
+ * 3 the STUTTER lane ON / OFF (punch.c stl.act: everyone's), 4 LEVEL (0 = mute; the drum track: GLO > DRUMS LEVEL). A track
+ * muted with MUTE (GLO + key, the editor): the first turn of KNOB 4 unmutes it. (Swing and STEPS: SEQ held; PAN: VOICE 2
+ * and the mixer, GLO + key 11) */
 static void tracks_edit(uint32_t slot, int32_t steps)
 {
     track_t *t = TSEL;
     int16_t *vp;
     const param_desc_t *d;
-    switch (slot) {
-    case 0:
-        vp = &song.g[G_SWING];
-        d = &GP[G_SWING];
-        break;
-    case 1:
+    if (slot == 2u) {
+        stl.act = (uint8_t)(steps > 0);
+        return;
+    }
+    if (slot == 3u) {
         if (t->p[P_MUTE]) {
             t->p[P_MUTE] = 0;
             return;
         }
         vp = is_drum(t) ? &song.g[G_DRLVL] : &t->p[P_LEVEL];
         d = is_drum(t) ? &GP[G_DRLVL] : &TP[P_LEVEL];
-        break;
-    case 2:
-        vp = &t->p[P_SLEN];
-        d = &TP[P_SLEN];
-        break;
-    default:
-        vp = &t->p[P_PAN];
-        d = &TP[P_PAN];
-        break;
+    } else if ((vp = home_knob(slot, &d)) == 0) {
+        return;                                         /* (a drum kit with no DEC) */
     }
     *vp = (int16_t)clamp(*vp + accel(EN_K1 + slot, steps, d->max - d->min), d->min, d->max);
-    if (!is_drum(t) && (vp == &t->p[P_LEVEL] || vp == &t->p[P_PAN]))
-        ml_knob(t, vp == &t->p[P_LEVEL] ? P_LEVEL : P_PAN);   /* MIDI LEARN: LEVEL, PAN (2.6) */
+    if (!is_drum(t) && vp >= &t->p[0] && vp < &t->p[P_COUNT])
+        ml_knob(t, (uint32_t)(vp - t->p));              /* MIDI LEARN (2.6) */
 }
 
 /* a new project: every track empty, the default sounds, 90 BPM (TOOLS > NEW) */
@@ -662,6 +655,7 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
                 layer_key(e >> 8, e & 31u, 0);
             }
         }
+        mix_pan = 0;                                      /* (the mixer closed: its knobs are the levels again) */
         if (ui.layer != LY_PLAY) {
             ly_quiet_t = fm1_ms | 1u;                     /* a layer shown lets go: KNOB 1..4 quiet a while (#39) */
             ui.layer = LY_PLAY;
