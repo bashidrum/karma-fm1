@@ -6,10 +6,11 @@
   index.html                  redirect to the installer
   firmware/karma-VER.fwsc     the package
   webapp/installer/index.html index_pkg.html with fm1pkg.js, fm1ota.js and the metadata inlined
-  webapp/editor/index.html    editor.html (+ fukiai.ttf, FUKIAI-LICENSE.txt)
-  webapp/editor/karma-editor.html  the editor in one file, for offline use (SLOOP 2.6): its icon font inlined,
-                              its links to the installer and the font licence online; opened from the disk in
-                              Chrome / Edge (file:// is a secure context: Web MIDI asks for permission)
+  webapp/editor/index.html    editor.html: the backup page (save / restore the FM-1's projects and settings; the
+                              web editor's editing is gone, its URL stays)
+  webapp/editor/karma-editor.html  the backup page in one file, for offline use: its link to the installer online;
+                              opened from the disk in Chrome / Edge (file:// is a secure context: Web MIDI asks
+                              for permission)
   src/                        not touched
 
   web/make_site.py build/felucca-X.Y.fwsc X.Y OUT_DIR [--beta]
@@ -18,7 +19,6 @@
 The package identity (FM-1_9xx) is read from the package; the device reports it
 after the install.
 """
-import base64
 import hashlib
 import json
 import re
@@ -27,15 +27,12 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-ONLINE = "https://eatyourgreensstudio-dotcom.github.io/karma-fm1/"                 # (the offline editor's links)
+ONLINE = "https://eatyourgreensstudio-dotcom.github.io/karma-fm1/"                 # (the offline backup page's links)
 
 
 def offline_editor(html):
-    """editor.html as one file for the disk: the icon font inlined, the download link out, the relative links online"""
-    font = base64.b64encode((HERE / "fukiai.ttf").read_bytes()).decode()
-    for a, b in (('url("fukiai.ttf")', 'url(data:font/ttf;base64,' + font + ')'),
-                 ('href="../installer/"', 'href="' + ONLINE + 'webapp/installer/" target="_blank" rel="noopener"'),
-                 ('href="FUKIAI-LICENSE.txt"', 'href="' + ONLINE + 'webapp/editor/FUKIAI-LICENSE.txt" target="_blank" rel="noopener"')):
+    """editor.html as one file for the disk: the download link out, the installer link online"""
+    for a, b in (('href="../installer/"', 'href="' + ONLINE + 'webapp/installer/" target="_blank" rel="noopener"'),):
         if html.count(a) != 1:
             raise SystemExit(f"editor.html must contain {a} once; update make_site.py")
         html = html.replace(a, b)
@@ -100,9 +97,6 @@ def main(pkg, version, out):
     (ed / "index.html").write_text(ed_html.replace('download="karma-editor.html"', dl), encoding="utf-8")
     (ed / "karma-editor.html").write_text(offline_editor(ed_html), encoding="utf-8")
     (inst / "index.html").write_text(html.replace('download="karma-editor.html"', dl), encoding="utf-8")
-    for f in ("fukiai.ttf", "FUKIAI-LICENSE.txt"):
-        if (HERE / f).exists():
-            shutil.copy(HERE / f, ed / f)
     (out / "index.html").write_text(
         '<!doctype html><meta charset="utf-8"><title>KARMA</title>'
         '<meta http-equiv="refresh" content="0; url=webapp/installer/">'

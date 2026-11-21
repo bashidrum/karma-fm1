@@ -2462,7 +2462,6 @@ static void events_block(uint32_t n)
     }
     PC_MARK(PC_EV_ENG);
     keyboard_block();
-    drum_audition_poll();                             /* (the editor's DRUM SYNTH page) */
     strum_block(n);                                   /* (voice.c: the strummed notes due) */
     PC_MARK(PC_EV_KEYS);
     while (mi_r != mi_w) {                            /* USB-MIDI (and TRS) in */

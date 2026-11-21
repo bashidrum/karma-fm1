@@ -202,7 +202,7 @@ static void ota_commit(const uint8_t *parm)
 }
 #endif
 #if FELUCCA_OTA
-#include "editor.c"          /* web editor SysEx (needs the OTA SysEx plumbing) */
+#include "editor.c"          /* the backup page's SysEx (needs the OTA SysEx plumbing) */
 #endif
 #if FELUCCA_CDC
 #include "console.c"

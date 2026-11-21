@@ -62,8 +62,6 @@ run "sequencer 2.0: no drift, ratchets, roll, erase / undo, ghost / hard, chords
 
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/drumkit_test" tests/drumkit_test.c $PLX -lm
 run "synthesised drum kits: every kit x sound bounded, audible, finite, levels, cost" "$OUT/drumkit_test" "$OUT/drum-kits.wav" "$OUT/drum-kits.txt"
-$CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/dsyn_test" tests/dsyn_test.c $PLX -lm
-run "SYN1..SYN4 drum kits and the editor's DRUM SYNTH commands (v10)" "$OUT/dsyn_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/font_test" tests/font_test.c
 run "the screen font at 1 bit a pixel: every glyph, the same pixels as 2.5" "$OUT/font_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/punch_test" tests/punch_test.c $PLX -lm
@@ -158,10 +156,10 @@ run "regression: target cost of the render loops" python3 tests/target_budget.py
     build/felucca.dis tests/target_budget.txt
 
 run "installer CLI (fm1_install.py) against a simulated FM-1" python3 tests/install_test.py
-run "the offline editor (one file, nothing next to it)" python3 tests/site_test.py
+run "the offline backup page (one file, nothing next to it)" python3 tests/site_test.py
 
 if command -v node >/dev/null 2>&1; then
-    run "web pages: editor protocol, samples, packages, update protocol" node web/test_web.mjs
+    run "web pages: backup page, packages, update protocol" node web/test_web.mjs
 else
     echo "== skip web tests (no node)"
 fi

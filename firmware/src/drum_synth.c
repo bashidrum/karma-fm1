@@ -310,10 +310,10 @@ static int ds_render(dsv_t *s, int32_t *out, uint32_t n)
 
 /* ---- your own HEX kits, MY HEX 1..4 (drums.c DRUM_SYN..; SLOOP 2.5 had its SYN kits of dsnd_t here, in the same
  * bytes): each a kit as HEX_KITS has them, 16 hex_snd_t, with a name. Edited on the device (the drum track's EDIT
- * pages, ui_studio.c hex_ui_sync; the web editor's DRUM SYNTH page still speaks the old sounds' bytes) and kept in
+ * pages, ui_studio.c hex_ui_sync) and kept in
  * flash after the settings (project.c settings_write: one A/B object). They live in RAM (the drum voices play them
  * from there, so an edit is heard at once). A bank from before (another magic): the defaults. Every value from
- * outside (flash, the editor) goes through dsu_fix, so the voices only ever see values they expect. */
+ * outside (flash, a backup restored) goes through dsu_fix, so the voices only ever see values they expect. */
 #define DSU_N 4u
 #define DSU_MAGIC 0x31584548u                     /* "HEX1" */
 typedef struct {
@@ -384,5 +384,5 @@ static const dsu_kit_t *dsu_kit(uint32_t k)       /* (RAM never set up: the defa
         dsu_defaults();
     return &dsu.k[k % DSU_N];
 }
-/* the GM note each synthesised lane answers to with no pitch offset (DS_MAP): the editor's audition */
+/* the GM note each synthesised lane answers to with no pitch offset (DS_MAP; tests/hex_demo.c plays the kits with it) */
 static const uint8_t DS_LANE_NOTE[DS_LANES] = {36, 38, 39, 42, 46, 43, 48, 49, 51, 70, 63, 37, 56, 75, 35, 40};

@@ -46,7 +46,7 @@ The FM-1 has these controls: the buttons PLAY, REC, SAVE, HOME, ENV, LFO, FX, SE
 15. [Settings and menus](#15-settings-and-menus)
 16. [MIDI and USB](#16-midi-and-usb)
 17. [The engines and the sound list](#17-the-engines-and-the-sound-list)
-18. [Kits and the web editor](#18-kits-and-the-web-editor)
+18. [Kits and the backup page](#18-kits-and-the-backup-page)
 19. [Every button gesture, screen by screen](#19-every-button-gesture-screen-by-screen)
 20. [Troubleshooting and recovery](#20-troubleshooting-and-recovery)
 21. [Credits](#21-credits)
@@ -732,13 +732,13 @@ Where they come from: ACID is Charles Vestal's TB-303 voice from X0X (after Open
 
 ---
 
-## 18. Kits and the web editor
+## 18. Kits and the backup page
 
-*This section is carried over from KARMA and was not re-checked against PHEBUS's colours or the editor's current pages in this pass.*
+*The kits part is carried over from KARMA and was not re-checked against PHEBUS's colours in this pass.*
 
 - **MY HEX 1 to 4** are the last four kits. A copy of a HEX kit is made the first time you turn a knob on a built-in HEX kit.
-- The **web editor** (Chrome or Edge, FM-1 on USB, press Connect) follows the device live and edits sounds, sequences, songs, drum kits and settings. It also makes **backups** (Projects > Backup).
-- Try the editor without hardware by adding `?mock=1` to its address. Its protocol is in [web/EDITOR_PROTOCOL.md](web/EDITOR_PROTOCOL.md).
+- The **backup page** (`web/editor.html`, at the web editor's old address; Chrome or Edge, FM-1 on USB) has three buttons: **Connect**, **Save backup** (downloads a file) and **Restore** (writes a backup file back to the FM-1, after a confirmation). It edits nothing. Its protocol is in [web/EDITOR_PROTOCOL.md](web/EDITOR_PROTOCOL.md).
+- A KARMA backup restores too; its user sample slots are skipped.
 - The browser simulator and its cheat sheet are in `web/emu/`.
 
 A backup holds the music you are working on, the four projects, the 32 user presets, the MY HEX kits and the settings. Save a backup before you flash anything.
@@ -907,7 +907,7 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 | Notes fade on a dense part | the processor is at its limit. Mute a voice, use fewer held notes, or a lighter sound. The load shows on GLO > SYSTEM, KNOB 4 |
 | Nothing from the MIDI IN jack | try the other adapter type, and check the channel and that IN is not CLOCK |
 
-**Going back to the official firmware.** *Carried over from KARMA's guide, not tested with PHEBUS.* Save a backup with the web editor first. Download M-VAVE's updater, M-UPGRADE, and the official FM-1 firmware from m-vave.com, close every app that uses MIDI, and run the update. An FM-1 goes back only to the official version it last had.
+**Going back to the official firmware.** *Carried over from KARMA's guide, not tested with PHEBUS.* Save a backup with the backup page first. Download M-VAVE's updater, M-UPGRADE, and the official FM-1 firmware from m-vave.com, close every app that uses MIDI, and run the update. An FM-1 goes back only to the official version it last had.
 
 **Backups.** Because PHEBUS is unreleased and untested on hardware, back up everything the FM-1 holds before you flash anything, and read [BUILDING.md](BUILDING.md) before you build.
 
@@ -918,7 +918,7 @@ These could not be confirmed from the code and are not described above as fact:
 - how it all behaves on a real FM-1;
 - that a flash save never stalls the screen or the audio;
 - the -60 dB silence threshold for the stop autosave against a real noise floor;
-- the web editor's pages against the new firmware.
+- the backup page against the new firmware.
 
 ---
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""SLOOP 2.6: the offline editor (web/make_site.py offline_editor): one file that needs nothing next to it."""
+"""The offline backup page (web/make_site.py offline_editor, web/editor.html): one file that needs nothing next to it."""
 import re
 import sys
 from pathlib import Path
@@ -20,16 +20,15 @@ def check(what, ok):
     bad += not ok
 
 
-check("the editor links the offline file (download)", src.count('download="karma-editor.html"') == 1)
+check("the backup page links the offline file (download)", src.count('download="karma-editor.html"') == 1)
 check("the installer page links it too",
       (ROOT / "web" / "index_pkg.html").read_text(encoding="utf-8").count('href="../editor/karma-editor.html"') == 1)
-check("offline: the icon font inlined", 'url("fukiai.ttf")' not in off and "font/ttf;base64," in off)
+check("offline: no icon font (the editor's Fukiai font went with the editing)", "fukiai" not in off.lower())
 check("offline: no download link to itself", "<!--DL-->" not in off and 'id="offline"' not in off)
-check("offline: the installer and the font licence online",
-      'href="../installer/"' not in off and make_site.ONLINE + "webapp/installer/" in off
-      and 'href="FUKIAI-LICENSE.txt"' not in off)
+check("offline: the installer online",
+      'href="../installer/"' not in off and make_site.ONLINE + "webapp/installer/" in off)
 rel = [m for m in re.findall(r'(?:src|href)="([^"#]+)"', off) if not re.match(r"(https?:|data:|mailto:)", m)]
 check("offline: no other file next to it (no relative src / href)", not rel)
 check("offline: no url() to a file", not re.search(r'url\((?!data:)["\']?[A-Za-z]', off))
-print("site:", "FAILED" if bad else "offline editor test passed")
+print("site:", "FAILED" if bad else "offline backup page test passed")
 sys.exit(1 if bad else 0)
