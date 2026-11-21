@@ -527,25 +527,29 @@ static const page_t PAGES[] = {
     {"ENV DEST", FAM_ENV, SC_TRACK, GR_NONE, {P_ED_FLT, P_ED_PIT, P_ED_SHP, P_ESYNC}},   /* (P_ED_FX: the level trim, no
                                                                        * page); 2.6: ESYNC, ENV's times as note values */
     {"HEX AEG", FAM_ENV, SC_GLOBAL, GR_HEX, {G_HXATK, G_HXDEC, G_HXSLOPE, G_HXLVL}},
-    /* FX: the track's drive and sends, its own effects in signal order, then the shared (global) effects */
+    /* FX: the track's drive and sends, its own effects in signal order (PHEBUS, 21 Nov 2026, Ben: "Merge and move": the
+     * shared effects, DLY REV/CHO CLOUD CLOUD 2, are GLO's pages now, not in each voice's chain) */
     {"FX", FAM_FX, SC_TRACK, GR_FX, {P_DIST, P_CHOR, P_DLY, P_REV}},
     {"CHORUS", FAM_FX, SC_TRACK, GR_NONE, {P_E7, 0xFF, 0xFF, 0xFF}, PG_ENG(ENGI_JUNO)},   /* JUNO's own BBD chorus */
     {"INSERT", FAM_FX, SC_TRACK, GR_INS, {P_ITYPE, P_IA, P_IB, P_IC}},   /* 2.6 (Felucca 1.5): the track's INSERT (fx.c), */
     {"INSERT 2", FAM_FX, SC_TRACK, GR_INS, {P_IMIX, 0xFF, 0xFF, 0xFF}},  /* .. its dry / wet; the drum track too */
     {"SLICER", FAM_FX, SC_TRACK, GR_SLCR, {P_SLCR, P_SLPAT, P_SLRATE, P_SLDEPTH}},   /* drum track too */
-    {"CLOUD", FAM_FX, SC_GLOBAL, GR_NONE, {G_CLSEND, G_CLPOS, G_CLSIZE, G_CLPIT}},     /* Clouds' grains (cloud.c): the */
-    {"DLY", FAM_FX, SC_GLOBAL, GR_NONE, {G_DTIME, G_DFDBK, G_DCOLOR, G_DMIX}},
-    {"REV/CHO", FAM_FX, SC_GLOBAL, GR_NONE, {G_RSIZE, G_RDAMP, G_CRATE, G_CDEPTH}},
-    {"CLOUD 2", FAM_FX, SC_GLOBAL, GR_NONE, {G_CLDENS, G_CLTEX, G_CLFB, G_CLFRZ}},   /* track's send, then the cloud's own */
-    /* MOD: the LFO, where it goes, then its sync (2.6, Felucca 1.4) */
+    /* MOD: the LFO, where it goes, then its sync (2.6, Felucca 1.4; PHEBUS 21 Nov: named LFO SYNC, it was LFO 2) */
     {"LFO", FAM_MOD, SC_TRACK, GR_LFO, {P_LRATE, P_LWAVE, P_LPHASE, P_LFADE}},
     {"LFO DEST", FAM_MOD, SC_TRACK, GR_NONE, {P_LD_PIT, P_LD_FLT, P_LD_SHP, P_LD_AMP}},
-    {"LFO 2", FAM_MOD, SC_TRACK, GR_LFO, {P_LSYNC, P_LTRIG, P_LPOL, 0xFF}},   /* SYNC TRIG POL */
+    {"LFO SYNC", FAM_MOD, SC_TRACK, GR_LFO, {P_LSYNC, P_LTRIG, P_LPOL, 0xFF}},   /* SYNC TRIG POL */
     /* ---- the other pages */
     {"SEL", FAM_SCL, SC_TRACK, GR_SCALE, {P_ROOT, P_SCALE, P_QUANT, P_CHORD}},
     {"SEL 2", FAM_SCL, SC_TRACK, GR_SCALE, {P_TRANS, P_STRUM, P_VLEAD, 0xFF}},   /* (2.4: the chords played) */
     {"GLOBAL", FAM_GLO, SC_GLOBAL, GR_NONE, {G_BPM, G_SWING, G_CLOCK, G_TUNE}},
     {"MASTER", FAM_GLO, SC_GLOBAL, GR_NONE, {G_DUST, G_DUCK, G_FILT, G_ROLL}},
+    /* the shared effects (PHEBUS, 21 Nov 2026: out of the voices' FX stage): the delay, reverb and chorus every track
+     * sends to, and Clouds' grains (cloud.c): CLOUD's SEND is the selected track's send (the drum track's: the selected
+     * sound's; ui_studio.c cloud_ui_sync), the rest the cloud's own */
+    {"DLY", FAM_GLO, SC_GLOBAL, GR_NONE, {G_DTIME, G_DFDBK, G_DCOLOR, G_DMIX}},
+    {"REV/CHO", FAM_GLO, SC_GLOBAL, GR_NONE, {G_RSIZE, G_RDAMP, G_CRATE, G_CDEPTH}},
+    {"CLOUD", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CLSEND, G_CLPOS, G_CLSIZE, G_CLPIT}},
+    {"CLOUD 2", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CLDENS, G_CLTEX, G_CLFB, G_CLFRZ}},
     {"SYSTEM", FAM_GLO, SC_GLOBAL, GR_NONE, {G_MIDI, G_SYNC, G_ROUTE, G_INFO}},
     {"DRUMS", FAM_GLO, SC_GLOBAL, GR_NONE, {G_DRCH, G_DRLVL, G_DRREV, G_DRDLY}},   /* GM kit on MIDI ch 10 */
     {"MIDI", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CH1, G_CH2, G_CH3, G_DRCH}},   /* 2.6: each track's channel, the drums' too */

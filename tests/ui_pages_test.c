@@ -929,6 +929,54 @@ int main(int argc, char **argv)
         int16_t bpm;
         #define PT() (PAGES[ui.page].title)
         #define SEL(n) do { encs[panel.enc[EN_SELECT]] = (n); frame(); } while (0)
+        {   /* PHEBUS, 21 Nov 2026 (Ben: "Merge and move"): each voice's chain without the shared effects, LFO 2 named
+             * LFO SYNC; DLY, REV/CHO, CLOUD, CLOUD 2 under GLO, neutral; every parameter still on a page */
+            static const char *const WANT[5] = {
+                "OSC|VOICE|VOICE 2|FILTER|FILTER 2|ENV|ENV DEST|FX|INSERT|INSERT 2|SLICER|LFO|LFO DEST|LFO SYNC",
+                "OSC|VOICE|VOICE 2|FILTER|ENV|ENV DEST|FX|CHORUS|INSERT|INSERT 2|SLICER|LFO|LFO DEST|LFO SYNC",
+                "OSC|OSC 2|VOICE|VOICE 2|FILTER|ENV|ENV DEST|FX|INSERT|INSERT 2|SLICER|LFO|LFO DEST|LFO SYNC",
+                "OSC|OSC 2|VOICE|VOICE 2|FILTER|ENV|ENV DEST|FX|INSERT|INSERT 2|SLICER|LFO|LFO DEST|LFO SYNC",
+                "HEX OSC|HEX MOD|HEX CLICK|HEX MORE|HEX FILT|FILTER|HEX AEG|INSERT|INSERT 2|SLICER"};
+            static const char *const NM[5] = {"ACID", "JUNO", "ELEMENTS", "PLAITS", "drums (HEX)"};
+            static const uint8_t SEL_OF[5] = {0, 0, 1, 2, 3};
+            uint8_t e0 = trk[0].eng_req, pre0 = trk[0].preset, idx[40], seen[G_COUNT] = {0};
+            uint32_t v, n, i, g_glo = 0, glob_ok = 1;
+            for (v = 0; v < 5u; v++) {
+                char got[400] = "", what[96];
+                if (v == 1u) { set_engine_of(&trk[0], ENGI_JUNO); apply_preset_to(&trk[0], 0); }
+                if (v == 2u) { set_engine_of(&trk[0], e0); apply_preset_to(&trk[0], pre0); }
+                song.sel = SEL_OF[v];
+                n = chain_list(idx, sizeof idx);
+                for (i = 0; i < n; i++) {
+                    glob_ok &= PAGES[idx[i]].graph == GR_HEX || PAGES[idx[i]].scope != SC_GLOBAL;
+                    if (i) strcat(got, "|");
+                    strcat(got, PAGES[idx[i]].title);
+                }
+                snprintf(what, sizeof what, "chain on %s: the page list as decided (%u pages)", NM[v], (unsigned)n);
+                if (strcmp(got, WANT[v])) printf("ui:   got  %s\nui:   want %s\n", got, WANT[v]);
+                check(!strcmp(got, WANT[v]), what);
+            }
+            song.sel = 0;
+            check(glob_ok, "no shared (global) effect page left in any voice's chain");
+            for (i = 0; i < NPAGES; i++)
+                if (PAGES[i].fam == FAM_GLO) {
+                    uint32_t k;
+                    for (k = 0; k < 4u; k++) if (PAGES[i].id[k] != 0xFFu) seen[PAGES[i].id[k]] = 1;
+                    g_glo |= (!strcmp(PAGES[i].title, "DLY") ? 1u : 0u) | (!strcmp(PAGES[i].title, "REV/CHO") ? 2u : 0u) |
+                             (!strcmp(PAGES[i].title, "CLOUD") ? 4u : 0u) | (!strcmp(PAGES[i].title, "CLOUD 2") ? 8u : 0u);
+                }
+            check(g_glo == 15u && seen[G_DTIME] && seen[G_DFDBK] && seen[G_DCOLOR] && seen[G_DMIX] && seen[G_RSIZE] &&
+                  seen[G_RDAMP] && seen[G_CRATE] && seen[G_CDEPTH] && seen[G_CLSEND] && seen[G_CLPOS] && seen[G_CLSIZE] &&
+                  seen[G_CLPIT] && seen[G_CLDENS] && seen[G_CLTEX] && seen[G_CLFB] && seen[G_CLFRZ],
+                  "GLO: DLY, REV/CHO, CLOUD, CLOUD 2 with all sixteen of their controls");
+            go_home(); open_family(FAM_GLO); frame();
+            for (i = 0; i < 16u; i++) { encs[panel.enc[EN_SELECT]] = -1; frame(); }
+            for (i = 0; i < 16u && strcmp(PAGES[ui.page].title, "DLY"); i++) { encs[panel.enc[EN_SELECT]] = 1; frame(); }
+            ui.force = 1; frame(); ppm("page-glo-dly");
+            check(!strcmp(PAGES[ui.page].title, "DLY"), "GLO, SELECT: reaches DLY");
+            for (i = 0; i < 2u; i++) { encs[panel.enc[EN_SELECT]] = 1; frame(); }
+            ui.force = 1; frame(); ppm("page-glo-cloud");
+        }
         song.playing = 0; song.sel = 0; go_home(); ui.force = 1; frame();
         bpm = song.g[G_BPM];
         SEL(1);
@@ -936,20 +984,20 @@ int main(int argc, char **argv)
         song.g[G_BPM] = bpm;
         tap(B_LFO);
         check(!strcmp(PT(), "LFO"), "SELECT: LFO opens its first page");
-        /* (the sound chain, Ben 20 Nov 2026: OSC > FILTER > ENV > FX > MOD; MOD is LFO, LFO DEST, LFO 2) */
+        /* (the sound chain, Ben 20 Nov 2026: OSC > FILTER > ENV > FX > MOD; MOD is LFO, LFO DEST, LFO SYNC (21 Nov)) */
         SEL(1);
         check(!strcmp(PT(), "LFO DEST") && song.g[G_BPM] == bpm, "SELECT on LFO: next page LFO DEST, the tempo untouched");
         SEL(1);
-        check(!strcmp(PT(), "LFO 2") && song.g[G_BPM] == bpm, "SELECT: then LFO 2 (2.6)");
+        check(!strcmp(PT(), "LFO SYNC") && song.g[G_BPM] == bpm, "SELECT: then LFO SYNC (2.6's LFO 2, named for what it is)");
         ui.force = 1; frame(); ppm("page-lfo2");
         SEL(1);
-        check(!strcmp(PT(), "LFO 2") && song.g[G_BPM] == bpm, "SELECT: stops at the end of the chain (MOD's last page)");
+        check(!strcmp(PT(), "LFO SYNC") && song.g[G_BPM] == bpm, "SELECT: stops at the end of the chain (MOD's last page)");
         SEL(-1);
         check(!strcmp(PT(), "LFO DEST"), "SELECT left: the page before");
         SEL(-1);
         check(!strcmp(PT(), "LFO"), "SELECT left: LFO");
         SEL(-1);
-        check(!strcmp(PT(), "CLOUD 2"), "SELECT left from MOD's first page: FX's last (one chain)");
+        check(!strcmp(PT(), "SLICER"), "SELECT left from MOD's first page: FX's last, SLICER (one chain)");
         tap(B_FX); SEL(1);
         check(!strcmp(PT(), "INSERT"), "SELECT on FX: next page, INSERT");
         go_home(); tap(B_EDIT); tap(B_EDIT); SEL(1);
@@ -965,8 +1013,8 @@ int main(int argc, char **argv)
             check(lit > 100u, "FILTER page: the knob band shows it");
         }
         TSEL->p[P_TFLT] = 0;
-        tap(B_FX); SEL(7);
-        check(!strcmp(PT(), "CLOUD 2"), "SELECT on FX: on to its last page, CLOUD 2");
+        tap(B_FX); SEL(3);
+        check(!strcmp(PT(), "SLICER"), "SELECT on FX: on to its last page, SLICER (the shared effects are GLO's)");
         SEL(1);
         check(!strcmp(PT(), "LFO"), "SELECT on FX's last page: on to MOD (LFO)");
         go_home(); tap(B_EDIT); SEL(-9);
@@ -1187,8 +1235,8 @@ int main(int argc, char **argv)
         uint32_t j, w, ins_d = 0, flt_a = 0, flt_o = 0;
         #define K(n, v) do { encs[panel.enc[n]] = (v); frames(5); } while (0)
         #define WALK(fa_, ti_, hit_) do { open_family(fa_); frame(); \
-            for (j = 0; j < 12u; j++) { encs[panel.enc[EN_SELECT]] = -1; frame(); } \
-            for (j = 0; j < 12u; j++) { if (PAGES[ui.page].fam == (fa_) && !strcmp(PAGES[ui.page].title, ti_)) hit_ = 1; \
+            for (j = 0; j < 16u; j++) { encs[panel.enc[EN_SELECT]] = -1; frame(); } \
+            for (j = 0; j < 16u; j++) { if (PAGES[ui.page].fam == (fa_) && !strcmp(PAGES[ui.page].title, ti_)) hit_ = 1; \
                 encs[panel.enc[EN_SELECT]] = 1; frame(); } } while (0)
         song.playing = 0;
         song.sel = 0; steps_clear(&trk[0]); trk[0].p[P_SLEN] = 16; go_home(); frames(16);
@@ -1432,7 +1480,7 @@ int main(int argc, char **argv)
                 song.g[G_ROUTE] = 6;                      /* IN = CH 5 */
                 go_home(); frame();
                 open_family(FAM_GLO); frame();
-                for (j = 0; j < 12u && strcmp(PAGES[ui.page].title, "MIDI"); j++) { encs[panel.enc[EN_SELECT]] = 1; frame(); }
+                for (j = 0; j < 16u && strcmp(PAGES[ui.page].title, "MIDI"); j++) { encs[panel.enc[EN_SELECT]] = 1; frame(); }
                 check(!strcmp(ui.msg, "IN CH 5: SELECTED TRK"), "GLO > MIDI with IN = CH 5: says that channel plays the selected track");
                 song.g[G_ROUTE] = 0;
             }
@@ -1444,7 +1492,7 @@ int main(int argc, char **argv)
             WALK(FAM_GLO, "TEXTURE", h1);
             WALK(FAM_GLO, "TEXTURE 2", h2);
             open_family(FAM_GLO); frame();
-            for (j = 0; j < 12u && strcmp(PAGES[ui.page].title, "TEXTURE"); j++) { encs[panel.enc[EN_SELECT]] = 1; frame(); }
+            for (j = 0; j < 16u && strcmp(PAGES[ui.page].title, "TEXTURE"); j++) { encs[panel.enc[EN_SELECT]] = 1; frame(); }
             frames(16);
             K(EN_K1, 1);                                  /* SRC: OFF -> VINYL */
             check(h1 && h2 && song.g[G_TXSRC] == 1, "GLO > TEXTURE, TEXTURE 2: the pages; KNOB 1 the source (VINYL)");
