@@ -590,7 +590,7 @@ static void proj_apply(const project_t *p, int all)
  * 2026 (Ben: "Dot + save on stop"): each time the transport stops, once the panel has rested AUTOSAVE_STOP_IDLE and the
  * output is silent (stop_quiet: a flash erase stalls the audio ~50 ms, so never under a tail), at most every
  * AUTOSAVE_STOP_GAP (the two sectors' wear); else, as before, AUTOSAVE_IDLE untouched and AUTOSAVE_GAP apart (the
- * output then need not be silent: a frozen CLOUD may hold it). quiet: no voice sounds */
+ * output then need not be silent: a long tail may hold it). quiet: no voice sounds */
 #define AUTOSAVE_IDLE 2500u                    /* ms without input */
 #define AUTOSAVE_GAP 20000u                    /* ms between two saves at least */
 #define AUTOSAVE_STOP_IDLE 300u                /* after a stop: ms without input (the STOP press itself is input) */
@@ -637,7 +637,7 @@ static void project_save(uint32_t slot)
 #endif
     proj_capture(p);
 #if FELUCCA_ARRANGER
-    live_sec = -1;                                      /* (3.0.3: saved from the menu or the editor: no section playing) */
+    live_sec = -1;                                      /* (3.0.3: saved from the menu or restored: no section playing) */
 #endif
 #if FELUCCA_FLASH
     if (flash_ok) {
@@ -655,7 +655,7 @@ static void project_save(uint32_t slot)
 }
 
 /* SAVE > PROJECT > ERASE (SLOOP 2.6, after a YouTube comment): the slot (section A..D) empty again. In flash as the
- * editor's restore leaves an empty slot (project_restore): an object of no bytes, which proj_fetch (older SLOOP too)
+ * backup page's restore leaves an empty slot (project_restore): an object of no bytes, which proj_fetch (older SLOOP too)
  * reads as no project. Stopped only: a flash erase stops the audio ~50 ms */
 static void project_erase(uint32_t slot)
 {
@@ -719,7 +719,7 @@ static void project_load(uint32_t slot)
     project_apply(p);
 #if FELUCCA_ARRANGER
     live_sec = -1;                                      /* (3.0.3; 2026-10-31, Ariel: every slot came to play the same song)
-                                                         * a project loaded from the menu or the editor is no section
+                                                         * a project loaded from the menu or restored is no section
                                                          * playing: edits stick kept it in the section last played, a
                                                          * moment after any touch. Only SAVE + key loads a section */
 #endif

@@ -62,17 +62,6 @@ static void up_params(const up_rec_t *r, int16_t *out, const int16_t *def)
         out[P_E0 + i] = r->p[nc + i];
 }
 
-static int up_name_ok(const uint8_t *s, uint32_t n)   /* 1..12 printable ASCII */
-{
-    uint32_t i;
-    if (!n || n > 12u)
-        return 0;
-    for (i = 0; i < n; i++)
-        if (s[i] < 32u || s[i] > 126u)
-            return 0;
-    return 1;
-}
-
 static void up_name(uint32_t k, char *b)       /* upper case, 0-terminated: b holds 13 */
 {
     const up_rec_t *r = up_rec(k);
@@ -110,37 +99,6 @@ static int up_pat_empty(const up_rec_t *r)
         if (r->note[i])
             return 0;
     return 1;
-}
-
-/* UP_PUT arguments: slot, engine, name, P_COUNT x v14, 16 x (note, flags) -> *r (values not yet
- * clamped); 0 ok, 1 bad arguments. *slot gets the slot byte when there is one. */
-static int up_parse(const uint8_t *a, uint32_t na, up_rec_t *r, uint32_t *slot)
-{
-    uint32_t i, n, k;
-    if (na < 3u)
-        return 1;
-    *slot = a[0];
-    for (n = 0; 2u + n < na && a[2 + n]; n++)
-        ;
-    k = 3u + n;                                  /* after the name's 0 */
-    if (a[0] >= UP_SLOTS || a[1] >= NENGINES || 2u + n >= na || !up_name_ok(a + 2, n) ||
-        na < k + 2u * P_COUNT + 32u)
-        return 1;
-    memset(r, 0, sizeof *r);
-    r->used = UP_USED;
-    r->ver = UP_VER;
-    r->engine = a[1];
-    r->np = P_COUNT;
-    for (i = 0; i < n; i++)
-        r->name[i] = (char)a[2 + i];
-    for (i = 0; i < P_COUNT; i++, k += 2u)
-        r->p[i] = (int16_t)((int32_t)((a[k] & 127u) | (a[k + 1] & 127u) << 7) - 8192);
-    for (i = 0; i < 16u; i++, k += 2u) {
-        r->note[i] = a[k];
-        r->flags[i] = a[k + 1];
-        up_pat_norm(&r->note[i], &r->flags[i]);
-    }
-    return 0;
 }
 
 #ifndef UP_HOST

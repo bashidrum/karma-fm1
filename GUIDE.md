@@ -203,8 +203,6 @@ A lock gives one sound parameter a different value on one step only.
 
 Tap the same button again to go to the next page that can be locked. EDIT walks OSC, FILT and ENV only. A value drawn in full colour is a lock. A dim value is the voice's own value.
 
-You can also hold a step and turn **PRESETS** to turn the lock parameter on (the last sound knob you touched, which starts as ENV > FLT). With the step still held, **ALGORITHM** chooses which parameter.
-
 There is a limit of **24 locks per voice**. Messages you may see: NOTHING TO LOCK HERE, NOT LOCKABLE, NO LOCK LEFT, LOCKS FULL: HOLD FEWER STEPS, LOCKS FULL: 24 A TRACK.
 
 ### Pages, length and follow
@@ -797,7 +795,6 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 | hold a step + KNOB 1 to 4 | NOTE, LEN, VEL, COND |
 | hold a step + SELECT right or left | FLAG, RATCH, NUDGE, or back |
 | hold a step + tap EDIT, ENV, LFO, FX | parameter locks |
-| hold a step + PRESETS or ALGORITHM | lock on or off, or choose the lock parameter |
 | hold a step + OCT- | clear locks (and nudge and condition on the GRID) |
 | hold a step + OCT+ | next condition |
 | hold several steps | edit them together |

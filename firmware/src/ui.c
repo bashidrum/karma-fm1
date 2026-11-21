@@ -69,8 +69,6 @@ static struct {
     uint8_t layer_used;          /* a key / knob / OCT was used while it was held: no tap on release */
     uint32_t layer_t0;           /* its press time (ms) */
     uint32_t step_sess;          /* SEQ layer: the undo session of this hold */
-    uint8_t lock_par;            /* SEQ layer, a step held + KNOB 4: the parameter it locks (the last sound
-                                  * parameter a knob changed on a page of the selected track; P_ED_FLT at boot) */
     uint8_t hold_kind;           /* a hold to confirm: 1 = clear the track (REC), 2 = save (SAVE) */
     uint32_t hold_t0;            /* (ms) */
     uint8_t hold_trk;
@@ -770,7 +768,7 @@ static const param_desc_t *home_param(uint32_t k, int16_t **vp)
     return track_desc(TSEL, id);
 }
 
-/* select track i (KNOB 1 on TRACKS, the editor): its sound, pages and pattern from now on */
+/* select track i (ALGORITHM, MIDI): its sound, pages and pattern from now on */
 static void track_select(uint32_t i)
 {
     if (i >= NTRK || i == song.sel)

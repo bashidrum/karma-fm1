@@ -80,7 +80,7 @@ enum {                          /* global parameters */
     G_RSIZE, G_RDAMP, G_CRATE, G_CDEPTH,
     G_MIDI, G_SYNC, G_ROUTE, G_INFO,
     G_SLOT, G_NAME, G_LOAD, G_SAVE,
-    G_ENGSEL, G_ENGGO,          /* no page (the ENGINE page is gone); a SET of G_ENGSEL switches the engine (editor) */
+    G_ENGSEL, G_ENGGO,          /* no page (the ENGINE page is gone; KARMA's editor set them): kept, unused */
     G_CLRSEQ, G_INITSND,
     G_DRCH, G_DRLVL, G_DRREV,
     G_DUST, G_DUCK, G_FILT,     /* the master bus: lo-fi / vinyl, the kick ducking the parts, the DJ filter (fx.c) */
@@ -314,7 +314,7 @@ static song_t song;
 
 /* The transport clock (seq.c runs it). One unit = one sample at 1 BPM: a beat is BEAT_U units at any
  * tempo, and every division of it (1/4 .. 1/64, the triplets) is a whole number of units. The steps
- * of every track, the arp, the rolls, the click, the SLICER and the song arranger (which counts the
+ * of every track, the arp, the rolls, the click, the SLICER and the sections' bar count (which counts the
  * same units) all follow it: no rounding, no drift between them, a tempo change moves them together.
  * clk_beat: beats since PLAY, clk_pos: units into that beat, at the start of the block being rendered
  * (events_block advances it by CTL x BPM after the block's events). */

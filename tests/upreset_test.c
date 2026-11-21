@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* Host test of the user preset record (firmware/src/upreset.c, -DUP_HOST part):
- * UP_PUT parsing, a bank round trip through storage.c on a simulated NOR,
+ * a bank round trip through storage.c on a simulated NOR,
  * bank / record version checks, map-by-count, pattern <-> steps. */
 #include <stdint.h>
 #include <stdio.h>
@@ -23,6 +23,50 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
 }
 #include "../firmware/src/storage.c"
 #include "../firmware/src/upreset.c"
+
+/* (KARMA's editor sent records with UP_PUT; that command is cut. Its parser stays here only to build test
+ * records.) */
+static int up_name_ok(const uint8_t *s, uint32_t n)   /* 1..12 printable ASCII */
+{
+    uint32_t i;
+    if (!n || n > 12u)
+        return 0;
+    for (i = 0; i < n; i++)
+        if (s[i] < 32u || s[i] > 126u)
+            return 0;
+    return 1;
+}
+
+/* the arguments: slot, engine, name, P_COUNT x v14, 16 x (note, flags) -> *r (values not yet
+ * clamped); 0 ok, 1 bad arguments. *slot gets the slot byte when there is one. */
+static int up_parse(const uint8_t *a, uint32_t na, up_rec_t *r, uint32_t *slot)
+{
+    uint32_t i, n, k;
+    if (na < 3u)
+        return 1;
+    *slot = a[0];
+    for (n = 0; 2u + n < na && a[2 + n]; n++)
+        ;
+    k = 3u + n;                                  /* after the name's 0 */
+    if (a[0] >= UP_SLOTS || a[1] >= NENGINES || 2u + n >= na || !up_name_ok(a + 2, n) ||
+        na < k + 2u * P_COUNT + 32u)
+        return 1;
+    memset(r, 0, sizeof *r);
+    r->used = UP_USED;
+    r->ver = UP_VER;
+    r->engine = a[1];
+    r->np = P_COUNT;
+    for (i = 0; i < n; i++)
+        r->name[i] = (char)a[2 + i];
+    for (i = 0; i < P_COUNT; i++, k += 2u)
+        r->p[i] = (int16_t)((int32_t)((a[k] & 127u) | (a[k + 1] & 127u) << 7) - 8192);
+    for (i = 0; i < 16u; i++, k += 2u) {
+        r->note[i] = a[k];
+        r->flags[i] = a[k + 1];
+        up_pat_norm(&r->note[i], &r->flags[i]);
+    }
+    return 0;
+}
 
 static int check(const char *what, int ok)
 {
@@ -60,27 +104,7 @@ int main(void)
     memset(nor, 0xFF, sizeof nor);
 
     n = put_frame(a, 5, 2, "Bass One", -40);
-    bad += check("UP_PUT frame < 640 bytes", 5u + n + 1u < 640u);
-    bad += check("UP_PUT parses", up_parse(a, n, &r, &slot) == 0 && slot == 5u && r.engine == 2u &&
-                                      up_valid(&r) && !memcmp(r.name, "Bass One", 8) && !r.name[8]);
-    ok = 1;
-    for (i = 0; i < P_COUNT; i++)
-        ok &= r.p[i] == (int16_t)(-40 + (int32_t)i);
-    bad += check("UP_PUT values (negative v14 too)", ok);
-    bad += check("pattern: rest drops flags, tie has no note",
-                 r.note[0] == 0 && r.flags[0] == 0 && r.note[1] == 41 && r.flags[1] == 1 && r.note[3] == 0 &&
-                     r.flags[3] == 4);
-    bad += check("UP_PUT short frame -> args", up_parse(a, n - 1u, &r, &slot) == 1);
-    n = put_frame(a, 32, 0, "X", 0);
-    bad += check("UP_PUT slot 32 -> args", up_parse(a, n, &r, &slot) == 1);
-    n = put_frame(a, 0, NENGINES, "X", 0);
-    bad += check("UP_PUT bad engine -> args", up_parse(a, n, &r, &slot) == 1);
-    n = put_frame(a, 0, 0, "", 0);
-    bad += check("UP_PUT empty name -> args", up_parse(a, n, &r, &slot) == 1);
-    n = put_frame(a, 0, 0, "THIRTEEN CHRS", 0);
-    bad += check("UP_PUT 13-char name -> args", up_parse(a, n, &r, &slot) == 1);
-    n = put_frame(a, 0, 0, "TWELVE CHARS", 0);
-    bad += check("UP_PUT 12-char name ok", up_parse(a, n, &r, &slot) == 0 && !memcmp(r.name, "TWELVE CHARS", 12));
+    bad += check("a record", up_parse(a, n, &r, &slot) == 0 && up_valid(&r));
     {
         char nm[13];
         *up_rec(31) = r;

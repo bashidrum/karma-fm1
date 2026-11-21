@@ -1543,7 +1543,7 @@ static void keyboard_block(void)
 }
 
 /* LIVE: one record arm at most, on the selected track; selecting another track moves it there
- * (an arm follows too: it waits for a note on the track selected; a free take stays on its track) */
+ * (an arm follows too: it waits for a note on the track selected) */
 static void rec_follow(uint32_t sel)
 {
     if (song.rec)
@@ -2169,7 +2169,7 @@ static struct {
     uint8_t nbt;                 /* beats in bt */
     uint8_t skip;                /* (3.0.4) pulses after START / CONTINUE not yet timed (the first beat: see mclk_event) */
     int16_t mbpm;                /* (3.0.4) the master's tempo as last measured (0: none yet): START / CONTINUE start
-                                  * at it (STOP in song mode brings the project's own tempo back: song_restore) */
+                                  * at it */
     uint8_t have, n24;           /* a pulse since START; pulses towards the next tempo reading */
     uint8_t alive;               /* pulses are coming (from the SYNC source) */
 } mclk;

@@ -626,16 +626,9 @@ int main(int argc, char **argv)
     fm1_in.notes = 0; frame();
     trk[0].p[P_CHORD] = 0;
 
-    /* ---- the lock parameter (PRESETS / ALGORITHM with GRID steps held, ui_grid.c): the sound knob last touched */
-    check(ui.lock_par == P_ED_FLT, "the lock parameter starts as ENV > FLT");
     song.sel = 0; go_home(); frames(16);              /* (KNOB 1..4 quiet ~250 ms after a layer: #39) */
     open_family(FAM_FX); frame();                     /* the FX page: KNOB 1 = DIST */
     encs[panel.enc[EN_K1]] = 2; frame();
-    check(ui.lock_par == P_DIST && trk[0].p[P_DIST] > 0, "a sound knob turned (FX > DIST): the lock parameter");
-    open_family(FAM_SEQ); frame();                    /* PATTERN page knobs (LEN, DIV..) do not lock */
-    open_family(FAM_SEQ); frame();
-    if (cur_page()->id[1] == P_SDIV) { encs[panel.enc[EN_K2]] = 1; frame(); encs[panel.enc[EN_K2]] = -1; frame(); }
-    check(ui.lock_par == P_DIST, "a pattern knob (DIV) is not a lock parameter");
     go_home(); frame();
     {   /* SEQ held (PHEBUS): KNOB 1 nothing, 2 DIV, 3 SWING, 4 STEPS; PRESETS / ALGORITHM / OCT change nothing of the
          * steps; the screen draws the steps in time and says how many bars they make */
@@ -680,7 +673,6 @@ int main(int argc, char **argv)
     }
     fm1_irq_off(); steps_clear(TDRUM); steps_clear(&trk[0]); fm1_irq_on();
     trk[0].p[P_DIST] = 0;
-    ui.lock_par = P_ED_FLT;
     song.sel = 0; go_home(); frame();
 
     /* ---- REC: press arms; held: the ring; to the end: cleared */
@@ -846,6 +838,14 @@ int main(int argc, char **argv)
                         j &= text_w(&FONT_S, PAGES[j2].title) <= 122 - 46;
                 check(j, "GRID: every lock page's name fits the header whole (no \"LOCK VOIC\")");
             }
+        }
+        {   /* (the hidden lock gesture is cut: PRESETS / ALGORITHM with a step held lock nothing, change no sound) */
+            uint32_t nl = 0, j, eng = t->eng_req, pr = t->preset, sel = song.sel;
+            for (j = 0; j < NLOCK; j++) nl += t->lock[j].step != 0xFFu && t->lock[j].param < P_COUNT;
+            encs[panel.enc[EN_PRESET]] = 2; frame(); encs[panel.enc[EN_ALGO]] = 1; frame(); encs[panel.enc[EN_PRESET]] = -1; frame();
+            for (j = 0; j < NLOCK; j++) nl -= t->lock[j].step != 0xFFu && t->lock[j].param < P_COUNT;
+            check(!nl && t->eng_req == eng && t->preset == pr && song.sel == sel && sg_held == 1u << 4,
+                  "GRID: step held + PRESETS / ALGORITHM: nothing (no lock, no sound, no track change)");
         }
         ui.msg_t = 0;
         fm1_in.notes &= ~(1u << k5); frame();

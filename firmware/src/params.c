@@ -177,7 +177,7 @@ static const param_desc_t GP[G_COUNT] = {
     [G_ROUTE] = PE("IN", N_MIN, 0),               /* MIDI IN: NOTES (and the clock), CLOCK only, or CH n: that channel plays the
                                                    * selected track (a setting of the FM-1; it starts at CH 1: panel.c lights_min) */
     [G_INFO] = PD("CPU", F_INT, 0, 0, 0),
-    [G_SLOT] = {"PART", F_ENUM, 1, 4, 1, PART_N, 0},   /* (3.0.5) the song's part A..D, as the SONG screen names them */
+    [G_SLOT] = {"PART", F_ENUM, 1, 4, 1, PART_N, 0},   /* (3.0.5) the section A..D */
     [G_NAME] = PE("NAME", N_DASH, 0),
     [G_LOAD] = PE("LOAD", N_GO, 0),
     [G_SAVE] = PE("SAVE", N_GO, 0),
@@ -469,7 +469,7 @@ static const page_t PAGES[] = {
                                                                        * page); 2.6: ESYNC, ENV's times as note values */
     {"HEX AEG", FAM_ENV, SC_GLOBAL, GR_HEX, {G_HXATK, G_HXDEC, G_HXSLOPE, G_HXLVL}},
     /* FX: the track's drive and sends, its own effects in signal order (PHEBUS, 21 Nov 2026, Ben: "Merge and move": the
-     * shared effects, DLY REV/CHO CLOUD CLOUD 2, are GLO's pages now, not in each voice's chain) */
+     * shared effects, DLY and REV/CHO, are GLO's pages now, not in each voice's chain) */
     {"FX", FAM_FX, SC_TRACK, GR_FX, {P_DIST, P_CHOR, P_DLY, P_REV}},
     {"CHORUS", FAM_FX, SC_TRACK, GR_NONE, {P_E7, 0xFF, 0xFF, 0xFF}, PG_ENG(ENGI_JUNO)},   /* JUNO's own BBD chorus */
     {"INSERT", FAM_FX, SC_TRACK, GR_INS, {P_ITYPE, P_IA, P_IB, P_IC}},   /* 2.6 (Felucca 1.5): the track's INSERT (fx.c), */

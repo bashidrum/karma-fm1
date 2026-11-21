@@ -2,11 +2,10 @@
 
 Felucca is free software. Its **code** is licensed under the GNU General Public License,
 version 3 only (`GPL-3.0-only`, full text in `LICENSE`). Its **assets** are not part of
-that licence: the icon atlas `assets/icons.png`, the panel image `docs/panel.jpg` and the drum sounds made by
-`tools/gen_waves.py` (the Hügelton Sample Pack) are Copyright (C) 2026 Hügelton Instruments,
-all rights reserved. Their licence terms will be published later. SLOOP's firmware does not contain the
-Hügelton Sample Pack: its sampled drum kit is made of CC0 recordings (`assets/samples-cc0/KIT`), and
-`gen_waves.py` only feeds the SLICE engine's demo loop, which SLOOP does not build.
+that licence: the icon atlas `assets/icons.png` and the panel image `docs/panel.jpg` are Copyright (C) 2026
+Hügelton Instruments, all rights reserved. Their licence terms will be published later. (The Hügelton Sample
+Pack, `tools/gen_waves.py`, and the CC0 samples, `assets/samples-cc0/`, are no longer in this tree: they fed
+the cut SAMPLE / SLICE engines and the user sample kits.)
 
 Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
 
@@ -44,7 +43,6 @@ assets, is entirely governed by the GPL.
 
 | What | Licence | Where |
 | --- | --- | --- |
-| Instrument and drum samples (Versilian Studios VSCO-2 CE, VCSL; Sonic Pi: SCRCH) | CC0 1.0 | `assets/samples-cc0/`, provenance in `ATTRIBUTION.txt` there |
 | Terminus font 8x16: the FM-1's screen (Terminus Bold, ter-u16b, SLOOP 2.6) | SIL OFL 1.1 | `assets/fonts/ter-u16b.bdf`, `assets/fonts/Terminus-LICENSE.txt` |
 | CrispyZebra by Leo Kuroshita (<https://github.com/hugelton/CrispyZebra>): the PHASE engine's waveforms are a C port of its oscillator | GPL-3.0 | `firmware/src/eng_phase.c` |
 | klattsch by Tony Gies (<https://github.com/tgies/klattsch>): design reference for the VOICE (formant) engine; no code copied. Formant data from Klatt (1980) / Hillenbrand et al. (1995) | MIT (klattsch) | credit only |

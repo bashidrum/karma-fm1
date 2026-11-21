@@ -3,12 +3,12 @@
 """karma_prof.py [SECONDS] : where the FM-1's audio time goes while it plays (KARMA 3.1.3), once a second.
 Editor command 94 (any build): mix_block's parts (fx.c PF_*): the average and the worst block, in us (a 32-frame block
 has ~725 us). With the measuring build (KARMA_PCOST=1 sh build.sh -> build/karma-pcost.fwsc), command 91 too: the HEX
-drum voices and the CLOUD by stage, as % of one core. Read only. Needs mido + python-rtmidi (~/fm1-firmware/venv)."""
+drum voices and the effects by stage, as % of one core. Read only. Needs mido + python-rtmidi (~/fm1-firmware/venv)."""
 import sys
 import time
 import mido
 
-PARTS = ["events", "t1", "t2", "t3", "drums", "buses", "cloud", "out"]
+PARTS = ["events", "t1", "t2", "t3", "drums", "buses", "fxp", "out"]
 STAGES = ["setup", "bank", "bowloop", "bownoise", "blow", "upsample", "out", "omin", "plaits", "plaits_out", "prism",
           "om_osc", "om_iir", "om_fir", "om_rest", "plx_init", "init_max",
           "hx_set", "hx_drum", "hx_snare", "hx_cym", "hx_dec", "ev_drum", "ev_note"]

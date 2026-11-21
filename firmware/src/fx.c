@@ -819,7 +819,7 @@ static int32_t fxp_c[CTL], fxp_d[CTL], fxp_r[CTL];   /* (test 8) the last block'
 #define FXP_R fxp_r
 #elif !KARMA_DUAL_CORE || !KARMA_CPU1_FX                /* (3.1.5) the effects on CPU0 (one core, or KARMA_CPU1_FX 0): on this
                                                  * block's sends, as 3.1.2, no block behind and no copy (3.1.4 held them in
-                                                 * fxp_*: 512 B of RAM, now each track's ACID GEN and envelope steps) */
+                                                 * fxp_*: 512 B of RAM) */
 #define FXP_C send_c
 #define FXP_D send_d
 #define FXP_R send_r
@@ -843,7 +843,7 @@ static void fx_prev(void)
 }
 #if KARMA_DUAL_CORE
 /* (3.1.5 test 4) melodee#17: on some FM-1s CPU1 reads SRAM wrong under load (a clean flip of bit 20 or 21, 0 read as
- * 0x00200000). A track shrugs one bad sample off; the reverb, delay and CLOUD feed it back (3.1.3's "distortion after
+ * 0x00200000). A track shrugs one bad sample off; the reverb and delay feed it back (3.1.3's "distortion after
  * a while"?). Each core re-reads 4 KB that holds zeros once a block and counts what is not (editor ED_STAT) */
 #ifndef KARMA_FLIPS
 #define KARMA_FLIPS 0   /* (test 4: 0 flips in 3.1e9 reads on Ariel's FM-1; off: it cost ~1 % a core) */
@@ -1167,7 +1167,8 @@ static __attribute__((noinline)) void stem_take(uint32_t k, uint32_t n, int post
 
 /* where a block's time goes (2026-10-28: the FM-1 overloaded with HEX drums and three tracks): the timer's ticks summed
  * per part of mix_block since the last read (console.c `prof`, which zeroes them). The host has no timer: 0 */
-enum { PF_EVENTS, PF_T1, PF_T2, PF_T3, PF_DRUMS, PF_BUSES, PF_CLOUD, PF_OUT, PF_N };
+enum { PF_EVENTS, PF_T1, PF_T2, PF_T3, PF_DRUMS, PF_BUSES, PF_FXP, PF_OUT, PF_N };   /* (PF_FXP: the effects in the wait
+                                                         * (KARMA_FX_WAIT) and the sends' copy; it was named for the cut CLOUD) */
 static uint32_t prof_ticks[PF_N], prof_blocks, prof_max[PF_N], prof_blk_max, prof_blk[PF_N], prof_worst[PF_N];   /* (and the worst block) */
 #ifdef FM1_TICKS_PER_US
 #define PROF_NOW() fm1_ticks()
@@ -1230,7 +1231,7 @@ static void mix_block(int32_t *out, uint32_t n)
 #if KARMA_FX_WAIT
         fx_prev();                                      /* (test 8) the effects while CPU1 still renders */
         fx_wait = 1;
-        PROF(PF_CLOUD);                                 /* (karma_prof "cloud": the effects in the wait) */
+        PROF(PF_FXP);                                   /* (karma_prof "fxp": the effects in the wait) */
 #endif
     } else
 #endif
@@ -1340,7 +1341,7 @@ static void mix_block(int32_t *out, uint32_t n)
     }
     fxp_n = n;
 #endif
-    PROF(PF_CLOUD);
+    PROF(PF_FXP);
     if (fx_stems)                                       /* ... what the buses added */
         for (i = 0; i < n; i++)
             stem_fx[0][i] = STEM_OF(2 * (mix_l[i] - stem_fx[0][i])), stem_fx[1][i] = STEM_OF(2 * (mix_r[i] - stem_fx[1][i]));   /* (as far down) */

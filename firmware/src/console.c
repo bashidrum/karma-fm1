@@ -241,7 +241,7 @@ static void con_dbg(void)
 /* `prof`: the microseconds each part of the mix took since the last `prof` (fx.c mix_block), then zeroed */
 static void con_prof(void)
 {
-    static const char *const NAME[PF_N] = {"events", "track1", "track2", "track3", "drums", "fx_buses", "cloud", "out"};
+    static const char *const NAME[PF_N] = {"events", "track1", "track2", "track3", "drums", "fx_buses", "fxp", "out"};
     uint32_t k, b = prof_blocks;
     con_kv("blocks", (int32_t)b);
     for (k = 0; k < PF_N; k++) {

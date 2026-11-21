@@ -16,7 +16,6 @@ import hashlib
 import os
 import platform
 import re
-import shutil
 import struct
 import subprocess
 import sys
@@ -465,9 +464,6 @@ def main():
             karma = karma.replace(".fwsc", "-pcost.fwsc")    # (3.0.5: the measuring build, never a release)
         (OUT / karma).write_bytes(pkg)
         print(f"package  {OUT / karma}  (the same: flash this one)")
-    att = SRC / "assets" / "samples-cc0" / "ATTRIBUTION.txt"
-    if att.exists():
-        shutil.copy(att, OUT / "ATTRIBUTION.txt")
     print(f"app      {OUT / 'felucca.bin'}  {len(img)} B")
     print(f"loader   {LDR / 'ota.bin'}  {len(ota)} B")
     print(f"package  {OUT / name}  {len(pkg)} B, identity {PRODUCT}")

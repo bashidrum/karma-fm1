@@ -36,7 +36,6 @@ static void layers_init(void)
         ly_bit[l] = 1u << panel.btn[LAYER_BTN[l]];
     dyn_bit[0] = 1u << panel.btn[B_OCTDN];
     dyn_bit[1] = 1u << panel.btn[B_OCTUP];
-    ui.lock_par = P_ED_FLT;                             /* the lock parameter until a sound knob is turned */
 }
 
 static uint32_t key_of_white(uint32_t w) { return key_of_lane(w & 15u); }   /* white key w -> key index */
@@ -100,19 +99,6 @@ static void pattern_transpose(track_t *t, int32_t d)    /* every note a semitone
     fm1_irq_on();
 }
 
-/* ------------------------------------------------------------- SEQ --- */
-/* ALGORITHM with GRID steps held (ui_grid.c): the lock parameter, through the lockable ones (the drum track: not the
- * engine parameters it has no use for), wrapping round */
-static void lock_par_step(int32_t s)
-{
-    const track_t *t = TSEL;
-    uint32_t id = ui.lock_par % P_COUNT, guard = P_COUNT;
-    do {
-        id = (id + (uint32_t)P_COUNT + (uint32_t)(s > 0 ? 1 : -1)) % P_COUNT;
-    } while (guard-- && (!p_lockable(id) || lock_desc(t, id)->max <= lock_desc(t, id)->min ||
-                         (is_drum(t) && id > P_E0 && id <= P_E7)));
-    ui.lock_par = (uint8_t)id;
-}
 /* ------------------------------------------------------------- GLO --- */
 static void tap_tempo(void)
 {

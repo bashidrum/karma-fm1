@@ -305,7 +305,7 @@ typedef char cfg_len_ok[sizeof CFG_DESC == CFG_LEN ? 1 : -1];
  * descriptors above, byte for byte); OFF, the default, presents the device as a FELUCCA_CDC=0 build does: class 0,
  * no IAD, audio + MIDI only (the same bytes: tests/uac_test.c compares them). With the console, macOS 13-15 let
  * Apple's CDC composite driver take the device and the USB audio input never appears. The console is a developer
- * tool; the editor, the installer and the soft key use USB-MIDI. Read once, before usb_start (main.c: the settings
+ * tool; the backup page, the installer and the soft key use USB-MIDI. Read once, before usb_start (main.c: the settings
  * are loaded first), so the host sees one device from the start */
 static uint8_t usb_cdc_on;
 static const uint8_t DEV_DESC_PLAIN[18] = {18, 1, 0x10, 0x01, 0, 0, 0, 64, 0x09, 0x12, 0x01, 0x00,

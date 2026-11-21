@@ -9,9 +9,10 @@
  *                    changed it meanwhile). A synth note is heard whenever it changes (the pen, a step's NOTE)
  *   hold a step      KNOB 1..4 edit it (synth: NOTE in the scale, LEN, VEL, COND; SELECT: FLAG, RATCH, NUDGE;
  *                    drums: LEVEL, RATCH, NUDGE, COND); ENV / LFO / FX / EDIT tapped: that button's page on the
- *                    knobs, and each knob turned LOCKS its parameter on the step (again: the next page); PRESETS a
- *                    lock of the SEQ layer's lock parameter, ALGORITHM picks it; OCT- the step's locks go (on a lock
- *                    page: that page's only; on the grid: locks, nudge and condition), OCT+ its condition
+ *                    knobs, and each knob turned LOCKS its parameter on the step (again: the next page); PRESETS
+ *                    and ALGORITHM do nothing (KARMA's hidden lock of the last knob touched is cut); OCT- the step's
+ *                    locks go (on a lock page: that page's only; on the grid: locks, nudge and condition), OCT+ its
+ *                    condition
  *   black keys 1..4  the page of steps (1-16 .. 49-64); OCT- / OCT+ (no step held) the page before / after
  * The screen shows the steps in the track's colour, the playhead, the page, and what the step held (or under the
  * cursor) holds: its notes, length, velocity, flags, condition, nudge and every lock. */
@@ -24,7 +25,6 @@ static uint16_t sg_pend;                                /* of those, the set ste
 static uint8_t sg_alt;                                  /* a synth step held: 0 NOTE LEN VEL COND, 1 FLAG RATCH NUDGE */
 static uint8_t sg_lpage = 0xFF;                         /* a step held + ENV / LFO / FX / EDIT: the page that locks */
 static uint8_t sg_trk;                                  /* the track the steps held are on (from the first key down) */
-static void lock_par_step(int32_t s);                   /* (ui_layers.c) */
 static void stl_key(uint32_t k, uint32_t down);         /* (ui_stut.c) */
 static uint32_t stl_keys_lit(uint32_t blink);
 static const char *const SG_COND[4] = {"-", "FILL", "NOFL", "CHNC"};
@@ -505,8 +505,7 @@ static void sg_held_oct(uint32_t up)
         ui_message(n ? "LOCKS, NUDGE, COND CLEARED" : "NO LOCK, NUDGE OR COND");
     }
 }
-/* the GRID's buttons and knobs that are the same on every track: OCT- / OCT+, ENV / LFO, PRESETS and ALGORITHM
- * with a step held, SELECT. Returns 1 when KNOB 1..4 were taken here (a step held, or a synth track) */
+/* the GRID's buttons and knobs that are the same on every track: OCT- / OCT+, ENV / LFO, SELECT with a step held. Returns 1 when KNOB 1..4 were taken here (a step held, or a synth track) */
 static int sg_input(uint32_t pressed)
 {
     uint32_t k;
@@ -533,10 +532,9 @@ static int sg_input(uint32_t pressed)
         return 1;
     if (!sg_held)
         return 0;
-    if ((s = panel_enc(EN_PRESET)) != 0)                /* the SEQ layer's lock parameter, locked on the steps */
-        sg_lock_turn(ui.lock_par % P_COUNT, s, EN_PRESET);
-    if ((s = panel_enc(EN_ALGO)) != 0)
-        lock_par_step(s);
+    /* PRESETS, ALGORITHM: nothing while a step is held (KARMA's hidden lock of the last knob touched is cut) */
+    (void)panel_enc(EN_PRESET);
+    (void)panel_enc(EN_ALGO);
     if ((s = panel_enc(EN_SELECT)) != 0 && !is_drum(TSEL)) {
         sg_alt = (uint8_t)(s > 0);                      /* NOTE LEN VEL COND <-> FLAG RATCH NUDGE */
         ui.force = 1;

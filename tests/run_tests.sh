@@ -96,7 +96,7 @@ else
 fi
 
 $CC -o "$OUT/upreset_test" tests/upreset_test.c
-run "user presets (UP_PUT parser, bank round trip, versions)" "$OUT/upreset_test"
+run "user presets (bank round trip, versions)" "$OUT/upreset_test"
 
 $CC -o "$OUT/midi_uart_test" tests/midi_uart_test.c
 run "TRS MIDI parser" "$OUT/midi_uart_test"

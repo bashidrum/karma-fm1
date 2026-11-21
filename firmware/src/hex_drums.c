@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* HEX: the drum track's synthesised kits. Each of a kit's 16 sounds is one of the drum voices of the LXR-02 drum
  * machine's open-source firmware by Erica Synths (GPL-3.0-only), ported in lxr_dsp.c: a hex_snd_t (22 bytes, the
- * layout of the MY HEX kits and of the editor's DRUM SYNTH commands) holds the voice's parameters, as the LXR's
+ * layout of the MY HEX kits) holds the voice's parameters, as the LXR's
  * 0..127 values; hex_par() gives them to the voice. Its MODEL is the voice:
  *   DRUM    the LXR's three drum voices: an oscillator, frequency-modulated by a second one (or mixed with it),
  *           a pitch envelope, a transient, the filter, the amplitude envelope, the distortion: kicks, toms, percussion

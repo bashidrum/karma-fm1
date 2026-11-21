@@ -239,7 +239,7 @@ static int32_t accel(uint32_t role, int32_t s, int32_t range)
 
 /* TRACKS page (HOME, PHEBUS 21 Nov 2026): KNOB 1 CUTOFF and 2 DECAY of the selected voice (ui_studio.c home_knob),
  * 3 the STUTTER lane ON / OFF (punch.c stl.act: everyone's), 4 LEVEL (0 = mute; the drum track: GLO > DRUMS LEVEL). A track
- * muted with MUTE (GLO + key, the editor): the first turn of KNOB 4 unmutes it. (Swing and STEPS: SEQ held; PAN: VOICE 2
+ * muted with MUTE (GLO + key): the first turn of KNOB 4 unmutes it. (Swing and STEPS: SEQ held; PAN: VOICE 2
  * and the mixer, GLO + key 11) */
 static void tracks_edit(uint32_t slot, int32_t steps)
 {
@@ -372,8 +372,6 @@ static void edit_param(uint32_t slot, int32_t steps)
     v = d->names == ESYNC_NAMES || d->names == N_IBITS || d->names == N_IRATE ? names_turn(d, *vp, steps)   /* (a name a detent) */
                                     : clamp(*vp + accel(EN_K1 + slot, steps, d->max - d->min), d->min, d->max);
     *vp = (int16_t)v;
-    if (pg->scope != SC_GLOBAL && p_lockable(id))
-        ui.lock_par = (uint8_t)id;                        /* the SEQ layer's lock parameter: the last one touched */
     if (pg->scope != SC_GLOBAL)
         ml_knob(TSEL, id);                                /* MIDI LEARN: this parameter (2.6) */
     if (!v)
@@ -916,8 +914,6 @@ static void ui_input(void)
             int16_t *vp;
             const param_desc_t *d = home_param(k, &vp);
             *vp = (int16_t)clamp(*vp + accel(EN_K1 + k, s, d->max - d->min), d->min, d->max);
-            if (!is_drum(TSEL) && p_lockable(ENGINES[TSEL->eng_req % NENGINES]->macro[k & 3u]))
-                ui.lock_par = ENGINES[TSEL->eng_req % NENGINES]->macro[k & 3u];
             if (!is_drum(TSEL))
                 ml_knob(TSEL, ENGINES[TSEL->eng_req % NENGINES]->macro[k & 3u]);   /* MIDI LEARN (2.6) */
         } else {
