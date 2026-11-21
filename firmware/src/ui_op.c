@@ -391,26 +391,6 @@ static const voice_t *op_env_voice(const track_t *t)
     }
     return best;
 }
-/* the envelope page: the track's character behind the line, dim, still, as large as the voice's envelope is high
- * (lvl 0..1000: from about half size at rest to most of the picture), standing on (cx, bot) */
-static void op_env_ghost(uint32_t trk_i, int32_t cx, int32_t bot, int32_t lvl)
-{
-    uint16_t pal[6];
-    const uint8_t *d = OP_SPR_BIG[trk_i & 3u][0];
-    int32_t w = OP_BIG_W, h = OP_BIG_H, k = 240 + lvl * 200 / 1000, ow = w * k >> 8, oh = h * k >> 8, x, y;   /* the size, of 256 */
-    op_pal(pal, TE_DIM[trk_i & 3u], 1);                 /* (the dim shade: behind the line, review 19) */
-    pal[3] = TE_DIM[trk_i & 3u];
-    pal[4] = TE_DIM[trk_i & 3u];
-    for (y = 0; y < oh; y++) {
-        const uint8_t *row = d + (uint32_t)((y << 8) / k) * (uint32_t)(w / 2);
-        for (x = 0; x < ow; x++) {
-            uint32_t sx = (uint32_t)((x << 8) / k), v = (row[sx >> 1] >> ((sx & 1u) * 4u)) & 15u;
-            if (v && v < 6u)
-                cv_pset(cx - ow / 2 + x, bot - oh + y, pal[v]);
-        }
-    }
-}
-
 /* The three scenes draw into the graph canvas (240 x 124, ui_draw.c draw_graph). ratio: the four knobs,
  * 0..1000 (-1: none); each owns a part of the picture, in its colour. */
 

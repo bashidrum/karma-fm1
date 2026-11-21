@@ -137,7 +137,7 @@ static void graph_adsr(const track_t *t, uint16_t c)
 #define EGL(ax, ay, bx, by, col) (cv_line(ax, ay, bx, by, col), cv_line((ax) + 1, ay, (bx) + 1, by, col), \
                                  cv_line(ax, (ay) - 1, bx, (by) - 1, col))   /* the curve 2 px (review 19) */
     ty = bot;
-    op_env_ghost((uint32_t)(t - trk), 128, 93, cur);                    /* the track's character, behind it all */
+    /* (Ben, 21 Nov 2026: no character here: "I'd rather something more chill there ... Maybe not even the character") */
     cv_rect(0, bot + 1, 240, 1, TE_G1);
     for (y = top; y < bot; y += 3)                                      /* the corners, down to the floor */
         cv_pset(x1, y, OP_PUR_D);
