@@ -404,6 +404,16 @@ int main(int argc, char **argv)
         check(!strcmp(cur_page()->title, "GLOBAL") && px_count(2, 1, 46, 18, TE_G4) > 60 && voice == 0,
               "GLO > GLOBAL: tag ALL in grey, no voice colour above the strip (no character, neutral knobs)");
     }
+    {   /* every global parameter a page shows has its description (a label): none lost with the cuts */
+        uint32_t pg, k, ok = 1;
+        for (pg = 0; pg < NPAGES; pg++)
+            for (k = 0; k < 4u; k++)
+                if (PAGES[pg].scope == SC_GLOBAL && PAGES[pg].id[k] < G_COUNT && !GP[PAGES[pg].id[k]].label) {
+                    printf("ui:   page %s knob %u: global %u has no description\n", PAGES[pg].title, (unsigned)k + 1, (unsigned)PAGES[pg].id[k]);
+                    ok = 0;
+                }
+        check(ok, "every global parameter on a page has a description (GLOBAL CLICK, TOOLS CLRSQ ...)");
+    }
     open_family(FAM_GLO); ui.force = 1; frame(); ppm("page-master");
     open_family(FAM_SCL); ui.force = 1; frame(); ppm("page-scale");
     {   /* (2.4) GLO > SYSTEM: KNOB 1 is MIDI OUT (KEYS / SEQ), shown as such; the USB status in the third column */
