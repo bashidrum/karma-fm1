@@ -73,8 +73,6 @@ static struct {
     uint8_t layer_btn;           /* its button (B_*), NB = none */
     uint8_t layer_used;          /* a key / knob / OCT was used while it was held: no tap on release */
     uint32_t layer_t0;           /* its press time (ms) */
-    uint8_t step_page;           /* SEQ layer: the 16 steps shown (page x 16) */
-    uint16_t step_held;          /* SEQ layer: the step keys held (white key index) */
     uint32_t step_sess;          /* SEQ layer: the undo session of this hold */
     uint8_t lock_par;            /* SEQ layer, a step held + KNOB 4: the parameter it locks (the last sound
                                   * parameter a knob changed on a page of the selected track; P_ED_FLT at boot) */

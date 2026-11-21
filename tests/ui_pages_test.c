@@ -386,28 +386,36 @@ int main(int argc, char **argv)
     ui.menu = 0; ui.force = 1; frames(2);
     song.g[G_DUST] = 0; song.g[G_FILT] = 0;
 
-    /* ---- SEQ layer: drum steps on the white keys */
+    /* ---- SEQ layer (PHEBUS, Ben 21 Nov 2026: "Remove them"): held, its keys set no step and play nothing; KNOB 2..4
+     * are DIV, SWING, STEPS; the drum steps are made on the GRID (one hold of a step key: one undo) */
     song.sel = TRK_DRUM; go_home(); frame();
-    key(4);                                          /* A3: the snare, played: the layer's sound */
-    check(pen_lane == 2, "a drum key played: the SEQ layer's sound (snare)");
     press(B_SEQ); frames(10);
-    key(0); key(7); key(14);                          /* steps 1, 5, 9 */
-    check(dstep_has(&TDRUM->dstep[0], 2) && dstep_has(&TDRUM->dstep[4], 2) && dstep_has(&TDRUM->dstep[8], 2) &&
-          !dstep_has(&TDRUM->dstep[1], 2), "SEQ + white keys 1, 5, 9: snare steps");
+    {
+        uint32_t ac = 0, v2;
+        key(0); key(7); key(14);
+        for (i = 0; i < 16u; i++) ac |= dstep_mask(&TDRUM->dstep[i]);
+        for (v2 = 0; v2 < NVOICE; v2++) ac |= TDRUM->v[v2].active;
+        check(!ac && keys_lit() == 0u && keys_guide() == 0u, "SEQ held + white keys: no step set, no sound, no key lit");
+    }
     ppm("layer-steps");
-    fm1_in.notes = 1u << 7; frame();                  /* step 5 held + KNOB 2 / 3: level, ratchet */
-    encs[panel.enc[EN_K2]] = 1; frame();
-    encs[panel.enc[EN_K3]] = 2; frame();
+    release(B_SEQ); check(ui.layer == LY_PLAY && !on_drum_page(), "SEQ used then let go: no page change");
+    studio_open(SC_DRUM); frames(16); drum_lane = 2;   /* (the knobs quiet ~250 ms after a layer: #39) */
+    key(0); key(7); key(14);                          /* steps 1, 5, 9 on the GRID */
+    check(dstep_has(&TDRUM->dstep[0], 2) && dstep_has(&TDRUM->dstep[4], 2) && dstep_has(&TDRUM->dstep[8], 2) &&
+          !dstep_has(&TDRUM->dstep[1], 2), "GRID + white keys 1, 5, 9: snare steps");
+    fm1_in.notes = 1u << 7; frame();                  /* step 5 held + KNOB 1 / 2: level, ratchet (the GRID's) */
+    encs[panel.enc[EN_K1]] = 1; frame();
+    encs[panel.enc[EN_K2]] = 1; frame(); encs[panel.enc[EN_K2]] = 1; frame();
     fm1_in.notes = 0; frame();
     check(dstep_lvl(&TDRUM->dstep[4], 2) == LV_HARD && dstep_rat(&TDRUM->dstep[4], 2) == 2u,
-          "step 5 held + KNOB 2 / 3: hard, x3");
+          "GRID: step 5 held + KNOB 1 / 2: hard, x3");
     key(0); check(!dstep_has(&TDRUM->dstep[0], 2), "step 1 again: off");
-    release(B_SEQ); check(ui.layer == LY_PLAY && !on_drum_page(), "SEQ used then let go: no page change");
+    drum_lane = 0; go_home(); frame();
 
     /* ---- EDIT: undo / redo, erase, length */
     press(B_EDIT); frames(10);
     edges_btn |= BT(B_OCTDN); fm1_in.buttons |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
-    check(!dstep_has(&TDRUM->dstep[4], 2) && !dstep_has(&TDRUM->dstep[8], 2), "EDIT + OCT-: undo (the SEQ hold's steps gone)");
+    check(dstep_has(&TDRUM->dstep[0], 2) && dstep_lvl(&TDRUM->dstep[4], 2) == LV_HARD, "EDIT + OCT-: undo (step 1 back)");
     edges_btn |= BT(B_OCTUP); fm1_in.buttons |= BT(B_OCTUP); frame(); fm1_in.buttons &= ~BT(B_OCTUP); frame();
     check(!dstep_has(&TDRUM->dstep[0], 2) && dstep_lvl(&TDRUM->dstep[4], 2) == LV_HARD, "EDIT + OCT+: redo (back, as left)");
     ppm("layer-erase");
@@ -485,8 +493,7 @@ int main(int argc, char **argv)
     fm1_in.notes = 0; frame();
     trk[0].p[P_CHORD] = 0;
 
-    /* ---- SEQ layer (2.4): a step held + KNOB 4 nudges it, PRESETS locks the lock parameter (ALGORITHM picks it),
-     * KNOB 1 still edits the note, OCT- clears nudge and locks; PRESETS / ALGORITHM browse nothing meanwhile */
+    /* ---- the lock parameter (PRESETS / ALGORITHM with GRID steps held, ui_grid.c): the sound knob last touched */
     check(ui.lock_par == P_ED_FLT, "the lock parameter starts as ENV > FLT");
     song.sel = 0; go_home(); frames(16);              /* (KNOB 1..4 quiet ~250 ms after a layer: #39) */
     open_family(FAM_FX); frame();                     /* the FX page: KNOB 1 = DIST */
@@ -497,88 +504,47 @@ int main(int argc, char **argv)
     if (cur_page()->id[1] == P_SDIV) { encs[panel.enc[EN_K2]] = 1; frame(); encs[panel.enc[EN_K2]] = -1; frame(); }
     check(ui.lock_par == P_DIST, "a pattern knob (DIV) is not a lock parameter");
     go_home(); frame();
-    press(B_SEQ); frames(10);
-    key(7);                                           /* step 5 set with the pen */
-    fm1_in.notes = 1u << 7; frame();                  /* step 5 held */
-    {
-        uint32_t n0 = trk[0].step[4].note[0];
-        encs[panel.enc[EN_K1]] = 2; frame();
-        check(trk[0].step[4].note[0] == n0 + 2u && trk[0].step[4].n == 1, "step 5 held + KNOB 1: the note two up (as in 2.3)");
-    }
-    encs[panel.enc[EN_K4]] = -3; frame();
-    encs[panel.enc[EN_K4]] = -4; frame();
-    check(trk[0].micro[4] == -7 && trk[0].step[4].n == 1, "step 5 held + KNOB 4: nudged -7 (the step kept)");
-    {
-        int k0 = lock_find(&trk[0], 4, P_DIST, 0);
-        int32_t d0 = trk[0].p[P_DIST];
-        uint32_t sel0 = song.sel, eng0 = trk[0].eng_req, pr0 = trk[0].preset;
-        encs[panel.enc[EN_PRESET]] = 1; frame();
-        {
-            int k = lock_find(&trk[0], 4, P_DIST, 0);
-            check(k0 < 0 && k >= 0 && trk[0].lock[k].val == d0 + 1, "step 5 held + PRESETS: a DIST lock at the track's value, moved one up");
-            encs[panel.enc[EN_PRESET]] = 5; frame();
-            check(k >= 0 && trk[0].lock[k].val > d0 + 1 && trk[0].p[P_DIST] == d0, "PRESETS again: the lock moves, the track's DIST does not");
-            check(trk[0].eng_req == eng0 && trk[0].preset == pr0, "PRESETS with a step held browses no sound");
+    {   /* SEQ held (PHEBUS): KNOB 1 nothing, 2 DIV, 3 SWING, 4 STEPS; PRESETS / ALGORITHM / OCT change nothing of the
+         * steps; the screen draws the steps in time and says how many bars they make */
+        int16_t d0 = trk[0].p[P_SDIV], s0 = trk[0].p[P_SSWING], l0 = trk[0].p[P_SLEN], n0 = (int16_t)pen_note[0];
+        uint32_t sel0 = song.sel, eng0 = trk[0].eng_req, pr0 = trk[0].preset, lit0, lit1;
+        steps_clear(&trk[0]); trk[0].step[0].n = 1; trk[0].step[0].note[0] = 60; trk[0].step[0].time = ST_NOTE;
+        press(B_SEQ); frames(10);
+        ui.force = 1; frame();
+        lit0 = px_count(0, 46, 240, 124, TE_COL[0]);
+        check(lit0 > 0 && px_count(0, 46, 240, 124, TE_G2) > 0, "SEQ held: the steps in time (a set one filled, empty ones outlined)");
+        check(!strcmp(sub_line(), "16 steps = 1 bar"), "SEQ held: the sub line says 16 steps = 1 bar");
+        encs[panel.enc[EN_K1]] = 3; frame();
+        check(trk[0].p[P_SDIV] == d0 && trk[0].p[P_SSWING] == s0 && trk[0].p[P_SLEN] == l0 && pen_note[0] == (uint8_t)n0,
+              "SEQ held + KNOB 1: nothing (no pen note any more)");
+        encs[panel.enc[EN_K2]] = -1; frame();
+        check(trk[0].p[P_SDIV] == d0 - 1, "SEQ held + KNOB 2: DIV");
+        ui.force = 1; frame(); ppm("layer-steps-div8");
+        check(!strcmp(sub_line(), "16 steps = 2 bars"), "  DIV 1/8: 16 steps = 2 bars, drawn on two rows");
+        encs[panel.enc[EN_K2]] = 1; frame();
+        {   /* the swing moves the odd steps: step 2's left edge (one row: its middle at y 107) later than straight */
+            uint32_t x, x0 = 0, x1 = 0;
+            ui.force = 1; frame();
+            for (x = 16; x < 60u && !x0; x++) if (swap16(screen[107 * 240 + x]) == TE_G2) x0 = x;
+            encs[panel.enc[EN_K3]] = 50; frame();
+            check(trk[0].p[P_SSWING] > s0, "SEQ held + KNOB 3: SWING");
+            ui.force = 1; frame(); ppm("layer-steps-swing");
+            for (x = 16; x < 60u && !x1; x++) if (swap16(screen[107 * 240 + x]) == TE_G2) x1 = x;
+            check(x0 >= 18u && x0 <= 20u && x1 >= x0 + 3u, "  the odd steps drawn late by the swing (step 2 moves right)");
         }
-        ui.force = 1; frame(); ppm("layer-steps-lock");
-        check(step_locked(&trk[0], 4) && !step_locked(&trk[0], 5), "the step shows its mark (a nudge or a lock)");
-        encs[panel.enc[EN_ALGO]] = 1; frame();
-        check(ui.lock_par == P_CHOR && song.sel == sel0, "step held + ALGORITHM: the lock parameter (DIST -> CHO), the track stays selected");
-        encs[panel.enc[EN_ALGO]] = -1; frame(); encs[panel.enc[EN_ALGO]] = -1; frame();
-        check(ui.lock_par == P_SGATE && song.sel == sel0, "ALGORITHM back twice: CHO -> DIST -> GATE (LEN, DIV, SWG skipped)");
-        encs[panel.enc[EN_PRESET]] = 1; frame();
-        check(lock_find(&trk[0], 4, P_SGATE, 0) >= 0 && lock_find(&trk[0], 4, P_DIST, 0) >= 0, "PRESETS: a second lock (GATE) on the same step");
-        for (i = 0; i < 80u; i++) { encs[panel.enc[EN_ALGO]] = 1; frame(); if (ui.lock_par == P_SGATE) break; }
-        check(i > 0 && i < 80u && ui.lock_par == P_SGATE, "ALGORITHM wraps round through the lockable parameters");
-        encs[panel.enc[EN_K4]] = -40; frame();
-        check(trk[0].micro[4] == MICRO_MIN, "KNOB 4 bounded at -32");
-        edges_btn |= BT(B_OCTDN); fm1_in.buttons |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
-        check(trk[0].micro[4] == 0 && lock_find(&trk[0], 4, P_DIST, 0) < 0 && lock_find(&trk[0], 4, P_SGATE, 0) < 0 &&
-              trk[0].step[4].n == 1 && ui.step_page == 0, "step held + OCT-: its nudge and locks cleared, the step kept, no page change");
+        encs[panel.enc[EN_K4]] = 16; frame();
+        check(trk[0].p[P_SLEN] > l0, "SEQ held + KNOB 4: STEPS");
+        ui.force = 1; frame(); ppm("layer-steps-len");
+        lit1 = px_count(0, 46, 240, 124, TE_G2);
+        check(lit1 > 0 && strstr(sub_line(), "steps = 2 bars") != 0, "  more steps: drawn on, and the bars counted");
+        encs[panel.enc[EN_PRESET]] = 1; frame(); encs[panel.enc[EN_ALGO]] = 1; frame();
+        edges_btn |= BT(B_OCTUP); fm1_in.buttons |= BT(B_OCTUP); frame(); fm1_in.buttons &= ~BT(B_OCTUP); frame();
+        check(trk[0].eng_req == eng0 && trk[0].preset == pr0 && song.sel == sel0 && !step_locked(&trk[0], 0) &&
+              step_fill(&trk[0], 0) == FC_NORM, "SEQ held + PRESETS / ALGORITHM / OCT+: no sound, track, lock or condition change");
+        release(B_SEQ); frames(2);
+        trk[0].p[P_SDIV] = d0; trk[0].p[P_SSWING] = s0; trk[0].p[P_SLEN] = l0;
+        steps_clear(&trk[0]);
     }
-    {   /* (2.4) OCT+ with the step held: its fill condition round; OCT- resets it with the nudge and locks */
-        edges_btn |= BT(B_OCTUP); fm1_in.buttons |= BT(B_OCTUP); frame(); fm1_in.buttons &= ~BT(B_OCTUP); frame();
-        check(step_fill(&trk[0], 4) == FC_FILL && ui.step_page == 0 && trk[0].step[4].n == 1, "step held + OCT+: FILL ONLY (no page change, the step kept)");
-        ui.force = 1; frame(); ppm("layer-steps-fill");
-        edges_btn |= BT(B_OCTUP); fm1_in.buttons |= BT(B_OCTUP); frame(); fm1_in.buttons &= ~BT(B_OCTUP); frame();
-        check(step_fill(&trk[0], 4) == FC_NOFILL, "OCT+ again: NO FILL");
-        ui.force = 1; frame(); ppm("layer-steps-nofill");
-        edges_btn |= BT(B_OCTUP); fm1_in.buttons |= BT(B_OCTUP); frame(); fm1_in.buttons &= ~BT(B_OCTUP); frame();
-        check(step_fill(&trk[0], 4) == FC_CHANCE, "OCT+ again: CHANCE (2026-10-20)");
-        ui.force = 1; frame(); ppm("layer-steps-chance");
-        edges_btn |= BT(B_OCTUP); fm1_in.buttons |= BT(B_OCTUP); frame(); fm1_in.buttons &= ~BT(B_OCTUP); frame();
-        check(step_fill(&trk[0], 4) == FC_NORM, "OCT+ again: normal");
-        edges_btn |= BT(B_OCTUP); fm1_in.buttons |= BT(B_OCTUP); frame(); fm1_in.buttons &= ~BT(B_OCTUP); frame();
-        encs[panel.enc[EN_K4]] = 3; frame();
-        edges_btn |= BT(B_OCTDN); fm1_in.buttons |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
-        check(step_fill(&trk[0], 4) == FC_NORM && trk[0].micro[4] == 0, "FILL ONLY + a nudge, OCT-: the condition and the nudge reset");
-    }
-    fm1_in.notes = 0; frame();
-    check(trk[0].step[4].n == 1, "the step edited is kept when let go");
-    fm1_in.notes = 1u << 7; frame(); encs[panel.enc[EN_PRESET]] = 1; frame(); fm1_in.notes = 0; frame();
-    check(trk[0].step[4].n == 1 && lock_find(&trk[0], 4, P_SGATE, 0) >= 0, "a set step held + PRESETS: a lock, the step kept");
-    fm1_in.notes = 1u << 7; frame();
-    edges_btn |= BT(B_OCTUP); fm1_in.buttons |= BT(B_OCTUP); frame(); fm1_in.buttons &= ~BT(B_OCTUP); frame();
-    fm1_in.notes = 0; frame();
-    key(7);                                           /* a set step pressed and let go: cleared, with its locks and condition */
-    check(trk[0].step[4].n == 0 && lock_find(&trk[0], 4, P_SGATE, 0) < 0 && step_fill(&trk[0], 4) == FC_NORM,
-          "a step cleared: its locks and fill condition go too");
-    { uint32_t sel0 = song.sel; encs[panel.enc[EN_ALGO]] = 1; frame(); check(song.sel == sel0 && ui.lock_par == P_SGATE, "no step held, SEQ held: ALGORITHM does nothing (no track change)"); }
-    release(B_SEQ);
-    { uint32_t sel0 = song.sel; encs[panel.enc[EN_ALGO]] = 1; frame(); check(song.sel == sel0 + 1u, "SEQ let go: ALGORITHM selects the track again"); song.sel = (uint8_t)sel0; }
-    song.sel = TRK_DRUM; go_home(); frame();
-    press(B_SEQ); frames(10);
-    key(0);                                           /* a drum step: KNOB 1 the sound, KNOB 4 nudges the whole step */
-    fm1_in.notes = 1u << 0; frame();
-    { uint32_t l0 = pen_lane; encs[panel.enc[EN_K1]] = 1; frame(); check(pen_lane == l0 + 1u, "the drum track: step 1 held + KNOB 1: the sound (as in 2.3)"); }
-    encs[panel.enc[EN_K4]] = 5; frame();
-    encs[panel.enc[EN_PRESET]] = 1; frame();
-    check(TDRUM->micro[0] == 5 && lock_find(TDRUM, 0, P_SGATE, 0) >= 0 && TDRUM->p[P_E0] == DRUM_DEFAULT_KIT,
-          "the drum track: step 1 held + KNOB 4 / PRESETS: nudge +5, a lock, the kit untouched");
-    fm1_in.notes = 0; frame();
-    edges_btn |= BT(B_OCTDN); fm1_in.buttons |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
-    check(TDRUM->micro[0] == 5 && ui.step_page == 0, "no step held + OCT-: the page (not a clear)");
-    release(B_SEQ);
     fm1_irq_off(); steps_clear(TDRUM); steps_clear(&trk[0]); fm1_irq_on();
     trk[0].p[P_DIST] = 0;
     ui.lock_par = P_ED_FLT;
@@ -1133,7 +1099,7 @@ int main(int argc, char **argv)
         {   /* every screen and layer: lit where the keys are notes, a glow under the tiles */
             static const struct { uint32_t ly; int lit; const char *name; } L[] = {
                 {LY_ERASE, 1, "EDIT erase"}, {LY_ROLL, 1, "ARP roll"}, {LY_SCALE, 1, "SEL key"}, {LY_SONG, 1, "SAVE song"},
-                {LY_FX, 0, "FX punch"}, {LY_STEP, 0, "SEQ steps"}, {LY_MIX, 0, "GLO mix"}};
+                {LY_FX, 0, "FX punch"}, {LY_MIX, 0, "GLO mix"}};
             uint32_t k, ok = 1, ly0 = ui.layer;
             char what[96];
             for (k = 0; k < sizeof L / sizeof L[0]; k++) {
@@ -1145,6 +1111,8 @@ int main(int argc, char **argv)
                 snprintf(what, sizeof what, "NOTES on, %s layer: the sounding C4 %s", L[k].name, L[k].lit ? "lit" : "glows under the tiles");
                 check(ok, what);
             }
+            ui.layer = LY_STEP;
+            check(keys_lit() == 0u && keys_notes_dim() == 0u, "NOTES on, SEQ held: no key lit or glowing (its keys do nothing)");
             ui.layer = LY_SCALE;
             check((keys_notes_dim() & scale_keys(0)) == scale_keys(0), "NOTES on, SEL: the scale glows");
             lights_notes = 0;
@@ -1558,10 +1526,9 @@ int main(int argc, char **argv)
         }
         go_home(); frame();
         memset(pad_lit, 0, sizeof pad_lit);
-        pen_lane = 0;
         press(B_SEQ); frames(3);
         encs[panel.enc[EN_K1]] = 2; frames(2);
-        check(pen_lane == 2 && pad_lit[2], "SEQ layer, drum track: KNOB 1 picks the sound and plays it");
+        check(!pad_lit[2] && !pad_lit[1], "SEQ layer, drum track: KNOB 1 does nothing (no sound picked or played)");
         release(B_SEQ); frames(2);
         song.sel = 1; go_home(); frame();
         trk[1].p[P_SDIV] = 5;
@@ -1689,14 +1656,8 @@ int main(int argc, char **argv)
                 encs[panel.enc[EN_SELECT]] = 1; frame(); } } while (0)
         song.playing = 0;
         song.sel = 0; steps_clear(&trk[0]); trk[0].p[P_SLEN] = 16; go_home(); frames(16);
-        press(B_SEQ); frames(10);
-        key(7);                                           /* step 5 */
-        fm1_in.notes = 1u << 7; frame();
-        w = step_vel_shown(&trk[0].step[4]);
-        K(EN_K2, 1);
-        check(trk[0].step[4].vel == w + 1u && !trk[0].step[4].lvl, "SEQ: step 5 held + KNOB 2: its velocity one up (VEL)");
-        ui.force = 1; frame(); ppm("layer-steps-vel");
-        fm1_in.notes = 0; frame(); release(B_SEQ); frames(16);
+        trk[0].step[4].n = 1; trk[0].step[4].note[0] = 60; trk[0].step[4].time = ST_NOTE; trk[0].step[4].vel = 100;   /* step 5
+                                                         * (held SEQ set it before PHEBUS took the step keys off) */
         tap(B_SEQ); frames(2); tap(B_SEQ); frames(2);
         check(!strcmp(PAGES[ui.page].title, "PATTERN"), "SEQ pages: PATTERN first (the old STEP page is gone: the GRID edits steps)");
         tap(B_SEQ); frames(2);                            /* (REVIEW 2: SEQ from a SEQ page: back to the GRID) */
@@ -1778,16 +1739,18 @@ int main(int argc, char **argv)
             check(thr_req == 0u && song.octave == 0, "  let go: no THROW, the octave untouched");
         }
         steps_clear(&trk[0]); go_home(); frames(16);
-        {   /* SEQ: two steps held + KNOB 2: both one up (the turn accelerated once, not once a step) */
+        {   /* the GRID: two steps held + KNOB 3 (VEL): both one up (the turn accelerated once, not once a step; held SEQ
+             * had this test until PHEBUS took its step keys off) */
             uint32_t v0, v1;
             song.sel = 0; trk[0].p[P_SLEN] = 16; go_home(); frames(16);
-            press(B_SEQ); frames(10);
-            key(0); key(7);
-            fm1_in.notes = 1u << 0 | 1u << 7; frame();
+            studio_open(SC_DRUM); frames(2);
+            key(key_of_lane(0)); key(key_of_lane(4));
+            fm1_in.notes = 1u << key_of_lane(0) | 1u << key_of_lane(4); frame();
             v0 = step_vel_shown(&trk[0].step[0]), v1 = step_vel_shown(&trk[0].step[4]);
-            K(EN_K2, 1);
-            check(trk[0].step[0].vel == v0 + 1u && trk[0].step[4].vel == v1 + 1u, "SEQ: two steps held + KNOB 2: both one up");
-            fm1_in.notes = 0; frame(); release(B_SEQ); frames(16);
+            K(EN_K3, 1);
+            check(step_on(&trk[0].step[0]) && trk[0].step[0].vel == v0 + 1u && trk[0].step[4].vel == v1 + 1u,
+                  "GRID: two steps held + KNOB 3: both velocities one up");
+            fm1_in.notes = 0; frame();
             steps_clear(&trk[0]); go_home(); frames(16);
         }
 
