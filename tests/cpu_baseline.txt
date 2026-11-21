@@ -59,6 +59,7 @@ cpu/PLAITS/54_DROPLETS 1137
 cpu/PLAITS/55_PL_KICK 1370
 cpu/PLAITS/56_PL_SNARE 1448
 cpu/PLAITS/57_PL_HIHAT 1399
+cpu/PLAITS/58_INIT 1351
 cpu/ELEMENTS/00_BOUNCE_BAR 1625
 cpu/ELEMENTS/01_MARBLES 1625
 cpu/ELEMENTS/02_RATTLE_BELL 1635
@@ -90,8 +91,10 @@ cpu/JUNO/07_JUNO_LEAD 1952
 cpu/JUNO/08_JUNO_SWEEP 2083
 cpu/JUNO/09_JUNO_ORGAN 2016
 cpu/JUNO/10_JUNO_HOOVER 2020
+cpu/JUNO/11_INIT 1901
 cpu/mix/3parts_heavy_now_drums 3071
 cpu/mix/3parts_phys_noise_drums 3856
+cpu/mix/plain_defaults_drums 2476
 cpu/mix/idle 732
 cpu/mix/idle_drums 1000
 cpu/mix/3parts_full_drums 2549

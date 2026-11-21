@@ -474,7 +474,8 @@ static void go_home(void)
  * writes the sequencer: every pattern is the one the player records or enters. */
 
 /* the parts' sounds at power-on (engine, preset): bass, pad, lead */
-static const uint8_t TRK_DEF[NPART][2] = {{ENGI_ACID, 0}, {ENGI_ELEM, 3}, {ENGI_PRISM, 0}};   /* ACID TB ACID, ELEMENTS PICKED BAR, PRISM FOLD LEAD */
+static const uint8_t TRK_DEF[NPART][2] = {{ENGI_JUNO, JUNO_INIT}, {ENGI_JUNO, JUNO_INIT}, {ENGI_PRISM, PRISM_INIT}};   /* (PHEBUS)
+                                                                 * JUNO INIT, JUNO INIT, PLAITS INIT: plain saws */
 static uint32_t trk_def_engine(uint32_t i) { return i < NPART ? TRK_DEF[i][0] : 0u; }
 
 static int seq_is_empty(const track_t *t) { return track_empty(t); }
@@ -531,13 +532,18 @@ static void apply_preset_to(track_t *t, uint32_t pi)
 }
 
 static void set_engine_of(track_t *t, uint32_t ei);
-/* (PHEBUS, 21 Nov 2026, Ben: "I don't like having fx on by default") a part's power-on / TOOLS > NEW sound (TRK_DEF),
- * dry: no send to the chorus, delay or reverb, no DIST (a factory preset loaded later still brings its own sends) */
+/* (PHEBUS, 21 Nov 2026, Ben: "I don't like having fx on by default"; "just a plain sawtooth is fine for the bass, chords,
+ * and lead") a part's power-on / TOOLS > NEW sound (TRK_DEF): a plain saw, dry (no DIST, chorus, delay or reverb send;
+ * a factory preset loaded later still brings its own sends). Track 1 the bass: mono, an octave down on the keys;
+ * track 2 the chords: polyphonic; track 3 the lead: mono */
 static void trk_def_sound(track_t *t, uint32_t i)
 {
-    set_engine_of(t, TRK_DEF[i % NPART][0]);
-    apply_preset_to(t, TRK_DEF[i % NPART][1]);
+    i %= NPART;
+    set_engine_of(t, TRK_DEF[i][0]);
+    apply_preset_to(t, TRK_DEF[i][1]);
     t->p[P_DIST] = t->p[P_CHOR] = t->p[P_DLY] = t->p[P_REV] = 0;
+    t->p[P_VOICE] = i == 1u ? V_POLY : V_LEGATO;
+    t->p[P_TRANS] = i == 0u ? -12 : 0;
 }
 
 /* the engine's defaults and its first preset. With the audio IRQ off: the ISR sees the old engine with
@@ -582,14 +588,14 @@ static void select_engine(uint32_t e)
 /* the factory presets as one list by kind (basses, keys, organs, pads, leads, plucks and bells, stabs,
  * the rest), then the used user presets: the PRESETS knob and the PRESETS page browse it. By name: an
  * engine's preset table may change order; tests/ui_pages_test.c checks every preset is here once */
-enum { BK_BASS, BK_KEYS, BK_ORGAN, BK_PAD, BK_LEAD, BK_PLUCK, BK_STAB, BK_FX };
-static const char *const BANK_KIND[] = {"BASS", "KEYS", "ORGN", "PAD", "LEAD", "PLCK", "STAB", "FX"};
+enum { BK_BASS, BK_KEYS, BK_ORGAN, BK_PAD, BK_LEAD, BK_PLUCK, BK_STAB, BK_FX, BK_INIT };
+static const char *const BANK_KIND[] = {"BASS", "KEYS", "ORGN", "PAD", "LEAD", "PLCK", "STAB", "FX", "INIT"};
 static const struct { uint8_t kind, e; const char *name; } BANK[] = {   /* the PRESETS list: each track sees its engines' */
     /* ACID (track 1) */
     {BK_BASS, ENGI_ACID, "TB ACID"}, {BK_BASS, ENGI_ACID, "TB SQUARE"}, {BK_BASS, ENGI_ACID, "TB DIRTY"},
     {BK_BASS, ENGI_ACID, "TB DEEP"}, {BK_BASS, ENGI_ACID, "TB SQUELCH"}, {BK_BASS, ENGI_ACID, "TB RUBBER"},
-    /* JUNO (track 1) */
-    {BK_BASS, ENGI_JUNO, "JUNO BASS"}, {BK_BASS, ENGI_JUNO, "SUB 106"}, {BK_KEYS, ENGI_JUNO, "JUNO KEYS"},
+    /* JUNO (tracks 1 and 2) */
+    {BK_INIT, ENGI_JUNO, "INIT"}, {BK_BASS, ENGI_JUNO, "JUNO BASS"}, {BK_BASS, ENGI_JUNO, "SUB 106"}, {BK_KEYS, ENGI_JUNO, "JUNO KEYS"},
     {BK_ORGAN, ENGI_JUNO, "JUNO ORGAN"}, {BK_PAD, ENGI_JUNO, "JUNO STRING"}, {BK_PAD, ENGI_JUNO, "JUNO PAD"},
     {BK_PAD, ENGI_JUNO, "JUNO SWEEP"}, {BK_LEAD, ENGI_JUNO, "JUNO LEAD"}, {BK_LEAD, ENGI_JUNO, "JUNO HOOVER"},
     {BK_STAB, ENGI_JUNO, "JUNO BRASS"}, {BK_STAB, ENGI_JUNO, "JUNO STAB"},
@@ -600,7 +606,7 @@ static const struct { uint8_t kind, e; const char *name; } BANK[] = {   /* the P
     {BK_PLUCK, ENGI_ELEM, "PICKED BAR"}, {BK_PLUCK, ENGI_ELEM, "PICK CHIME"},
     {BK_PAD, ENGI_ELEM, "OMINOUS"}, {BK_PAD, ENGI_ELEM, "DARK DRONE"},
     /* PLAITS (track 3) */
-    {BK_LEAD, ENGI_PRISM, "FOLD LEAD"}, {BK_BASS, ENGI_PRISM, "FOLD BASS"}, {BK_PLUCK, ENGI_PRISM, "WEST PLUCK"},
+    {BK_INIT, ENGI_PRISM, "INIT"}, {BK_LEAD, ENGI_PRISM, "FOLD LEAD"}, {BK_BASS, ENGI_PRISM, "FOLD BASS"}, {BK_PLUCK, ENGI_PRISM, "WEST PLUCK"},
     {BK_PAD, ENGI_PRISM, "GLASS FOLD"}, {BK_PLUCK, ENGI_PRISM, "BUCHLA BELL"}, {BK_PAD, ENGI_PRISM, "FOLD DRONE"},
     {BK_LEAD, ENGI_PRISM, "SUPER SWARM"}, {BK_PAD, ENGI_PRISM, "SWARM PAD"}, {BK_PAD, ENGI_PRISM, "GLISS CLOUD"},
     {BK_FX, ENGI_PRISM, "GRAIN RAIN"}, {BK_BASS, ENGI_PRISM, "SWARM BASS"}, {BK_PAD, ENGI_PRISM, "TABLE SWEEP"},

@@ -301,7 +301,11 @@ static const preset_t PRISM_PRESETS[] = {
     {"PL KICK", {21, 50, 50, 60, 0, 0, 0, 0}, {0, 0, 127, 30}, 0, 0, FX(0, 0, 0, 6), XP(P_TRANS + 1, -24)},
     {"PL SNARE", {22, 60, 60, 50, 0, 0, 0, 0}, {0, 0, 127, 30}, 0, 0, FX(0, 0, 0, 10)},
     {"PL HIHAT", {23, 50, 70, 40, 0, 0, 0, 0}, {0, 0, 127, 20}, 0, 0, FX(0, 0, 0, 8)},
+    /* (PHEBUS) the power-on and NEW lead of track 3: VA, its plain saw (HARM 64 no detune, TIMB 0, MRPH 64), no
+     * envelope, no sub, every send 0. Last: the other presets keep their numbers and level trims */
+    {"INIT", {5, 64, 0, 64, 0, 0, 0, 0}, {0, 0, 127, 10}, 0, 1, FX(0, 0, 0, 0)},
 };
+#define PRISM_INIT (sizeof PRISM_PRESETS / sizeof PRISM_PRESETS[0] - 1u)
 
 /* CHORD: its three controls by what they do there */
 static const param_desc_t *prism_desc(const track_t *t, uint32_t k)

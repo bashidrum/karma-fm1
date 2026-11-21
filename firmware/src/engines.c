@@ -53,6 +53,7 @@ static const engine_t ENG_GONE = {
 #define PRISM_ARENA (sizeof(void *) == 8u ? 16704u : 16640u)   /* (a 64-bit host: the pointers in Plaits' objects) */
 typedef union { acid_slot_t acid; juno_slot_t juno; } eng_arena0_t;
 typedef union { uint32_t phys[PHYS_ARENA / 4u]; } eng_arena1_t;
+_Static_assert(sizeof(juno_slot_t) <= PHYS_ARENA, "track 2's arena holds JUNO (PHEBUS: its chords)");
 typedef union { prism_slot_t prism[NVOICE]; uint64_t plx[(sizeof(void *) == 8u ? 16704u : 16640u) / 8u]; } eng_arena2_t;
 static eng_arena0_t eng_arena0 __attribute__((section(".pool")));
 static eng_arena1_t eng_arena1 __attribute__((section(".pool")));
@@ -107,7 +108,8 @@ static const engine_t *const ENGINES[NENGINES] = {&ENG_GONE, &ENG_GONE, &ENG_GON
 static int eng_allowed(const track_t *t, uint32_t e)
 {
     uint32_t p = (uint32_t)(t - trk);
-    return p == 0u ? (e == ENGI_ACID || e == ENGI_JUNO) : p == 1u ? e == ENGI_ELEM : p == 2u ? e == ENGI_PRISM : 0;
+    return p == 0u ? (e == ENGI_ACID || e == ENGI_JUNO) : p == 1u ? (e == ENGI_JUNO || e == ENGI_ELEM)   /* (PHEBUS: */
+         : p == 2u ? e == ENGI_PRISM : 0;                                    /* JUNO's chords on track 2, Ben 21 Nov) */
 }
 static uint32_t eng_default(const track_t *t)        /* the engine a track falls back to */
 {
