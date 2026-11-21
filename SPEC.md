@@ -108,3 +108,11 @@ His picker answers (21 Nov, morning): stutter sequencer length "Per step" (a kno
 ## Follow-up decisions (Ben, 21 Nov 2026, about 10:00, by picker)
 Held-SEQ step keys: "Remove them" (holding SEQ gives only division, swing and length). One-knob pages: "Keep, name the pages" (show page names in the strip). Song insert and delete: "Hold the entry's key" (hold the white key for an entry, then OCT+ inserts and OCT- deletes). THIRD EYE screensaver: "Keep it".
 Chords track (Ben, 21 Nov, picker): "JUNO on track 2" (polyphonic saw chords; needs a check on the real FM-1).
+
+## After playing the simulator (Ben, 21 Nov 2026, 14:30 to 14:37)
+- "It looks fine. It doesn't make much sense as a thing to use. Like... it's hard to input sequences that make sense when you're writing melodic parts. I've no idea how to use half of it or what the features are anymore."
+- (after the feature list and the step-record proposal) "ahhh ok, it's really hard to use because the simulator can't hold a step and turn. But that seems like a good way to do stuff. Very flowy."
+- "I don't like that the stutter's minimum step is 1/8. 1/4 is preferably. 1/2 would even be nice to play with" ... "And if we're doing that we may as well go the full 1/1"
+- "I don't like how the tape reel looks"
+- "The filter isn't working as I'd expect a 101 or 303 to work, it doesn't growl or move in the same way" ... "Does it maybe need the ability to attach the filter to the adsr or have it on its own ADSR?" ... "I like that about the minifreak, you can fudge it to be linked to the adsr of the amp very easily or put it on its own ADSR envelope just for the filter"
+- "Also having easy access to decay, filter, fx, makes for fun play on the fly"
