@@ -154,6 +154,25 @@ static int plain_defaults(void)
     return ok;
 }
 
+/* PHEBUS (review 8, Ben 21 Nov: "Sound big, character small"): the sound pages' plot as a hash (the graph canvas from
+ * the plot's top, the character's corner left out), and a page of the chain by its title */
+static uint32_t plot_hash(void)
+{
+    uint32_t x, y, h = 2166136261u;
+    for (y = 22u + 20u; y < 22u + 118u; y++)
+        for (x = 0; x < 240u; x++)
+            if (x < 190u || y > 22u + 40u)
+                h = (h ^ screen[y * 240u + x]) * 16777619u;
+    return h;
+}
+static int chain_goto(uint32_t fam, const char *title)
+{
+    uint32_t j;
+    open_family(fam); frame();
+    for (j = 0; j < 20u && strcmp(PAGES[ui.page].title, title); j++) { encs[panel.enc[EN_SELECT]] = 1; frame(); }
+    return !strcmp(PAGES[ui.page].title, title);
+}
+
 #ifndef UI_PAGES_HARNESS_ONLY                       /* (tests/stress_test.c: the harness, its own main) */
 int main(int argc, char **argv)
 {
@@ -2042,6 +2061,8 @@ int main(int argc, char **argv)
             track_select(v < 2u ? 0u : v - 1u); frames(2);
             if (v < 2u)
                 host_preset(&trk[0], v ? ENGI_JUNO : ENGI_ACID, 0);
+            if (v == 2u)                                 /* (track 2 starts on JUNO since 21 Nov: ELEMENTS for its shots) */
+                host_preset(&trk[1], ENGI_ELEM, 3);
             frames(2);
             if (v == 4u) {
                 studio_open(SC_DRUM); frames(2);
@@ -2078,6 +2099,73 @@ int main(int argc, char **argv)
         tap(B_LFO); frames(1); encs[panel.enc[EN_ALGO]] = 1; frames(2);
         check(song.sel == TRK_DRUM && on_chain() && fam_stage(cur_page()->fam) == 3, "chain: on MOD, to the drums: their FX (the stage before)");
         track_select(0); host_preset(&trk[0], ENGI_ACID, 0); go_home(); frames(2);
+    }
+    {   /* PHEBUS (review 8, Ben 21 Nov: "Sound big, character small"): each sound page draws what its knobs do, big, and
+         * every knob moves the picture; the character small at the top right; each page shot at three settings */
+        static const struct { uint8_t trk, eng, pre, fam; const char *title, *shot; } SP[] = {
+            {0, ENGI_JUNO, 11, FAM_OSC, "OSC", "osc-juno"}, {0, ENGI_JUNO, 11, FAM_FLT, "FILTER", "filter-juno"},
+            {0, ENGI_JUNO, 11, FAM_OSC, "VOICE", "voice"}, {0, ENGI_JUNO, 11, FAM_OSC, "VOICE 2", "voice2"},
+            {0, ENGI_JUNO, 11, FAM_ENV, "ENV DEST", "envdest"}, {0, ENGI_JUNO, 11, FAM_FX, "FX", "fx-sends"},
+            {0, ENGI_JUNO, 11, FAM_FX, "CHORUS", "chorus"}, {0, ENGI_JUNO, 11, FAM_FX, "INSERT", "insert"},
+            {0, ENGI_JUNO, 11, FAM_FX, "INSERT 2", "insert2"}, {0, ENGI_JUNO, 11, FAM_MOD, "LFO DEST", "lfodest"},
+            {0, ENGI_ACID, 0, FAM_OSC, "OSC", "osc-acid"}, {0, ENGI_ACID, 0, FAM_FLT, "FILTER", "filter-acid"},
+            {0, ENGI_ACID, 0, FAM_FLT, "FILTER 2", "filter-trk"}, {2, ENGI_PRISM, 58, FAM_OSC, "OSC", "osc-va"},
+            {2, ENGI_PRISM, 0, FAM_OSC, "OSC", "osc-fold"}, {2, ENGI_PRISM, 58, FAM_OSC, "OSC 2", "osc2-plaits"},
+            {1, ENGI_ELEM, 3, FAM_OSC, "OSC", "osc-elem"}, {3, 0, 0, FAM_FLT, "FILTER", "filter-drum"},
+            {3, 0, 0, FAM_FX, "INSERT", "insert-drum"}};
+        uint32_t c, k, ok_all = 1, chr = 1;
+        char nm[40], what[120];
+        song.playing = 0;
+        for (c = 0; c < sizeof SP / sizeof SP[0]; c++) {
+            track_t *t = &trk[SP[c].trk];
+            const page_t *pg;
+            uint32_t ok = 1, set;
+            go_home(); track_select(SP[c].trk); frames(2);
+            if (SP[c].trk < 3u) host_preset(t, SP[c].eng, SP[c].pre);
+            t->p[P_ITYPE] = 1; t->p[P_IA] = 64; t->p[P_IMIX] = 100;   /* (INSERT SOFT: A, B, C and MIX at work) */
+            if (SP[c].eng == ENGI_JUNO) t->p[P_E0] = 2;              /* (S+P: PW at work) */
+            if (SP[c].eng == ENGI_ACID) t->p[P_E3] = 60;             /* (ENV: DEC at work) */
+            t->p[P_VOICE] = V_MONO; t->p[P_GLIDE] = 60;              /* (PRIO, GLMODE at work) */
+            if (!is_drum(t)) t->p[P_TFLT] = 0;
+            frames(16);
+            if (!chain_goto(SP[c].fam, SP[c].title)) {
+                snprintf(what, sizeof what, "sound page %s: reached", SP[c].shot); check(0, what); continue;
+            }
+            pg = cur_page();
+            ui.force = 1; frames(2);
+            chr &= px_count(196, 22, 44, 38, TE_COL[SP[c].trk & 3u]) > 40u;
+            for (k = 0; k < 4u; k++) {                  /* every knob: the picture moves */
+                const param_desc_t *d;
+                int16_t v0;
+                uint32_t h0, h1;
+                int32_t st;
+                if (pg->id[k] >= P_COUNT || (d = track_desc(t, pg->id[k]))->max <= d->min) continue;
+                v0 = t->p[pg->id[k]];
+                st = (d->max - d->min) / 3 > 1 ? (d->max - d->min) / 3 : 1;
+                ui.force = 1; frames(2); h0 = plot_hash();
+                t->p[pg->id[k]] = (int16_t)(v0 + st <= d->max ? v0 + st : v0 - st);
+                ui.force = 1; frames(2); h1 = plot_hash();
+                t->p[pg->id[k]] = v0;
+                if (h0 == h1) { printf("ui:   %s: knob %u (%s) moves nothing\n", SP[c].shot, (unsigned)k + 1, d->label); ok = 0; }
+            }
+            snprintf(what, sizeof what, "sound page %s: each knob moves its picture", SP[c].shot);
+            check(ok, what);
+            ok_all &= ok;
+            for (set = 0; set < 3u; set++) {            /* three settings: as it is, a third and five sixths of each */
+                for (k = 0; set && k < 4u; k++) {
+                    const param_desc_t *d;
+                    if (pg->id[k] >= P_COUNT || pg->id[k] == P_E0 && SP[c].eng == ENGI_PRISM) continue;
+                    d = track_desc(t, pg->id[k]);
+                    t->p[pg->id[k]] = (int16_t)(d->min + (d->max - d->min) * (set == 1u ? 2 : 5) / 6);
+                }
+                ui.force = 1; frames(2);
+                snprintf(nm, sizeof nm, "snd-%s-%c", SP[c].shot, 'a' + (int)set);
+                ppm(nm);
+            }
+        }
+        check(chr, "sound pages: the voice's character small at the top right");
+        go_home(); track_select(0); host_preset(&trk[0], ENGI_ACID, 0); frames(2);
+        trk[0].p[P_VOICE] = V_LEGATO; trk[0].p[P_GLIDE] = 0; trk[0].p[P_ITYPE] = 0;
     }
     {   /* PHEBUS (21 Nov 2026): TOOLS > NEW: every send and effect off, the STUTTER lane empty */
         uint32_t ok = 1, l;
