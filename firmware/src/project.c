@@ -781,7 +781,7 @@ static void autosave_tick(void)                /* main loop */
         stop_save = 1;                         /* (PHEBUS) stopped: saved as soon as it is silent */
     was_running = (uint8_t)run;
     unsaved_tick();
-    if (!flash_ok || run || rec_wait || ft_on || ui.menu || now - autosave_checked < (stop_save ? 100u : 1000u) ||
+    if (!flash_ok || run || rec_wait || ui.menu || now - autosave_checked < (stop_save ? 100u : 1000u) ||
         !autosave_due(stop_save, stop_save && out_silent(), 1, now - ui_input_ms, now - autosave_ms))
         return;
     autosave_checked = now;

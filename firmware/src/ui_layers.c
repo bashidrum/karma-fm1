@@ -28,7 +28,7 @@ static uint32_t sec_armed_ms;
 static uint8_t mix_pan;                                 /* (PHEBUS) GLO + key 11: the mixer's knobs are the pans, until it
                                                          * closes (HOME's KNOB 4 was PAN; VOICE 2 has it too) */
 
-/* the ISR's view of the panel: the layers' buttons, OCT- / OCT+, REC / PLAY of a free take */
+/* the ISR's view of the panel: the layers' buttons, OCT- / OCT+ */
 static void layers_init(void)
 {
     uint32_t l;
@@ -36,8 +36,6 @@ static void layers_init(void)
         ly_bit[l] = 1u << panel.btn[LAYER_BTN[l]];
     dyn_bit[0] = 1u << panel.btn[B_OCTDN];
     dyn_bit[1] = 1u << panel.btn[B_OCTUP];
-    ft_btn_mask = 1u << panel.btn[B_REC];
-    ft_drop_mask = 1u << panel.btn[B_PLAY];
     ui.lock_par = P_ED_FLT;                             /* the lock parameter until a sound knob is turned */
 }
 

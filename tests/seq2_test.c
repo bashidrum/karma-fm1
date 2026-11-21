@@ -910,39 +910,29 @@ static void t_mclk(void)
     mi_r = mi_w;
 }
 
-/* the REC screen's MODE and START (SLOOP 2.3): an empty project records at the tempo set (TEMPO) or
- * takes it from the playing (FREE); COUNT: PLAY clicks one bar, then the loop and the recording start */
+/* the REC screen's START (SLOOP 2.3): an empty project records at the tempo set (KARMA's FREE mode, the free take, is
+ * cut: PHEBUS wave 1); COUNT: PLAY clicks one bar, then the loop and the recording start */
 static void t_recmode(void)
 {
     uint32_t k, bpb = (uint32_t)((double)FS * 60.0 / 100.0 / CTL + 0.5), c0;
     reset(100);
     song.sel = 0;
     song.playing = 0;
-    rec_tempo = 0, rec_count = 0;
+    rec_count = 0;
     rec_wait = 1;
     input_on(TSEL, 60, 100);
     run_block();
-    check(ft_on && !song.playing, "REC mode FREE, empty project: the first note starts a free take");
-    transport_req = 2; run_block(); ft_bars = 0;
-    for (k = 0; k < 4u; k++) trk_note_off(&trk[k % NPART], 60);
-
-    reset(100);
-    song.sel = 0;
-    rec_tempo = 1, rec_count = 0;
-    rec_wait = 1;
-    input_on(TSEL, 60, 100);
-    run_block();
-    check(!ft_on && song.playing && song.rec == 1u && song.g[G_BPM] == 100,
-          "REC mode TEMPO, empty project: the first note starts the loop at 100 BPM, recording");
+    check(song.playing && song.rec == 1u && song.g[G_BPM] == 100,
+          "REC, empty project: the first note starts the loop at 100 BPM, recording (no free take)");
     transport_req = 2; run_block();
 
     reset(100);
     song.sel = 0;
-    rec_tempo = 1, rec_count = 1;
+    rec_count = 1;
     rec_wait = 1;
     input_on(TSEL, 62, 100);
     run_block();
-    check(!song.playing && !ci_on && !ft_on && rec_wait, "REC START COUNT: a note only sounds, nothing starts");
+    check(!song.playing && !ci_on && rec_wait, "REC START COUNT: a note only sounds, nothing starts");
     c0 = nhits;
     transport_req = 1;                                /* PLAY: the count-in */
     run_block();
@@ -960,7 +950,7 @@ static void t_recmode(void)
 
     reset(100);
     song.sel = 0;
-    rec_tempo = 1, rec_count = 1;
+    rec_count = 1;
     rec_wait = 1;
     transport_req = 1; run_block();
     for (k = 0; k < bpb; k++) run_block();
@@ -972,7 +962,7 @@ static void t_recmode(void)
     transport_req = 1; run_block();                   /* PLAY again: back to armed */
     check(!ci_on && rec_wait && !song.playing, "REC START COUNT: PLAY again during the count-in: back to armed");
     rec_wait = 0;
-    rec_tempo = 0, rec_count = 0;
+    rec_count = 0;
 }
 
 /* SLOOP 2.4 fixes: a MIDI START cuts a count-in short (the master counts); swing is off on the
@@ -983,7 +973,7 @@ static void t_fixes24(void)
     /* MIDI START during the count-in */
     reset(100);
     song.sel = 0;
-    rec_tempo = 1, rec_count = 1;
+    rec_count = 1;
     rec_wait = 1;
     song.g[G_SYNC] = 1;
     mi_r = mi_w;
@@ -996,7 +986,7 @@ static void t_fixes24(void)
     check(!ci_on && song.playing && song.rec == 1u, "2.4: a MIDI START during the count-in starts and records at once");
     transport_req = 2; run_block();
     song.g[G_SYNC] = 0;
-    rec_wait = 0; rec_tempo = 0; rec_count = 0;
+    rec_wait = 0; rec_count = 0;
     mi_r = mi_w;
 
     /* swing on 8T: every beat the same */

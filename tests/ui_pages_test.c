@@ -1202,16 +1202,18 @@ int main(int argc, char **argv)
         memcpy(trk, keep, sizeof keep); sync_reload = 1;
         song.sel = TRK_DRUM;
     }
-    {   /* the free take screens */
+    {   /* the REC screen (the free take is cut, PHEBUS wave 1: an empty project records at the tempo set, no MODE) */
         static track_t keep[NTRK];
+        uint32_t lw;
         memcpy(keep, trk, sizeof keep);
         for (i = 0; i < NTRK; i++) steps_clear(&trk[i]);
-        rec_tempo = 0; rec_count = 0;
-        rec_wait = 1; ui.force = 1; frame(); ppm("live-rec-free");
-        /* the REC screen's dials (2.3): KNOB 1 MODE, KNOB 2 LENGTH, KNOB 3 START */
+        rec_count = 0;
+        rec_wait = 1; ui.force = 1; frame(); ppm("live-rec-empty");
+        check(px_count(0, 42, 240, 64, 0) < 240u * 64u, "REC screen, empty project: drawn (play a note: it starts the loop)");
+        /* the REC screen's dials (2.3): KNOB 2 LENGTH, KNOB 3 START; KNOB 1 nothing */
+        lw = lights_word();
         encs[panel.enc[EN_K1]] = 1; frame();
-        check(rec_tempo == 1u && rec_wait, "REC screen, empty project: KNOB 1 -> MODE tempo");
-        ui.force = 1; frame(); ppm("live-rec-tempo");
+        check(lights_word() == lw && rec_wait, "REC screen, empty project: KNOB 1 does nothing (no MODE)");
         trk[song.sel].p[P_SLEN] = 16;
         encs[panel.enc[EN_K2]] = 1; frame();
         encs[panel.enc[EN_K2]] = 1; frame();
@@ -1221,25 +1223,20 @@ int main(int argc, char **argv)
         encs[panel.enc[EN_K3]] = 1; frame();
         check(rec_count == 1u, "REC screen: KNOB 3 -> START count");
         ui.force = 1; frame(); ppm("live-rec-count");
-        check((lights_word() >> 9 & 3u) == 3u, "REC screen: MODE and START saved with the settings");
+        check((lights_word() >> 9 & 3u) == 2u, "REC screen: START saved with the settings (bit 9, KARMA's MODE, written 0)");
+        lights_from_word(lights_word() | 1u << 9);
+        check((lights_word() >> 9 & 1u) == 0u, "the settings' old MODE bit: read and ignored");
         ci_on = 1; ci_beat = 1; ui.force = 1; frame(); ppm("live-rec-countin");
-        encs[panel.enc[EN_K1]] = -1; frame();
-        check(rec_tempo == 1u, "REC screen: the count-in running, the dials wait");
+        encs[panel.enc[EN_K3]] = -1; frame();
+        check(rec_count == 1u, "REC screen: the count-in running, the dials wait");
         ci_on = 0; ci_beat = 0;
         trk[1].step[0].time = ST_NOTE; trk[1].step[0].n = 1; trk[1].step[0].note[0] = 60;
-        encs[panel.enc[EN_K1]] = -1; frame();
-        check(rec_tempo == 1u, "REC screen, a project with notes: no MODE (always the tempo set)");
         ui.force = 1; frame(); ppm("live-rec-notes");
         steps_clear(&trk[1]);
         encs[panel.enc[EN_K3]] = -1; frame();
-        encs[panel.enc[EN_K1]] = -1; frame();
-        check(rec_tempo == 0u && rec_count == 0u, "REC screen: KNOB 3 / 1 back -> note, free");
-        rec_count = 1; encs[panel.enc[EN_K3]] = -1; frame();
-        check(rec_count == 1u, "REC screen, MODE free: no START (the take starts on the first note)");
-        rec_count = 0;
+        check(rec_count == 0u, "REC screen: KNOB 3 back -> note");
         trk[song.sel].p[P_SLEN] = 16;
-        rec_wait = 0; ft_on = 1; ft_t = (uint32_t)(5.4 * FS / CTL); ui.force = 1; ui_draw(); ppm("live-free-take");
-        ft_on = 0; ft_t = 0; memcpy(trk, keep, sizeof keep);
+        memcpy(trk, keep, sizeof keep);
         rec_wait = 0; frame();
     }
     for (i = 0; i < DRUM_KITS; i++) { TDRUM->p[P_E0] = (int16_t)i; ui.force = 1; drum_page = 1; frame(); }

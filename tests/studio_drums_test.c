@@ -69,9 +69,9 @@ int main(int argc,char **argv)
         dstep_set(&TDRUM->dstep[3],0,LV_NORM,0);
         rec_wait=1;
         for(b=0;b<10;b++)mix_block(out,CTL);            /* nothing happens while it waits */
-        assert(!song.playing && !song.rec && rec_wait==1 && !ft_on);
+        assert(!song.playing && !song.rec && rec_wait==1);
         fm1_in.notes=1u<<k0;mix_block(out,CTL);
-        assert(song.playing && song.rec==1u && !rec_wait && rec_go && !ft_on);
+        assert(song.playing && song.rec==1u && !rec_wait && rec_go);
         assert(trk[0].step[0].n==1 && trk[0].step[0].note[0]==60 && trk[0].step[0].time==ST_NOTE);
         fm1_in.notes=0;mix_block(out,CTL);
         transport_req=2;mix_block(out,CTL);
@@ -91,82 +91,18 @@ int main(int argc,char **argv)
         assert(!trk[1].step[9].n && trk[1].step[10].n==1 && trk[1].step[10].note[0]==62);
         transport_req=2;mix_block(out,CTL);song.rec=0;rec_wait=0;
     }
-    /* FREE TAKE (an empty project): play with no tempo, REC on the downbeat closes the loop,
-     * whose length sets the tempo; the notes and their lengths are quantised into it */
+    /* (PHEBUS wave 1: the free take is cut) an empty project armed: the first note starts the loop at the tempo set,
+     * recording on, the note on step 1, as in a project with notes; the tempo and the lengths do not change */
     {
-        static const struct { double bpm; uint32_t bars; int16_t want_bpm, want_bars; } T[] = {
-            {100.0, 1, 100, 1},     /* 1 bar at 100: 100 (200 is further from 120) */
-            {118.0, 1, 120, 1},     /* within 3 % of the tempo set: kept */
-            {90.0, 2, 90, 2},       /* 2 bars at 90: 45 / 90 / 180, 90 is the nearest 120 */
-            {140.0, 4, 140, 4},     /* 4 bars at 140 (35 / 70 / 140) */
-        };
-        uint32_t ti, c, rb = 1u << 3, k0 = 7u;
-        for(ti=0;ti<sizeof T/sizeof T[0];ti++){
-            double beat=60.0/T[ti].bpm;
-            uint32_t nb=T[ti].bars*4u, blk=0, bi, len=16u*(uint32_t)T[ti].want_bars;
-            host_tracks_init();song.g[G_BPM]=120;song.g[G_CLOCK]=0;song.sel=0;song.playing=0;song.rec=0;
-            for(c=0;c<NTRK;c++){memset(trk[c].step,0,sizeof trk[c].step);for(j=0;j<NSTEP;j++)trk[c].step[j].time=ST_REST;}
-            trk[0].step[40].time=ST_TIE;                 /* (an old tie: no effect) */
-            ft_btn_mask=rb;fm1_in.buttons=0;ft_bars=0;
-            rec_wait=1;mix_block(out,CTL);
-            for(bi=0;bi<=nb;bi++){                       /* a note on every beat, the 2nd held 1/2 beat */
-                uint32_t on=(uint32_t)(bi*beat*FS/CTL+0.5)+(bi&1u?6u:0u);   /* (+4 ms late on odd beats) */
-                uint32_t off=on+(uint32_t)((bi==1u?beat/2.0:beat/8.0)*FS/CTL);
-                if(bi==nb){                              /* the downbeat: REC closes */
-                    while(blk<on){mix_block(out,CTL);blk++;}
-                    fm1_in.buttons=rb;mix_block(out,CTL);blk++;fm1_in.buttons=0;
-                    break;
-                }
-                while(blk<on){mix_block(out,CTL);blk++;}
-                {static const uint8_t KOFF[4]={0,2,4,5};fm1_in.notes=1u<<(k0+KOFF[bi&3u]);}mix_block(out,CTL);blk++;
-                if(bi==0)assert(ft_on && !song.playing && !rec_wait);
-                while(blk<off){mix_block(out,CTL);blk++;}
-                fm1_in.notes=0;mix_block(out,CTL);blk++;
-            }
-            assert(!ft_on && song.playing && !song.rec);
-            assert(ft_bars==(uint8_t)T[ti].want_bars && song.g[G_BPM]==T[ti].want_bpm);
-            for(c=0;c<NTRK;c++)assert(trk[c].p[P_SLEN]==(int16_t)len && trk[c].p[P_SDIV]==2);
-            for(j=0;j<len;j++){
-                const step_t *st=&trk[0].step[j];
-                if(j%4u==0){
-                    static const uint8_t KN[4]={60,62,64,65};
-                    assert(st->time==ST_NOTE && st->n==1 && st->note[0]==KN[(j/4u)&3u]);
-                } else if(j==5u) {
-                    assert(st->time==ST_TIE);            /* the held note: 2 steps */
-                } else {
-                    assert(!st->n && st->time!=ST_NOTE && st->time!=ST_TIE);
-                }
-            }
-            for(j=len;j<NSTEP;j++)assert(trk[0].step[j].time==ST_REST);
-            transport_req=2;mix_block(out,CTL);
-        }
-        /* STOP during a free take drops it (so does the PLAY button); a PLAY from elsewhere (the editor)
-         * closes it like REC */
-        host_tracks_init();song.g[G_BPM]=120;song.playing=0;song.rec=0;song.sel=0;
-        for(c=0;c<NTRK;c++){memset(trk[c].step,0,sizeof trk[c].step);for(j=0;j<NSTEP;j++)trk[c].step[j].time=ST_REST;}
-        ft_bars=0;rec_wait=1;fm1_in.notes=1u<<k0;mix_block(out,CTL);fm1_in.notes=0;
-        assert(ft_on);
-        for(j=0;j<100;j++)mix_block(out,CTL);
-        transport_req=2;mix_block(out,CTL);
-        assert(!ft_on && !song.playing && ft_bars==0xFF && !trk[0].step[0].n);
-        ft_bars=0;rec_wait=1;fm1_in.notes=1u<<k0;mix_block(out,CTL);fm1_in.notes=0;
-        for(j=0;j<(uint32_t)(2.0*FS/CTL);j++)mix_block(out,CTL);   /* 2 s: 1 bar at 120 */
-        transport_req=1;mix_block(out,CTL);
-        assert(!ft_on && song.playing && ft_bars==1 && song.g[G_BPM]==120 && trk[0].step[0].n==1);
-        transport_req=2;mix_block(out,CTL);              /* the PLAY button during a take: dropped */
+        uint32_t c, k0 = 7u;
+        host_tracks_init();song.g[G_BPM]=97;song.g[G_CLOCK]=0;song.sel=0;song.playing=0;song.rec=0;rec_count=0;
         for(c=0;c<NTRK;c++)steps_clear(&trk[c]);
-        ft_drop_mask=1u<<5;ft_bars=0;rec_wait=1;fm1_in.notes=1u<<k0;mix_block(out,CTL);fm1_in.notes=0;
-        for(j=0;j<200;j++)mix_block(out,CTL);
-        fm1_in.buttons=ft_drop_mask;mix_block(out,CTL);fm1_in.buttons=0;mix_block(out,CTL);
-        assert(!ft_on && !song.playing && ft_bars==0xFF && !trk[0].step[0].n);
-        ft_drop_mask=0;
-        /* the longest take closes by itself (24 s) */
-        transport_req=2;mix_block(out,CTL);
-        for(c=0;c<NTRK;c++){memset(trk[c].step,0,sizeof trk[c].step);for(j=0;j<NSTEP;j++)trk[c].step[j].time=ST_REST;}
-        ft_bars=0;rec_wait=1;fm1_in.notes=1u<<k0;mix_block(out,CTL);fm1_in.notes=0;
-        while(ft_on)mix_block(out,CTL);
-        assert(ft_bars==4 && song.g[G_BPM]==40 && song.playing);
-        transport_req=2;mix_block(out,CTL);ft_btn_mask=0;
+        rec_wait=1;mix_block(out,CTL);
+        assert(!song.playing && rec_wait);
+        fm1_in.notes=1u<<k0;mix_block(out,CTL);fm1_in.notes=0;mix_block(out,CTL);
+        assert(song.playing && song.rec==1u && !rec_wait && song.g[G_BPM]==97 && trk[0].p[P_SLEN]==16);
+        assert(trk[0].step[0].n==1 && trk[0].step[0].note[0]==60);
+        transport_req=2;mix_block(out,CTL);song.rec=0;rec_wait=0;
     }
     /* the arm follows the selected track (rec_follow), and a disarmed song stays disarmed */
     song.rec=1u;rec_follow(2);assert(song.rec==4u);rec_follow(3);assert(song.rec==8u);

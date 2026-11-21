@@ -4,7 +4,7 @@
  * big numbers, lowercase labels, four dials at the bottom that show what KNOB 1..4 do.
  * Screens: TRACKS (the performance view), DRUMS (GRID / KIT, pads that flash on each hit), the
  * LAYERS (a function button held: what the 16 white keys and the knobs do now), HOLD (a hold to
- * confirm: clear, save), REC (armed / free take). Every band is drawn into the canvas only when its
+ * confirm: clear, save), REC (armed). Every band is drawn into the canvas only when its
  * signature changed. */
 static uint8_t drum_page, drum_lane, drum_cursor;   /* drum_page: 0 GRID, 1 KIT */
 static void trk_short_name(uint32_t c, char *b);
@@ -148,12 +148,9 @@ static void studio_open(uint32_t scope)
 }
 /* LIVE: REC, on any page. One record arm, on the selected track (it follows ALGORITHM). No
  * click (seq.c): playing, recording starts at once; stopped, REC arms and the first note
- * starts the loop (or, in an empty project, a free take that REC closes: seq.c ft_close).
- * REC again stops recording / cancels the arm (playback continues). */
+ * starts the loop. REC again stops recording / cancels the arm (playback continues). */
 static void rec_toggle(void)
 {
-    if (ft_owns_press())
-        return;
     if (song.rec || rec_wait) {
         song.rec = 0;
         rec_wait = 0;
@@ -658,11 +655,10 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
     for (k = 0; k < NB; k++) if ((pressed >> panel.btn[k]) & 1u) {
         b = k;
         if (b == B_PLAY) {
-            if (ft_owns_press()) ;
-            else transport_req = song.playing ? 2 : 1;
+            transport_req = song.playing ? 2 : 1;
         }
     }
-    if (!sg_held && !stl_held && (s = panel_enc(EN_ALGO)) && !ft_on && !stl_algo(s))   /* the track: the GRID stays, on
+    if (!sg_held && !stl_held && (s = panel_enc(EN_ALGO)) && !stl_algo(s))   /* the track: the GRID stays, on
                                                          * the track chosen (after DRUM: the STUTTER lane, ui_stut.c) */
         track_select((uint32_t)clamp((int32_t)song.sel + s, 0, 3));
     if (stl_shown()) {
@@ -761,9 +757,9 @@ static void te_digit(int32_t x, int32_t y, int32_t w, int32_t h, int32_t t, uint
 
 static uint8_t rec_shown;
 /* the four tracks, compact, from y0: the one that records is framed in red */
-static void rec_rows(uint32_t rt, uint32_t take, uint32_t y0, uint32_t *cache)
+static void rec_rows(uint32_t rt, uint32_t y0, uint32_t *cache)
 {
-    uint32_t sig = rt * 3u + rec_wait + take * 5u + drum_kit() * 977u + y0, i, j;
+    uint32_t sig = rt * 3u + rec_wait + drum_kit() * 977u + y0, i, j;
     for (i = 0; i < NTRK; i++) {
         char b[16];
         if (i == TRK_DRUM) str_cpy(b, DRUM_KIT_NAMES[drum_kit()], sizeof b);
@@ -796,70 +792,27 @@ static void rec_rows(uint32_t rt, uint32_t take, uint32_t y0, uint32_t *cache)
     cv_blit(0, y0);
 }
 
-/* REC armed (stopped: waiting for the first note, or PLAY), its count-in, or a free take running
- * (seq.c). Armed, the dials say how it records: KNOB 1 MODE free / tempo (an empty project),
- * KNOB 2 LENGTH (1, 2 or 4 bars), KNOB 3 START note / count (ui_input.c rec_knobs). The four tracks
- * stay in view; the REC LED blinks while armed, is lit during the take. */
+/* REC armed (stopped: waiting for the first note, or PLAY) or its count-in (seq.c). Armed, the dials say how it
+ * records: KNOB 2 LENGTH (1, 2 or 4 bars), KNOB 3 START note / count (ui_input.c rec_knobs). The four tracks stay in
+ * view; the REC LED blinks while armed */
 static void rec_screen_draw(void)
 {
-    static uint32_t head, body, rows, foot, dials;
-    static uint8_t layout;
-    uint32_t sig, take = ft_on, empty = take || project_empty(), rt = take ? ft_trk % NTRK : song.sel;
-    uint32_t blink = (fm1_ms / 250u) & 1u, secs = take ? ft_t * CTL / FS : 0u, bars = 0, bpm = 0;
-    uint32_t lay = take ? 1u : 2u, free = empty && !rec_tempo && !take, count = ci_on;
-    if (take)
-        bars = ft_fit(ft_t, &bpm);
-    if (!rec_shown || lay != layout) {
+    static uint32_t head, body, rows, dials;
+    uint32_t sig, rt = song.sel;
+    uint32_t blink = (fm1_ms / 250u) & 1u, count = ci_on;
+    if (!rec_shown) {
         lcd_fill(0, 0, 240, 240, C_BLACK);
         ui.force = 1;
     }
     rec_shown = 1;
-    layout = (uint8_t)lay;
-    te_header(take ? "free take" : count ? "count-in" : "rec ready", TE_RED, &head);
-    if (take) {                                         /* free take: the time, the loop it makes */
-        sig = 1000003u + rt * 7919u + blink * 31u + secs * 131u + bars * 17u + bpm * 3u;
-        if (ui.force || sig != body) {
-            char b[24];
-            uint32_t n = secs > 99u ? 99u : secs;
-            body = sig;
-            cv_begin(240, 106, C_BLACK);
-            te_disc(18, 30, 9, blink ? TE_RED : TE_G2);
-            if (n >= 10u)
-                te_digit(36, 4, 32, 56, 7, n / 10u, C_WHITE);
-            te_digit(76, 4, 32, 56, 7, n % 10u, C_WHITE);
-            cv_text(112, 44, &FONT_S, "s", TE_G3);
-            cv_rect(132, 6, 1, 54, TE_G1);
-            if (bars) {
-                fmt_int(b, (int32_t)bars);
-                cv_text(146, 4, &FONT_L, b, TE_COL[rt & 3u]);
-                cv_text(146 + text_w(&FONT_L, b) + 6, 18, &FONT_S, bars == 1u ? "bar" : "bars", TE_G3);
-                fmt_int(b, (int32_t)bpm);
-                cv_text(146, 42, &FONT_S, b, C_WHITE);
-                cv_text(146 + text_w(&FONT_S, b) + 4, 42, &FONT_S, "bpm", TE_G3);
-            } else {
-                cv_text(146, 4, &FONT_L, "-", TE_G3);
-            }
-            te_text_c(120, 80, "press rec on the 1", TE_RED);
-            cv_blit(0, 42);
-        }
-        rec_rows(rt, take, 148u, &rows);
-        if (ui.force || foot != 1u) {
-            foot = 1u;
-            cv_begin(240, 16, C_BLACK);
-            cv_text(4, 0, &FONT_S, "rec: close", TE_G3);
-            cv_text(236 - text_w(&FONT_S, "play: drop"), 0, &FONT_S, "play: drop", TE_G3);
-            cv_blit(0, 224);
-        }
-        return;
-    }
-    foot = 0;
+    te_header(count ? "count-in" : "rec ready", TE_RED, &head);
     /* armed / counting in: what happens next */
-    sig = 2000003u + empty * 7u + free * 11u + rec_count * 13u + count * 17u + ci_beat * 19u + blink * 31u;
+    sig = 2000003u + rec_count * 13u + count * 17u + ci_beat * 19u + blink * 31u;
     if (ui.force || sig != body) {
-        static const char *const L1[3] = {"play freely", "play a note", "press play"};
-        static const char *const L2[3] = {"then rec on the 1", "it starts the loop", "4 clicks, then rec"};
-        static const char *const L3[3] = {"the tempo follows you", "play: go  rec: cancel", "rec: cancel"};
-        uint32_t m = free ? 0u : rec_count ? 2u : 1u;
+        static const char *const L1[2] = {"play a note", "press play"};
+        static const char *const L2[2] = {"it starts the loop", "4 clicks, then rec"};
+        static const char *const L3[2] = {"play: go  rec: cancel", "rec: cancel"};
+        uint32_t m = rec_count ? 1u : 0u;
         body = sig;
         cv_begin(240, 64, C_BLACK);
         if (count) {                                    /* the count-in: 4, 3, 2, 1 */
@@ -876,17 +829,15 @@ static void rec_screen_draw(void)
         }
         cv_blit(0, 42);
     }
-    rec_rows(rt, 0u, 106u, &rows);
+    rec_rows(rt, 106u, &rows);
     {   /* the dials: how it records */
         static char v[3][10];
-        static const char *const LAB_E[4] = {"mode", "steps", "start", ""};   /* (STEPS: the pattern's length, review 21) */
-        static const char *const LAB_F[4] = {"mode", "", "", ""};
-        static const char *const LAB_N[4] = {"", "steps", "start", ""};
+        static const char *const LAB_N[4] = {"", "steps", "start", ""};   /* (STEPS: the pattern's length, review 21) */
         static const char *const LAB_0[4] = {"", "", "", ""};
         const char *val[4] = {v[0], v[1], v[2], ""};
         int32_t ratio[4] = {0, 0, 0, 0};
         uint32_t len = (uint32_t)clamp(TSEL->p[P_SLEN], 1, 64);
-        str_cpy(v[0], rec_tempo ? "tempo" : "free", sizeof v[0]);
+        v[0][0] = 0;
         if (len % 16u == 0u) {
             fmt_int(v[1], (int32_t)(len / 16u));
             str_cpy(v[1] + str_len(v[1]), len == 16u ? " bar" : " bars", 6);
@@ -895,11 +846,10 @@ static void rec_screen_draw(void)
             str_cpy(v[1] + str_len(v[1]), " st", 4);
         }
         str_cpy(v[2], rec_count ? "count" : "note", sizeof v[2]);
-        ratio[0] = rec_tempo ? 1000 : 0;
         ratio[1] = (int32_t)(len - 1u) * 1000 / 63;
         ratio[2] = rec_count ? 1000 : 0;
         {
-            const char *const *lab = count ? LAB_0 : !empty ? LAB_N : free ? LAB_F : LAB_E;
+            const char *const *lab = count ? LAB_0 : LAB_N;
             uint32_t k;
             for (k = 0; k < 4u; k++)
                 if (!lab[k][0])

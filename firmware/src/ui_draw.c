@@ -937,7 +937,7 @@ static void ui_draw(void)
         return;
     pads_tick();
     {   /* a message belongs to the screen it showed on: another screen, it goes (review 21) */
-        uint16_t k = (uint16_t)((ui.menu * 1000003u + ui.layer * 7919u + ui.hold_kind * 131u + (rec_wait || ft_on) * 17u +
+        uint16_t k = (uint16_t)((ui.menu * 1000003u + ui.layer * 7919u + ui.hold_kind * 131u + rec_wait * 17u +
                                  ui.home * 3u + ui.page * 977u + drum_page * 5u + vis_on * 11u) % 65521u);
         if (!ui.msg_t)
             ;
@@ -949,19 +949,6 @@ static void ui_draw(void)
     if (rec_go) {                                       /* the take started: say so */
         rec_go = 0;
         ui_message("RECORDING");
-    }
-    if (ft_bars) {                                      /* a free take closed: the loop it made */
-        char m[24];
-        uint32_t n = ft_bars;
-        ft_bars = 0;
-        if (n == 0xFFu) {
-            ui_message("TAKE DROPPED");
-        } else {
-            str_cpy(m, n == 1u ? "LOOP 1 BAR " : n == 2u ? "LOOP 2 BARS " : "LOOP 4 BARS ", sizeof m);
-            fmt_int(m + str_len(m), song.g[G_BPM]);
-            str_cpy(m + str_len(m), " BPM", sizeof m - str_len(m));
-            ui_message(m);
-        }
     }
     if (er_flash) {                                     /* EDIT + key took something out */
         er_flash = 0;
@@ -982,7 +969,7 @@ static void ui_draw(void)
         lcd_fill(0, 0, 240, 240, C_BLACK);
         ui.force = 1;
     }
-    if ((rec_wait || ft_on) && !ui.menu) {              /* armed / free take */
+    if (rec_wait && !ui.menu) {                         /* armed */
         rec_screen_draw();
         ui_timers();
         ui.force = 0;

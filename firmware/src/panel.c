@@ -80,7 +80,7 @@ struct { uint32_t magic, palette, lowcut, zoom; } settings __attribute__((sectio
 
 /* the lights (menu LIGHTS / KEYS / NOTES), for playing in the dark: kept in flash with the settings
  * (project.c persist_t.lights), read at every boot; not in .noinit, so nothing there moves. The same
- * word keeps SYNC and the REC screen's MODE / START (seq.c rec_tempo, rec_count) */
+ * word keeps SYNC and the REC screen's START (seq.c rec_count; bit 9 was KARMA's MODE, free take: written 0, ignored) */
 enum { LIGHTS_OFF, LIGHTS_LOW, LIGHTS_MID, LIGHTS_HIGH, LIGHTS_N };
 enum { KEYS_OFF, KEYS_C, KEYS_WHITE, KEYS_ALL, KEYS_N };   /* (ALL: SLOOP 2.4; an older SLOOP reads it as OFF) */
 static uint8_t lights_lvl, lights_keys;
@@ -107,7 +107,7 @@ static uint8_t vis_style;                       /* the screensaver shown, 0..VIS
 static uint32_t lights_word(void)
 {
     return (uint32_t)lights_lvl | (uint32_t)lights_keys << 4 | (uint32_t)(lights_notes != 0u) << 8 |
-           (uint32_t)(rec_tempo != 0u) << 9 | (uint32_t)(rec_count != 0u) << 10 | (uint32_t)(usb_full != 0u) << 11 |
+           (uint32_t)(rec_count != 0u) << 10 | (uint32_t)(usb_full != 0u) << 11 |
            (uint32_t)(lights_sync % 3u) << 12 | (uint32_t)(lights_mout != 0u) << 14 | (uint32_t)(lights_min == 1u) << 15 |
            (uint32_t)(usb_serial != 0u) << 16 | (uint32_t)(vis_style % VIS_N) << 17 |
            (uint32_t)(lights_min >= 2u && lights_min <= 17u ? lights_min - 1u : 0u) << 21 |  /* 2.6: CH n (n 1..16; 0 none) */
@@ -119,7 +119,6 @@ static void lights_from_word(uint32_t w)
     lights_lvl = (uint8_t)((w & 15u) < LIGHTS_N ? (w & 15u) : LIGHTS_OFF);
     lights_keys = (uint8_t)(((w >> 4) & 15u) < KEYS_N ? ((w >> 4) & 15u) : KEYS_OFF);
     lights_notes = (uint8_t)((w >> 8) & 1u);
-    rec_tempo = (uint8_t)((w >> 9) & 1u);       /* the REC screen: MODE, START (seq.c) */
     rec_count = (uint8_t)((w >> 10) & 1u);
     usb_full = (uint8_t)((w >> 11) & 1u);       /* menu USB AUDIO (fx.c) */
     lights_sync = (uint8_t)(((w >> 12) & 3u) % 3u);

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* SLOOP soak test: 10 simulated minutes of random live use through the real audio path
- * (mix_block: sequencer, the 3 synth parts, the synthesised and sampled drum kits, the
- * punch-in FX, the record arm, free takes, MIDI in), then everything stopped and released.
+ * (mix_block: sequencer, the 3 synth parts, the synthesised drum kits, the
+ * punch-in FX, the record arm from an empty project, MIDI in), then everything stopped and released.
  * Checks: the output stays bounded, every block renders in time on the host, voices never
  * hang (all free a few seconds after the last note), the punch FX and the record state come
  * back to idle, recorded steps stay well-formed. Seeded: the same run every time. */
@@ -9,8 +9,8 @@
 #include "hostsim.c"
 #undef main
 #include <assert.h>
-static uint32_t seed = 12345, ft_count, ft_starts;
-static uint8_t ft_prev, arm_next;
+static uint32_t seed = 12345, arm_starts;
+static uint8_t was_playing, arm_next;
 static uint32_t rnd(uint32_t n) { seed = seed * 1664525u + 1013904223u; return (seed >> 8) % (n ? n : 1u); }
 static void midi_in(uint32_t st, uint32_t d1, uint32_t d2)
 {
@@ -53,7 +53,7 @@ int main(int argc, char **argv)
                 break;
             }
             case 21: trk[rnd(NPART)].p[P_CHORD] = (int16_t)rnd(6); trk[rnd(NPART)].p[P_VOICE] = (int16_t)rnd(4); break;
-            case 0: if (!ft_on || !rnd(16)) transport_req = song.playing ? 2 : 1; break;   /* (a free take: PLAY closes it) */
+            case 0: transport_req = song.playing ? 2 : 1; break;
             case 1: if (song.playing) rec_begin(); else rec_wait = 1; break;        /* REC */
             case 2: song.rec = 0; rec_wait = 0; break;                            /* REC off */
             case 3: { uint32_t s = rnd(NTRK); song.sel = (uint8_t)s; rec_follow(s); break; }   /* ALGO */
@@ -78,7 +78,7 @@ int main(int argc, char **argv)
             }
         }
         fm1_in.notes = held;
-        if (rnd(3000) == 0) {                                 /* now and then an empty project: free takes */
+        if (rnd(3000) == 0) {                                 /* now and then an empty project, armed */
             for (k = 0; k < NTRK; k++)
                 steps_clear(&trk[k]);
             transport_req = 2;                                /* stopped, then armed */
@@ -87,17 +87,13 @@ int main(int argc, char **argv)
             arm_next = 0;
             rec_wait = 1;
         }
-        ft_btn_mask = 1u << 3;
-        ft_drop_mask = 1u << 4;
-        fm1_in.buttons = (rnd(4000) == 0 ? 1u << 3 : rnd(20000) == 0 ? 1u << 4 : 0u) | layer_btn;   /* REC closes, PLAY drops a take */
+        fm1_in.buttons = layer_btn;
         clock_gettime(CLOCK_MONOTONIC, &t0);
         mix_block(out, CTL);
         clock_gettime(CLOCK_MONOTONIC, &t1);
-        if (ft_prev && !ft_on && song.playing)
-            ft_count++;
-        if (!ft_prev && ft_on)
-            ft_starts++;
-        ft_prev = ft_on;
+        if (!was_playing && song.playing && song.rec)
+            arm_starts++;                                     /* (a note started the loop, recording) */
+        was_playing = song.playing;
         {
             uint32_t ns = (uint32_t)((t1.tv_sec - t0.tv_sec) * 1000000000L + (t1.tv_nsec - t0.tv_nsec));
             total_ns += ns;
@@ -123,7 +119,7 @@ int main(int argc, char **argv)
     transport_req = 2;
     for (k = 0; k < NTRK; k++) trk[k].p[P_AMODE] = 0;
     for (b = 0; b < 5u * FS / CTL; b++) mix_block(out, CTL);
-    assert(!song.playing && !song.rec && !rec_wait && !ft_on);
+    assert(!song.playing && !song.rec && !rec_wait);
     assert(punch.cur == -1);
     for (k = 0; k < NPART; k++)
         for (i = 0; i < NVOICE; i++)
@@ -147,10 +143,8 @@ int main(int argc, char **argv)
                minutes, events, peak, maxblock_ns / 1000.0, total_ns / blocks / 1000.0, quiet);
         assert(quiet < 64);
     }
-    printf("soak: free takes %u, closed into a loop %u\n", ft_starts, ft_count);
+    printf("soak: armed starts %u\n", arm_starts);
     fflush(stdout);
-    if (minutes >= 3u)                                       /* (a shorter run may close none: a smoke test) */
-        assert(ft_count > 0);
     printf("soak: random live use, bounded output, no hanging voices, idle after stop PASS\n");
     return 0;
 }

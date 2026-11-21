@@ -540,12 +540,11 @@ Holding and releasing SAVE with nothing else does not save anything. Tap **SAVE*
 | You do | Result |
 | --- | --- |
 | **Tap REC while playing** | recording starts at once (on a synth voice's GRID too: the keys play notes there while recording; the title reads LIVE REC) |
-| **Tap REC while stopped** | arms it ("REC READY"). Recording starts when you play. **On a synth voice's GRID it starts STEP REC instead** (see [Step record](#step-record-step-rec)) |
+| **Tap REC while stopped** | arms it ("REC READY"). Recording starts when you play, at the tempo set (an empty project too). **On a synth voice's GRID it starts STEP REC instead** (see [Step record](#step-record-step-rec)) |
 | **Tap REC again** | cancels ("REC OFF") |
-| **Tap REC on an empty project** | a **free take**: it records without a tempo, and REC closes it |
 | **Hold REC** (about 0.7 s, then the ring fills over about 1.3 s more) | **clears the selected voice** ("TRACK 1 CLEARED"). Let go before the ring is full and nothing happens. EDIT + OCT- brings it back |
 
-On the REC screen: KNOB 1 **MODE** (on an empty project), KNOB 2 the length (1, 2 or 4 bars), KNOB 3 **START** (on a note, or with a count-in). The click setting is GLO > GLOBAL > CLICK (OFF, REC, ON). The beat lights turn red on beat 1 only while recording.
+On the REC screen: KNOB 2 the length (1, 2 or 4 bars), KNOB 3 **START** (on a note, or with a count-in). The click setting is GLO > GLOBAL > CLICK (OFF, REC, ON). The beat lights turn red on beat 1 only while recording.
 
 Notes are recorded as you play them, quantised to the voice's DIV. Rolls (hold ARP and a key) are recorded as ratchets.
 
@@ -755,7 +754,7 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 | Gesture | Does |
 | --- | --- |
 | tap PLAY | start or stop |
-| tap REC | record, arm, or close a free take (stopped, on a synth voice's GRID: STEP REC) |
+| tap REC | record or arm (stopped, on a synth voice's GRID: STEP REC) |
 | hold REC about 2 s | clear the selected voice |
 | tap HOME | HOME screen (on the HOME screen: a screensaver) |
 | hold HOME 0.7 s | the menu |
@@ -763,7 +762,7 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 | tap SEQ | the GRID (on the GRID: the SEQ pages; on a SEQ page: back to the GRID) |
 | tap SAVE | the SAVE pages (PRESETS, USER, TOOLS), on every screen |
 | hold a layer button, then tap HOME | lock that layer open |
-| ALGORITHM | choose the voice (not during a free take or in the menu) |
+| ALGORITHM | choose the voice (not in the menu) |
 | PRESETS | the sound list (drums: the kit) |
 | SELECT | the next or previous page; on screens with no pages, the tempo |
 | OCT- or OCT+ | octave -3 to +3 (both together: 0) |
@@ -869,7 +868,7 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 
 | Gesture | Does |
 | --- | --- |
-| KNOB 1 to 3 | MODE, length, START |
+| KNOB 2, 3 | length, START |
 | REC | record, or cancel |
 
 ### Screensaver and menu

@@ -41,7 +41,7 @@ run "application USB recovery and boot-loop guard" "$OUT/recovery_test"
 
 
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/studio_drums_test" tests/studio_drums_test.c $PLX -lm
-run "drum lanes, kit audio, metronome, record arm, free take" "$OUT/studio_drums_test" "$OUT/drum-styles.wav"
+run "drum lanes, kit audio, metronome, record arm (an empty project at the tempo set)" "$OUT/studio_drums_test" "$OUT/drum-styles.wav"
 $CC -O1 -w -DARENA_STATS -Ibuild/gen -Ifirmware/src -o "$OUT/arena_test" tests/arena_test.c $PLX -lm
 run "engine arenas: every engine after every other one as on a fresh FM-1; 30 s of random switches" "$OUT/arena_test" 30
 $CC -O2 -w -Ifirmware/mi -o "$OUT/plx_test" tests/plx_test.c $PLX -lm

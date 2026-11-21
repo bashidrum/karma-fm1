@@ -194,9 +194,9 @@ static void ui_leds(void)
     }
     led_put(nl, panel.btn[ui.layer != LY_PLAY ? LAYER_BTN[ui.layer] : cur_btn()],
             ly_lock == LY_PLAY || ((fm1_ms / 300u) & 1u) != 0u || (fm1_in.buttons & ly_bit[ly_lock % LY_COUNT]) != 0u);   /* locked: blinks */
-    led_put(nl, panel.btn[B_PLAY], play_led() || (song.playing && !song.rec && ft_on) ||
+    led_put(nl, panel.btn[B_PLAY], play_led() ||
                                       (ci_on && ci_u % BEAT_U < BEAT_U / 4u));   /* (the count-in's beats) */
-    led_put(nl, panel.btn[B_REC], song.rec != 0u || ft_on || (rec_wait && ((fm1_ms / 125u) & 1u)) ||
+    led_put(nl, panel.btn[B_REC], song.rec != 0u || (rec_wait && ((fm1_ms / 125u) & 1u)) ||
                                      (ui.hold_kind == 1u && ((fm1_ms / 60u) & 1u)));   /* blinks: armed; fast: clearing */
     if (ui.layer == LY_FX) {                       /* FX: OCT- / OCT+ lit while REV / ECHO THROW (2.6) */
         led_put(nl, panel.btn[B_OCTDN], (thr_req & 1u) != 0u);
@@ -427,8 +427,8 @@ static void edit_param(uint32_t slot, int32_t steps)
  * sound, and set the GRID's pen, in seq.c (the old STEP page's entry is gone: REVIEW.md 2, 21 Nov 2026) */
 static void midi_entry(void)                              /* (top of ui_input: every frame) */
 {
-    int rec_arm = song.rec || rec_wait || ft_on;          /* (2.6) recording, armed or a free take: on which track */
-    uint32_t rec_trk = ft_on ? ft_trk % NTRK : song.sel % NTRK;
+    int rec_arm = song.rec || rec_wait;                   /* (2.6) recording or armed: on which track */
+    uint32_t rec_trk = song.sel % NTRK;
     static uint8_t rh_st, rh_trk;                         /* its hint: 0 off, 1 not said yet, 2 said (or not needed) */
     if (!rec_arm)
         rh_st = 0;
@@ -672,20 +672,14 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
     return 1;
 }
 
-/* the REC screen while armed (ui_studio.c rec_screen_draw): KNOB 1 MODE free / tempo (an empty
- * project), KNOB 2 the length of the selected track (1, 2 or 4 bars), KNOB 3 START note / count;
- * MODE and START are settings of the FM-1 (panel.c lights_word: saved once stopped) */
+/* the REC screen while armed (ui_studio.c rec_screen_draw): KNOB 2 the length of the selected track (1, 2 or 4 bars),
+ * KNOB 3 START note / count (a setting of the FM-1: panel.c lights_word, saved once stopped). KNOB 1 does nothing */
 static void rec_knobs(void)
 {
     static const uint8_t LENS[3] = {16u, 32u, 64u};
     int32_t s;
-    uint32_t empty = (uint32_t)project_empty(), tempo = !empty || rec_tempo;
-    if ((s = panel_enc(EN_K1)) != 0 && empty) {
-        rec_tempo = (uint8_t)(s > 0);
-        settings_later = 1;
-        ui.hot_col = 0, ui.hot_t = 40;
-    }
-    if ((s = panel_enc(EN_K2)) != 0 && tempo) {
+    panel_enc(EN_K1);
+    if ((s = panel_enc(EN_K2)) != 0) {
         track_t *t = TSEL;
         int32_t len = t->p[P_SLEN], i, to = len;
         if (s > 0) {
@@ -696,7 +690,7 @@ static void rec_knobs(void)
         t->p[P_SLEN] = (int16_t)to;
         ui.hot_col = 1, ui.hot_t = 40;
     }
-    if ((s = panel_enc(EN_K3)) != 0 && tempo) {
+    if ((s = panel_enc(EN_K3)) != 0) {
         rec_count = (uint8_t)(s > 0);
         settings_later = 1;
         ui.hot_col = 2, ui.hot_t = 40;
@@ -709,13 +703,12 @@ static void rec_knobs(void)
  * (SAVE is the sections layer: ui_layers.c; tapped, layer_tap) */
 static void holds_input(uint32_t pressed, uint32_t now_ms)
 {
-    static uint8_t prev_rec, prev_wait, prev_sr, eaten, rec_on, save_on;   /* *_on: pressed, *_t0 its time */
+    static uint8_t prev_rec, prev_wait, prev_sr, rec_on, save_on;   /* *_on: pressed, *_t0 its time */
     static uint32_t rec_t0, save_t0;
     uint32_t rb = 1u << panel.btn[B_REC], sb = 1u << panel.btn[B_SAVE];
     uint32_t rec_down = (fm1_in.buttons & rb) != 0u, save_down = (fm1_in.buttons & sb) != 0u;
     /* REC */
     if (pressed & rb) {
-        eaten = (uint8_t)ft_owns_press();                 /* (the press closed a free take: seq.c) */
         prev_rec = song.rec;
         prev_wait = rec_wait;
         prev_sr = sr_on;
@@ -723,12 +716,12 @@ static void holds_input(uint32_t pressed, uint32_t now_ms)
         rec_on = 1;
         if (sr_on)                                        /* (PHEBUS) a synth track's GRID: STEP REC ends; */
             sr_set(0);
-        else if (sr_here() && !song.playing && !song.rec && !rec_wait && !ft_on && !eaten)
+        else if (sr_here() && !song.playing && !song.rec && !rec_wait)
             sr_set(1);                                    /* stopped, it starts (playing: live, as ever) */
         else
             rec_toggle();
     }
-    if (rec_down && rec_on && !eaten && !ui.hold_kind && now_ms - rec_t0 >= 700u) {
+    if (rec_down && rec_on && !ui.hold_kind && now_ms - rec_t0 >= 700u) {
         song.rec = prev_rec;                              /* a hold: the press is undone */
         rec_wait = prev_wait;
         if (sr_on != prev_sr)
@@ -834,10 +827,10 @@ static void ui_input(void)
             panel_enc(EN_K1 + k);
         enc_hold |= 15u << EN_K1;
     }
-    if (rec_wait && !ft_on && !ci_on) {                 /* the REC screen, armed: how it records */
+    if (rec_wait && !ci_on) {                           /* the REC screen, armed: how it records */
         rec_knobs();                                    /* (tempo and sound still work; the track too: */
-    } else if (rec_wait || ft_on) {                     /* the arm follows) */
-        for (k = 0; k < 4u; k++)                        /* a take / the count-in: KNOB 1..4 edit nothing */
+    } else if (rec_wait) {                              /* the arm follows) */
+        for (k = 0; k < 4u; k++)                        /* the count-in: KNOB 1..4 edit nothing */
             panel_enc(EN_K1 + k);
     }
 #if FELUCCA_ARRANGER
@@ -861,8 +854,7 @@ static void ui_input(void)
         b = panel_btn_of(id);
         switch (b) {
         case B_PLAY:
-            if (!ft_owns_press())                       /* (it closed or dropped a free take: seq.c) */
-                transport_req = song.playing ? 2 : 1;
+            transport_req = song.playing ? 2 : 1;
             break;
         case B_OCTDN:
         case B_OCTUP: {
@@ -896,16 +888,16 @@ static void ui_input(void)
         else if (total)
             preset_go((uint32_t)(((int32_t)cur + s % (int32_t)total + (int32_t)total) % (int32_t)total));
     }
-    if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on)     /* ALGORITHM: the selected track, on every page (not in a take) */
+    if ((s = panel_enc(EN_ALGO)) != 0)              /* ALGORITHM: the selected track, on every page */
         track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
-    if (vis_shown() && !rec_wait && !ft_on) {           /* the visualiser: SELECT its style; KNOB 1..4 (the TRACKS
+    if (vis_shown() && !rec_wait) {           /* the visualiser: SELECT its style; KNOB 1..4 (the TRACKS
                                                          * screen's, out of sight) do nothing */
         if ((s = panel_enc(EN_SELECT)) != 0)
             vis_select(s);
         for (k = 0; k < 4u; k++)
             panel_enc(EN_K1 + k);
     }
-    if ((s = panel_enc(EN_SELECT)) != 0 && (rec_wait || ft_on || !page_walk(s))) {   /* SELECT: the pages of the
+    if ((s = panel_enc(EN_SELECT)) != 0 && (rec_wait || !page_walk(s))) {   /* SELECT: the pages of the
                                                      * family shown, else (and on the REC screen) the tempo */
         song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + accel(EN_SELECT, s, 200), GP[G_BPM].min, GP[G_BPM].max);
         ui.bpm_t = 40;                              /* the header's BPM lights up; no message over the header */
