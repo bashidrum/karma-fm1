@@ -32,7 +32,7 @@
 | 21 | Words | Fix all |
 | 22 | Docs and site | Rewrite guide and cheat sheet, remove the analytics counter. Power-on kit: 606 |
 
-Status, 21 Nov afternoon: every decision is built, merged and live in the simulator, plus (asked for on 21 Nov) effects off by default, the stutter sequencer and plain sawtooth starts. 17 skipped at Ben's choice. Left: the guide and cheat sheet rewrite (in progress). Nothing has run on a real FM-1.
+Status, 21 Nov, complete: every decision is built, merged and live in the simulator, plus (asked for on 21 Nov) effects off by default, the stutter sequencer and plain sawtooth starts. GUIDE.md and the cheat sheet are rewritten for PHEBUS. 17 skipped at Ben's choice. Nothing has run on a real FM-1; the list of checks for the device is in GUIDE.md section 20.
 
 ---
 
