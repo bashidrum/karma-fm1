@@ -107,3 +107,4 @@ His picker answers (21 Nov, morning): stutter sequencer length "Per step" (a kno
 
 ## Follow-up decisions (Ben, 21 Nov 2026, about 10:00, by picker)
 Held-SEQ step keys: "Remove them" (holding SEQ gives only division, swing and length). One-knob pages: "Keep, name the pages" (show page names in the strip). Song insert and delete: "Hold the entry's key" (hold the white key for an entry, then OCT+ inserts and OCT- deletes). THIRD EYE screensaver: "Keep it".
+Chords track (Ben, 21 Nov, picker): "JUNO on track 2" (polyphonic saw chords; needs a check on the real FM-1).
