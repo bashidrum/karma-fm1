@@ -66,22 +66,42 @@ static struct {
     uint8_t lc[16];               /* 2 bits a step: the length code */
     uint8_t len;                  /* 1..64 steps */
     uint8_t act;                  /* the lane on (else it keeps its steps and plays nothing) */
+    uint8_t lx[8];                /* (PHEBUS, 21 Nov 2026) bit per step: + 4 to its code: 4 = 1/2, 5 = 1/1 (lc 0 / 1) */
 } stl = {.len = 16, .act = 1};
+/* (PHEBUS, Ben 21 Nov 2026: "1/2 would even be nice to play with ... we may as well go the full 1/1"; picker "Replay the
+ * steps": "1/2 and 1/1 loop the sequencer's last steps; shorter ones stay as audio stutter") A run of 1/2 or 1/1 steps is
+ * too long for the 0.74 s ring: the SEQUENCER replays instead. From the run's first 1/16 (rep_g0, counted from PLAY) every
+ * track and the drums play the steps of the half bar / bar just before it, in a loop, notes and locks as they were, for
+ * as long as the run lasts (seq.c seq_src); the song position counts on underneath, so afterwards each track plays the
+ * step it would have played. rep_l16: the span in 1/16s (8, 16), 0 = none. Set a block at a time (stl_seq) */
+static uint32_t rep_g0;
+static uint8_t rep_l16;
 static volatile int8_t stl_want = -1;   /* the loop the lane asks for now, -1 none (audio ISR) */
 static int8_t stl_was = -1;             /* .. in the block before (punch_process: a run of lit steps starts) */
 static uint32_t stl_t;                  /* samples since that run began */
 static uint8_t stl_pos;                 /* the lane's step under the playhead (the screen) */
 static uint8_t stl_view;                /* the GRID shows the lane (ui_stut.c; ui.c track_select: off) */
 static int stl_lit(uint32_t s) { return (stl.on[(s >> 3) & 7u] >> (s & 7u)) & 1u; }
-static uint32_t stl_code(uint32_t s) { return (uint32_t)stl.lc[(s >> 2) & 15u] >> (2u * (s & 3u)) & 3u; }
+static uint32_t stl_code(uint32_t s)    /* 0..3: 1/4 1/8 1/16 1/32 (the ring's loops); 4: 1/2, 5: 1/1 (the sequencer's) */
+{
+    return ((uint32_t)stl.lc[(s >> 2) & 15u] >> (2u * (s & 3u)) & 3u) | ((uint32_t)stl.lx[(s >> 3) & 7u] >> (s & 7u) & 1u) << 2;
+}
 static void stl_tick(void)              /* seq.c events_block, before the clock moves on: the step this block is in */
 {
     int32_t w = -1;
     uint32_t s = (clk_beat * 4u + clk_pos / (BEAT_U / 4u)) % (stl.len ? stl.len : 16u);
     stl_pos = (uint8_t)s;
-    if (song.playing && stl.act && stl_lit(s))
-        w = (int32_t)stl_code(s);
+    if (song.playing && stl.act && stl_lit(s) && stl_code(s) < 4u)
+        w = (int32_t)stl_code(s);       /* (1/2, 1/1: the sequencer's, stl_seq) */
     stl_want = (int8_t)w;
+}
+static void stl_seq(void)               /* seq.c events_block, before the tracks' steps: a 1/2 or 1/1 run (rep_*) */
+{
+    uint32_t g = clk_beat * 4u + clk_pos / (BEAT_U / 4u), s = g % (stl.len ? stl.len : 16u), c = stl_code(s);
+    uint32_t l16 = song.playing && stl.act && stl_lit(s) && c >= 4u ? (c == 4u ? 8u : 16u) : 0u;
+    if (l16 != rep_l16)                 /* a run begins here (lit steps in a row with the same length: one run) */
+        rep_g0 = g;
+    rep_l16 = (uint8_t)l16;
 }
 
 static int px_loop(int32_t fx) { return fx <= PX_STUT || fx == PX_LOOP8T; }   /* on the grid */

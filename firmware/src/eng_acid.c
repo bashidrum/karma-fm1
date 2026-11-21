@@ -89,7 +89,13 @@ static const preset_t ACID_PRESETS[] = {
     {"TB DEEP", {0, 20, 60, 40, 80, 60, 0, 30}, {0, 0, 127, 8}, 0, 1, FX(0, 0, 0, 6), XP(P_TRANS + 1, -12)},
     {"TB SQUELCH", {0, 30, 120, 110, 30, 110, 30, 15}, {0, 0, 127, 6}, 0, 1, FX(0, 0, 14, 10)},
     {"TB RUBBER", {1, 30, 70, 60, 90, 70, 20, 40}, {0, 0, 127, 8}, 0, 1, FX(0, 0, 8, 8)},
+    /* (PHEBUS, Ben 21 Nov 2026, picker "ACID for bass": "plain saw through the 303-style filter, a little envelope
+     * movement so it speaks") the power-on and NEW sound of track 1: SAW, the filter part open, modest RES, a moderate
+     * ENVMOD and DECAY (it speaks, it does not squelch), no ACC, no DRIVE, every send 0. Last, so the other presets keep
+     * their numbers and level trims */
+    {"INIT", {0, 45, 45, 55, 55, 0, 0, 21}, {0, 0, 127, 6}, 0, 1, FX(0, 0, 0, 0)},
 };
+#define ACID_INIT (NELEM(ACID_PRESETS) - 1u)
 
 static const engine_t ENG_ACID = {
     .name = "ACID",

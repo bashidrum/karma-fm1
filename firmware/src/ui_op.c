@@ -31,7 +31,8 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
     char b[12];
     uint32_t beat = clk_beat, k, playing = song.playing;
     uint32_t sig = studio_hash((uint32_t)song.g[G_BPM] * 7u + playing * 3u + (song.rec != 0) * 1999u +
-                               (playing ? beat * 131u : 0u) + (ui.bpm_t != 0) * 104729u + (uint32_t)batt_shown() * 7777u + proj_unsaved * 31337u, title);
+                               (playing ? beat * 131u : 0u) + (ui.bpm_t != 0) * 104729u + (uint32_t)batt_shown() * 7777u + proj_unsaved * 31337u +
+                               sr_on * 3331u, title);
     sig = studio_hash(sig * 31u + tc, tag);
     if (!ui.force && sig == *cache)
         return;
@@ -59,7 +60,7 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
     }
     for (k = 0; k < 4u; k++)                           /* the four beats of the bar */
         cv_rect(172 + (int32_t)k * 8, 7, 6, 6, playing && beat % 4u == k ? (k || !song.rec ? C_WHITE : TE_RED) : TE_G2);   /* (red: recording only) */
-    if (song.rec)
+    if (song.rec || sr_on)                              /* (recording, or STEP REC: ui_grid.c) */
         te_disc(209, 10, 4, TE_RED);
     else if (proj_unsaved)                             /* (saved again at the next stop: project.c autosave_tick) */
         te_disc(209, 10, 2, C_WHITE);
@@ -1170,11 +1171,11 @@ static void op_sound(const track_t *t, const page_t *pg)
 static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32_t flags)
 {
     static const char *const LAB[4] = {"1", "2", "3", "DR"};   /* (the tracks by number, as the strip: review 21) */
-    static const char KEYS[17] = "123D123DFB     T";
+    static const char KEYS[17] = "123D123DFBP    T";   /* (PHEBUS: P, key 11, the knobs are the pans) */
     static uint32_t head, scene, keys, knobs, bar;
     const uint8_t *mx = op_mx, *hop = op_hop;
     uint32_t i, sig = 7u;
-    op_header("GLO", C_WHITE, ui.msg_t ? ui.msg : "MIX", &head);   /* (GLO: MIX, the button and the layer, review 21; a
+    op_header("GLO", C_WHITE, ui.msg_t ? ui.msg : flags & 16u ? "PAN" : "MIX", &head);   /* (GLO: MIX, the button and the layer, review 21; a
                                                          * message: in the title, the levels stay) */
     op_band_tick();
     for (i = 0; i < NTRK; i++)
@@ -1219,7 +1220,7 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
         op_k = 3;
         cv_blit(0, OP_BODY_Y);
     }
-    sig = flags + song.solo * 16u;
+    sig = flags + song.solo * 64u;
     for (i = 0; i < NTRK; i++)
         sig = sig * 2u + (trk[i].p[P_MUTE] != 0);
     if (ui.force || sig != keys) {                      /* the 16 white keys: the track's number on its mute and solo
@@ -1231,7 +1232,7 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
         for (i = 0; i < 16u; i++) {
             int32_t x = 4 + (int32_t)i * 14 + (int32_t)(i / 4u) * 2;
             uint32_t on = i < 4u ? trk[i].p[P_MUTE] != 0 : i < 8u ? (song.solo >> (i - 4u)) & 1u : i == 8u ? flags & 1u :
-                          i == 9u ? (flags >> 1) & 1u : i == 15u ? (flags >> 3) & 1u : 0u;
+                          i == 9u ? (flags >> 1) & 1u : i == 10u ? (flags >> 4) & 1u : i == 15u ? (flags >> 3) & 1u : 0u;
             uint16_t c = i < 4u ? TE_COL[i] : i < 8u ? TE_MID[i - 4u] : KEYS[i] == ' ' ? OP_PUR_D : TE_G4;
             char ch[2] = {KEYS[i], 0};
             if (on)
@@ -1259,43 +1260,35 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
 }
 
 /* ----------------------------------------------------------------- HOME --- */
-/* TRACKS, between the header and the knobs. A tape deck: the bar in large digits, two reels that turn
- * while it plays (the tape goes from the left one to the right one over the selected track's loop), the
- * song's sections A..D (the one playing filled). Then the selected track's sound and state, and a lane a
- * track: its character in small (it hops as the track sounds), the 16 steps in view (a synth: each note
- * at its height; the drums: a bar, taller with more sounds), the step that plays, its level. */
+static uint32_t home_band_tick(void);                   /* ui_vis.c */
+static void home_band(int32_t x0, int32_t y0, uint32_t w, uint32_t h);
+/* TRACKS, between the header and the knobs. The deck: the bar in large digits, a strip of the FLOW backdrop moving with
+ * the four voices' levels (PHEBUS: it replaced the tape reels; ui_vis.c home_band), the song's sections A..D (the one
+ * playing filled). Then the selected track's sound and state, and a lane a track: its character in small (it hops as
+ * the track sounds), the 16 steps in view (a synth: each note at its height; the drums: a bar, taller with more
+ * sounds), the step that plays, its level. */
+#define HB_X 74                                         /* the strip: x, y in the deck, its size (2 x 2 blocks) */
+#define HB_Y 6
+#define HB_W 106u
+#define HB_H 32u
 static void op_home_body(void)
 {
     static uint32_t top_sig, name_sig, lane_sig[NTRK];
     track_t *ts = TSEL;
-    uint32_t i, j, playing = song.playing, slen = trk_len(ts), spos = ts->seq_idx % slen, sig;
+    uint32_t i, j, playing = song.playing, slen = trk_len(ts), spos = ts->seq_idx % slen, sig, moving;
     uint32_t ready = arrangement_ready();
     op_band_tick();
-    sig = playing * 3u + (playing ? ui.frame / 2u * 7919u + spos * 31u : 0u) + ready * 5u + (uint32_t)(live_sec + 1) * 77u + slen * 13u;
+    moving = home_band_tick();                          /* (the voices' levels into the strip; 1: it flows) */
+    sig = playing * 3u + (playing ? spos / 16u * 31u : 0u) + ready * 5u + (uint32_t)(live_sec + 1) * 77u + slen * 13u +
+          (moving ? ui.frame / 2u * 7919u + 1u : 0u);
     if (ui.force || sig != top_sig) {                   /* the deck */
-        uint32_t bar = playing ? spos / 16u + 1u : 1u, a = playing ? (ui.frame * 12u) & 1023u : 0u;
-        int32_t k, done = playing ? (int32_t)(spos * 8u / slen) : 0;
+        uint32_t bar = playing ? spos / 16u + 1u : 1u;
         top_sig = sig;
         cv_begin(240, 44, C_BLACK);
         te_digit(4, 7, 12, 28, 2, bar / 10u, playing ? C_WHITE : TE_G3);
         te_digit(20, 7, 12, 28, 2, bar % 10u, playing ? C_WHITE : TE_G3);
         cv_text(38, 20, &FONT_S, "BAR", TE_G3);
-        for (k = 0; k < 2; k++) {
-            int32_t cx = 100 + k * 48, pack = k ? 5 + done : 13 - done, sp;
-            op_ell(cx, 21, 16, 16, OP_PUR);
-            op_ell(cx, 21, pack, pack, TE_G4);      /* the tape on this reel */
-            op_ell(cx, 21, 3, 3, OP_PUR);
-            for (sp = 0; sp < 3; sp++) {                /* three spokes */
-                uint32_t an = (a + (uint32_t)sp * 341u) & 1023u;
-                cv_line(cx + ((SINE[(an + 256u) & 1023u] * 4) >> 15), 21 + ((SINE[an] * 4) >> 15),
-                        cx + ((SINE[(an + 256u) & 1023u] * 14) >> 15), 21 + ((SINE[an] * 14) >> 15), OP_PUR);
-            }
-        }
-        cv_line(88, 33, 112, 41, TE_G4);            /* the tape, past the head */
-        cv_line(112, 41, 136, 41, TE_G4);
-        cv_line(136, 41, 160, 33, TE_G4);
-        cv_rect(119, 37, 10, 6, C_BLACK);
-        op_box(119, 37, 10, 6, playing ? C_WHITE : TE_G3);
+        home_band(HB_X, HB_Y, HB_W, HB_H);
         for (i = 0; i < 4u; i++) {                      /* the sections */
             char ch[2] = {(char)('A' + i), 0};
             int32_t x = 188 + (int32_t)i * 12;

@@ -6,7 +6,8 @@ static const char *const N_LWAVE[] = {"SIN", "TRI", "SAW", "SQR", "S&H"};
  * LFO 2. SYNC: OFF (RATE), or one cycle per note value of the tempo, longest first (LSYNC_UNITS: in core.h div_units'
  * units); TRIG: NOTE restarts it at PHS on a fresh phrase (as before), FREE never; POL: BI -1..+1 (as before), UNI 0..+1 */
 static const char *const N_LSYNC[] = {"OFF", "4BAR", "2BAR", "1BAR", "1/2", "1/4", "1/8", "8T", "1/16", "16T", "1/32"};
-static const char *const N_LTRIG[] = {"NOTE", "FREE"};
+static const char *const N_LTRIG[] = {"NOTE", "FREE", "PATT"};   /* (PHEBUS, 21 Nov 2026: PATT = PATTERN, seq.c seq_tick; the
+                                                                  * whole word does not fit the knob) */
 static const char *const N_LPOL[] = {"BI", "UNI"};
 /* GLO > MIDI (2.6): a synth track's MIDI channel, and the other channels */
 static const char *const N_MCH[] = {"OFF", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16"};

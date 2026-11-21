@@ -105,6 +105,21 @@ After a layer lets go, the knobs ignore you for a quarter of a second, so a knob
 
 **Graphs.** Sound pages draw what their knobs do: the filter's response curve (with the envelope's sweep), the insert effect's curve, the oscillator's waveform, the envelope, the LFO, and bars for the rest. A small dancing character sits at the top right, and the sound's name is at the top left.
 
+### The HOME screen
+
+Tap **HOME** for the HOME screen. At the top: the bar counter, a strip of the **FLOW** backdrop, and the sections A to D. In the strip each voice has a band in its colour that swells as that voice gets louder and sinks to a dim line when it is quiet. It flows while the song plays or a voice sounds, and stands still otherwise. Under them, the selected voice's sound and engine (and REC, SOLO or MUTE), then a lane for each voice: its character, the 16 steps in view, the step playing and its level.
+
+The four knobs play the selected voice, for quick changes while it plays:
+
+| Knob | Does |
+| --- | --- |
+| **KNOB 1 CUTOFF** | the voice's filter: the engine's own cutoff on ACID and JUNO (CUT); the voice's FILTER on PLAITS and ELEMENTS (left of centre a low-pass, right a high-pass); the drum track's FILTER on the drums |
+| **KNOB 2 DECAY** | the decay of the envelope that shapes the sound: ACID's own DECAY (the 303's envelope, which moves its filter); the ENV page's DEC on JUNO, PLAITS and ELEMENTS; on the drums, the selected sound's DEC on a HEX kit ("--" on the other kits) |
+| **KNOB 3 STUT** | the STUTTER lane **ON** (turn right) or **OFF** (turn left). It is drawn in white and grey because it acts on the whole mix. See [The STUTTER lane](#6-the-stutter-lane) |
+| **KNOB 4 LEVEL** | the voice's level. On a muted voice the first turn unmutes it |
+
+Swing and the pattern length are on **hold SEQ**. Pan is on the mixer (**GLO + key 11**) and on VOICE 2.
+
 ---
 
 ## 3. Your first sound
@@ -113,7 +128,7 @@ A new project (and a power-on with nothing saved) starts with plain sounds and *
 
 | Voice | Starts as |
 | --- | --- |
-| 1 | JUNO INIT, a plain sawtooth, one note at a time (mono, legato), an octave down. Good for bass |
+| 1 | ACID INIT: a plain sawtooth through the 303-style filter, the filter part open with a little resonance and a short envelope sweep so each note speaks. No accent, slide or drive. One note at a time, an octave down. Good for bass |
 | 2 | JUNO INIT, a plain sawtooth, polyphonic. Good for chords |
 | 3 | PLAITS INIT, a plain sawtooth (the VA model), one note at a time, about 6 dB quieter. Good for lead |
 | Drums | the 606 kit |
@@ -125,7 +140,7 @@ To make a first sound:
 1. Press **PLAY**. The beat lights run.
 2. Play the keys. On a synth voice, the white and black keys are notes. On the drum voice, the keys are 16 drum sounds.
 3. Turn **ALGORITHM** to pick a voice: 1, 2, 3 or DRUM.
-4. Turn **PRESETS** to browse that voice's sounds. At the end of the JUNO and PLAITS lists there is an **INIT** sound: the plain sawtooth again.
+4. Turn **PRESETS** to browse that voice's sounds. The ACID, JUNO and PLAITS sounds each have an **INIT** sound: the plain starting point again.
 5. Tap **EDIT** to open the sound's first page, and turn the knobs.
 6. Tap **OCT-** or **OCT+** to change the octave of a synth voice, from -3 to +3. Press both together to go back to 0.
 
@@ -201,7 +216,7 @@ A pattern is up to 64 steps, in four pages of 16.
 - **OCT-** and **OCT+** with no step held go to the previous and next page. **OCT+** on the last page adds a page. At 64 steps the message says "64 STEPS: THE MOST" and OCT+ wraps to page 1.
 - Under the tiles, four page slots: the used pages are filled, the unused ones outlined, and the page that is playing is marked.
 - **Follow.** While playing, the view follows the playhead onto a new page. A page you pick by hand stays until the playhead moves to a different page.
-- The pattern length can also be set with **hold SEQ + KNOB 4** (see [section 13](#13-tempo-swing-key-and-scale)) or on the HOME screen with KNOB 3.
+- The pattern length can also be set with **hold SEQ + KNOB 4** (see [section 13](#13-tempo-swing-key-and-scale)), or with KNOB 4 during STEP REC.
 
 ### With no step held (synth voice)
 
@@ -231,6 +246,36 @@ On a synth voice, **tap SEQ on the GRID** to open the SEQ pages, starting with P
 **DIV** values: 1/4, 1/8, 1/16 (the usual), 1/32, 8T, 16T, 1/2, 1BAR, 2BAR.
 
 The generators (ACID GEN, GEN, HARMONY) write a part into the pattern. EDIT + OCT- undoes what they wrote. PLAY settings belong to the FM-1, not to a project. These pages were carried over from KARMA and not re-tested in this pass: see [Checks still to do](#checks-still-to-do).
+
+### Step record (STEP REC)
+
+To write a melody or a chord part note by note, use STEP REC on a synth voice's GRID.
+
+1. Open the voice's GRID (**SEQ**) with the song **stopped**. The white frame is the cursor: STEP REC starts there (turn **KNOB 2** first to start somewhere else).
+2. Tap **REC**. The title reads **STEP REC**, a red dot shows in the header, and the cursor turns into a **red frame**: the step the next note goes on.
+3. Play the keys. They are notes again and you hear them. When you let go, the note goes onto the red step (replacing whatever was there) and the cursor moves on one step.
+4. For a **chord**, hold the keys down together: the chord is written when the last key comes up. A chord is kept whole only on a polyphonic voice (on a mono voice the first note is written).
+5. Tap **REC** again to finish. The keys are steps again.
+
+| While in STEP REC | Does |
+| --- | --- |
+| **SEQ** (the button beside PLAY) | a **rest**: the step is emptied and the cursor moves on |
+| **ARP** | a **tie**: the note before is made one step longer and the cursor moves on. "NO NOTE TO TIE" after a rest |
+| hold a key + **SEQ** | the held note is written and tied (press SEQ again for a longer note) |
+| **OCT-** / **OCT+** | the octave of the keys, as on HOME (both together: 0) |
+| **SELECT** or **KNOB 2** STEP | move the cursor, for example back to fix a step |
+| **KNOB 1** OCT | the octave |
+| **KNOB 3** VEL | the velocity of the notes written (100 to start) |
+| **KNOB 4** STEPS | the pattern length, 1 to 64 |
+| **PRESETS** | the sound |
+| **EDIT + OCT-** | undo the **whole STEP REC pass** (everything since REC was tapped) |
+
+- At the end of the pattern the cursor goes back to step 1. On a longer pattern it moves on through the later pages, and the view follows it. To make room for more pages, turn KNOB 4 first.
+- The screen shows the next step ("NEXT: STEP 5"), the notes held, and SEQ REST, ARP TIE, REC DONE.
+- A MIDI keyboard on the voice's channel writes notes the same way.
+- STEP REC ends by itself if you leave the GRID or change voice. **PLAY** works during STEP REC: the pattern plays while you write.
+- **With the song playing, REC on the GRID records live** (as everywhere): the title reads **LIVE REC**, the keys play notes and what you play is recorded into the pattern. Tap REC again to stop recording.
+- STEP REC is for the synth voices. On the drum GRID and the STUTTER lane, REC works as before.
 
 ### Undo and redo
 
@@ -287,7 +332,7 @@ The kit list is: five HEX kits (HEX BOOM, HEX ACID, HEX METAL, HEX GLITCH, HEX R
 - **Edit a sound.** Tap **EDIT** on the drum voice for HEX OSC. EDIT again steps to the next page of the sound (HEX MOD, HEX CLICK, HEX MORE, then HEX FILT). **ENV** opens HEX AEG. **LFO** says "NO LFO ON DRUMS". Turning a knob on a built-in HEX kit copies the kit into the next free MY HEX kit.
 - **Drum mutes.** Hold **EDIT** and press a **black key** on the drum voice to switch between erase mode and mute mode. In mute mode the white keys mute sounds (shown "off" in red).
 - **DRUM GEN** and **DRUM GEN 2** write kick, snare and hat patterns: MODE (OFF, MAP, EUCL), MAP X, MAP Y, CHAOS; then KICK, SNARE, HATS, ROT.
-- **HOME knobs** for the drum voice: LEVEL, REV, PAN, LEN.
+- **HOME knobs** for the drum voice: CUTOFF (the drum track's own FILTER), DECAY (the selected sound's DEC on a HEX or MY HEX kit; "--" on the other kits, which have none), STUT and LEVEL. See [The HOME screen](#the-home-screen).
 
 ---
 
@@ -299,10 +344,11 @@ On the GRID, turn **ALGORITHM** past 1, 2, 3 and DRUM to reach **STUTTER** (turn
 
 | You do | Result |
 | --- | --- |
-| **Tap an unlit step** | it lights, with the length last set (new steps start at 1/8) |
+| **Tap an unlit step** | it lights, with the length last set (new steps start at **1/4**) |
 | **Tap a lit step** | it goes out when you let go of the key, unless you turned KNOB 1 meanwhile |
-| **Hold a step + KNOB 1** | that step's length: 1/4, 1/8, 1/16 or 1/32 |
-| **KNOB 2** | the whole lane ON or OFF (the steps are kept) |
+| **Hold a step + KNOB 1** | that step's length: **1/1, 1/2**, 1/4, 1/8, 1/16 or 1/32. Turn right for shorter, left for longer |
+| **KNOB 1** (no step held) | the length new steps take |
+| **KNOB 2** | the whole lane ON or OFF (the steps are kept). **KNOB 3 on HOME** does the same |
 | **KNOB 4** | the lane's length, 1 to 64 steps |
 | **Black keys 1 to 4**, **OCT-**, **OCT+** | change page |
 
@@ -310,9 +356,11 @@ How it behaves:
 
 - Steps are 1/16 on the grid and ignore swing. The page shown does not follow the playhead.
 - A lit step repeats the span that played just before the run of lit steps. It repeats the whole mix, not one voice. Lit steps in a row with the same length are one continuous loop.
+- **1/4, 1/8, 1/16 and 1/32** repeat the sound itself (an audio stutter). Their tiles read 4, 8, 16, 32.
+- **1/2 and 1/1 replay the sequencer** (tiles 2 and 1): for as long as the run of lit steps lasts, every voice and the drums play again the steps of the half bar (1/2) or the bar (1/1) just before the run, with their notes and locks, in a loop. The song position keeps counting underneath, so when the run ends every voice carries on from the step it would have played without the stutter. Notes ring on naturally (it is not a recording), so the replay is not sample-identical. A voice whose steps are longer than the span (a bar's steps on 1/2) is not replayed.
 - Holding **FX** and a key (see [Performance effects](#8-performance-effects-and-global-effects)) takes over while you hold it.
 - The lane is mono and low resolution. Below about 84 BPM a quarter-note loop is cut to 0.72 seconds.
-- It is saved with the project and with each section (it lives in unused drum-track bytes). Stock KARMA loads such a project but drops the stutter lane if it saves again.
+- It is saved with the project and with each section (it lives in unused drum-track bytes). Stock KARMA loads such a project but drops the stutter lane if it saves again. A lane saved before 1/2 and 1/1 existed loads as it was.
 - **EDIT + OCT-** undoes a stutter edit.
 
 ---
@@ -339,13 +387,19 @@ A page the sound does not have is skipped. On the drum voice, **ENV** opens HEX 
 | **FILT** | ACID **FILTER**: CUT, RES, ENV, DEC; **FILTER 2**: FILT. JUNO **FILTER**: CUT, RES, ENV, FILT. ELEMENTS and PLAITS: **FILTER** with FILT. Drums: HEX FILT |
 | **ENV** | **ENV**: ATK, DEC, SUS, REL. **ENV DEST**: FLT, PIT, SHP, ESYNC. Drums: HEX AEG |
 | **FX** | **FX**: DIST, CHORUS, DELAY, REVERB (this voice's sends). **CHORUS** (JUNO's own chorus). **INSERT**: TYPE, A, B, C. **INSERT 2**: MIX. **SLICER** |
-| **MOD** | **LFO**: RATE, WAVE, PHASE, FADE. **LFO DEST**: PIT, FLT, SHP, AMP. **LFO SYNC**: SYNC, TRIG, POL |
+| **MOD** | **LFO**: RATE, WAVE, PHASE, FADE. **LFO DEST**: PIT, FLT, SHP, AMP. **LFO SYNC**: SYNC, TRIG (NOTE, FREE, PATT), POL |
 
 On the drum voice, the sound pages are HEX OSC, HEX MOD, HEX CLICK, HEX MORE, HEX FILT and HEX AEG (see [Drums](#5-drums)).
 
 **FILT** (in ELEMENTS, PLAITS and the JUNO and ACID pages above) is the voice's own one-knob filter: left of centre is a low-pass, right of centre is a high-pass, centre is off.
 
-**ESYNC** (ENV DEST) makes ATK, DEC and REL note values of the tempo. **LFO SYNC**: SYNC locks the LFO to a note value, TRIG chooses whether it restarts on each phrase or runs free, POL chooses bipolar or unipolar.
+**ESYNC** (ENV DEST) makes ATK, DEC and REL note values of the tempo. **LFO SYNC**: SYNC locks the LFO to a note value; TRIG chooses what restarts it; POL chooses bipolar or unipolar.
+
+| TRIG | The LFO restarts (at its PHASE) |
+| --- | --- |
+| **NOTE** | at each new phrase: a note played when no other note of the voice is held (as before) |
+| **FREE** | never: it runs on by itself |
+| **PATT** (pattern) | each time the voice's pattern comes round to step 1, and when PLAY starts. Notes in between do not restart it, so the LFO lines up with the pattern |
 
 ### What the graphs show
 
@@ -457,7 +511,7 @@ Tap **GLO**. Tap again, or turn SELECT, for the next page. These pages are share
 
 ## 9. Mixer, mute and solo
 
-**Hold GLO** for the mixer (or hold GLO untouched for about 0.7 seconds and let go to keep it open). It shows a podium for each voice, the characters, and M and S badges. The key legend reads "123D123DFB T".
+**Hold GLO** for the mixer (or hold GLO untouched for about 0.7 seconds and let go to keep it open). It shows a podium for each voice, the characters, and M and S badges. The key legend reads "123D123DFBP T".
 
 | Control | Does |
 | --- | --- |
@@ -466,11 +520,14 @@ Tap **GLO**. Tap again, or turn SELECT, for the next page. These pages are share
 | **keys 5 to 8** | solo voices 1, 2, 3, drums (ice-blue S). Several solos add up |
 | **key 9** | fill while held |
 | **key 10** | fill on the next bar (again cancels it) |
+| **key 11** | the knobs set the **pans** instead of the levels (title PAN); again: levels |
 | **key 16** | tap tempo |
 | **F#3** (black key) | MIDI LEARN on or off (the title reads "LEARN") |
 | **SELECT** | tempo |
 
-A muted voice fades out in a few milliseconds and plays no new notes, but its pattern runs on in time. On the HOME screen, KNOB 2 sets the selected voice's level (on a muted voice it unmutes it), and KNOB 4 sets its pan. **VOICE 2** has PAN and MUTE. **GLO > DRUMS** has the drum level, reverb and delay.
+**Pan.** With GLO held (or the mixer kept open), press **key 11** (P): the title reads **PAN** and KNOB 1 to 4 set the pans of voices 1, 2, 3 and the drums (L, C, R). Press key 11 again for the levels. When the mixer closes, its knobs are the levels again. A synth voice's pan is also on **VOICE 2** (KNOB 3).
+
+A muted voice fades out in a few milliseconds and plays no new notes, but its pattern runs on in time. On the HOME screen, KNOB 4 sets the selected voice's level (on a muted voice the first turn unmutes it). **VOICE 2** has PAN and MUTE. **GLO > DRUMS** has the drum level, reverb and delay.
 
 ---
 
@@ -539,8 +596,8 @@ Each of ERASE, LOAD and SAVE needs a second click within about 1.5 seconds ("AGA
 
 | You do | Result |
 | --- | --- |
-| **Tap REC while playing** | recording starts at once |
-| **Tap REC while stopped** | arms it ("REC READY"). Recording starts when you play |
+| **Tap REC while playing** | recording starts at once (on a synth voice's GRID too: the keys play notes there while recording; the title reads LIVE REC) |
+| **Tap REC while stopped** | arms it ("REC READY"). Recording starts when you play. **On a synth voice's GRID it starts STEP REC instead** (see [Step record](#step-record-step-rec)) |
 | **Tap REC again** | cancels ("REC OFF") |
 | **Tap REC on an empty project** | a **free take**: it records without a tempo, and REC closes it |
 | **Hold REC** (about 0.7 s, then the ring fills over about 1.3 s more) | **clears the selected voice** ("TRACK 1 CLEARED"). Let go before the ring is full and nothing happens. EDIT + OCT- brings it back |
@@ -594,7 +651,7 @@ Hold **ARP** and a key for a note-repeat roll. KNOB 1 sets the rate (1/8, 1/16, 
 
 **Tempo** (40 to 240 BPM): **SELECT** on HOME, inside any layer or on the REC screen; **GLO + key 16** (tap tempo); or GLO > GLOBAL > BPM. With SYNC set to USB or TRS, the tempo follows the master clock.
 
-**Swing:** HOME KNOB 1 (global), hold SEQ + KNOB 3 (per voice), or GLO > GLOBAL > SWING.
+**Swing:** hold SEQ + KNOB 3 (per voice), or GLO > GLOBAL > SWING (global).
 
 **Metronome:** GLO > GLOBAL > CLICK.
 
@@ -726,7 +783,7 @@ OSC page knobs:
 | ELEMENTS | MODEL, STRC, BRIT, DAMP | POS, ACC, BOW, EXC |
 | PLAITS | MODEL, HARM, TIMB, MRPH | ENV, SUB |
 
-The factory sounds are listed by kind in PRESETS. Voice 1 offers the ACID and JUNO sounds, voice 2 the JUNO and ELEMENTS sounds, voice 3 the PLAITS sounds. Each list also has your user presets after the factory ones. A few examples: ACID has TB ACID, TB SQUARE, TB DIRTY, TB DEEP, TB SQUELCH and TB RUBBER. JUNO has JUNO BASS, SUB 106, JUNO KEYS, JUNO ORGAN, JUNO STRING, JUNO PAD, JUNO SWEEP, JUNO LEAD, JUNO HOOVER, JUNO BRASS and JUNO STAB. The INIT sounds are listed at the start of the JUNO and PLAITS sounds.
+The factory sounds are listed by kind in PRESETS. Voice 1 offers the ACID and JUNO sounds, voice 2 the JUNO and ELEMENTS sounds, voice 3 the PLAITS sounds. Each list also has your user presets after the factory ones. A few examples: ACID has TB ACID, TB SQUARE, TB DIRTY, TB DEEP, TB SQUELCH and TB RUBBER. JUNO has JUNO BASS, SUB 106, JUNO KEYS, JUNO ORGAN, JUNO STRING, JUNO PAD, JUNO SWEEP, JUNO LEAD, JUNO HOOVER, JUNO BRASS and JUNO STAB. The INIT sounds are listed at the start of the ACID, JUNO and PLAITS sounds. ACID INIT (the power-on bass) is a plain saw with the filter part open, RES 45 %, ENVMOD 55 % and DECAY 55 %.
 
 Engine details carried over from KARMA: ELEMENTS models are BOUNC, PICK, BOW, BLOW and OMIN (the Ominous Voice, one note at a time). PLAITS has FOLD, SWARM, WAVE, HARM, CHORD, VA, VCF, PHDIS, FM, 6OP A, B and C, GRAIN, TERRN, STRMC, CHIP, STRNG, MODAL, NOISE, SPECH, PARTC, KICK, SNARE and HIHAT. The heavy models (6OP, STRMC, STRNG, SPECH, PARTC) play one note at a time.
 
@@ -757,7 +814,7 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 | Gesture | Does |
 | --- | --- |
 | tap PLAY | start or stop |
-| tap REC | record, arm, or close a free take |
+| tap REC | record, arm, or close a free take (stopped, on a synth voice's GRID: STEP REC) |
 | hold REC about 2 s | clear the selected voice |
 | tap HOME | HOME screen (on the HOME screen: a screensaver) |
 | hold HOME 0.7 s | the menu |
@@ -776,8 +833,7 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 
 | Gesture | Does |
 | --- | --- |
-| KNOB 1 to 4 (synth) | SWING, LEVEL, STEPS, PAN |
-| KNOB 1 to 4 (drums) | LEVEL, REV, PAN, LEN |
+| KNOB 1 to 4 | CUTOFF, DECAY, STUT (the STUTTER lane on or off), LEVEL of the selected voice |
 | SELECT | tempo |
 | PRESETS | the sound list |
 | tap EDIT (drums) | the drum GRID |
@@ -812,6 +868,13 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 | ALGORITHM | change voice and stay on the GRID (past DRUM: STUTTER) |
 | tap SEQ | the SEQ pages |
 | tap SAVE | the SONG screen |
+| tap REC, stopped | STEP REC on or off |
+| tap REC, playing | record live (the keys play notes) |
+| STEP REC: keys | a note, or a chord (keys held together), on the red step; the cursor moves on |
+| STEP REC: SEQ, ARP | rest, tie (a key held + SEQ: tie) |
+| STEP REC: OCT- or OCT+ | the octave |
+| STEP REC: SELECT, KNOB 1 to 4 | the cursor; OCT, STEP, VEL, STEPS |
+| STEP REC: EDIT + OCT- | undo the whole pass |
 
 ### GRID (drum voice)
 
@@ -830,8 +893,9 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 | Gesture | Does |
 | --- | --- |
 | tap an unlit or lit step | light it, or put it out (on release) |
-| hold a step + KNOB 1 | that step's length |
-| KNOB 2 | lane on or off |
+| hold a step + KNOB 1 | that step's length (1/1 to 1/32; right: shorter) |
+| KNOB 1 | the length for new steps (1/4 to start) |
+| KNOB 2 | lane on or off (also KNOB 3 on HOME) |
 | KNOB 4 | lane length |
 | black keys 1 to 4, OCT-, OCT+ | page |
 | hold FX + key | a performance effect while held |
@@ -856,6 +920,7 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 | GLO | KNOB 1 to 4 | levels of 1, 2, 3, drums |
 | GLO | keys 1 to 4, 5 to 8 | mute, solo |
 | GLO | keys 9, 10, 16 | fill while held, fill next bar, tap tempo |
+| GLO | key 11 | the knobs set the pans (again: levels) |
 | GLO | F#3 | MIDI LEARN |
 | SAVE | keys 1 to 4 | play A to D (several taps: chain) |
 | SAVE | keys 5 to 8 | store into A to D |

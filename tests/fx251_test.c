@@ -227,6 +227,45 @@ static void t_lfo2(void)
         lo = trk[0].lfo_val < lo ? trk[0].lfo_val : lo;
     }
     check(lo >= 0, "LFO 2 POL UNI: the LFO stays 0..+1");
+    {   /* (PHEBUS, Ben 21 Nov 2026, picker "Add PATTERN") TRIG PATTERN: the phase starts again each time the track's pattern
+         * comes round to step 1, and at PLAY; a note does not restart it */
+        uint32_t restarts = 0, bad = 0, at0 = 0, seen = 0, steps;
+        uint16_t was_idx = 0xFFFF;
+        setup();
+        song.g[G_BPM] = 120;
+        trk[0].p[P_LTRIG] = 2;
+        trk[0].p[P_LRATE] = 90;
+        trk[0].p[P_LSYNC] = 0;
+        trk[0].p[P_LPHASE] = 32;
+        trk[0].p[P_SLEN] = 6;                         /* (6 steps: the pattern's loop is not the bar's) */
+        for (steps = 0; steps < 6u; steps++) {
+            uint8_t nt = 57;
+            put_step(&trk[0], steps, steps == 2u ? 1u : 0u, &nt, steps == 2u ? ST_NOTE : ST_REST, 0);
+        }
+        trk[0].seq_active = 1;
+        trk[0].lfo_ph = 0x0BADF00Du;
+        transport_req = 1;
+        for (b = 0; b < (uint32_t)FS * 3u / CTL; b++) {   /* 3 s: 24 steps, the pattern 4 times */
+            uint32_t before = trk[0].lfo_ph;
+            render(1);
+            if (trk[0].seq_idx != was_idx) {
+                was_idx = trk[0].seq_idx;
+                if (!trk[0].seq_idx) {
+                    restarts++;
+                    at0 |= 1u;
+                    bad += trk[0].lfo_ph - ((uint32_t)32u << 25) > 4u * LFO_INC[90];   /* (the block it fired in: a block's
+                                                                                        * advance at most) */
+                } else if (trk[0].seq_idx == 2u) {
+                    seen++;
+                    bad += trk[0].lfo_ph - before > 4u * LFO_INC[90];   /* (a note: no restart, it runs on) */
+                }
+            }
+        }
+        transport_req = 2; render(4);
+        check(restarts == 4u && seen == 4u && !bad && at0,
+              "LFO TRIG PATTERN: the phase restarts at each pass's step 1 (and at PLAY), not on the notes between");
+        trk[0].p[P_LTRIG] = 1; trk[0].p[P_SLEN] = 16;
+    }
 }
 
 static uint32_t snare;

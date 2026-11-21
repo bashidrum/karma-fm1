@@ -29,6 +29,8 @@ static uint8_t chain_tap[CHAIN_MAX], chain_taps;        /* the section keys tapp
                                                          * is asked for at once; two or more: a chain on release) */
 #define TAP_MS 450u                                     /* a press shorter than this, untouched: a tap */
 #define SHOW_MS 140u                                    /* the layer shows after this (a tap does not flash it) */
+static uint8_t mix_pan;                                 /* (PHEBUS) GLO + key 11: the mixer's knobs are the pans, until it
+                                                         * closes (HOME's KNOB 4 was PAN; VOICE 2 has it too) */
 
 /* the ISR's view of the panel: the layers' buttons, OCT- / OCT+, REC / PLAY of a free take */
 static void layers_init(void)
@@ -232,6 +234,9 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
         } else if (w == 9) {
             fill_arm = (uint8_t)!fill_arm;                  /* FILL NEXT BAR (again: cancelled) */
             ui_message(fill_arm ? "FILL: NEXT BAR" : "FILL BAR OFF");
+        } else if (w == 10) {
+            mix_pan = (uint8_t)!mix_pan;                    /* (PHEBUS) key 11: the knobs are the pans (again: levels) */
+            ui.force = 1;
         } else if (w == 15) {
             tap_tempo();
         }
@@ -329,8 +334,8 @@ static void layer_knobs(uint32_t layer)
             }
             break;
         case LY_MIX: {
-            int16_t *lv = k == TRK_DRUM ? &song.g[G_DRLVL] : &trk[k].p[P_LEVEL];
-            *lv = (int16_t)clamp(*lv + accel(EN_K1 + k, s, 127), 0, 127);
+            int16_t *lv = mix_pan ? &trk[k].p[P_PAN] : k == TRK_DRUM ? &song.g[G_DRLVL] : &trk[k].p[P_LEVEL];
+            *lv = (int16_t)clamp(*lv + accel(EN_K1 + k, s, 127), mix_pan ? -64 : 0, mix_pan ? 63 : 127);
             break;
         }
         default:
@@ -693,6 +698,15 @@ static void layer_screen_draw(void)
             lab[i] = L[i];
             fmt_int(v[i], (int32_t)lv * 100 / 127);
             ratio[i] = (int32_t)lv * 1000 / 127;
+            if (mix_pan) {                              /* (key 11: the pans, L 64 .. C .. R 63) */
+                int32_t pn = trk[i].p[P_PAN];
+                v[i][0] = pn < 0 ? 'L' : pn > 0 ? 'R' : 'C';
+                if (pn)
+                    fmt_int(v[i] + 1, pn < 0 ? -pn : pn);
+                else
+                    v[i][1] = 0;
+                ratio[i] = (pn + 64) * 1000 / 127;
+            }
         }
         break;
     }
@@ -744,7 +758,7 @@ static void layer_screen_draw(void)
     layer_sub_shown = sub;
     if (layer == LY_MIX) {                              /* the mixer: the band on stage (ui_op.c) */
         op_mix_draw(val, ratio, (uint32_t)(fill_now != 0) | (uint32_t)(fill_bar_on != 0) << 1 | (uint32_t)(fill_arm != 0) << 2 |
-                    (uint32_t)(song.playing && clk_pos < BEAT_U / 4u) << 3);
+                    (uint32_t)(song.playing && clk_pos < BEAT_U / 4u) << 3 | (uint32_t)mix_pan << 4);
         return;
     }
     layer_title(LAYER_NAME[layer % LY_COUNT], sub, col, &head);

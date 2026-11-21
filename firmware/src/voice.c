@@ -443,7 +443,7 @@ static void trk_note_on_(track_t *t, uint32_t note, uint32_t vel)
     }
     for (i = 0; i < NVOICE; i++)
         any |= t->v[i].gate;
-    if (!any) {                                        /* fresh phrase: LFO retrigger (TRIG NOTE) and fade */
+    if (!any) {                                        /* fresh phrase: LFO retrigger (TRIG NOTE; not FREE or PATTERN) and fade */
         if (!t->p[P_LTRIG])
             t->lfo_ph = (uint32_t)t->p[P_LPHASE] << 25;
         t->lfo_fade = 0;

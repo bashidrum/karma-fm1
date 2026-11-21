@@ -25,6 +25,7 @@ static void check(int ok, const char *what) { printf("stutter: %-78s %s\n", what
 
 static void song_setup(void)
 {
+    rep_l16 = 0, rep_g0 = 0;
     static const uint8_t BASS[16] = {36, 0, 36, 48, 0, 36, 39, 0, 36, 0, 43, 36, 0, 46, 36, 0};
     uint32_t j;
     host_tracks_init();
@@ -210,6 +211,88 @@ static void run_check(const char *name, const int32_t *o, const int32_t *ref, ui
     check(st_seam <= st_music, b);
 }
 
+/* (PHEBUS, Ben 21 Nov 2026, picker "Replay the steps") 1/2 and 1/1 steps: the SEQUENCER replays the half bar / bar before
+ * the run (every track and the drums, their notes and locks), then each track plays on from where it would have been.
+ * The bass here is three bars long (the bars differ), so what plays is told apart by its notes. During the run the
+ * output is compared with the dry render a span earlier (not sample for sample: tails, the delay and reverb run on),
+ * and with the dry render at the same time; after the run, once the tails have died, with the dry render then */
+static void lane_code(uint32_t s, uint32_t code)
+{
+    lane_set(s, code & 3u);
+    stl.lx[s >> 3] = (uint8_t)((stl.lx[s >> 3] & ~(1u << (s & 7u))) | (code >> 2 & 1u) << (s & 7u));
+}
+static void bass3(void)                               /* the bass three bars long: the line, + 5, + 7 semitones */
+{
+    static const uint8_t BASS[16] = {36, 0, 36, 48, 0, 36, 39, 0, 36, 0, 43, 36, 0, 46, 36, 0};
+    uint32_t j;
+    for (j = 0; j < 48u; j++) {
+        uint8_t n = (uint8_t)(BASS[j % 16u] ? BASS[j % 16u] + (j < 16u ? 0u : j < 32u ? 5u : 7u) : 0u);
+        put_step(&trk[0], j, n ? 1u : 0u, &n, n ? ST_NOTE : ST_REST, 0);
+    }
+    trk[0].p[P_SLEN] = 48;
+}
+static double env_corr(const int32_t *a, const int32_t *b, uint32_t n)   /* the 256-sample RMS envelopes' correlation */
+{
+    double sab = 0, saa = 0, sbb = 0, ma = 0, mb = 0, ea[1024], eb[1024];
+    uint32_t w, i, nw = n / 256u > 1024u ? 1024u : n / 256u;
+    for (w = 0; w < nw; w++) {
+        double x = 0, y = 0;
+        for (i = w * 256u; i < w * 256u + 256u; i++)
+            x += (double)a[2u * i] * a[2u * i], y += (double)b[2u * i] * b[2u * i];
+        ea[w] = sqrt(x / 256.0), eb[w] = sqrt(y / 256.0), ma += ea[w], mb += eb[w];
+    }
+    ma /= nw, mb /= nw;
+    for (w = 0; w < nw; w++)
+        sab += (ea[w] - ma) * (eb[w] - mb), saa += (ea[w] - ma) * (ea[w] - ma), sbb += (eb[w] - mb) * (eb[w] - mb);
+    return saa > 0 && sbb > 0 ? sab / sqrt(saa * sbb) : 0;
+}
+/* the notes: the log-magnitude spectrograms (2048-sample windows, a hop of 1024, 43 Hz .. 860 Hz: the bass's notes and
+ * the kick) of a and b correlated: phase-blind (the oscillators' phases differ from one render to the other) */
+static double spec_corr(const int32_t *a, const int32_t *b, uint32_t n)
+{
+    static double sa[64 * 40], sb[64 * 40];
+    double sab = 0, saa = 0, sbb = 0, ma = 0, mb = 0;
+    uint32_t w, k, i, nw = (n - 2048u) / 1024u, m = 0;
+    if (nw > 64u)
+        nw = 64u;
+    for (w = 0; w < nw; w++)
+        for (k = 2; k < 42u; k++, m++) {
+            double ra = 0, ia = 0, rb = 0, ib = 0;
+            for (i = 0; i < 2048u; i++) {
+                double h = 0.5 - 0.5 * cos(2 * M_PI * i / 2048.0), c = cos(2 * M_PI * k * i / 2048.0) * h,
+                       sn = sin(2 * M_PI * k * i / 2048.0) * h, x = a[2u * (w * 1024u + i)], y = b[2u * (w * 1024u + i)];
+                ra += x * c, ia += x * sn, rb += y * c, ib += y * sn;
+            }
+            sa[m] = log(1.0 + sqrt(ra * ra + ia * ia)), sb[m] = log(1.0 + sqrt(rb * rb + ib * ib));
+            ma += sa[m], mb += sb[m];
+        }
+    ma /= m, mb /= m;
+    for (i = 0; i < m; i++)
+        sab += (sa[i] - ma) * (sb[i] - mb), saa += (sa[i] - ma) * (sa[i] - ma), sbb += (sb[i] - mb) * (sb[i] - mb);
+    return saa > 0 && sbb > 0 ? sab / sqrt(saa * sbb) : 0;
+}
+static void replay_check(const char *name, const int32_t *o, const int32_t *ref, uint32_t s0, uint32_t nst, uint32_t span)
+{
+    uint32_t a = (uint32_t)(s0 * (double)FS * 60.0 / BPM / 4.0), e = (uint32_t)((s0 + nst) * (double)FS * 60.0 / BPM / 4.0);
+    uint32_t back = (uint32_t)(span * (double)FS * 60.0 / BPM / 4.0), skip = 2048u, n = e - a - skip, after = e + STEP_S;
+    uint32_t na = 4u * STEP_S;
+    double c_back = spec_corr(o + 2u * (a + skip), ref + 2u * (a + skip - back), n);
+    double c_same = spec_corr(o + 2u * (a + skip), ref + 2u * (a + skip), n);
+    double v_back = env_corr(o + 2u * (a + skip), ref + 2u * (a + skip - back), n);
+    double v_same = env_corr(o + 2u * (a + skip), ref + 2u * (a + skip), n);
+    double c_after = spec_corr(o + 2u * after, ref + 2u * after, na);
+    double v_after = env_corr(o + 2u * after, ref + 2u * after, na);
+    double c_after_bk = spec_corr(o + 2u * after, ref + 2u * (after - back), na);
+    char b[220];
+    check(first_diff(o, ref, 0, NSAMP) >= a - 2u * CTL, name);
+    snprintf(b, sizeof b, "%s, during: as the dry render %u steps earlier (notes %.3f, level envelope %.3f; as the dry render "
+             "then: %.3f, %.3f)", name, span, c_back, v_back, c_same, v_same);
+    check(c_back > 0.95 && v_back > 0.9 && c_back > c_same + 0.03, b);
+    snprintf(b, sizeof b, "%s, after (a step on, the tails gone): as the dry render then (notes %.3f, level %.3f; %u steps "
+             "earlier: %.3f)", name, c_after, v_after, span, c_after_bk);
+    check(c_after > 0.97 && v_after > 0.97 && c_after > c_after_bk + 0.03, b);
+}
+
 int main(int argc, char **argv)
 {
     uint32_t i, l8 = FS * 60u / BPM / 2u, l4 = FS * 60u / BPM;
@@ -276,6 +359,50 @@ int main(int argc, char **argv)
         }
         check(held == (3u * STEP_S - CTL) / CTL + 1u || held >= (3u * STEP_S) / CTL - 2u, "FX held + a key: its effect plays over the lane's steps");
         punch.req = -1;
+    }
+    {   /* 1/2 and 1/1: the sequencer replays (the bass three bars long, so each bar is told apart) */
+        static int32_t *dry3, *half, *bar;
+        uint32_t tt;
+        dry3 = m + NSAMP * 2u * 0u + 0u;                /* (out_off and out_none's room again) */
+        half = out_none, bar = out_re;
+        dry3 = out_off;
+        song_setup(); bass3(); stl.act = 0;
+        render(dry3, 0);
+        song_setup(); bass3();
+        for (i = 8; i < 16; i++) lane_code(i, 4);       /* 1/2 on steps 9..16 */
+        render(half, 0);
+        replay_check("1/2 on 9-16: the sequencer replays steps 1-8", half, dry3, 8, 8, 8);
+        song_setup(); bass3();
+        for (i = 16; i < 32; i++) lane_code(i, 5);      /* 1/1 on steps 17..32 */
+        render(bar, 0);
+        replay_check("1/1 on 17-32: bar 1 again, then bar 3", bar, dry3, 16, 16, 16);
+        song_setup(); bass3();                          /* the sequencer's own view: during the run, after it */
+        for (i = 16; i < 32; i++) lane_code(i, 5);
+        {
+            uint32_t b2, seen_rep = 1, seen_after = 1;
+            int32_t blk[CTL * 2u];
+            for (b2 = 0; b2 < 40u * STEP_S / CTL; b2++) {
+                mix_block(blk, CTL);
+                tt = clk_beat * 4u + clk_pos / (BEAT_U / 4u);
+                if (tt >= 17u && tt < 32u && trk[0].seq_abs == tt)
+                    seen_rep &= trk[0].seq_idx == tt - 16u && TDRUM->seq_idx == (tt - 16u) % 16u && rep_l16 == 16u;
+                if (tt >= 33u && trk[0].seq_abs == tt)
+                    seen_after &= trk[0].seq_idx == tt % 48u && TDRUM->seq_idx == tt % 16u && !rep_l16;
+            }
+            check(seen_rep, "1/1: during the run every track plays step (now - 16), the song position counting on");
+            check(seen_after, "1/1: after it each track plays the step it would have (bass step 33 on: bar 3)");
+        }
+        song_setup(); bass3();                          /* no audio stutter for 1/2, 1/1 (the ring's loops are for 1/4..) */
+        for (i = 8; i < 16; i++) lane_code(i, 4);
+        {
+            uint32_t b2, ring = 0;
+            int32_t blk[CTL * 2u];
+            for (b2 = 0; b2 < 20u * STEP_S / CTL; b2++) {
+                mix_block(blk, CTL);
+                ring |= stl_want >= 0 || punch.cur >= 0;
+            }
+            check(!ring, "1/2: no audio stutter (the punch ring stays idle)");
+        }
     }
     if (argc > 1) {
         FILE *f = fopen(argv[1], "wb");

@@ -514,26 +514,34 @@ static void proj_cl_get(const project_t *p)
  * project), the preset byte the lane's length - 1 | ON << 6. Same format and size: KARMA and SLOOP load the project as
  * before (each of those values clamped into a parameter the drum track does not use) */
 #define STL_MARK 0x53u
-_Static_assert(P_LD_AMP - P_LRATE == 7 && P_DETUNE - P_GLMODE == 3 && P_DETUNE < PROJ_NC6, "the lane's bytes");
+/* (PHEBUS, 21 Nov 2026: 1/2 and 1/1) the third bit of each step's length (punch.c stl.lx) in P_ATK .. P_REL, as unused on
+ * the drum track (its sounds' envelopes are the kits'; voice.c's ADSR plays the synth parts only); the preset byte's bit 7
+ * says they are there (a lane saved before: none, its steps as they were) */
+_Static_assert(P_LD_AMP - P_LRATE == 7 && P_DETUNE - P_GLMODE == 3 && P_DETUNE < PROJ_NC6 && P_REL - P_ATK == 3 &&
+               P_REL < PROJ_NC6, "the lane's bytes");
 static void stl_put(project_t *p)
 {
     proj_trk_t *t = &p->t[TRK_DRUM];
     uint32_t i;
     for (i = 0; i < 8u; i++)
         t->p[P_LRATE + i] = (int16_t)(stl.lc[2u * i] | stl.lc[2u * i + 1u] << 8);
-    for (i = 0; i < 4u; i++)
+    for (i = 0; i < 4u; i++) {
         t->p[P_GLMODE + i] = (int16_t)(stl.on[2u * i] | stl.on[2u * i + 1u] << 8);
+        t->p[P_ATK + i] = (int16_t)(stl.lx[2u * i] | stl.lx[2u * i + 1u] << 8);
+    }
     t->engine = STL_MARK;
-    t->preset = (uint8_t)(((stl.len - 1u) & 63u) | (stl.act ? 64u : 0u));
+    t->preset = (uint8_t)(((stl.len - 1u) & 63u) | (stl.act ? 64u : 0u) | 128u);
 }
 static void stl_get(const project_t *p)                 /* (no lane in it: an empty one, ON, 16 steps) */
 {
     const proj_trk_t *t = &p->t[TRK_DRUM];
-    uint32_t i, there = t->engine == STL_MARK;
+    uint32_t i, there = t->engine == STL_MARK, lx = there && (t->preset & 128u);
     for (i = 0; i < 16u; i++)
         stl.lc[i] = there ? (uint8_t)((uint16_t)t->p[P_LRATE + i / 2u] >> (8u * (i & 1u))) : 0u;
-    for (i = 0; i < 8u; i++)
+    for (i = 0; i < 8u; i++) {
         stl.on[i] = there ? (uint8_t)((uint16_t)t->p[P_GLMODE + i / 2u] >> (8u * (i & 1u))) : 0u;
+        stl.lx[i] = lx ? (uint8_t)((uint16_t)t->p[P_ATK + i / 2u] >> (8u * (i & 1u))) : 0u;
+    }
     stl.len = (uint8_t)(there ? (t->preset & 63u) + 1u : 16u);
     stl.act = (uint8_t)(!there || (t->preset & 64u));
 }

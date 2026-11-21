@@ -234,30 +234,67 @@ static void swing_str(char *b, int32_t v)            /* 0 straight .. 100 the mo
     fmt_int(b, clamp(v, 0, 100));
 }
 
+/* (PHEBUS, Ben 21 Nov 2026: "having easy access to decay, filter, fx, makes for fun play on the fly"; picker "Cutoff,
+ * decay, FX, level", and of the FX knob: "Would be cool if it actually just turned on and off the stutter") HOME's KNOB 1
+ * and 2, for the selected voice: CUTOFF, the engine's own filter cutoff (its CUT: ACID, JUNO), else the voice's FILTER
+ * (P_TFLT: PLAITS, ELEMENTS, and the drums' track filter); DECAY, the decay of the envelope that moves the sound: the
+ * engine's own envelope where it has one (ACID's DECAY), else the shared ENV's DEC (JUNO, PLAITS, ELEMENTS); on the
+ * drums the selected sound's DEC of a HEX kit (its HEX AEG; the other kits have none: 0). (KNOB 3 the STUTTER lane on /
+ * off, KNOB 4 LEVEL: ui_input.c tracks_edit) */
+static int16_t *home_knob(uint32_t k, const param_desc_t **d)
+{
+    track_t *t = TSEL;
+    uint32_t i, kit = drum_kit();
+    if (is_drum(t)) {
+        if (!k) {
+            *d = &TP[P_TFLT];
+            return &t->p[P_TFLT];
+        }
+        *d = &GP[G_HXDEC];
+        return kit < DRUM_SAMPLED || kit >= DRUM_SYN ? &song.g[G_HXDEC] : 0;
+    }
+    for (i = 0; i < 8u; i++)
+        if (str_eq(ENGINES[t->eng_req % NENGINES]->edit[i].label, k ? "DECAY" : "CUT")) {
+            *d = track_desc(t, P_E0 + i);
+            return &t->p[P_E0 + i];
+        }
+    *d = &TP[k ? P_DEC : P_TFLT];
+    return &t->p[k ? P_DEC : P_TFLT];
+}
 static void studio_tracks_draw(void)
 {
     static uint32_t head, footer, bar;
     op_header("HOME", TE_G3, arrangement_enabled ? "song" : "loop", &head);
     op_home_body();                                    /* the deck, the selected track, the four lanes (ui_op.c) */
-    {   /* KNOB 1 swing (the global groove), 2 level, 3 steps, 4 pan of the selected track */
+    {   /* KNOB 1 cutoff, 2 decay of the selected voice, 3 the STUTTER lane on / off (everyone's), 4 the voice's level */
         track_t *t = TSEL;
         static char v[4][8];
-        static const char *const lab[4] = {"swing", "level", "steps", "pan"};
-        const char *val[4] = {v[0], v[1], v[2], v[3]};
+        static const char *const lab[4] = {"cutoff", "decay", "stut", "level"};
+        const char *val[4] = {v[0], v[1], v[2], v[3]}, *u;
         int32_t ratio[4];
-        uint32_t lvl = is_drum(t) ? song.g[G_DRLVL] : t->p[P_LEVEL];
-        swing_str(v[0], song.g[G_SWING]);
-        const char *unit[4] = {"", t->p[P_MUTE] ? "MUTE" : "", "", ""};   /* muted: its real level, dim, "MUTE" (review 19) */
-        fmt_int(v[1], (int32_t)lvl * 100 / 127);
-        fmt_int(v[2], t->p[P_SLEN]);
-        fmt_int(v[3], t->p[P_PAN]);
-        ratio[0] = song.g[G_SWING] * 10;
-        ratio[1] = (int32_t)lvl * 1000 / 127;
-        ratio[2] = (t->p[P_SLEN] - 1) * 1000 / 63;
-        ratio[3] = (t->p[P_PAN] + 64) * 1000 / 127;
-        knob_tint_all(song.sel);                        /* HOME: swing is the song's, the rest the selected track's */
-        knob_tint[0] = TINT_NEUTRAL;
-        op_knobs(lab, val, unit, ratio, t->p[P_MUTE] ? 2u : 0u, song.sel, &footer);
+        uint32_t lvl = is_drum(t) ? song.g[G_DRLVL] : t->p[P_LEVEL], k, dim = t->p[P_MUTE] ? 8u : 0u;
+        const char *unit[4] = {"", "", "", t->p[P_MUTE] ? "MUTE" : ""};   /* muted: its real level, dim, "MUTE" (review 19) */
+        for (k = 0; k < 2u; k++) {
+            const param_desc_t *d;
+            int16_t *vp = home_knob(k, &d);
+            if (!vp) {                                  /* (a drum kit with no DEC to turn) */
+                str_cpy(v[k], "--", 8);
+                ratio[k] = 0;
+                dim |= 1u << k;
+                continue;
+            }
+            param_format(d, *vp, v[k], &u);
+            if (d->fmt != F_PCT)                        /* (a time: its unit; a % as LEVEL: the number alone) */
+                unit[k] = u;
+            ratio[k] = (*vp - d->min) * 1000 / (d->max > d->min ? d->max - d->min : 1);
+        }
+        str_cpy(v[2], stl.act ? "ON" : "OFF", 8);
+        ratio[2] = stl.act ? 1000 : 0;
+        fmt_int(v[3], (int32_t)lvl * 100 / 127);
+        ratio[3] = (int32_t)lvl * 1000 / 127;
+        knob_tint_all(song.sel);                        /* HOME: the voice's knobs in its colour, the stutter everyone's */
+        knob_tint[2] = TINT_NEUTRAL;
+        op_knobs(lab, val, unit, ratio, dim, song.sel, &footer);
     }
     op_trackbar(&bar);
 }
