@@ -1,23 +1,31 @@
-<p align="center"><img src="docs/img/acid.png" alt="KARMA on the FM-1: the ACID track's screen" width="240"></p>
+<h1 align="center">PHEBUS</h1>
 
-<h1 align="center">KARMA</h1>
-
-<p align="center"><b>Free, open-source firmware for the M-VAVE FM-1.</b><br>
-Four tracks, a drum synth, a 64-step sequencer, generators that keep writing while you play, and a cast of pixel characters.</p>
+<p align="center"><b>Ben's custom firmware for the M-VAVE FM-1 groovebox. A fork of KARMA.</b><br>
+Four voices (robot, alien, crocodile and a snake on drums), a 64-step GRID sequencer, a stutter lane, a five-stage sound chain, performance effects on the keys, and a song arranger.</p>
 
 <p align="center">
-<a href="https://eatyourgreensstudio-dotcom.github.io/karma-fm1/"><b>Website</b></a> ·
-<a href="https://eatyourgreensstudio-dotcom.github.io/karma-fm1/emu/"><b>Try it in the browser</b></a> ·
-<a href="https://eatyourgreensstudio-dotcom.github.io/karma-fm1/webapp/installer/"><b>Install</b></a> ·
-<a href="https://eatyourgreensstudio-dotcom.github.io/karma-fm1/webapp/editor/">Web editor</a> ·
-<a href="GUIDE.md">Guide</a> ·
+<a href="GUIDE.md"><b>Read the guide</b></a> ·
+<a href="BUILDING.md">Build</a> ·
+<a href="LICENSING.md">Licences</a> ·
 <a href="../../issues">Report a bug</a>
 </p>
 
 ---
 
-> **Status:** 3.1.5, running on a real FM-1. Install it from the browser with the [web installer](https://eatyourgreensstudio-dotcom.github.io/karma-fm1/webapp/installer/)
-> (Chrome or Edge, a USB data cable); the same page puts the official firmware back. Never for sale, free forever.
+> **Status: unreleased, personal firmware.** Nothing in this repository has been run on a real FM-1 yet. Some FM-1 hardware
+> revisions can be bricked by custom firmware, so do not flash PHEBUS without checking your unit first.
+
+PHEBUS is based on [KARMA](https://eatyourgreensstudio-dotcom.github.io/karma-fm1/) by Ariel Muchnik, itself a fork of
+[SLOOP](https://github.com/isod89/sloop-fm1) by isod89, based on [Felucca](https://github.com/hugelton/Felucca) by Leo Kuroshita
+(Hügelton Instruments). It is free software under GPL-3.0-only; see [LICENSING.md](LICENSING.md). The full credits are further
+down this page. The guide for playing it is [GUIDE.md](GUIDE.md).
+
+The text below is KARMA's own README, kept as it was. The website, browser simulator, installer and web editor linked in it
+belong to KARMA and install or run KARMA, not PHEBUS:
+[website](https://eatyourgreensstudio-dotcom.github.io/karma-fm1/) ·
+[simulator](https://eatyourgreensstudio-dotcom.github.io/karma-fm1/emu/) ·
+[installer](https://eatyourgreensstudio-dotcom.github.io/karma-fm1/webapp/installer/) ·
+[web editor](https://eatyourgreensstudio-dotcom.github.io/karma-fm1/webapp/editor/)
 
 ## What's inside
 
