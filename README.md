@@ -1,7 +1,7 @@
 <h1 align="center">PHEBUS</h1>
 
 <p align="center"><b>Ben's custom firmware for the M-VAVE FM-1 groovebox. A fork of KARMA.</b><br>
-Four voices (robot, alien, crocodile and a snake on drums), a 64-step GRID sequencer, a stutter lane, a five-stage sound chain, performance effects on the keys, and a song arranger.</p>
+Four voices (robot, alien, crocodile and a snake on drums), a 64-step GRID sequencer, a stutter lane, a five-stage sound chain, performance effects on the keys, and four sections.</p>
 
 <p align="center">
 <a href="GUIDE.md"><b>Read the guide</b></a> ·

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The third take for posting (2026-10-26, Ariel's direction), on his pattern (tests/op_v3_pattern.fm1p: G mixolydian,
  * 124 BPM, JUNO bass, ELEMENTS, PLAITS lead, a 4/4 kick): HOME with ELEMENTS alone; ELEMENTS' EDIT; the kick's EDIT,
- * the drummer as the kick comes in; the mixer, track 1 comes in; its EDIT; its GEN page; HOME; the mixer, PLAITS
+ * the drummer as the kick comes in; the mixer, track 1 comes in; its EDIT; its GRID; HOME; the mixer, PLAITS
  * fading in; PLAITS' EDIT; FX; LFO; HOME; the KARMA boot screen as the sound fades. Same harness and output as op_tour.c
  * (TAKE=op_v3 sh tools/op_tour.sh). */
 #include <stdint.h>
@@ -256,12 +256,8 @@ int main(int argc, char **argv)
     turn_knob(6, 200);
     part(2, 0, 14, 18, 12);                         /* 5. track 1's EDIT */
     click_btn(9); vframe();
-    open_family(FAM_SEQ);
-    for (k = 0; k < NPAGES; k++)
-        if (!strcmp(PAGES[k].title, "GEN"))
-            ui.page = (uint8_t)k;
-    ui.home = 0; page_entered(); ui.force = 1; vframe();
-    part(2, 0, 0, 0, 0);                            /* 6. its GEN page */
+    studio_open(SC_DRUM); ui.force = 1; vframe();
+    part(2, 0, 0, 0, 0);                            /* 6. its GRID (the take had SEQ > GEN here, cut in PHEBUS wave 1) */
     click_btn(6); vframe();
     go_home();
     part(2, 0, 0, 0, 0);                            /* 7. HOME */

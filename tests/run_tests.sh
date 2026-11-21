@@ -42,7 +42,6 @@ run "application USB recovery and boot-loop guard" "$OUT/recovery_test"
 
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/studio_drums_test" tests/studio_drums_test.c $PLX -lm
 run "drum lanes, kit audio, metronome, record arm, free take" "$OUT/studio_drums_test" "$OUT/drum-styles.wav"
-$CC -O1 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o "$OUT/gen_seq_test" tests/gen_seq_test.c $PLX -lm
 $CC -O1 -w -DARENA_STATS -Ibuild/gen -Ifirmware/src -o "$OUT/arena_test" tests/arena_test.c $PLX -lm
 run "engine arenas: every engine after every other one as on a fresh FM-1; 30 s of random switches" "$OUT/arena_test" 30
 $CC -O2 -w -Ifirmware/mi -o "$OUT/plx_test" tests/plx_test.c $PLX -lm
@@ -56,7 +55,6 @@ LXR=${LXR:-$HOME/fm1-firmware/ref/lxr}               # the HEX drum voices again
 if [ -f "$LXR/Core/Src/Soundengine/DSPAudio/DrumVoice.c" ]; then
     run "HEX: the LXR-02's drum voices as its firmware plays them (tests/lxr_ref)" env LXR="$LXR" sh tests/lxr_ref/build.sh
 fi
-run "SEQ > GEN: a loop that changes as it plays (CHANGE, SCALE, RANGE, ON per track)" "$OUT/gen_seq_test"
 $CC -O1 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/drum_send_test" tests/drum_send_test.c $PLX -lm
 run "drums: each sound's sends and the kit through a project (load, power-on, section)" "$OUT/drum_send_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/seq2_test" tests/seq2_test.c $PLX -lm
@@ -79,8 +77,6 @@ run "after Felucca 1.4 / 1.5: INSERT, filter TYPE, ENV SYNC, LFO 2, drum mutes, 
 
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o "$OUT/ui_pages_test" tests/ui_pages_test.c $PLX -lm
 run "live UI: pages, layers (punch, steps, erase, roll, key, mix), holds, drums, REC, fuzz" "$OUT/ui_pages_test" "$OUT"
-$CC -O1 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/acid_mem_test" tests/acid_mem_test.c $PLX -lm
-run "ACID GEN: each synth track its own settings (3.1.5)" "$OUT/acid_mem_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o "$OUT/speak_test" tests/speak_test.c $PLX -lm
 run "screen reader (fm1-reader): silent until HELLO, the screen, a sound, a page, a knob, play, octave, messages" "$OUT/speak_test"
 # no divide by 0 (the FM-1 runs with the div0 trap off, hal/fm1_irq.h: a real one would give a wrong value

@@ -12,7 +12,8 @@
  *   mute     P_MUTE / solo: no new notes, the output fades
  *   nudge    (2.4) a step fires 1/64ths of a step early or late; crossing nudges keep the order
  *   locks    (2.4) a parameter lock sets p[] for its step, the base returns at the next one
- *   fill     (2.4) FILL ONLY / NO FILL steps follow GLO + key 9 (held) and key 10 (the next bar); STOP clears
+ *   fill     (2.4) FILL ONLY / NO FILL steps follow GLO + key 9 (held) and key 10 (the next bar); STOP clears;
+ *            CHNC about 1 time in 2
  *   sections SAVE + a section key while playing: on the next bar
  * Exit status: the number of failed checks. */
 #define FELUCCA_ARRANGER 1
@@ -1470,6 +1471,17 @@ static uint32_t bar_run(uint32_t to_beat)         /* run to the start of beat to
         run_block();
     return (uint32_t)blk;
 }
+/* the CHNC step condition: a fixed chance of about 50 % (64 in 127) since SEQ > PLAY's CHANCE is cut (PHEBUS wave 1) */
+static void t_chance(void)
+{
+    track_t *u = &trk[0];
+    uint32_t n, hits = 0;
+    reset(120);
+    step_fill_set(u, 3, FC_CHANCE);
+    for (n = 0; n < 4000u; n++) hits += step_plays(u, 3);
+    check(hits > 1800u && hits < 2240u && step_plays(u, 4), "CHNC step: plays about 1 time in 2 (fixed 64 in 127); a normal step: always");
+    step_fill_set(u, 3, FC_NORM);
+}
 static void t_fill(void)
 {
     uint32_t b[8], i, ok, starts0, starts1;
@@ -2025,6 +2037,7 @@ int main(void)
     t_micro();
     t_plock();
     t_fill();
+    t_chance();
     t_section_next();
     t_edits_stick();
     t_mclk_burst();

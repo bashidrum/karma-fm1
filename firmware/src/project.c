@@ -39,7 +39,7 @@
 #define PROJ_NG 32u                            /* the globals of formats 4 and 5 (G_COUNT until 2.4). SLOOP 2.5's
                                                 * G_DRDLY rides in the byte after sel (0 in older projects: off),
                                                 * so the format and its size do not change */
-_Static_assert(G_DRDLY == PROJ_NG && G_TXSRC == PROJ_NG + 5u && G_COUNT == G_BEND + 64u,   /* (+25: SEQ > GEN, DRUM GEN, PLAY, KNOBS, HARMONY, not in a project) */
+_Static_assert(G_DRDLY == PROJ_NG && G_TXSRC == PROJ_NG + 5u && G_COUNT == G_BEND + 32u,   /* (+31: CLOUD, the HEX sound, KNOBS: not in a project) */
                "the globals a project holds, then G_DRDLY (then 2.6's GLO > MIDI: settings of the FM-1)");
 #define PROJ_NC6 ((uint32_t)P_ITYPE)           /* format 6: the parameters kept in 16 bits, P_LEVEL .. P_VLEAD (as 5), */
 #define PROJ_NX6 ((uint32_t)(P_E0 - P_ITYPE))  /* the 2.6 ones in a byte (0..127), then P_E0 .. P_E7 */
@@ -1013,42 +1013,9 @@ static int midi_part_default(const uint8_t *b)
     return b[2u * ML_N] == def[0] && b[2u * ML_N + 1u] == def[1] && b[2u * ML_N + 2u] == def[2] &&
            b[2u * ML_N + 3u] == (uint8_t)(def[3] | def[4] << 7) && b[2u * ML_N + 4u] == def[5];
 }
-/* (3.1.5) ACID GEN, each synth track's (acid_gen.c ag_trk), after the MIDI part: 8 bytes a track, DENS ACC SLIDE SCALE
- * OCT ROOT, SEED low, high. Written only while one is not at its defaults (then the MIDI part is written too, as it is):
- * else the object is exactly 3.1.4's. Read: every value back inside its range */
+/* (3.1.5) ACID GEN's settings, 8 bytes a synth track, came after the MIDI part (cut, PHEBUS wave 1): an object with them
+ * still reads, the part is skipped; it is no longer written */
 #define AG_PART (8u * NPART)
-_Static_assert(sizeof(persist_t) + sizeof(dsu_bank_t) + MIDI_PART + AG_PART <= ST_PAYLOAD_MAX, "the settings object fits");
-static uint8_t ag_saved[AG_PART];
-static void ag_part_fill(uint8_t *b)
-{
-    uint32_t k, i;
-    for (k = 0; k < NPART; k++) {
-        for (i = 0; i < 6u; i++)
-            b[8u * k + i] = ag_trk[k].v[i];
-        b[8u * k + 6u] = (uint8_t)ag_trk[k].seed, b[8u * k + 7u] = (uint8_t)(ag_trk[k].seed >> 8);
-    }
-}
-static int ag_part_default(const uint8_t *b)
-{
-    uint32_t k, i;
-    for (k = 0; k < NPART; k++) {
-        for (i = 0; i < 6u; i++)
-            if (b[8u * k + i] != (uint8_t)GP[AG_ID[i]].def)
-                return 0;
-        if ((uint32_t)(b[8u * k + 6u] | b[8u * k + 7u] << 8) != (uint32_t)GP[G_AGSEED].def)
-            return 0;
-    }
-    return 1;
-}
-static void ag_part_read(const uint8_t *b)
-{
-    uint32_t k, i;
-    for (k = 0; k < NPART; k++) {
-        for (i = 0; i < 6u; i++)
-            ag_trk[k].v[i] = (uint8_t)clamp(b[8u * k + i], GP[AG_ID[i]].min, GP[AG_ID[i]].max);
-        ag_trk[k].seed = (uint16_t)clamp((int32_t)(b[8u * k + 6u] | b[8u * k + 7u] << 8), GP[G_AGSEED].min, GP[G_AGSEED].max);
-    }
-}
 /* n: 32 (the map), 36 (and the channels) or MIDI_PART; every entry checked (a CC that learns, a parameter this knows, a
  * channel 0..16, a range 1..12) */
 static void midi_part_read(const uint8_t *b, uint32_t n)
@@ -1075,22 +1042,18 @@ static void midi_part_read(const uint8_t *b, uint32_t n)
 }
 static int settings_write(const persist_t *p)
 {
-    uint8_t mp[MIDI_PART + AG_PART];
+    uint8_t mp[MIDI_PART];
     uint32_t n3;
     if (!dsu_valid(&dsu))
         dsu_defaults();
     midi_part_fill(mp);
-    ag_part_fill(mp + MIDI_PART);
     /* the third part only when it is not the default: without, the object is exactly 2.5's (2.5 reads it whole, SYN
-     * kits included; with it, it takes the object for one without them); (3.1.5) ACID GEN's after it while not its own
-     * defaults */
-    n3 = !ag_part_default(mp + MIDI_PART) ? MIDI_PART + AG_PART : midi_part_default(mp) ? 0u : MIDI_PART;
+     * kits included; with it, it takes the object for one without them) */
+    n3 = midi_part_default(mp) ? 0u : MIDI_PART;
     if (st_save3(OBJ_SETTINGS, p, sizeof *p, &dsu, sizeof dsu, mp, n3))
         return -1;
     dsu_dirty = 0;
-    ag_dirty = 0;
     memcpy(midi_saved, mp, sizeof midi_saved);
-    memcpy(ag_saved, mp + MIDI_PART, sizeof ag_saved);
     return 0;
 }
 static void dsu_boot(void)                          /* the SYN kits (and the MIDI part) from the settings object, else */
@@ -1098,7 +1061,6 @@ static void dsu_boot(void)                          /* the SYN kits (and the MID
     st_hdr_t h;
     uint32_t len = sizeof(persist_t) + sizeof(dsu_bank_t), k;
     dsu_defaults();
-    ag_defaults();
     for (k = 0; k < ML_N; k++)
         ml_tab[k] = 0;
     if (st_current(OBJ_SETTINGS, &h) >= 0 &&
@@ -1110,11 +1072,8 @@ static void dsu_boot(void)                          /* the SYN kits (and the MID
             dsu_fix_kit(&dsu.k[k]);
         if (h.len > len)
             midi_part_read(st_buf + len, h.len - len > MIDI_PART ? MIDI_PART : h.len - len);
-        if (h.len == len + MIDI_PART + AG_PART)
-            ag_part_read(st_buf + len + MIDI_PART);  /* (3.1.5) */
         drch_seed = h.len == len;
     }
-    ag_part_fill(ag_saved);                          /* (3.1.5: as flash has them) */
     midi_part_fill(midi_saved);
     dsu_dirty = 0;
 }
@@ -1139,11 +1098,9 @@ static void settings_save(void)
         return;
     persist_fill(&p);
     {
-        uint8_t mp[MIDI_PART], ag[AG_PART];
+        uint8_t mp[MIDI_PART];
         midi_part_fill(mp);
-        ag_part_fill(ag);
-        if (!memcmp(&p, &persist_saved, sizeof p) && !memcmp(mp, midi_saved, sizeof mp) && !dsu_dirty &&
-            !memcmp(ag, ag_saved, sizeof ag))
+        if (!memcmp(&p, &persist_saved, sizeof p) && !memcmp(mp, midi_saved, sizeof mp) && !dsu_dirty)
             return;                                /* unchanged: no erase cycle */
     }
     if (settings_write(&p) == 0)
@@ -1308,10 +1265,6 @@ static void sections_flush(void)                        /* main loop */
     }
     if (dsu_dirty)                                      /* a HEX kit edited (ui_studio.c hex_ui_sync): kept when quiet */
         settings_later = 1;
-    if (ag_dirty) {                                     /* (3.1.5) ACID GEN's settings turned: kept when quiet, as those */
-        ag_dirty = 0;
-        settings_later = 1;
-    }
     if (settings_later) {                               /* the menu closed while playing */
         settings_later = 0;
         song_dirty = 1;                                 /* (settings_save when quiet) */

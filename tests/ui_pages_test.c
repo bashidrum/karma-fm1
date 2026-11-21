@@ -1531,7 +1531,7 @@ int main(int argc, char **argv)
         tap(B_SEQ); frames(2);
         check(on_drum_page() && kb_grid, "SEQ on a sound page (OSC): the GRID");
         tap(B_SEQ); SEL(9);
-        check(!strcmp(PT(), "HARMONY"), "SEQ again: SEQ > PATTERN; SELECT: PATTERN .. HARMONY, not into the SONG screen");
+        check(!strcmp(PT(), "PATTERN"), "SEQ again: SEQ > PATTERN; SELECT: PATTERN is the SEQ family's one page (the generators and PLAY are cut)");
         tap(B_ENV);
         check(!strcmp(PT(), "ENV"), "the button still opens its family");
         tap(B_ENV);
@@ -2113,52 +2113,22 @@ int main(int argc, char **argv)
         fm1_in.buttons = 0; fm1_in.notes = 0; frames(4);
         #undef R
     }
-        {   /* SEQ > GEN, GEN 2 on track 1, ON */
-            uint32_t k, pg;
-            go_home(); song.sel = 0; song.playing = 0; ly_lock = LY_PLAY; open_family(FAM_SEQ); frames(2);
-            pg = ui.page;
-            gen_on = 0;                                   /* (the fuzz above may have left GEN on on another track) */
-            for (k = 0; k < NPAGES; k++)
-                if (!strcmp(PAGES[k].title, "GEN"))
-                    ui.page = (uint8_t)k;
-            song.g[G_GNON] = 1; ui.force = 1; frames(3);
-            check(gen_on == 1u, "SEQ > GEN: ON on track 1");
-            trk[0].p[P_SLEN] = 16; song.g[G_GNNEW] = 1; frames(2);
-            song.playing = 1; trk[0].seq_idx = 3; ui.force = 1; frame();
-            ppm("page-gen");
-            song.playing = 0;
-            ui.page = (uint8_t)(ui.page + 1u); ui.force = 1; frames(2);
-            ppm("page-gen2");
-            song.g[G_GNON] = 0; frames(2);
-            check(gen_on == 0u, "SEQ > GEN: OFF again");
-            ui.page = (uint8_t)pg; ui.force = 1; frame();
-        }
-    {   /* DRUMS: SEQ -> GRID -> KIT -> DRUM GEN -> GRID; DRUM GEN MAP on, playing */
+    {   /* (PHEBUS wave 1: the generators and PLAY are cut) no GEN, ACID GEN, HARMONY, DRUM GEN or PLAY page; DRUMS:
+         * SEQ -> GRID -> KIT -> GRID */
+        static const char *const GONE[9] = {"GEN", "GEN 2", "ACID GEN", "ACID GEN 2", "HARMONY", "DRUM GEN", "DRUM GEN 2", "PLAY", "SONG"};
+        uint32_t k, j, none = 1;
+        for (k = 0; k < NPAGES; k++)
+            for (j = 0; j < 9u; j++)
+                none &= strcmp(PAGES[k].title, GONE[j]) != 0;
+        check(none, "no generator, PLAY or SONG page left");
         go_home(); song.playing = 0; ly_lock = LY_PLAY;
         track_select(TRK_DRUM); frames(2);
         studio_open(SC_DRUM); drum_page = 0; frames(2);
         tap(B_SEQ); frames(2);
         check(on_drum_page() && drum_page == 1u, "DRUMS: SEQ, GRID -> KIT");
         tap(B_SEQ); frames(2);
-        check(!ui.home && !strcmp(PAGES[ui.page].title, "DRUM GEN"), "DRUMS: SEQ on KIT -> SEQ > DRUM GEN");
-        song.g[G_DGMODE] = 1; song.g[G_DGX] = 20; song.g[G_DGY] = 90; frames(2);
-        song.playing = 1; TDRUM->seq_idx = 6; ui.force = 1; frame();
-        ppm("page-dgen");
-        song.playing = 0;
-        encs[panel.enc[EN_SELECT]] = 1; frames(3);
-        check(!strcmp(PAGES[ui.page].title, "DRUM GEN 2"), "DRUM GEN: SELECT -> DRUM GEN 2");
-        song.g[G_DGMODE] = 2; ui.force = 1; frames(2);
-        ppm("page-dgen2");
-        tap(B_SEQ); frames(2);
-        check(on_drum_page() && drum_page == 0u, "DRUM GEN: SEQ -> back to the GRID");
-        song.g[G_DGMODE] = 0; frames(2);
+        check(on_drum_page() && drum_page == 0u, "DRUMS: SEQ on KIT -> back to the GRID");
         track_select(0); frames(2);
-        open_family(FAM_SEQ); frames(2);
-        {
-            uint32_t k, seen = 0;
-            for (k = 0; k < 14u; k++) { seen |= !strcmp(PAGES[ui.page].title, "DRUM GEN"); encs[panel.enc[EN_SELECT]] = 1; frames(2); }
-            check(!seen, "a synth track: no DRUM GEN pages");
-        }
         go_home(); frames(2);
     }
     {   /* the PRESETS page on each track: its engines' sounds only */

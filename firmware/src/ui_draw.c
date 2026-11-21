@@ -246,93 +246,6 @@ static void graph_steps(const track_t *t, uint16_t c)
             cv_rect(x - 1, y + 16, 3, 3, C_WHITE);
     }
 }
-/* the 16 steps the boxes show (SEQ > GEN): the ones playing, stopped the GRID's page */
-static uint32_t roll_bank(const track_t *t)
-{
-    return !song.playing ? ui.bank : t->seq_idx / 16u;
-}
-/* SEQ > GEN, HARMONY: a 16-step bank as 2 rows of 8 boxes, each with its note, readable on the
- * small screen. A note: filled in the track's colour (an ACC a white bar on top, a SLD an arrow on
- * to the next step, a chord "+n" small); a TIE: a band carried on from the note before; a rest: an
- * empty box. The step playing all white. */
-static void graph_roll(const track_t *t, uint16_t c)
-{
-    uint32_t i, len = (uint32_t)t->p[P_SLEN], base = roll_bank(t) * 16u;
-    for (i = 0; i < 16u; i++) {
-        uint32_t si = base + i;
-        const step_t *st = &t->step[si];
-        int32_t x = 1 + (int32_t)(i % 8u) * 30, y = 2 + (int32_t)(i / 8u) * 46, w = 28, h = 42;
-        int play = song.playing && si == t->seq_idx;
-        uint16_t fill = play ? C_WHITE : c, ink = C_BLACK;
-        char nm[8];
-        if (si >= len) {                             /* past the pattern's end */
-            cv_rect(x + w / 2 - 2, y + h / 2, 4, 1, TE_G1);
-            continue;
-        }
-        if (step_on(st)) {
-            note_name(nm, st->note[0]);
-            if (text_w(&FONT_S, nm) > w - 2)         /* (C#-1: the octave would not fit) */
-                str_cpy(nm, N_NOTE[st->note[0] % 12u], 8);
-            cv_rect(x, y, w, h, fill);
-            if (st->flags & SF_ACCENT)
-                cv_rect(x + 2, y + 2, w - 4, 3, play ? C_BLACK : C_WHITE);
-            cv_text(x + (w - text_w(&FONT_S, nm)) / 2, y + 12, &FONT_S, nm, ink);
-            if (st->n > 1) {                         /* a chord: how many more notes */
-                char ch[4];
-                ch[0] = '+';
-                ch[1] = (char)('0' + (st->n - 1 > 9 ? 9 : st->n - 1));
-                ch[2] = 0;
-                cv_text(x + (w - text_w(&FONT_S, ch)) / 2, y + 26, &FONT_S, ch, ink);
-            }
-            if (st->flags & SF_SLIDE) {              /* an arrow on to the next step */
-                int32_t k;
-                for (k = 0; k < 4; k++)
-                    cv_rect(x + w - 2 + k, y + h - 10 + k, 1, 8 - 2 * k, play ? C_BLACK : C_WHITE);
-            }
-        } else if (st->time == ST_TIE) {             /* the note before, held on */
-            cv_rect(x - 2, y + 16, w + 2, 10, play ? C_WHITE : c);
-            cv_rect(x, y, w, 1, TE_G2);
-            cv_rect(x, y + h - 1, w, 1, TE_G2);
-        } else {                                     /* a rest */
-            op_box(x, y, w, h, play ? C_WHITE : TE_G2);
-            fmt_int(nm, (int32_t)si + 1);             /* its number, to find the way */
-            cv_text(x + (w - text_w(&FONT_S, nm)) / 2, y + 12, &FONT_S, nm, play ? C_WHITE : TE_G3);
-        }
-        if (step_fill(t, si) == FC_CHANCE) {         /* a CHANCE step (SEQ > PLAY): a ? in its corner */
-            uint16_t q = step_on(st) && !play ? C_BLACK : play ? C_BLACK : TE_G4;
-            cv_rect(x + 2, y + 3, 5, 2, q);
-            cv_rect(x + 5, y + 5, 2, 2, q);
-            cv_rect(x + 4, y + 7, 2, 1, q);
-            cv_rect(x + 4, y + 9, 2, 2, q);
-        }
-    }
-}
-/* DRUM GEN: the 16 steps playing (or the first) of KICK, SNARE and HAT, big: a hit filled in the drums' colour,
- * an accent white; the step playing lit; OFF: grey */
-static void graph_dgen(void)
-{
-    static const char *const NM[3] = {"KICK", "SNARE", "HATS"};
-    const track_t *t = TDRUM;
-    uint32_t i, p, len = trk_len(t), base = song.playing ? t->seq_idx / 16u * 16u : 0u, off = !song.g[G_DGMODE];
-    uint16_t c = off ? TE_G3 : TE_COL[3];
-    for (p = 0; p < 3u; p++) {
-        int32_t y = 4 + (int32_t)p * 31;
-        cv_text(2, y + 6, &FONT_S, NM[p], off ? TE_G3 : TE_G4);
-        for (i = 0; i < 16u; i++) {
-            uint32_t si = base + i, l = DG_LANE[p];
-            int32_t x = 58 + (int32_t)i * 11 + (int32_t)(i / 4u) * 2, w = 9, h = 26;
-            const dstep_t *st = &t->dstep[si];
-            if (si >= len)
-                break;
-            if (song.playing && si == t->seq_idx)
-                cv_rect(x - 1, y - 2, w + 2, h + 4, TE_G2);
-            if (dstep_has(st, l))
-                cv_rect(x, y, w, h, dstep_lvl(st, l) == LV_HARD && !off ? C_WHITE : c);
-            else
-                cv_rect(x + 3, y + h / 2 - 1, 3, 3, TE_G2);
-        }
-    }
-}
 static void graph_scale(const track_t *t, uint16_t c)
 {
     static const uint8_t BLACK[12] = {0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0};
@@ -440,16 +353,8 @@ static uint32_t graph_signature(void)
     if (pg->graph == GR_SLOTS)                       /* (a checksum over each slot) */
         for (i = 0; i < 4u; i++)
             h ^= (uint32_t)project_used(i) << (20u + i);
-    if (pg->graph == GR_DGEN) {                      /* DRUM GEN: its lanes, the step playing */
-        const uint8_t *b = (const uint8_t *)TDRUM->dstep;
-        for (i = 0; i < sizeof TDRUM->dstep; i++)
-            h = (h ^ b[i]) * 16777619u;
-        h ^= (song.playing ? TDRUM->seq_idx + 1u : 0u) * 2654435761u;
-    }
-    if (pg->graph == GR_STEPS || pg->graph == GR_ROLL) {
+    if (pg->graph == GR_STEPS) {
         uint32_t ph = song.playing ? t->seq_idx : 0xFFFFu;
-        if (pg->graph == GR_ROLL && ph / 16u != roll_bank(t))
-            ph = 0xFFFFu;                            /* the roll shows the cursor's bank only */
         h ^= steps_hash(t) + ph * 31u + ui.cursor * 7919u;
     }
     return h;
@@ -798,12 +703,6 @@ static void draw_graph(void)
             break;
         case GR_STEPS:
             graph_steps(t, c);
-            break;
-        case GR_ROLL:
-            graph_roll(t, c);
-            break;
-        case GR_DGEN:
-            graph_dgen();
             break;
         case GR_SCALE:
             graph_scale(t, c);

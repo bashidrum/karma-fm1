@@ -507,11 +507,11 @@ static void layer_tap(uint32_t layer)
             break;
         }
         /* SEQ (REVIEW.md 2, 21 Nov 2026: the GRID is the only step editor, SEQ always comes back to it). On the GRID:
-         * the sequencing pages (a synth track: SEQ > PATTERN and its family; the drums: KIT, then DRUM GEN); from
+         * the sequencing pages (a synth track: SEQ > PATTERN and its family; the drums: the KIT); from
          * anywhere else, every track: the GRID */
         if (on_drum_page()) {
             if (is_drum(TSEL)) {
-                drum_seq_tap();                           /* DRUMS: GRID -> KIT -> DRUM GEN */
+                drum_seq_tap();                           /* DRUMS: GRID -> KIT -> GRID */
             } else {
                 ui.fam_last[FAM_SEQ] = 0;                 /* (its first page, PATTERN, every time) */
                 open_family(FAM_SEQ);

@@ -302,152 +302,9 @@ static uint8_t op_note = 60, op_hit;                    /* the selected synth tr
 static uint8_t op_strike[NTRK];                         /* each track's character: frames of its STRIKE pose still to show
                                                          * (an accent: pads_tick; ui_op.c op_dance) */
 #define OP_STRIKE_FR 8u
-#include "acid_gen.c"             /* SEQ > ACID GEN: TB-3PO's acid lines */
 
 /* FX > CLOUD's SEND (G_CLSEND) is the selected track's send, on the drum track the selected sound's: the value on
  * the page follows the selection, and what the knob (or the editor) sets goes to that track / sound. Once a frame */
-/* SEQ > GEN: ON shows and sets the selected synth track's (gen_on) and rolls a new loop at once; NEW rolls one; a
- * key played on the page (or an MPK key) turns it on with a new loop that starts on that note.
- * Turned on, and NEW, keep the pattern before for UNDO. Once a frame */
-/* SEQ > PLAY: its four values are the selected track's (seq.c pl_*), shown and set here. Once a frame */
-static void play_ui_sync(void)
-{
-    static uint8_t sel_was = 0xFF;
-    uint32_t s = song.sel % NTRK;
-    int16_t *g = song.g;
-    if (s != sel_was) {
-        sel_was = (uint8_t)s;
-        g[G_PLDIR] = pl_dir[s], g[G_PLCHN] = pl_chance[s], g[G_PLJMP] = pl_jump[s], g[G_PLSTR] = pl_stride[s];
-    }
-    if (g[G_PLDIR] != pl_dir[s] && pl_dir[s] == PD_WALK)
-        pl_pos[s] = (uint8_t)(trk[s].seq_idx % NSTEP);  /* (WALK starts where the track is) */
-    pl_dir[s] = (uint8_t)clamp(g[G_PLDIR], 0, PD_COUNT - 1);
-    pl_chance[s] = (uint8_t)clamp(g[G_PLCHN], 0, 127);
-    pl_jump[s] = (uint8_t)clamp(g[G_PLJMP], 0, 127);
-    pl_stride[s] = (uint8_t)clamp(g[G_PLSTR], 1, 7);
-}
-static void gen_ui_sync(void)
-{
-    static uint8_t sel_was = 0xFF;
-    static int16_t on_was = -1;
-    uint32_t s = song.sel, bit = s < NPART ? 1u << s : 0u;
-    if (s != sel_was) {
-        sel_was = (uint8_t)s;
-        song.g[G_GNON] = (int16_t)((gen_on & bit) != 0u);
-        on_was = song.g[G_GNON];
-    }
-    gen_keys = (uint8_t)((str_eq(cur_page()->title, "GEN") ? 1u : str_eq(cur_page()->title, "HARMONY") ? 2u : 0u) * !ui.menu);
-    {   /* SEQ > HARMONY: KEY and MODE are track 1's ROOT and SCL (a project loaded shows its key); turned, they set the
-         * three synth tracks and ACID GEN; any of the four turned: every GEN track's part again, the chords said;
-         * BARS also sets their loops (GEN never changes LEN otherwise: 2026-10-27) */
-        static int16_t kr = -1, km = -1, kp = -1, kb = -1;
-        int16_t *g = song.g;
-        int changed = 0;
-        if (g[G_GKROOT] != kr || g[G_GKMODE] != km) {
-            if (kr >= 0) {
-                gen_key_set((uint32_t)g[G_GKROOT], (uint32_t)g[G_GKMODE]);
-                changed = 1;
-            }
-        } else {
-            g[G_GKROOT] = (int16_t)(trk[0].p[P_ROOT] % 12);
-            g[G_GKMODE] = (int16_t)gk_mode_of(trk[0].p[P_SCALE]);
-        }
-        if (kp >= 0 && (g[G_GKPROG] != kp || g[G_GKBARS] != kb))
-            changed = 1;
-        if (kb >= 0 && g[G_GKBARS] != kb) {          /* BARS turned: every GEN track's loop that long, together */
-            uint32_t i;
-            for (i = 0; i < NPART; i++)
-                if ((gen_on >> i) & 1u)
-                    trk[i].p[P_SLEN] = (int16_t)(16 << clamp(g[G_GKBARS], 0, 2));
-        }
-        kr = g[G_GKROOT], km = g[G_GKMODE], kp = g[G_GKPROG], kb = g[G_GKBARS];
-        gk_load();
-        if (changed) {
-            static const char *const RN[12] = {"I", "bII", "II", "bIII", "III", "IV", "bV", "V", "bVI", "VI", "bVII", "VII"};
-            char m[40];
-            uint32_t i, j = 0, q;
-            undo_sess++;
-            for (i = 0; i < NPART; i++)
-                if ((gen_on >> i) & 1u)
-                    undo_mark(&trk[i], undo_sess);
-            gen_again();
-            for (i = 0; i < gk.n && j < 24u; i++) {   /* the chords: "i bVII", minor in small letters */
-                const char *r = RN[(uint32_t)(gk_note(gk.deg[i]) - gk.root + 12) % 12u];
-                int minor = gk_note(gk.deg[i] + 2) - gk_note(gk.deg[i]) == 3;
-                if (i)
-                    m[j++] = ' ';
-                for (q = 0; r[q] && j < 30u; q++)
-                    m[j++] = (char)(minor && r[q] != 'b' ? r[q] - 'A' + 'a' : r[q]);
-            }
-            if (gen_on & 7u) {                       /* the tracks rewritten: GEN 1 2 3 */
-                static const char T[] = " GEN";
-                for (q = 0; T[q] && j < 28u; q++)
-                    m[j++] = T[q];
-                for (i = 0; i < NPART && j < 30u; i++)
-                    if ((gen_on >> i) & 1u)
-                        m[j++] = ' ', m[j++] = (char)('1' + i);
-            }
-            m[j] = 0;
-            ui_message(m);
-            ui.force = 1;
-        }
-    }
-    if (gen_seed) {                                  /* a key on the GEN page: GEN on, a new loop from that note */
-        uint32_t n = gen_seed - 1u;
-        gen_seed = 0;
-        if (bit && gen_keys == 1u) {                 /* GEN: this track's GEN on, a new part (and the KEY) */
-            undo_sess++;
-            undo_mark(TSEL, undo_sess);
-            gen_on |= (uint8_t)bit;
-            song.g[G_GNON] = on_was = 1;
-            gen_new_from(TSEL, n);
-            ui.force = 1;
-        } else if (gen_keys == 2u) {                 /* HARMONY: the KEY only (GEN stays as it is: 2026-10-26) */
-            song.g[G_GKROOT] = (int16_t)(n % 12u);
-        }
-    }
-    if (song.g[G_GNON] != on_was) {
-        on_was = song.g[G_GNON];
-        if (!bit) {
-            song.g[G_GNON] = on_was = 0;
-        } else if (on_was) {
-            undo_sess++;
-            undo_mark(TSEL, undo_sess);
-            gen_on |= (uint8_t)bit;
-            gen_new(TSEL);                           /* (a new loop at once: DRIFT alone took seconds to be heard) */
-            ui.force = 1;
-        } else {
-            gen_on &= (uint8_t)~bit;
-        }
-    }
-    {                                                /* DRUM GEN: a knob turned, the lanes written now */
-        static int16_t dg_was[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
-        uint32_t i, ch = 0;
-        for (i = 0; i < 8u; i++)
-            if (song.g[G_DGMODE + i] != dg_was[i]) {
-                ch |= 1u << i;
-                dg_was[i] = song.g[G_DGMODE + i];
-            }
-        if (ch && song.g[G_DGMODE]) {
-            if (ch & 1u) {                           /* MODE on (or MAP <-> EUCL): the pattern before kept for UNDO */
-                undo_sess++;
-                undo_mark(TDRUM, undo_sess);
-                dg_roll_chaos();
-            }
-            drum_gen_fill(TDRUM);
-            ui.force = 1;
-        }
-    }
-    if (song.g[G_GNNEW]) {
-        song.g[G_GNNEW] = 0;
-        if (bit) {
-            undo_sess++;
-            undo_mark(TSEL, undo_sess);
-            gen_new(TSEL);
-            ui.force = 1;
-        }
-    }
-}
 static void cloud_ui_sync(void)
 {
     static uint16_t was = 0xFFFF;
@@ -542,9 +399,6 @@ static void pads_tick(void)                             /* once a frame: the hit
         }
     fm1_irq_on();
     cloud_ui_sync();
-    acid_gen_sync();
-    gen_ui_sync();
-    play_ui_sync();
     hex_ui_sync();
     for (i = 0; i < DRUM_LANES; i++) {
         if ((hits >> i) & 1u) pad_lit[i] = 6;
@@ -801,25 +655,12 @@ static void drum_screen_draw(void)
 
 static uint32_t lvl_rank(uint32_t lvl) { return lvl == LV_GHOST ? 0u : lvl == LV_SOFT ? 1u : lvl == LV_NORM ? 2u : 3u; }
 
-/* DRUMS: SEQ -> GRID -> KIT -> SEQ > DRUM GEN (SEQ there: back to the GRID) */
+/* DRUMS: SEQ -> GRID -> KIT -> GRID */
 static void drum_seq_tap(void)
 {
-    uint32_t i;
-    if (!drum_page) {
-        drum_page = 1;
-        ui.msg_t = 0;
-        ui.force = 1;
-        return;
-    }
-    drum_page = 0;
-    for (i = 0; i < NPAGES; i++)
-        if (str_eq(PAGES[i].title, "DRUM GEN")) {
-            ui.page = (uint8_t)i;
-            ui.fam_last[FAM_SEQ] = (uint8_t)i;
-            ui.home = 0;
-            page_entered();
-            ui.force = 1;
-        }
+    drum_page = (uint8_t)!drum_page;
+    ui.msg_t = 0;
+    ui.force = 1;
 }
 
 static void drum_screen_input(uint32_t pressed, uint32_t home)

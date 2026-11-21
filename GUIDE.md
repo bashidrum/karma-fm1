@@ -187,7 +187,7 @@ While you hold a step, the knobs edit it. A step you edited is kept, never clear
 
 SELECT left goes back to the first set. On a drum step the knobs are **LEVEL**, **RATCH**, **NUDGE** and **COND**.
 
-- **Conditions.** FILL plays only during a fill. NOFL plays except during a fill. CHNC plays now and then. A skipped step is silent in full: no note, no MIDI, no ratchet, no lock. Start a fill with **GLO + key 9** (while held) or **GLO + key 10** (the whole next bar; again cancels it).
+- **Conditions.** FILL plays only during a fill. NOFL plays except during a fill. CHNC plays about one time in two. A skipped step is silent in full: no note, no MIDI, no ratchet, no lock. Start a fill with **GLO + key 9** (while held) or **GLO + key 10** (the whole next bar; again cancels it).
 - **Ratchets** repeat the step 1 to 4 times inside its time.
 - **Nudge** moves a step slightly off the grid.
 - Held step + **OCT+** goes round the conditions (the message says NORMAL, FILL ONLY, NO FILL or CHANCE).
@@ -231,21 +231,13 @@ A pattern is up to 64 steps, in four pages of 16.
 
 ### SEQ pages after the GRID
 
-On a synth voice, **tap SEQ on the GRID** to open the SEQ pages, starting with PATTERN. **SELECT** walks them. Tap SEQ again from a SEQ page to return to the GRID.
+On a synth voice, **tap SEQ on the GRID** to open the PATTERN page. Tap SEQ again to return to the GRID.
 
 | Page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
 | --- | --- | --- | --- | --- |
 | **PATTERN** | STEPS (1 to 64) | DIV | SWING | GATE |
-| **PLAY** | DIR: FWD, REV, PEND, RAND, WALK | CHANCE | JUMP | STRIDE (1 to 7) |
-| **ACID GEN** | DENS | ACC | SLIDE | SEED |
-| **ACID GEN 2** | SCALE | OCT | ROOT | VARY (GO) |
-| **GEN** | GEN on or off | DRIFT | DENS | RANGE |
-| **GEN 2** | OCT | ACC | SLIDE | NEW (GO) |
-| **HARMONY** | KEY | MODE | PROG | BARS |
 
 **DIV** values: 1/4, 1/8, 1/16 (the usual), 1/32, 8T, 16T, 1/2, 1BAR, 2BAR.
-
-The generators (ACID GEN, GEN, HARMONY) write a part into the pattern. EDIT + OCT- undoes what they wrote. PLAY settings belong to the FM-1, not to a project. These pages were carried over from KARMA and not re-tested in this pass: see [Checks still to do](#checks-still-to-do).
 
 ### Step record (STEP REC)
 
@@ -314,7 +306,7 @@ Hold a drum step to edit it (LEVEL, RATCH, NUDGE, COND). Pages, length and follo
 
 ### The KIT page
 
-Tap **SEQ** on the drum GRID to go GRID, then KIT, then DRUM GEN, and back to the GRID after that. On the KIT page the keys pick a sound (the 16 pads are on screen), and:
+Tap **SEQ** on the drum GRID for the KIT page, and again to go back to the GRID. On the KIT page the keys pick a sound (the 16 pads are on screen), and:
 
 | Knob | Does |
 | --- | --- |
@@ -327,11 +319,10 @@ Tap **SEQ** on the drum GRID to go GRID, then KIT, then DRUM GEN, and back to th
 
 The kit list is: five HEX kits (HEX BOOM, HEX ACID, HEX METAL, HEX GLITCH, HEX ROOM), then 32 synthesised kits (808, 909, **606** (the power-on kit), 80S, VINTAGE, TRAP, DRILL, BOOMBAP, LO-FI, PHONK, HOUSE, D.HOUSE, TECHNO, MINIMAL, ELECTRO, DISCO, GARAGE, JUNGLE, DUBSTEP, DEMBOW, AMAPIANO, AFRO, LATIN, TRIBAL, SYNTHWV, CHIP, ARCADE, GLITCH, INDUSTR, HYPER, AMBIENT, JAZZ), then your sample kits USR1 to USR4 and USR3+4, then MY HEX 1 to 4.
 
-### Drum sounds, mutes and DRUM GEN
+### Drum sounds and mutes
 
 - **Edit a sound.** Tap **EDIT** on the drum voice for HEX OSC. EDIT again steps to the next page of the sound (HEX MOD, HEX CLICK, HEX MORE, then HEX FILT). **ENV** opens HEX AEG. **LFO** says "NO LFO ON DRUMS". Turning a knob on a built-in HEX kit copies the kit into the next free MY HEX kit.
 - **Drum mutes.** Hold **EDIT** and press a **black key** on the drum voice to switch between erase mode and mute mode. In mute mode the white keys mute sounds (shown "off" in red).
-- **DRUM GEN** and **DRUM GEN 2** write kick, snare and hat patterns: MODE (OFF, MAP, EUCL), MAP X, MAP Y, CHAOS; then KICK, SNARE, HATS, ROT.
 - **HOME knobs** for the drum voice: CUTOFF (the drum track's own FILTER), DECAY (the selected sound's DEC on a HEX or MY HEX kit; "--" on the other kits, which have none), STUT and LEVEL. See [The HOME screen](#the-home-screen).
 
 ---
@@ -841,7 +832,7 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 | KNOB 1 to 4 (nothing held) | SOUND, STEP, HIT, LEVEL |
 | SELECT right or left | full grid, or back to the snake |
 | PRESETS | the kit |
-| tap SEQ | GRID, then KIT, then DRUM GEN, then back |
+| tap SEQ | KIT, then back to the GRID |
 | EDIT + black key | erase or mute mode |
 
 ### STUTTER lane
@@ -935,13 +926,12 @@ These could not be confirmed from the code and are not described above as fact:
 - how it all behaves on a real FM-1;
 - that a flash save never stalls the screen or the audio;
 - the -60 dB silence threshold for the stop autosave against a real noise floor;
-- the generator pages (ACID GEN, GEN, HARMONY), carried over from KARMA;
 - the web editor's pages against the new firmware.
 
 ---
 
 ## 21. Credits
 
-PHEBUS is Ben's fork of **KARMA** by Ariel Muchnik. KARMA is a fork of **SLOOP** by isod89, which is based on **Felucca** by Leo Kuroshita (Hügelton Instruments). It also uses code from X0X (Charles Vestal), FM-106 (PatttF), Melodee (Kerem Kilic), Mutable Instruments' Plaits, Elements, Clouds and Grids (Émilie Gillet), the LXR-02 firmware (Erica Synths), and JIANT FM (Juan Jiant). The screen font is Terminus.
+PHEBUS is Ben's fork of **KARMA** by Ariel Muchnik. KARMA is a fork of **SLOOP** by isod89, which is based on **Felucca** by Leo Kuroshita (Hügelton Instruments). It also uses code from X0X (Charles Vestal), FM-106 (PatttF), Melodee (Kerem Kilic), Mutable Instruments' Plaits, Elements and Clouds (Émilie Gillet), the LXR-02 firmware (Erica Synths), and JIANT FM (Juan Jiant). The screen font is Terminus.
 
 Licence: GPL-3.0-only. See [LICENSING.md](LICENSING.md) and [LICENSE](LICENSE). PHEBUS comes with no warranty. M-VAVE and FM-1 are trademarks of their owners; PHEBUS is not affiliated with M-VAVE. The README of SLOOP is kept as [SLOOP-README.md](SLOOP-README.md).

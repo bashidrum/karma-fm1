@@ -5,8 +5,8 @@
  * its audio (16 bit stereo, 44.1 kHz) go to files, ffmpeg makes the video (tools/op_tour.sh).
  *   op_tour OUTDIR   ->  OUTDIR/tour.{rgb,pcm}
  * The take (2026-10-20, Ariel's): the mixer with only the kick; the drums (the drummer); the mixer, the bass comes in; its
- * scene; SEQ > GEN changing its notes; the mixer, PLAITS in; its scene; GEN; the mixer, ELEMENTS in; its scene; GEN;
- * HOME, the tracks and the reels. GEN's notes are the take's only: the pattern comes back after each. */
+ * scene; its GRID; the mixer, PLAITS in; its scene; its GRID; the mixer, ELEMENTS in; its scene; its GRID;
+ * HOME. (SEQ > GEN was in the take; cut in PHEBUS wave 1.) */
 #define UI_PAGES_HARNESS_ONLY 1
 #include "ui_pages_test.c"
 #define PROJ_HOST 1
@@ -101,33 +101,18 @@ static void let_go(uint32_t b) { fm1_in.buttons &= ~BT(b); vframe(); }
 static void page_on(int n) { encs[panel.enc[EN_SELECT]] += n; vframe(); }
 
 
-/* SEQ > GEN on the selected track for `bars`, DRIFT up: its notes change as they come round (the boxes show it);
- * then GEN off and the track's own steps back */
+/* (the take had SEQ > GEN here, cut in PHEBUS wave 1) the track's GRID, its own steps, a knob turned on screen */
 static void gen_part(double bars, int oct)
 {
-    static step_t keep[NSTEP];
-    track_t *t = &trk[song.sel % NTRK];
     uint32_t k;
-    memcpy(keep, t->step, sizeof keep);
-    for (k = 0; k < NPAGES; k++)
-        if (!strcmp(PAGES[k].title, "GEN"))
-            ui.page = (uint8_t)k;
-    ui.home = 0;
-    page_entered();
-    song.g[G_GNOCT] = (int16_t)oct;
-    song.g[G_GNCHG] = 0;
-    song.g[G_GNON] = 1;
+    (void)oct;
+    studio_open(SC_DRUM);
     vframe();
-    for (k = 0; k < 16u; k++) {                      /* DRIFT turned up, on screen (to 80 of 127, 63 %: the notes
-                                                      * drift; the knob itself would speed up past it) */
-        song.g[G_GNCHG] = (int16_t)(song.g[G_GNCHG] + 5);
+    for (k = 0; k < 16u; k++) {
         ui.hot_col = 1; ui.hot_t = 40;
         vframe();
     }
     part(bars, 0, 0, 0, 0);
-    song.g[G_GNON] = 0;
-    vframe();
-    memcpy(t->step, keep, sizeof keep);
 }
 static void mixer_in(uint32_t white)                 /* the mixer (GLO held), a track unmuted with its key */
 {
@@ -187,17 +172,17 @@ int main(int argc, char **argv)
     mixer_in(0);                                    /* 3. the mixer: the bass comes in */
     song.sel = 0; open_family(FAM_EDIT);
     part(2, 0, 14, 20, 16);                         /* 4. ACID: the Buddha */
-    gen_part(2, 2);                                 /* 5. GEN on the bass: its notes change */
+    gen_part(2, 2);                                 /* 5. the bass's GRID */
 
     mixer_in(2);                                    /* 6. the mixer: PLAITS in */
     song.sel = 2; open_family(FAM_EDIT);
     part(2, 0, 16, 18, 16);                         /* 7. PLAITS: the saucer */
-    gen_part(2, 4);                                 /* 8. GEN on PLAITS */
+    gen_part(2, 4);                                 /* 8. PLAITS's GRID */
 
     mixer_in(1);                                    /* 9. the mixer: ELEMENTS in */
     song.sel = 1; open_family(FAM_EDIT);
     part(2, 0, 16, 18, 12);                         /* 10. ELEMENTS: the gorilla */
-    gen_part(2, 3);                                 /* 11. GEN on ELEMENTS */
+    gen_part(2, 3);                                 /* 11. ELEMENTS's GRID */
 
     song.sel = 0; go_home();
     part(4, 0, 0, 0, 0);                            /* 12. HOME: the tracks, the reels, to the end */

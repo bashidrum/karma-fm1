@@ -102,20 +102,11 @@ enum {                          /* global parameters */
                                  * selected sound's): ui_studio.c cloud_ui_sync keeps it and cloud_send / drum_cloud together */
     G_CLPOS, G_CLSIZE, G_CLPIT, /* .. the grains: where in the recording, how long, at what pitch */
     G_CLDENS, G_CLTEX, G_CLFB, G_CLFRZ,   /* .. how many, their window, the feedback, FREEZE. In a project (project.c) */
-    G_AGDENS, G_AGACC, G_AGSLD, G_AGSEED,   /* SEQ > ACID GEN (acid_gen.c): TB-3PO's lines on a synth track; settings of */
-    G_AGSCALE, G_AGOCT, G_AGROOT, G_AGMUT,  /* the FM-1, not in a project (the line is: the track's steps). In this order */
     G_HXMODEL, G_HXWAVE, G_HXTUNE, G_HXFINE, G_HXATK, G_HXDEC, G_HXSLOPE, G_HXLVL,   /* the drum track's EDIT pages: */
     G_HXPAMT, G_HXPDEC, G_HXRATIO, G_HXFM, G_HXCLICK, G_HXCLVL, G_HXCTONE,         /* the selected sound of a HEX */
     G_HXFTYPE, G_HXCUT, G_HXRES, G_HXDRIVE, G_HXAUX1, G_HXAUX2, G_HXCRUSH,          /* kit (hex_drums.c hex_snd_t, in its
                                                                                 * order; ui_studio.c hex_ui_sync) */
-    G_GNON, G_GNCHG, G_GNDENS, G_GNRANGE,   /* SEQ > GEN (gen_seq.c): ON is the selected synth track's (ui_studio.c */
-    G_GNOCT, G_GNACC, G_GNSLD, G_GNNEW,     /* gen_ui_sync); the rest the FM-1's, not in a project. In this order */
-    G_DGMODE, G_DGX, G_DGY, G_DGCHAOS,      /* SEQ > DRUM GEN (gen_seq.c): the drum track's KICK SNARE HAT lanes; */
-    G_DGK, G_DGS, G_DGH, G_DGROT,           /* settings of the FM-1, not in a project. G_DGK..G_DGH in this order */
-    G_PLDIR, G_PLCHN, G_PLJMP, G_PLSTR,     /* SEQ > PLAY: the selected track's (seq.c pl_*; ui_studio.c play_ui_sync) */
     G_KNOBS,                                /* GLO > MIDI 3: CC 70-77 the EDIT knobs, or the GM map (a setting of the FM-1) */
-    G_GKROOT, G_GKMODE, G_GKPROG, G_GKBARS, /* SEQ > HARMONY (gen_seq.c): KEY MODE as track 1's ROOT SCL (ui_studio.c gen_ui_sync), */
-                                            /* PROG BARS the FM-1's, not in a project */
     G_COUNT
 };
 

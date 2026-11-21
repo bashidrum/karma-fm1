@@ -46,9 +46,6 @@ static const char *const N_DLY[] = {"1/4", "1/8", "1/16", "1/32", "8T", "16T", "
 static const char *const N_SCALE[] = {"CHROM", "MAJ", "MIN", "DOR", "MIX", "PEN", "MPEN", "HARM",
                                     "PHRY", "LYD", "LOC", "MEL", "BLUES", "WHOLE", "DIMHW", "DIMWH"};
 static const char *const N_ONOFF[] = {"OFF", "ON"};
-static const char *const N_GKMODE[] = {"MIN", "DOR", "PHRY", "MAJ", "MIX"};   /* SEQ > HARMONY (gen_seq.c GK_SC) */
-static const char *const N_GKPROG[] = {"DRONE", "SWAY", "DEEP", "EPIC", "POP", "MOOD"};
-static const char *const N_GKBARS[] = {"1", "2", "4"};
 static const char *const N_QUANT[] = {"OFF", "SNAP", "WHITE"};   /* seq.c kb_map; 1 = SNAP as the old ON */
 static const char *const N_VOICE[] = {"POLY", "MONO", "LEG", "UNI"};   /* V_POLY .. V_UNISON */
 static const char *const N_GLMODE[] = {"RATE", "TIME"};
@@ -60,8 +57,6 @@ static const char *const N_NOTE[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", 
 static const char *const N_DASH[] = {"--"};
 static const char *const N_SYNC[] = {"INT", "USB", "TRS"};   /* G_SYNC: the tempo and PLAY / STOP from (seq.c mclk) */
 static const char *const N_GO[] = {"--", "GO"};
-static const char *const N_DGMODE[] = {"OFF", "MAP", "EUCL"};
-static const char *const N_PLDIR[] = {"FWD", "REV", "PEND", "RAND", "WALK"};
 static const char *const N_KNOBS[] = {"GM", "70-77", "1-8", "AUTO", "PANEL"};
 /* HEX (hex_drums.c: the LXR's drum voices, lxr_dsp.c): HM_*, HW_*, HC_* (the transients), HF_* */
 static const char *const N_HXMODEL[] = {"DRUM", "SNARE", "CLAP", "CYM", "HAT"};
@@ -75,7 +70,6 @@ static const char *const N_HXWAV2[] = {"SI/SI", "SI/TR", "SI/SA", "SI/SQ", "SI/N
                                        "TR/SQ", "TR/NO", "TR/PW", "SA/SI", "SA/TR", "SA/SA", "SA/SQ", "SA/NO", "SA/PW",
                                        "SQ/SI", "SQ/TR", "SQ/SA", "SQ/SQ", "SQ/NO", "SQ/PW", "NO/SI", "NO/TR", "NO/SA",
                                        "NO/SQ", "NO/NO", "NO/PW", "PW/SI", "PW/TR", "PW/SA", "PW/SQ", "PW/NO", "PW/PW"};
-static const char *const N_AGSCALE[] = {"MIN", "PHRY", "HARM", "MPEN", "DOR", "MAJ"};   /* ACID GEN: TB-3PO's scales */
 static const char *const N_SLCR[] = {"OFF", "GATE", "STUT"};             /* SL_OFF .. SL_STUT (slicer.c) */
 static const char *const N_SLDIV[] = {"1/8", "1/16", "1/32", "8T", "16T", "32T"};   /* SL_DEN */
 static const char *const N_CHORD[] = {"OFF", "TRIAD", "7TH", "9TH", "SUS4", "POWER"};   /* seq.c CHORD_DEG */
@@ -226,14 +220,6 @@ static const param_desc_t GP[G_COUNT] = {
     [G_CLTEX] = PD("TEXT", F_PCT, 0, 127, 90),
     [G_CLFB] = PD("FEEDBK", F_PCT, 0, 127, 0),
     [G_CLFRZ] = PE("FRZ", N_ONOFF, 0),
-    [G_AGDENS] = PD("DENS", F_PCT, 0, 127, 89),   /* SEQ > ACID GEN (acid_gen.c): TB-3PO's 70 / 40 / 25 % */
-    [G_AGACC] = PD("ACC", F_PCT, 0, 127, 51),
-    [G_AGSLD] = PD("SLIDE", F_PCT, 0, 127, 32),
-    [G_AGSEED] = PD("SEED", F_INT, 0, 999, 0),
-    [G_AGSCALE] = PE("SCALE", N_AGSCALE, 0),
-    [G_AGOCT] = PD("OCT", F_INT, 1, 3, 2),
-    [G_AGROOT] = PD("ROOT", F_NOTE, 0, 11, 0),   /* (C, as the tracks: SEQ > HARMONY sets it with them) */
-    [G_AGMUT] = PE("VARY", N_GO, 0),
     [G_HXMODEL] = PE("MODEL", N_HXMODEL, 0),     /* EDIT on the drum track: the HEX sound (ui_studio.c hex_ui_sync); */
     [G_HXWAVE] = PE("WAVE", N_HXWAVE, 0),        /* the LXR's 0..127 values. These are the DRUM model's: the pages */
     [G_HXTUNE] = PD("TUNE", F_INT, 0, 127, 36),  /* show each model's own (hex_desc) */
@@ -256,30 +242,6 @@ static const param_desc_t GP[G_COUNT] = {
     [G_HXAUX1] = PD("MOD", F_INT, 0, 127, 0),
     [G_HXAUX2] = PD("DIST", F_INT, 0, 127, 0),
     [G_HXCRUSH] = PD("CRUSH", F_INT, 0, 126, 0),
-    [G_GNON] = PE("GEN", N_ONOFF, 0),                /* SEQ > GEN (gen_seq.c) */
-    [G_GNCHG] = PD("DRIFT", F_PCT, 0, 127, 32),
-    [G_GNDENS] = PD("DENS", F_PCT, 0, 127, 45),   /* (about a third of the steps: 89 started too busy) */
-    [G_GNRANGE] = PD("RANGE", F_INT, 1, 3, 2),
-    [G_GNOCT] = PD("OCT", F_INT, 1, 5, 3),
-    [G_GNACC] = PD("ACC", F_PCT, 0, 127, 25),
-    [G_GNSLD] = PD("SLIDE", F_PCT, 0, 127, 13),
-    [G_GNNEW] = PE("NEW", N_GO, 0),
-    [G_GKROOT] = PD("KEY", F_NOTE, 0, 11, 0),         /* SEQ > HARMONY (gen_seq.c) */
-    [G_GKMODE] = PE("MODE", N_GKMODE, 0),
-    [G_GKPROG] = PE("PROG", N_GKPROG, 1),
-    [G_GKBARS] = PE("BARS", N_GKBARS, 1),
-    [G_DGMODE] = PE("MODE", N_DGMODE, 0),           /* SEQ > DRUM GEN (gen_seq.c) */
-    [G_DGX] = PD("MAP X", F_INT, 0, 127, 64),
-    [G_DGY] = PD("MAP Y", F_INT, 0, 127, 64),
-    [G_DGCHAOS] = PD("CHAOS", F_PCT, 0, 127, 0),
-    [G_DGK] = PD("KICK", F_PCT, 0, 127, 80),
-    [G_DGS] = PD("SNARE", F_PCT, 0, 127, 64),
-    [G_DGH] = PD("HATS", F_PCT, 0, 127, 80),
-    [G_DGROT] = PD("ROT", F_INT, 0, 15, 4),
-    [G_PLDIR] = PE("DIR", N_PLDIR, 0),              /* SEQ > PLAY (seq.c pl_*): the selected track's */
-    [G_PLCHN] = PD("CHANCE", F_PCT, 0, 127, 64),
-    [G_PLJMP] = PD("JUMP", F_PCT, 0, 127, 0),
-    [G_PLSTR] = PD("STRIDE", F_INT, 1, 7, 1),
     [G_KNOBS] = PE("KNOBS", N_KNOBS, 4),            /* a controller's 8 knobs (CC 1-8 or 70-77: the Akai MPK minis):
                                                      * PANEL the FM-1's eight rotaries (PRESETS SELECT ALGORITHM MASTER,
                                                      * KNOB 1..4); 70-77, 1-8, AUTO: EDIT's two pages; GM: the GM map */
@@ -482,8 +444,8 @@ static int32_t fam_stage(uint32_t fam)             /* the chain's stage of a fam
     return -1;
 }
 enum { SC_TRACK, SC_GLOBAL, SC_ENGINE, SC_STEP, SC_TRK, SC_DRUM };
-enum { GR_NONE, GR_ADSR, GR_LFO, GR_STEPS, GR_ARP, GR_SCALE, GR_FX, GR_ROLL, GR_BROWSE, GR_SLOTS, GR_USER, GR_TRK,
-       GR_SLCR, GR_INS, GR_HEX, GR_DGEN };
+enum { GR_NONE, GR_ADSR, GR_LFO, GR_STEPS, GR_ARP, GR_SCALE, GR_FX, GR_BROWSE, GR_SLOTS, GR_USER, GR_TRK,
+       GR_SLCR, GR_INS, GR_HEX };
 
 typedef struct {
     const char *title;
@@ -567,14 +529,6 @@ static const page_t PAGES[] = {
     {"ARP", FAM_ARP, SC_TRACK, GR_ARP, {P_AMODE, P_ARATE, P_AOCT, P_AGATE}},
     {"ARP 2", FAM_ARP, SC_TRACK, GR_NONE, {P_ASWING, P_APROB, P_AHOLD, P_AORDER}},
     {"PATTERN", FAM_SEQ, SC_TRACK, GR_STEPS, {P_SLEN, P_SDIV, P_SSWING, P_SGATE}},
-    {"PLAY", FAM_SEQ, SC_GLOBAL, GR_NONE, {G_PLDIR, G_PLCHN, G_PLJMP, G_PLSTR}},   /* the order steps play in, chance */
-    {"ACID GEN", FAM_SEQ, SC_GLOBAL, GR_NONE, {G_AGDENS, G_AGACC, G_AGSLD, G_AGSEED}},     /* TB-3PO's lines into the */
-    {"ACID GEN 2", FAM_SEQ, SC_GLOBAL, GR_NONE, {G_AGSCALE, G_AGOCT, G_AGROOT, G_AGMUT}},  /* track (acid_gen.c) */
-    {"GEN", FAM_SEQ, SC_GLOBAL, GR_ROLL, {G_GNON, G_GNCHG, G_GNDENS, G_GNRANGE}},   /* a loop that changes as */
-    {"GEN 2", FAM_SEQ, SC_GLOBAL, GR_ROLL, {G_GNOCT, G_GNACC, G_GNSLD, G_GNNEW}},    /* it plays (gen_seq.c) */
-    {"HARMONY", FAM_SEQ, SC_GLOBAL, GR_ROLL, {G_GKROOT, G_GKMODE, G_GKPROG, G_GKBARS}},   /* the key, the chords */
-    {"DRUM GEN", FAM_SEQ, SC_GLOBAL, GR_DGEN, {G_DGMODE, G_DGX, G_DGY, G_DGCHAOS}},   /* the drum track's */
-    {"DRUM GEN 2", FAM_SEQ, SC_GLOBAL, GR_DGEN, {G_DGK, G_DGS, G_DGH, G_DGROT}},     /* KICK SNARE HAT */
     {"TRACKS", FAM_TRK, SC_TRK, GR_TRK, {0, 1, 2, 3}},   /* REC button; TRACK LEVEL LEN PAN */
     {"DRUMS", FAM_TRK, SC_DRUM, GR_NONE, {0xFF,0xFF,0xFF,0xFF}},
 };
@@ -615,11 +569,6 @@ static int page_shown(const page_t *pg)
     if (fam_stage(pg->fam) >= 0)
         return is_drum(TSEL) ? page_for_drum(pg) : page_eng_ok(pg) &&
                                    (pg->id[0] != P_FTYPE || TSEL->eng_req % NENGINES == 0u);
-    if (pg->scope == SC_GLOBAL && (pg->id[0] == G_GNON || pg->id[0] == G_GNOCT || pg->id[0] == G_GKROOT || pg->id[0] == G_AGDENS ||
-                                   pg->id[0] == G_AGSCALE))
-        return !is_drum(TSEL);                       /* GEN, ACID GEN: the synth tracks' */
-    if (pg->graph == GR_DGEN)
-        return is_drum(TSEL);                        /* DRUM GEN: the drum track's */
     return 1;
 }
 

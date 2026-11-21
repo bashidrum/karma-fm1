@@ -147,9 +147,6 @@ static uint32_t dyn_bit[2];              /* OCT- / OCT+: ghost / hard on the dru
 /* a layer locked open (its button held + HOME tapped: ui_input.c), LY_PLAY = none: the keys and knobs
  * stay in it with the button let go, as if it were held */
 static volatile uint8_t ly_lock = LY_PLAY;
-/* SEQ > GEN shown (the UI sets it every frame): a note played on the selected synth track (its keys, MIDI) is
- * gen_seed (note + 1), and the UI rolls a new loop starting on it (ui_studio.c gen_ui_sync) */
-static volatile uint8_t gen_keys, gen_seed;
 /* (PHEBUS, Ben 21 Nov 2026: step-record, "press REC in the GRID, play notes or chords on the keys, each lands on the next
  * step") STEP REC on a synth track's GRID (ui_grid.c sr_*): the keys play again and every note they play (and MIDI's) goes
  * to the UI through step_in_q; ly_off: the layer buttons that are not layers meanwhile (SEQ: rest, ARP: tie) */
@@ -821,39 +818,15 @@ static volatile uint8_t fill_arm;            /* GLO + key 10: the next bar is a 
 static uint8_t fill_bar_on;                  /* that bar, while it plays (the ISR) */
 static uint8_t fill_now;                     /* this block is a fill: fill_held || fill_bar_on, read once a block */
 static uint32_t fill_last_bar = 0xFFFFFFFFu; /* clk_beat / 4 of the last bar seen (events_block) */
-/* SEQ > PLAY (2026-10-20), each track's: DIR the order its steps play in, CHANCE how often a FC_CHANCE step plays,
- * JUMP how often a synth step plays an octave up, STRIDE the steps it moves by. Settings of the FM-1 (not in a
- * project: it is full); the steps' FC_CHANCE marks are in the project (t->fill) */
-enum { PD_FWD, PD_REV, PD_PEND, PD_RAND, PD_WALK, PD_COUNT };
-static uint8_t pl_dir[NTRK], pl_jump[NTRK], pl_pos[NTRK];
-static uint8_t pl_chance[NTRK] = {64, 64, 64, 64}, pl_stride[NTRK] = {1, 1, 1, 1};
-static uint32_t step_plays(const track_t *t, uint32_t idx)   /* its condition holds now */
+/* a step's condition holds now. CHNC (FC_CHANCE): a fixed chance, 64 in 127 (about 50 %, what SEQ > PLAY's CHANCE
+ * started at; PLAY is cut, PHEBUS wave 1; the trigs get their own probability with the new project format) */
+#define STEP_CHANCE 64u
+static uint32_t step_plays(const track_t *t, uint32_t idx)
 {
     uint32_t c = step_fill(t, idx);
     if (c == FC_CHANCE)
-        return rng() % 127u < pl_chance[(uint32_t)(t - trk) % NTRK];
+        return rng() % 127u < STEP_CHANCE;
     return c == FC_FILL ? fill_now : c == FC_NOFILL ? !fill_now : 1u;
-}
-/* the step that plays at the grid's step nabs (DIR, STRIDE); while recording: in order */
-static uint32_t play_idx(const track_t *t, uint32_t nabs, uint32_t len)
-{
-    uint32_t ti = (uint32_t)(t - trk) % NTRK, s = pl_stride[ti] ? pl_stride[ti] : 1u, d = pl_dir[ti], p;
-    if (song.rec || len < 2u)
-        return nabs % (len ? len : 1u);
-    switch (d) {
-    case PD_REV:
-        return len - 1u - (nabs * s) % len;
-    case PD_PEND:                                    /* there and back, the ends once */
-        p = (nabs * s) % (2u * len - 2u);
-        return p < len ? p : 2u * len - 2u - p;
-    case PD_RAND:
-        return rng() % len;
-    case PD_WALK:                                    /* a step back, stay or a step on (STRIDE steps) */
-        pl_pos[ti] = (uint8_t)((pl_pos[ti] + len * 8u + (rng() % 3u) * s - s) % len);
-        return pl_pos[ti];
-    default:
-        return (nabs * s) % len;
-    }
 }
 
 static void steps_clear(track_t *t)           /* an empty pattern (synth: REST steps, drums: no lane); no lock, no nudge, no condition */
@@ -1594,8 +1567,6 @@ static void key_down(uint32_t k)
             return;
         }
         kb_kind[k] = KS_NOTE;
-        if (gen_keys && sel < NPART && n < 127u)
-            gen_seed = (uint8_t)(n + 1u);           /* SEQ > GEN: the loop starts on this note */
         kb_root[k] = (uint8_t)n;
         kb_oct[k] = (int8_t)song.octave;
         if (t->p[P_CHORD]) {
@@ -2034,7 +2005,6 @@ static int32_t micro_units(const track_t *t, uint32_t abs, uint32_t slen)
  * skipped or played twice, whatever its neighbours' nudges (two that cross play in order, a block
  * apart), and a step nudged late past the next one's early nudge still plays first. Ratchets and
  * the recording stay on the grid (rec_target); seq_ratchets gets the time since the step fired. */
-#include "gen_seq.c"         /* SEQ > GEN: a loop that changes as it plays */
 
 /* (PHEBUS) the grid step whose content plays at grid step nabs: itself, or during a 1/2 or 1/1 run of the STUTTER lane
  * (punch.c rep_*) one of the steps of the span before the run, in a loop. The run's start and span in this track's steps
@@ -2093,7 +2063,7 @@ static void seq_tick(track_t *t, uint32_t adv)
     }
     if (fire) {                                      /* a new step: one a block at most */
         t->seq_abs = nabs;
-        idx = play_idx(t, seq_src(t, nabs), len);    /* (SEQ > PLAY: DIR, STRIDE; a 1/2 or 1/1 STUTTER run: replayed) */
+        idx = seq_src(t, nabs) % (len ? len : 1u);   /* (a 1/2 or 1/1 STUTTER run: replayed) */
         t->seq_idx = (uint16_t)idx;
         t->rat_done[0] = t->rat_done[1] = t->rat_done[2] = t->rat_done[3] = 0;
         t->rat_lanes = 0;
@@ -2103,10 +2073,6 @@ static void seq_tick(track_t *t, uint32_t adv)
                                                       * PATTERN: the LFO starts again as the pattern does (and at PLAY) */
                 t->lfo_ph = (uint32_t)t->p[P_LPHASE] << 25;
         }
-        if (!is_drum(t))
-            gen_tick(t, idx);
-        else
-            drum_gen_tick(t, idx);                   /* DRUM GEN: its lanes written as they come */                        /* GEN: the step perhaps rolled again before it plays */
         if (erasing(t))
             erase_step(t, idx);                      /* EDIT + key held: gone as it passes */
         t->seq_skip = (uint8_t)!step_plays(t, idx);
@@ -2136,14 +2102,7 @@ static void seq_tick(track_t *t, uint32_t adv)
                         if (s->note[i] == t->rskip[k])
                             skip |= 1u << i;
             t->rskip_n = 0;
-            if (pl_jump[(uint32_t)(t - trk) % NTRK] && rng() % 127u < pl_jump[(uint32_t)(t - trk) % NTRK]) {
-                step_t up = *s;                      /* SEQ > PLAY JUMP: this time an octave up */
-                for (i = 0; i < up.n && i < 4u; i++)
-                    up.note[i] = (uint8_t)(up.note[i] + 12u > 127u ? up.note[i] : up.note[i] + 12u);
-                seq_step(t, &up, slen, skip);
-            } else {
-                seq_step(t, s, slen, skip);
-            }
+            seq_step(t, s, slen, skip);
         }
     }
     /* the ratchets of the step playing, timed from where it fired (its hits ride with its nudge) */
@@ -2778,8 +2737,6 @@ static void events_block(uint32_t n)
             if (st == 0x90u && d2)
                 drum_input(lane_of_note(d1), vel_lvl(d2), 0, 1);
         } else if (st == 0x90u && d2) {
-            if (t == TSEL && gen_keys && trk_index(t) < NPART && d1 < 127u)
-                gen_seed = (uint8_t)(d1 + 1u);       /* SEQ > GEN: the loop starts on this note */
             if (t == TSEL) {                          /* the SEQ layer's pen: this note, or the chord held (2.6) */
                 if (!(mi_pen[0] | mi_pen[1] | mi_pen[2] | mi_pen[3]) || pen_n >= 4u)
                     pen_n = 0;

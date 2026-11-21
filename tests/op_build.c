@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* A second take for posting (2026-10-21, Ariel's): built from scratch on his sounds (the simulator's pattern, its
- * steps cleared): a 4/4 kick put in on the drum GRID, a beat at a time; ACID, a key on SEQ > GEN and the generator
+ * steps cleared): a 4/4 kick put in on the drum GRID, a beat at a time; ACID, steps placed on its GRID
  * writes its loop, the step boxes, the knobs; ELEMENTS the same; PLAITS the same and its pages; the mixer to the end.
  * The same harness and output as op_tour.c (tools/op_tour.sh TAKE=op_build).
  *   op_build OUTDIR PATTERN  ->  OUTDIR/tour.{rgb,pcm} */
@@ -112,23 +112,19 @@ static void to_page(const char *title)
     ui.force = 1;
     vframe();
 }
-/* the selected track from nothing: SEQ > GEN, a key (the loop starts on it), DRIFT up a little */
+/* the selected track from nothing: its GRID, four steps placed with the pen on the key's note (the take used SEQ > GEN,
+ * cut in PHEBUS wave 1) */
 static void gen_from_key(uint32_t white, int oct, double bars)
 {
+    static const uint8_t WN[7] = {0, 2, 4, 5, 7, 9, 11};
     uint32_t k;
-    song.octave = (int8_t)oct;
-    open_family(FAM_SEQ);
-    to_page("GEN");
-    part(0.5, 0, 0, 0, 0);
-    tap_key(white);
-    song.g[G_GNCHG] = 0;
-    for (k = 0; k < 10u; k++) {                      /* DRIFT up on screen (50 of 127) */
-        song.g[G_GNCHG] = (int16_t)(song.g[G_GNCHG] + 5);
-        ui.hot_col = 1; ui.hot_t = 40;
-        vframe();
-    }
+    studio_open(SC_DRUM);
+    vframe();
+    pen_n = 1;
+    pen_note[0] = (uint8_t)(48 + 12 * oct + WN[white % 7u] + 12 * (int)(white / 7u));
+    for (k = 0; k < 4u; k++)
+        tap_key(4u * k);                             /* (on the GRID the white keys are the steps) */
     part(bars - 0.5, 0, 0, 0, 0);
-    song.octave = 0;
 }
 
 int main(int argc, char **argv)
