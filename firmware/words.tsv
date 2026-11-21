@@ -222,3 +222,33 @@ CH3 #	track 3 channel #
 CH4 #	drum channel #
 OTHER SEL	other channels play the selected track
 MODEL DRUM	model drum
+# PHEBUS (21 Nov 2026, review 21): the renamed words
+ALL	all tracks
+DR	drums
+PHEBUS	phebus
+CHROM	chromatic
+GLMODE	glide mode
+PRIOR	note priority
+ENVMOD	envelope mod
+FEEDBK	feedback
+PSLOPE	pitch slope
+OP HAT	open hat
+SNARE2	snare 2
+LO TOM	low tom
+HI TOM	high tom
+C-BELL	cowbell
+LP 4	loop 4
+LP 8	loop 8
+LP 16	loop 16
+LP 32	loop 32
+LP8T	loop 8 triplet
+STUTR	stutter
+REVRS	reverse
+WOW	wow
+-LOW	kill low
+-MID	kill mid
+-HI	kill high
+RWND	rewind
+FLNG	flanger
+FRZ	freeze
+COND	condition

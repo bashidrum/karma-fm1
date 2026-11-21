@@ -980,12 +980,13 @@ static void op_fx_scene(const int32_t ratio[4])
  * flags: 1 a fill now, 2 the next bar is one, 4 it is asked for, 8 the beat. */
 static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32_t flags)
 {
-    static const char *const LAB[4] = {"SYN1", "SYN2", "SYN3", "DRUM"};
-    static const char KEYS[17] = "MMMMSSSSFB     T";
+    static const char *const LAB[4] = {"1", "2", "3", "DR"};   /* (the tracks by number, as the strip: review 21) */
+    static const char KEYS[17] = "123D123DFB     T";
     static uint32_t head, scene, keys, knobs, bar;
     const uint8_t *mx = op_mx, *hop = op_hop;
     uint32_t i, sig = 7u;
-    op_header("MIX", C_WHITE, ui.msg_t ? ui.msg : "", &head);   /* (a message: in the title, the levels stay) */
+    op_header("GLO", C_WHITE, ui.msg_t ? ui.msg : "MIX", &head);   /* (GLO: MIX, the button and the layer, review 21; a
+                                                         * message: in the title, the levels stay) */
     op_band_tick();
     for (i = 0; i < NTRK; i++)
         sig = sig * 131u + mx[i] + hop[i] * 97u + (uint32_t)ratio[i] * 7u + (trk[i].p[P_MUTE] != 0) * 3u;
@@ -1032,7 +1033,10 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
     sig = flags + song.solo * 16u;
     for (i = 0; i < NTRK; i++)
         sig = sig * 2u + (trk[i].p[P_MUTE] != 0);
-    if (ui.force || sig != keys) {                      /* the 16 white keys */
+    if (ui.force || sig != keys) {                      /* the 16 white keys: the track's number on its mute and solo
+                                                         * keys, what each group does under it (review 21) */
+        static const char *const GRP[4] = {"MUTE", "SOLO", "FILL", "TAP"};
+        static const uint8_t GX[4] = {0, 4, 8, 15};
         keys = sig;
         cv_begin(240, 36, C_BLACK);
         for (i = 0; i < 16u; i++) {
@@ -1042,12 +1046,16 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
             uint16_t c = i < 4u ? TE_COL[i] : i < 8u ? TE_MID[i - 4u] : KEYS[i] == ' ' ? OP_PUR_D : TE_G4;
             char ch[2] = {KEYS[i], 0};
             if (on)
-                cv_rect(x, 4, 12, 22, i < 4u ? TE_MUTE : i < 8u ? TE_SOLO : C_WHITE);
+                cv_rect(x, 2, 12, 20, i < 4u ? TE_MUTE : i < 8u ? TE_SOLO : C_WHITE);
             else
-                op_box(x, 4, 12, 22, c);
+                op_box(x, 2, 12, 20, c);
             if (i == 9u && (flags & 4u))
-                cv_rect(x, 4, 12, 2, C_WHITE);
-            cv_text(x + 2, 7, &FONT_S, ch, on ? C_BLACK : c);
+                cv_rect(x, 2, 12, 2, C_WHITE);
+            cv_text(x + 2, 4, &FONT_S, ch, on ? C_BLACK : c);
+        }
+        for (i = 0; i < 4u; i++) {
+            int32_t x = 4 + (int32_t)GX[i] * 14 + (int32_t)(GX[i] / 4u) * 2;
+            cv_text(i == 3u ? 236 - text_w(&FONT_S, GRP[i]) : x, 21, &FONT_S, GRP[i], TE_G3);
         }
         cv_blit(0, OP_BODY_Y + 96);
     }
@@ -1116,10 +1124,16 @@ static void op_home_body(void)
         uint32_t rec = (song.rec >> song.sel) & 1u, solo = (song.solo >> song.sel) & 1u, silent = trk_silent(ts) != 0;
         if (song.sel == TRK_DRUM) {
             str_cpy(b, DRUM_KIT_NAMES[drum_kit()], sizeof b);
-            str_cpy(e, "DRUMS", sizeof e);
+            str_cpy(e, "DRUM", sizeof e);
         } else {
+            uint32_t k, n;
             trk_short_name(song.sel, b);
             str_cpy(e, ENGINES[ts->eng_req % NENGINES]->name, sizeof e);
+            for (k = 0, n = str_len(e); b[k]; k++)       /* the engine's name already in the sound's: once (review 21) */
+                if (!memcmp(b + k, e, n)) {
+                    e[0] = 0;
+                    break;
+                }
         }
         b[13] = 0;
         sig = studio_hash(studio_hash(song.sel + rec * 8u + solo * 16u + silent * 32u, b), e);
@@ -1128,7 +1142,7 @@ static void op_home_body(void)
             name_sig = sig;
             cv_begin(240, 16, C_BLACK);
             x = cv_text(4, 0, &FONT_S, b, C_WHITE);
-            if (x + 8 + text_w(&FONT_S, e) < 196)
+            if (e[0] && x + 8 + text_w(&FONT_S, e) < 196)
                 cv_text(x + 8, 0, &FONT_S, e, TE_COL[song.sel & 3u]);
             if (rec)
                 cv_text(236 - text_w(&FONT_S, "REC"), 0, &FONT_S, "REC", TE_RED);

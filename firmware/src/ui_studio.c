@@ -161,7 +161,7 @@ static void rec_toggle(void)
     if (ft_owns_press())
         return;
     if (song.playing && arrangement_enabled) {
-        ui_message("STOP THE SONG FIRST");
+        ui_message("STOP FIRST");
         return;
     }
     if (song.rec || rec_wait) {
@@ -630,25 +630,25 @@ static void dg_band(uint32_t y, uint32_t h, const uint8_t *row, uint32_t r0, uin
         for (j = 0; j < 16u; j++) {
             uint32_t p = bank * 16u + j;
             const dstep_t *s = &TDRUM->dstep[p % NSTEP];
-            int32_t x = 44 + (int32_t)j * 12 + (int32_t)(j / 4u);
+            int32_t x = 52 + (int32_t)j * 11 + (int32_t)(j / 4u);   /* (room for the 6-letter names, review 21) */
             if (p >= len)
                 continue;
             if (dstep_has(s, l))
-                cv_rect(x, yy + 1, 11, 13, lvl_col(dstep_lvl(s, l)));
+                cv_rect(x, yy + 1, 10, 13, lvl_col(dstep_lvl(s, l)));
             else
-                op_box(x, yy + 1, 11, 13, j % 4u ? TE_G2 : TE_G3);
+                op_box(x, yy + 1, 10, 13, j % 4u ? TE_G2 : TE_G3);
             if (l == drum_lane && p == drum_cursor)
-                op_box(x - 1, yy, 13, 15, C_WHITE);
+                op_box(x - 1, yy, 12, 15, C_WHITE);
             if (p == pl)
-                cv_rect(x, yy + 14, 11, 2, C_WHITE);
+                cv_rect(x, yy + 14, 10, 2, C_WHITE);
         }
     }
     for (j = 0; j < 4u && slots; j++) {
-        int32_t x = 44 + (int32_t)j * 49;
+        int32_t x = 52 + (int32_t)j * 45;
         if (j * 16u >= len)
-            op_box(x, 26, 45, 5, TE_G2);
+            op_box(x, 26, 42, 5, TE_G2);
         else
-            cv_rect(x, 26, 45, 5, j == bank ? TE_DRUM : TE_G2);
+            cv_rect(x, 26, 42, 5, j == bank ? TE_DRUM : TE_G2);
     }
     cv_blit(0, y);
 }
@@ -757,7 +757,7 @@ static void drum_screen_draw(void)
             op_knobs(LG, val, 0, ratio, 0, 1u, &footer);
         } else {
             str_cpy(v[0], LANE_SHORT[drum_lane], 8);   /* KIT: the sound, the kit, the sound's own reverb and delay */
-            fmt_int(v[1], (int32_t)kit + 1);
+            str_cpy(v[1], DRUM_KIT_NAMES[kit], sizeof v[1]);   /* (the kit by name, as the header: review 21) */
             fmt_int(v[2], drum_send[drum_lane][0] * 100 / DRUM_SEND_REV);
             fmt_int(v[3], drum_send[drum_lane][1] * 100 / DRUM_SEND_DLY);
             ratio[0] = (int32_t)drum_lane * 1000 / (DRUM_LANES - 1);
@@ -856,7 +856,7 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
                 drum_cursor = c;
             }
             if (k >= 2) {
-                if (song.playing && arrangement_enabled) { ui_message("STOP THE SONG FIRST"); continue; }
+                if (song.playing && arrangement_enabled) { ui_message("STOP FIRST"); continue; }
                 undo_mark(TDRUM, ui.step_sess ? ui.step_sess : (ui.step_sess = (undo_sess += 4u) | 3u));
                 fm1_irq_off();
                 if (k == 2) {

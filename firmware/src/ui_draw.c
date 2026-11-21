@@ -18,10 +18,10 @@ static int is_eng_name(const char *s)                 /* one of the ENGINES[]->n
     return 0;
 }
 
-/* at most 5 characters, and no wider than maxw */
+/* at most 6 characters, and no wider than maxw (review 21: CHANCE, STRIDE, BOUNCE whole) */
 static void fit(char *d, const char *src, const felucca_font_t *f, int32_t maxw)
 {
-    str_cpy(d, src, is_eng_name(src) ? 8 : 6);           /* engine names are kept whole */
+    str_cpy(d, src, is_eng_name(src) ? 8 : 7);           /* engine names are kept whole */
     while (d[0] && text_w(f, d) > maxw)
         d[str_len(d) - 1u] = 0;
 }
@@ -959,7 +959,7 @@ static void draw_columns_set(void)
         }
         draw_column(1, "LEVEL", val, unit, lvl && !t->p[P_MUTE] ? VAL(1u) : C_DIM, (int32_t)lvl * 1000 / 127, ICON_AUTO);
         param_format(&TP[P_SLEN], t->p[P_SLEN], val, &unit);
-        draw_column(2, "LEN", val, unit, VAL(2u), RATIO(&TP[P_SLEN], t->p[P_SLEN]), ICON_AUTO);
+        draw_column(2, "STEPS", val, unit, VAL(2u), RATIO(&TP[P_SLEN], t->p[P_SLEN]), ICON_AUTO);
         param_format(&TP[P_PAN], t->p[P_PAN], val, &unit);
         draw_column(3, "PAN", val, unit, VAL(3u), RATIO(&TP[P_PAN], t->p[P_PAN]), param_icon(&TP[P_PAN], t->p[P_PAN]));
         return;
@@ -1039,6 +1039,16 @@ static void ui_draw(void)
     if (boot_draw())                                    /* (KARMA 3.0: the boot animation first) */
         return;
     pads_tick();
+    {   /* a message belongs to the screen it showed on: another screen, it goes (review 21) */
+        uint32_t k = ui.menu * 1000003u + ui.layer * 7919u + ui.hold_kind * 131u + (rec_wait || ft_on) * 17u + ui.home * 3u +
+                     ui.page * 977u + drum_page * 5u + vis_on * 11u;
+        if (!ui.msg_t)
+            ;
+        else if (msg_scr == 0xFFFFFFFFu)
+            msg_scr = k;
+        else if (msg_scr != k)
+            ui.msg_t = 0;
+    }
     if (rec_go) {                                       /* the take started: say so */
         rec_go = 0;
         ui_message("RECORDING");

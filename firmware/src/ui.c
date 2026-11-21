@@ -116,9 +116,11 @@ static uint32_t page_first(uint32_t fam)            /* the family's first page t
 #if KARMA_ANN
 static void ann_say(const char *a, const char *b, uint32_t flags);
 #endif
+static uint32_t msg_scr;                                /* the screen a message showed on first (ui_draw: it goes with it) */
 static void ui_say(const char *a, const char *b)
 {
     uint32_t n;
+    msg_scr = 0xFFFFFFFFu;                              /* (taken at the next frame: after what made the message) */
     str_cpy(ui.msg, a, sizeof ui.msg);
     n = str_len(ui.msg);
     str_cpy(ui.msg + n, b, sizeof ui.msg - n);
@@ -188,7 +190,7 @@ static void midi_chan_fix(void)
             char b[8];
             str_cpy(b, "CH ", sizeof b);
             fmt_int(b + 3, song.g[ID[k]]);
-            ui_say(b, owner == 3 ? " = DRUMS" : owner == 0 ? " = TRACK 1" : owner == 1 ? " = TRACK 2" : " = TRACK 3");
+            ui_say(b, owner == 3 ? " = DRUM TRACK" : owner == 0 ? " = TRACK 1" : owner == 1 ? " = TRACK 2" : " = TRACK 3");
             song.g[ID[k]] = (int16_t)v;
         }
         was[k] = (int16_t)v;
@@ -697,7 +699,7 @@ static void pc_poll(void)
     uint32_t i;
     for (i = 0; i < NTRK; i++) {
         uint32_t r = pc_req[i], n;
-        char b[12];
+        char b[20];
         if (!r)
             continue;
         pc_req[i] = 0;
@@ -711,9 +713,9 @@ static void pc_poll(void)
         } else if (preset_go_to(&trk[i], n)) {
             continue;
         }
-        str_cpy(b, "T1 PROG ", sizeof b);
-        b[1] = (char)('1' + i);
-        fmt_int(b + 8, (int32_t)n);
+        str_cpy(b, "TRACK 1 PROG ", sizeof b);         /* (tracks in words: TRACK 1, review 21) */
+        b[6] = (char)('1' + i);
+        fmt_int(b + 13, (int32_t)n);
         ui_message(b);
         ui.force = 1;
     }
@@ -859,7 +861,7 @@ static void ml_poll(void)
     }
     str_cpy(a, "CC", 4);
     fmt_int(a + 2, (int32_t)cc);
-    str_cpy(a + str_len(a), " = T", 5);
+    str_cpy(a + str_len(a), " = TRACK ", 10);
     b[0] = (char)('1' + mlu.trk);
     b[1] = ' ';
     str_cpy(b + 2, track_desc(&trk[mlu.trk % NTRK], mlu.id)->label, 9);

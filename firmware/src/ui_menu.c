@@ -87,15 +87,16 @@ static void draw_menu(void)
         cv_begin(240, pass ? 95u : 124u, C_BLACK);
         cv_oy = pass ? -124 : 0;
         if (ui.menu == 2) {
-            cv_text(4, 4, &FONT_L, "KARMA", C_WHITE);
+            cv_text(4, 4, &FONT_L, "PHEBUS", C_WHITE);   /* (Ben's build: PHEBUS, based on KARMA; every upstream credit
+                                                         * kept below, a licence requirement; review 21) */
             {                                           /* the four tracks' colours after the name (the splash's bars) */
-                int32_t x = 4 + (int32_t)text_w(&FONT_L, "KARMA") + 8, k;
+                int32_t x = 4 + (int32_t)text_w(&FONT_L, "PHEBUS") + 8, k;
                 for (k = 0; k < 4; k++)
                     cv_rect(x + k * 14, 16, 10, 10, TE_COL[k]);
             }
-            cv_text(4, 36, &FONT_S, "BY ARIEL MUCHNIK", C_AMB);
-            cv_text(4, 54, &FONT_S, FELUCCA_VERSION, C_HI);
-            cv_text(236 - text_w(&FONT_S, __DATE__), 54, &FONT_S, __DATE__, C_GRAY);   /* build date */
+            cv_text(cv_text(4, 36, &FONT_S, "BASED ON ", C_HI), 36, &FONT_S, FELUCCA_VERSION, C_HI);
+            cv_text(4, 54, &FONT_S, "KARMA: ARIEL MUCHNIK", C_AMB);
+            cv_text(236 - text_w(&FONT_S, __DATE__), 132, &FONT_S, __DATE__, C_GRAY);   /* build date (by GITHUB's line) */
             cv_text(4, 72, &FONT_S, "FELUCCA: LEO KUROSHITA", C_HI);
             cv_text(4, 88, &FONT_S, "H\xDCGELTON INSTRUMENTS", C_HI);   /* Latin-1 U-umlaut */
             cv_text(cv_text(4, 104, &FONT_S, "@KUROGEDELIC", C_AMB) + 8, 104, &FONT_S, "HUGELTON.COM", C_AMB);

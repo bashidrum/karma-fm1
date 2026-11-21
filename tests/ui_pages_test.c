@@ -622,12 +622,12 @@ int main(int argc, char **argv)
         check(on_song_page() && !song_bank, "SONGS, SAVE: back to the song");
         song_cursor = 0; arrangement.entry[0].scene = 1;    /* (part B: used, the stub) */
         tap(B_EDIT); frames(2);
-        check(erases == e0 && !strcmp(ui.msg, "EDIT AGAIN: ERASE B"), "SONG, EDIT: EDIT AGAIN: ERASE B, nothing erased");
+        check(erases == e0 && !strcmp(ui.msg, "AGAIN: ERASE B"), "SONG, EDIT: AGAIN: ERASE B (one confirm pattern, review 21), nothing erased");
         tap(B_EDIT); frames(2);
         check(erases == e0 + 1u && on_song_page(), "SONG, EDIT again: part B erased, still the song");
         arrangement.entry[0].scene = 3;
         tap(B_EDIT); frames(2);
-        check(erases == e0 + 1u && !strcmp(ui.msg, "EMPTY PART"), "SONG, EDIT on an empty part: EMPTY PART");
+        check(erases == e0 + 1u && !strcmp(ui.msg, "EMPTY SECTION"), "SONG, EDIT on an empty section: EMPTY SECTION (review 21)");
         tap(B_SAVE); frames(2); go_home(); frames(2);
         studio_open(SC_SONG); frames(2);
         check(!song_bank, "  the song screen opens on the song, not the saved songs");
@@ -1633,8 +1633,8 @@ int main(int argc, char **argv)
             go_home(); frame();
             pc_req[1] = 1;                                /* PC 0 on track 2's channel: the first sound of the list */
             frame();
-            check(trk[1].eng_req == BANK[x0].e && trk[1].preset == bank_pi[x0] && !strncmp(ui.msg, "T2 PROG 0", 9),
-                  "MIDI Program Change 0: track 2 takes the first sound of its PRESETS list (T2 PROG 0)");
+            check(trk[1].eng_req == BANK[x0].e && trk[1].preset == bank_pi[x0] && !strncmp(ui.msg, "TRACK 2 PROG 0", 14),
+                  "MIDI Program Change 0: track 2 takes the first sound of its PRESETS list (TRACK 2 PROG 0)");
             pc_req[3] = 3;                                /* PC 2 on the drum channel: kit 2 */
             frame();
             check(TDRUM->p[P_E0] == 2, "MIDI Program Change on the drum channel: kit 2");

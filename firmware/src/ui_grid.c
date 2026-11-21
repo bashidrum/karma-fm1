@@ -153,7 +153,7 @@ static void sg_page_add(track_t *t)
         return;
     }
     if (song.playing && arrangement_enabled) {
-        ui_message("STOP THE SONG FIRST");
+        ui_message("STOP FIRST");
         return;
     }
     sg_undo(t);
@@ -240,7 +240,7 @@ static void grid_key(uint32_t k, uint32_t down)
     if (idx >= len)
         return;
     if (song.playing && arrangement_enabled) {
-        ui_message("STOP THE SONG FIRST");
+        ui_message("STOP FIRST");
         return;
     }
     if (!sg_held) {
@@ -449,7 +449,7 @@ static void sg_free_knob(uint32_t k, int32_t s)
         return;
     }
     if (song.playing && arrangement_enabled) {
-        ui_message("STOP THE SONG FIRST");
+        ui_message("STOP FIRST");
         return;
     }
     if (k == 2u) {
@@ -503,7 +503,7 @@ static void sg_held_oct(uint32_t up)
     fm1_irq_on();
     sync_reload = 1;
     if (up) {
-        static const char *const MSG[4] = {"COND: NORMAL", "FILL ONLY", "NO FILL", "CHANCE"};
+        static const char *const MSG[4] = {"COND: NORMAL", "COND: FILL ONLY", "COND: NO FILL", "COND: CHANCE"};
         ui_message(MSG[v % 4u]);
     } else if (sg_lpage < NPAGES) {
         ui_message(n ? "PAGE LOCKS CLEARED" : "NO LOCK ON THIS PAGE");

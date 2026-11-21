@@ -42,7 +42,7 @@ static const char *const N_DIV[] = {"1/4", "1/8", "1/16", "1/32", "8T", "16T"};
 static const char *const N_SDIV[] = {"1/4", "1/8", "1/16", "1/32", "8T", "16T", "1/2", "1BAR", "2BAR"};   /* core.h div_units */
 static const char *const N_DLY[] = {"1/4", "1/8", "1/16", "1/32", "8T", "16T", "1/8D", "1/16D", "1/4D"};   /* core.h dly_units
                                                                           * (2.6: 1/4D, after Felucca 1.5.1) */
-static const char *const N_SCALE[] = {"CHR", "MAJ", "MIN", "DOR", "MIX", "PEN", "MPEN", "HARM",
+static const char *const N_SCALE[] = {"CHROM", "MAJ", "MIN", "DOR", "MIX", "PEN", "MPEN", "HARM",
                                     "PHRY", "LYD", "LOC", "MEL", "BLUES", "WHOLE", "DIMHW", "DIMWH"};
 static const char *const N_ONOFF[] = {"OFF", "ON"};
 static const char *const N_GKMODE[] = {"MIN", "DOR", "PHRY", "MAJ", "MIX"};   /* SEQ > HARMONY (gen_seq.c GK_SC) */
@@ -103,7 +103,7 @@ static const param_desc_t TP[P_COUNT] = {
     [P_ED_FX] = PD("TRIM", F_INT, -64, 63, 0),   /* the sound's level trim, 1/2 dB (presets set it) */
     [P_LRATE] = PD("RATE", F_LFOHZ, 0, 127, 60),
     [P_LWAVE] = PE("WAVE", N_LWAVE, 0),
-    [P_LPHASE] = PD("PHS", F_INT, 0, 127, 0),
+    [P_LPHASE] = PD("PHASE", F_INT, 0, 127, 0),
     [P_LFADE] = PD("FADE", F_TIME, 0, 127, 0),
     [P_LD_PIT] = PD("PIT", F_BIPCT, -64, 63, 0),
     [P_LD_FLT] = PD("FLT", F_BIPCT, -64, 63, 0),
@@ -113,7 +113,7 @@ static const param_desc_t TP[P_COUNT] = {
     [P_ARATE] = PE("RATE", N_DIV, 2),
     [P_AOCT] = PD("OCT", F_INT, 1, 4, 1),
     [P_AGATE] = PD("GATE", F_PCT, 1, 127, 64),
-    [P_ASWING] = PD("SWG", F_SWING, 0, 100, 0),
+    [P_ASWING] = PD("SWING", F_SWING, 0, 100, 0),
     [P_APROB] = PD("PROB", F_PCT, 0, 127, 127),
     [P_AHOLD] = PE("HOLD", N_ONOFF, 0),
     [P_AORDER] = PE("ORD", N_ORDER, 0),
@@ -121,18 +121,18 @@ static const param_desc_t TP[P_COUNT] = {
     [P_SCALE] = PE("SCL", N_SCALE, 0),
     [P_QUANT] = PE("QNT", N_QUANT, 0),
     [P_TRANS] = PD("TRN", F_SEMI, -24, 24, 0),
-    [P_SLEN] = PD("LEN", F_STEPS, 1, NSTEP, 16),
+    [P_SLEN] = PD("STEPS", F_STEPS, 1, NSTEP, 16),
     [P_SDIV] = PE("DIV", N_SDIV, 2),
-    [P_SSWING] = PD("SWG", F_SWING, 0, 100, 0),
+    [P_SSWING] = PD("SWING", F_SWING, 0, 100, 0),
     [P_SGATE] = PD("GATE", F_PCT, 1, 127, 64),
-    [P_DIST] = PD("DST", F_PCT, 0, 127, 0),
-    [P_CHOR] = PD("CHO", F_PCT, 0, 127, 0),
-    [P_DLY] = PD("DLY", F_PCT, 0, 127, 0),
-    [P_REV] = PD("REV", F_PCT, 0, 127, 0),
-    [P_VOICE] = PE("VCE", N_VOICE, 0),
-    [P_GLIDE] = PD("GLD", F_TIME, 0, 127, 0),
-    [P_GLMODE] = PE("GLMOD", N_GLMODE, 0),
-    [P_PRIO] = PE("PRIO", N_PRIO, 0),
+    [P_DIST] = PD("DIST", F_PCT, 0, 127, 0),
+    [P_CHOR] = PD("CHORUS", F_PCT, 0, 127, 0),
+    [P_DLY] = PD("DELAY", F_PCT, 0, 127, 0),
+    [P_REV] = PD("REVERB", F_PCT, 0, 127, 0),
+    [P_VOICE] = PE("VOICE", N_VOICE, 0),
+    [P_GLIDE] = PD("GLIDE", F_TIME, 0, 127, 0),
+    [P_GLMODE] = PE("GLMODE", N_GLMODE, 0),
+    [P_PRIO] = PE("PRIOR", N_PRIO, 0),
     [P_ALLOC] = PE("ALLOC", N_ALLOC, 0),
     [P_DETUNE] = PD("DTUNE", F_INT, 0, 127, 40),
     [P_PAN] = PD("PAN", F_BIPCT, -64, 63, 0),
@@ -147,7 +147,7 @@ static const param_desc_t TP[P_COUNT] = {
     [P_VLEAD] = PE("VLEAD", N_ONOFF, 0),
     /* 2.6, after Felucca 1.5 / 1.4. The INSERT (fx.c track_insert): TYPE OFF = as before. A B C as the editor
      * protocol names them; the device shows the type's own labels (ins_desc) */
-    [P_ITYPE] = PE("INSRT", N_ITYPE, 0),
+    [P_ITYPE] = PE("INSERT", N_ITYPE, 0),
     [P_IA] = PD("INS A", F_PCT, 0, 127, 64),
     [P_IB] = PD("INS B", F_PCT, 0, 127, 96),
     [P_IC] = PD("INS C", F_PCT, 0, 127, 96),
@@ -177,8 +177,8 @@ static const param_desc_t GP[G_COUNT] = {
     [G_CLOCK] = PE("CLICK", N_CLICK, 0),            /* (the old CLK slot: projects keep their format) */
     [G_TUNE] = PD("TUNE", F_INT, -50, 50, 0),
     [G_DTIME] = PE("TIME", N_DLY, 1),
-    [G_DFDBK] = PD("FDBK", F_PCT, 0, 120, 60),
-    [G_DCOLOR] = PD("COLR", F_PCT, 0, 127, 70),
+    [G_DFDBK] = PD("FEEDBK", F_PCT, 0, 120, 60),
+    [G_DCOLOR] = PD("COLOR", F_PCT, 0, 127, 70),
     [G_DMIX] = PD("MIX", F_PCT, 0, 127, 90),
     [G_RSIZE] = PD("SIZE", F_PCT, 0, 127, 90),
     [G_RDAMP] = PD("DAMP", F_PCT, 0, 127, 60),
@@ -199,13 +199,13 @@ static const param_desc_t GP[G_COUNT] = {
     [G_INITSND] = PE("INIT", N_GO, 0),
     [G_DRCH] = PE("CH4", N_MCH, 10),                  /* GM drum part (track 4) MIDI channel, 0 = OFF (2.6: as GLO > MIDI's CH1..3) */
     [G_DRLVL] = PD("LVL", F_INT, 0, 127, 100),
-    [G_DRREV] = PD("REV", F_INT, 0, 127, 0),          /* (dry until asked for; SLOOP: 16) */
+    [G_DRREV] = PD("REVERB", F_INT, 0, 127, 0),          /* (dry until asked for; SLOOP: 16) */
     [G_DUST] = PD("DUST", F_PCT, 0, 127, 0),
     [G_DUCK] = PD("DUCK", F_PCT, 0, 127, 0),
     [G_FILT] = PD("FILT", F_FILT, -64, 63, 0),
     [G_ROLL] = PE("ROLL", N_ROLL, 1),
     [G_NEWPRJ] = PE("NEW", N_GO, 0),
-    [G_DRDLY] = PD("DLY", F_INT, 0, 127, 0),
+    [G_DRDLY] = PD("DELAY", F_INT, 0, 127, 0),
     [G_CH1] = PE("CH1", N_MCH, 1),                /* 2.6, GLO > MIDI: synth track 1's channel, in and out (OFF: */
     [G_CH2] = PE("CH2", N_MCH, 2),                /* no MIDI in; out on its old one) */
     [G_CH3] = PE("CH3", N_MCH, 3),
@@ -223,7 +223,7 @@ static const param_desc_t GP[G_COUNT] = {
     [G_CLPIT] = PD("PITCH", F_SEMI, -24, 24, 0),
     [G_CLDENS] = PD("DENS", F_PCT, 0, 127, 104),
     [G_CLTEX] = PD("TEXT", F_PCT, 0, 127, 90),
-    [G_CLFB] = PD("FDBK", F_PCT, 0, 127, 0),
+    [G_CLFB] = PD("FEEDBK", F_PCT, 0, 127, 0),
     [G_CLFRZ] = PE("FRZ", N_ONOFF, 0),
     [G_AGDENS] = PD("DENS", F_PCT, 0, 127, 89),   /* SEQ > ACID GEN (acid_gen.c): TB-3PO's 70 / 40 / 25 % */
     [G_AGACC] = PD("ACC", F_PCT, 0, 127, 51),
@@ -236,7 +236,7 @@ static const param_desc_t GP[G_COUNT] = {
     [G_HXMODEL] = PE("MODEL", N_HXMODEL, 0),     /* EDIT on the drum track: the HEX sound (ui_studio.c hex_ui_sync); */
     [G_HXWAVE] = PE("WAVE", N_HXWAVE, 0),        /* the LXR's 0..127 values. These are the DRUM model's: the pages */
     [G_HXTUNE] = PD("TUNE", F_INT, 0, 127, 36),  /* show each model's own (hex_desc) */
-    [G_HXFINE] = PD("P.SLP", F_INT, -64, 62, 0),
+    [G_HXFINE] = PD("PSLOPE", F_INT, -64, 62, 0),
     [G_HXATK] = PD("ATK", F_INT, 0, 127, 0),
     [G_HXDEC] = PD("DEC", F_INT, 0, 127, 30),
     [G_HXSLOPE] = PD("SLOPE", F_INT, 0, 127, 40),
@@ -297,8 +297,10 @@ static const param_desc_t INS_DESC[3][3] = {
 #undef PU
 static const param_desc_t *ins_desc(int32_t type, uint32_t k)
 {
+    static const param_desc_t NONE = {"-", F_PCT, 0, 127, 64, 0, 0};   /* INSERT OFF: A B C do nothing, not shown
+                                                         * (they were INS A, INS B, INS C; review 21) */
     if (type <= 0 || type >= (int32_t)NELEM(N_ITYPE))
-        return &TP[P_IA + k];
+        return k < 3u ? &NONE : &TP[P_IA + k];
     return &INS_DESC[type < 5 ? 0 : type == 5 ? 1 : 2][k % 3u];   /* (SOFT .. FUZZ, CRUSH, the swept ones) */
 }
 static const param_desc_t ESYNC_DESC[3] = {   /* ATK DEC REL with ENV SYNC on: the range and defaults as ever */
@@ -439,9 +441,8 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
     case F_ONOFF:
         str_cpy(val, N_ONOFF[v ? 1 : 0], 6);
         break;
-    case F_STEPS:
+    case F_STEPS:                                     /* (no unit: the label says STEPS, review 21) */
         fmt_int(val, v);
-        *unit = "STEP";
         break;
     default:
         if (d->names) {                               /* F_INT with a 0-terminated name list: the range */
@@ -626,7 +627,7 @@ static int page_shown(const page_t *pg)
 /* a HEX sound's byte as its model reads it (hex_drums.c): what differs from GP's (the DRUM model's) */
 static const param_desc_t *hex_desc(uint32_t id)
 {
-    static const param_desc_t SN[] = {PD("P.SLP", F_INT, -64, 62, 0), PD("P.AMT", F_INT, 0, 127, 0),
+    static const param_desc_t SN[] = {PD("PSLOPE", F_INT, -64, 62, 0), PD("P.AMT", F_INT, 0, 127, 0),
                                       PD("P.DEC", F_INT, 0, 127, 30), PD("N.FRQ", F_INT, 0, 127, 120),
                                       PD("MIX", F_INT, 0, 127, 90), PD("REPT", F_INT, 0, 127, 0)};
     static const param_desc_t CY[] = {PD("FINE", F_INT, -64, 62, 0), PD("MOD2", F_INT, 0, 127, 60),
