@@ -119,3 +119,25 @@ Chords track (Ben, 21 Nov, picker): "JUNO on track 2" (polyphonic saw chords; ne
 - "Can you not change what triggers the LFO restart? Like have it free or attached to the note start or the sequence length?"
 His picker answers (21 Nov, 14:40): HOME knobs "Cutoff, decay, FX, level"; and for what the FX knob does, in his own words: "Would be cool if it actually just turned on and off the stutter". Filter envelope "Own ADSR + link switch" (measure the cost and report before building). Bass engine "ACID for bass" (plain saw through the 303-style filter, a little envelope movement so it speaks). Long stutters "Replay the steps" (1/4 default; 1/2 and 1/1 loop the sequencer's last steps; shorter ones stay as audio stutter). LFO trigger "Add PATTERN". Tape reels "A strip of the flowing backdrop" (a band of the FLOW pattern moving with the four voices' levels). Step-record "Yes, add it" (press REC in the GRID, play notes or chords on the keys, each lands on the next step).
 - (of the ENV page, with a screenshot of the dim character behind the envelope, 21 Nov 15:05) "I don't like how the characters jump and grow here... I'd rather something more chill there tbh. Maybe not even the character"
+
+## New direction for PHEBUS (Ben, 21 Nov 2026, 15:32). This governs everything above it where they clash.
+
+"I'd really love the melodic parts of PHEBUS to feel as similar to the minifreak as possible. With the drums feeling as similar to the Analog Rytm mk2 as possible"
+
+"Then I want the MPC's feel for pad like fx play and stuttering. The end goal is to record into an MPC sample anyway, and I'll always use them together. So I want to remove any features that don't serve exactly the device vibe I'm trying to build."
+
+"So PHEBUS is three things and nothing else:
+1. Melodic voices: the MiniFreak's swift sound design. Oscillator type plus a few macro knobs, filter, envelopes, FX slots, mod matrix last. The same layout on every voice.
+2. Drums: the Analog Rytm MKII's easy drum programming. Pick a sound, 16 trig keys, hold a trig and turn to lock, sound pages in the Rytm's order (SRC, FLTR, AMP, LFO), mute, fill, retrig, chromatic.
+3. Performance: the MPC's feel for playing effects and stutters on the keys like pads.
+
+The MPC Sample does the sampling, arranging and recording. PHEBUS never needs to do those jobs."
+
+"Do not build anything yet. I want a review first:
+A. List every current feature, page, layer and gesture (use GUIDE.md section 19 as the checklist). Mark each one KEEP (already feels like its reference device), CHANGE (right job, wrong feel: say what the reference device does instead) or CUT (serves none of the three). For anything the MPC Sample already does, default to CUT. Say plainly which items you are unsure about.
+B. Say where the FM-1 cannot match the reference devices (four knobs, no pads, no analogue filter) and the closest honest substitute for each.
+C. Tell me whether it is simpler to keep editing the current interface or to rebuild the interface from a blank page on top of the existing engines, drivers, simulator and build pipeline. Base it on the code, with a rough size for each route. Say what would be lost either way.
+D. Include a visual review from a graphic design point of view: each kept screen should look like it belongs to its reference device's way of working.
+Give me the result as a short grouped list, then put every CUT and every real choice to me as multiple-choice pickers. Known open choices: fold ACID and JUNO into one oscillator Type list or keep separate engines; 16 drum sounds or the Rytm's 12; keep or drop the snake view; whether song mode, the generators, CLOUD and the screensavers stay.
+Things I have already decided today stay decided unless they clash with this direction. If one clashes, show me the clash and ask.
+Ask me before starting any long test run."
