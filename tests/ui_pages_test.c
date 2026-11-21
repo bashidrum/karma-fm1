@@ -121,6 +121,8 @@ static void press(uint32_t b) { edges_btn |= BT(b); fm1_in.buttons |= BT(b); fra
 static void release(uint32_t b) { fm1_in.buttons &= ~BT(b); frame(); }
 static void tap(uint32_t b) { press(b); release(b); }
 static void key(uint32_t k) { fm1_in.notes |= 1u << k; frame(); fm1_in.notes &= ~(1u << k); frame(); }
+static int grid_voice(const track_t *t, uint32_t note)   /* a voice of t sounds note, its gate open */
+{ uint32_t v; for (v = 0; v < NVOICE; v++) if (t->v[v].active && t->v[v].gate && t->v[v].note == note) return 1; return 0; }
 static int fails;
 static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok ? "ok" : "FAIL"); fails += !ok; }
 static const char *sub_line(void) { return layer_sub_shown; }   /* the layer's sub line as last drawn (ui_layers.c) */
@@ -603,15 +605,22 @@ int main(int argc, char **argv)
         pen_n = 1; pen_note[0] = 48;
         tap(B_SEQ); frames(2);
         check(on_drum_page() && kb_grid && grid_keys_on(), "GRID: HOME + SEQ on a synth track opens its GRID, the keys are steps");
+        aud_on_left = 0;
         key(k1);
         check(step_on(&t->step[0]) && t->step[0].note[0] == 48 && t->step[0].vel == 100 && t->step[0].n == 1,
               "GRID: tap an empty step: set with the pen (C3), VEL 100");
+        check(aud_on_left && aud_on_trk == 0u && aud_on_n == 1u && aud_on_nt[0] == 48u && grid_voice(t, 48),
+              "GRID: ... and heard: C3 sounds on track 1 (REVIEW 1, play on change)");
+        frames(16);
+        check(!aud_on_left && !grid_voice(t, 48), "GRID: ... a short note: let go after ~150 ms");
         key(k1);
         check(!step_on(&t->step[0]), "GRID: tap a set step: cleared");
         fm1_in.notes |= 1u << k5; frame();                /* step 5 held */
         check(step_on(&t->step[4]) && sg_held == 1u << 4, "GRID: step 5 held: set, held");
+        frames(16); aud_on_left = 0;
         encs[panel.enc[EN_K1]] = 1; frame();
         check(t->step[4].note[0] == 50, "GRID: step held + KNOB 1: NOTE one degree of the scale up (C3 -> D3)");
+        frame(); check(aud_on_left && aud_on_nt[0] == 50u && grid_voice(t, 50), "GRID: ... D3 heard as it changes");
         encs[panel.enc[EN_K1]] = 1; frame();
         check(t->step[4].note[0] == 51, "GRID: KNOB 1 again: D3 -> D#3 (C minor)");
         encs[panel.enc[EN_K2]] = 1; frame();
@@ -669,6 +678,11 @@ int main(int argc, char **argv)
         ui.force = 1; frame(); ppm("grid-synth-p2");
         press(B_OCTUP); release(B_OCTUP);
         check(ui.cursor / 16u == 0u, "GRID: OCT+ (no step held): the next page (round to 1-16)");
+        frames(16); aud_on_left = 0; pen_n = 1; pen_note[0] = 48;
+        encs[panel.enc[EN_K1]] = 1; frames(2);
+        check(pen_note[0] == 50 && aud_on_left && aud_on_nt[0] == 50u && grid_voice(t, 50),
+              "GRID: KNOB 1 (no step held): the pen one degree up (D3), heard before it is placed");
+        encs[panel.enc[EN_K1]] = -1; frames(16);
         encs[panel.enc[EN_K2]] = -3; frame();
         check(ui.cursor == 1u, "GRID: KNOB 2 (no step held): the cursor (step 5 -> step 2)");
         encs[panel.enc[EN_K3]] = 1; frame();

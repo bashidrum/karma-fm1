@@ -4,8 +4,9 @@
  * Included by ui_studio.c. The GRID is the DRUMS screen's page (the SC_DRUM page): on the drum track it is the drum
  * grid as before, on a synth track the synth's steps. With no layer held the 16 white keys are the 16 steps of the
  * page of steps shown (seq.c kb_grid: they play nothing):
- *   tap a step       an empty one is set (synth: the pen, the note / chord played last; drums: the sound KNOB 1
- *                    picks), a set one is cleared when its key comes up (unless a knob changed it meanwhile)
+ *   tap a step       an empty one is set and heard (synth: the pen, the note / chord played last or KNOB 1 picks;
+ *                    drums: the sound KNOB 1 picks), a set one is cleared when its key comes up (unless a knob
+ *                    changed it meanwhile). A synth note is heard whenever it changes (the pen, a step's NOTE)
  *   hold a step      KNOB 1..4 edit it (synth: NOTE in the scale, LEN, VEL, COND; SELECT: FLAG, RATCH, NUDGE;
  *                    drums: LEVEL, RATCH, NUDGE, COND); ENV / LFO / FX / EDIT tapped: that button's page on the
  *                    knobs, and each knob turned LOCKS its parameter on the step (again: the next page); PRESETS a
@@ -110,6 +111,8 @@ static void sg_set(track_t *t, uint32_t idx)            /* an empty step set: th
     fm1_irq_on();
     if (is_drum(t))
         audition_lane(drum_lane);
+    else                                                /* heard as it is placed (REVIEW.md 1: play on change) */
+        audition_notes(song.sel, t->step[idx].note, t->step[idx].n);
     sync_reload = 1;
 }
 static void sg_clear(track_t *t, uint32_t idx)          /* a set step cleared (drums: the sound's hit) */
@@ -272,6 +275,7 @@ static void sg_held_knob(uint32_t k, int32_t s)
 {
     track_t *t = TSEL;
     uint32_t w, len = trk_len(t);
+    int32_t heard = -1;                                 /* a step whose NOTE moved: heard */
     if (sg_lpage < NPAGES) {
         sg_lock_turn(PAGES[sg_lpage].id[k], s, EN_K1 + k);
         return;
@@ -317,6 +321,8 @@ static void sg_held_knob(uint32_t k, int32_t s)
                 for (i = 0; i < st->n && i < 4u; i++)
                     st->note[i] = (uint8_t)clamp(st->note[i] + d, 1, 127);
                 last_note = st->note[0];
+                if (d && heard < 0)
+                    heard = (int32_t)idx;
             } else if (sl == 1u) {                      /* LEN: the TIEs after it (ui.c note_set_len) */
                 uint32_t was = note_len(t, idx), n = note_set_len(t, idx, (uint32_t)clamp((int32_t)was + (s > 0 ? 1 : -1), 1, NSTEP));
                 if (s > 0 && n == was)
@@ -337,8 +343,10 @@ static void sg_held_knob(uint32_t k, int32_t s)
     }
     fm1_irq_on();
     sync_reload = 1;
+    if (heard >= 0)
+        audition_notes(song.sel, t->step[heard].note, t->step[heard].n);
 }
-/* KNOB k, no step held, a synth track: NOTE (the pen, by degrees of the scale), STEP (the cursor), HIT (right:
+/* KNOB k, no step held, a synth track: NOTE (the pen, by degrees of the scale; heard), STEP (the cursor), HIT (right:
  * the pen on the cursor's step, left: cleared), VEL (of the cursor's step) */
 static void sg_free_knob(uint32_t k, int32_t s)
 {
@@ -355,6 +363,8 @@ static void sg_free_knob(uint32_t k, int32_t s)
         for (i = 0; i < pen_n && i < 4u; i++)
             pen_note[i] = (uint8_t)clamp(pen_note[i] + d, 1, 127);
         last_note = pen_note[0];
+        if (d)
+            audition_notes(song.sel, pen_note, pen_n);  /* the note chosen, heard before it is placed */
         return;
     }
     if (k == 1u) {

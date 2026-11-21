@@ -1693,9 +1693,44 @@ static void audition_step(const dstep_t *s)            /* every sound of a drum 
             lv |= dstep_lvl(s, l) << (2u * l);
     audition_req(m, lv);
 }
+/* the UI asks to hear a synth step (the GRID: a step set, its NOTE turned; REVIEW.md 1, 21 Nov 2026): its notes on
+ * track aud_syn_trk, played here and let go AUD_SYN_BLOCKS blocks (~150 ms) later. Only the voices: nothing recorded,
+ * nothing to the arp or MIDI out. A new one ends the one before */
+#define AUD_SYN_BLOCKS 200u
+static volatile uint8_t aud_syn_trk = 0xFF, aud_syn_n, aud_syn_nt[4];
+static uint8_t aud_on_trk, aud_on_n, aud_on_nt[4];
+static uint16_t aud_on_left;
+static void audition_notes(uint32_t ti, const uint8_t *nt, uint32_t n)
+{
+    uint32_t i;
+    fm1_irq_off();
+    for (i = 0; i < n && i < 4u; i++)
+        aud_syn_nt[i] = nt[i];
+    aud_syn_n = (uint8_t)i;
+    aud_syn_trk = (uint8_t)ti;
+    fm1_irq_on();
+}
+static void audition_syn_block(void)
+{
+    uint32_t i;
+    if (aud_on_left && (--aud_on_left == 0u || aud_syn_trk < NPART))
+        for (i = 0; i < aud_on_n; i++)
+            trk_note_off(&trk[aud_on_trk % NTRK], aud_on_nt[i]);
+    if (aud_syn_trk >= NPART)
+        return;
+    aud_on_trk = aud_syn_trk;
+    aud_on_n = trk[aud_on_trk].p[P_VOICE] == V_POLY ? aud_syn_n : (aud_syn_n ? 1u : 0u);
+    for (i = 0; i < aud_on_n; i++) {
+        aud_on_nt[i] = aud_syn_nt[i];
+        trk_note_on(&trk[aud_on_trk], aud_on_nt[i], 100);
+    }
+    aud_on_left = (uint16_t)AUD_SYN_BLOCKS;
+    aud_syn_trk = 0xFF;
+}
 static void audition_block(void)
 {
     uint32_t m = aud_lanes, lv = aud_lvl, l;
+    audition_syn_block();
     if (!m)
         return;
     aud_lanes = 0;
