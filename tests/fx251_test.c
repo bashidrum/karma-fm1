@@ -10,8 +10,6 @@
  *            learning a CC is handed to the UI; the CCs with a meaning of their own are never learned
  * Exit status: the number of failed checks. */
 #include <stdint.h>
-static uint32_t host_slots[4u * 0x14000u / 4u];          /* the user sample slots (a RAM image of the flash) */
-#define SMP_USER_XIP(k) ((const uint8_t *)host_slots + (k) * SMP_USER_SIZE)
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
@@ -284,7 +282,6 @@ static void t_mutes(void)
     uint32_t i, on, off, sn;
     setup();
     memset(&drums, 0, sizeof drums);
-    drums.set = -2;
     for (i = 0; i < 16u; i++) {
         dstep_set(&TDRUM->dstep[i], 0, LV_NORM, i == 4u ? 1u : 0u);   /* the kick on every step, a ratchet on 5 */
         dstep_set(&TDRUM->dstep[i], 2, LV_NORM, 0);                   /* the snare too */

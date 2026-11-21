@@ -856,13 +856,8 @@ static void persist_boot(void)                    /* before settings_init / pane
     irq_restore(f);
     if (!flash_ok)
         return;
-    fl_plain_window_init();                        /* flash above 0x93000 reads as plaintext through XIP
-                                                    * (user sample sets are played from there) */
-    {
-        uint32_t k;
-        for (k = 0; k < SMP_USER_SLOTS; k++)
-            smp_user_scan(k);
-    }
+    fl_plain_window_init();                        /* flash above 0x93000 reads as plaintext through XIP (KARMA's user
+                                                    * sample sets were played from there; kept as it was) */
     {
         int n = st_load(OBJ_SETTINGS, &p, sizeof p);
         if (n == (int)PERSIST_SIZE_V22 && p.magic == PERSIST_MAGIC)

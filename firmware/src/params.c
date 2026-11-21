@@ -72,9 +72,6 @@ static const char *const N_CHORD[] = {"OFF", "TRIAD", "7TH", "9TH", "SUS4", "POW
 static const char *const N_ROLL[] = {"1/8", "1/16", "1/32", "32T", "1/64"};   /* seq.c ROLL_DEN */
 static const char *const N_ENGNAME[] = {"ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL", "GRAIN",
                                         "FM6", "PHYS", "NOISE",
-#if FELUCCA_SLICE
-                                             "SLICE",
-#endif
                                         "PLAITS", "ELEMENTS", "ACID", "JUNO",
 };
 _Static_assert(sizeof N_ENGNAME / sizeof N_ENGNAME[0] == NENGINES, "a name an engine");

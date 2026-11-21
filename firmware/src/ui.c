@@ -726,8 +726,8 @@ static void pc_poll(void)
         pc_req[i] = 0;
         n = r - 1u;
         if (is_drum(&trk[i])) {
-            if (n >= DRUM_KITS)
-                continue;
+            if (n >= DRUM_KITS || drum_kit_none(n))
+                continue;                               /* (no such kit: the program is ignored) */
             trk[i].p[P_E0] = (int16_t)n;
             if (&trk[i] == TSEL)
                 sync_reload = 1;

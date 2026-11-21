@@ -12,12 +12,6 @@
  * declicks it); one of the part's own is restarted in place. Extra UNISON
  * voices only start when there is room. The drum track has its own voices (drums.c). */
 static uint32_t vage;                                   /* voice ages: one clock for every part */
-/* engines that play recorded material (a position, not a phase): no phases kept or spread */
-#if FELUCCA_SLICE
-static int eng_sampled(const engine_t *e) { return e == &ENG_SAMPLE || e == &ENG_SLICE; }
-#else
-static int eng_sampled(const engine_t *e) { return e == &ENG_SAMPLE; }
-#endif
 static int32_t lfo_wave(track_t *t, uint32_t ph)
 {
     switch (t->p[P_LWAVE]) {
@@ -323,7 +317,7 @@ static void voice_start(track_t *t, voice_t *v, uint32_t note, uint32_t vel, int
         v->env_out = 0;
     }                                                   /* sounding: the attack starts from the current level */
     e->note_on(t, v);
-    if (sounding && !eng_sampled(e)) {                 /* retrigger / steal: keep phases and filter states */
+    if (sounding) {                 /* retrigger / steal: keep phases and filter states */
         v->ph[0] = ph0;                                 /* (resetting them clicks) */
         v->ph[1] = ph1;
         v->ph[2] = ph2;
@@ -353,7 +347,7 @@ static void mono_play(track_t *t, uint32_t note, uint32_t vel, int retrig, int g
                 continue;                                   /* no room for this extra UNISON voice */
             /* level: about the same sum for 8 or 4 voices at random phases */
             voice_start(t, v, note, nv >= NVOICE ? vel * 36u / 100u : nv > 1u ? vel / 2u : vel, glide);
-            if (nv > 1u && i && !eng_sampled(ENGINES[t->engine]) && !was_sounding) {   /* random start phases: */
+            if (nv > 1u && i && !was_sounding) {   /* random start phases: */
                 static uint32_t seed = 0x1234567u;          /* in phase they stack, evenly spread they cancel */
                 seed = seed * 1664525u + 1013904223u;
                 v->ph[0] += seed;
@@ -809,7 +803,7 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
         }
         if (v->penv)                                    /* the pitch envelope: ~40 ms */
             v->penv = (int16_t)(v->penv - ((v->penv * 590 + 32767) >> 15));
-        if (!env && !m.amp0 && v->stage == 2 && !eng_sampled(e))
+        if (!env && !m.amp0 && v->stage == 2)
             continue;                                   /* held at a silent sustain (SUS 0): nothing to render */
         {   /* the pitch in 1/4096 semitone: glide, LFO, the pitch envelope; the fraction goes into the increment */
             int32_t q = (v->pitch_cur << 8) + v->pitch_frac + ((lfo * p[P_LD_PIT] * 3) >> 7) +

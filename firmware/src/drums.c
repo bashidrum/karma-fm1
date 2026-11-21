@@ -1,33 +1,53 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
-/* GM drum part (track 4): the SAMPLE engine's KIT set (General MIDI percussion map,
- * tools/gen_samples.py GM_KIT), played by its step pattern, the keys when track 4
- * is selected, and its own MIDI channel (GLO -> DRUMS, default 10). Its own voices
+/* The drum part (track 4): its kit (HEX, synthesised or MY HEX; General MIDI percussion map), played by its step
+ * pattern, the keys when track 4 is selected, and its own MIDI channel (GLO -> DRUMS, default 10). Its own voices
  * (outside the parts' voice budget). One-shots: note-offs are ignored; a closed or
  * pedal hi-hat chokes the open one. LEVEL / REV / DLY: GLO > DRUMS (G_DRLVL, G_DRREV, G_DRDLY);
  * PAN and MUTE: the drum track's P_PAN / P_MUTE. Rendered from the audio ISR. */
 #define NDRUM 6
 #include "drum_synth.c"       /* synthesised kits (DS_KITS) */
 /* P_E0 was unused on the drum track: it holds the kit. 0..4: the HEX kits (hex_drums.c, the LXR-02's drum voices
- * ported in lxr_dsp.c; they took the places of the
- * GM sample kit and its four treatments, gone with the samples), 5..: the synthesised kits, then (2.4) USR1..USR4:
- * a user sample slot as a kit (the web editor's DRUM KIT: a sound per lane, zone lo..hi = the lane's note),
- * and USR3+4: one kit over the slots USR3 and USR4 (a lane's sound in either) */
+ * ported in lxr_dsp.c; they took the places of the GM sample kit and its four treatments, gone with the samples),
+ * 5..: the synthesised kits, then five numbers no kit has (KARMA's user sample kits USR1..USR4 and USR3+4, cut in
+ * PHEBUS wave 1: the numbers stay so that a project's kit byte keeps its meaning; a project on one of them plays the
+ * power-on kit), then MY HEX 1..4 */
 #define DRUM_SAMPLED 5u
-#define DRUM_USR (DRUM_SAMPLED + DS_NKITS)
-#define DRUM_PAIR (DRUM_USR + SMP_USER_SLOTS)   /* USR3+4: one kit in two slots (the editor splits it), ~15 s */
-#define DRUM_SYN (DRUM_PAIR + 1u)                /* SLOOP 2.5: SYN1..SYN4, your synthesised kits (drum_synth.c dsu) */
+#define DRUM_USR (DRUM_SAMPLED + DS_NKITS)       /* (the five numbers no kit has, from here) */
+#define DRUM_SYN (DRUM_USR + 5u)                 /* SLOOP 2.5: SYN1..SYN4, your synthesised kits (drum_synth.c dsu) */
 #define DRUM_KITS (DRUM_SYN + DSU_N)
 static const char *const DRUM_KIT_NAMES[] = {"HEX BOOM", "HEX ACID", "HEX METAL", "HEX GLITCH", "HEX ROOM", DS_KIT_NAME_LIST,
-                                             "USR1", "USR2", "USR3", "USR4", "USR3+4",
+                                             "-", "-", "-", "-", "-",
                                              "MY HEX 1", "MY HEX 2", "MY HEX 3", "MY HEX 4"};
 static const char *const DRUM_KIT_STYLES[] = {"ELECTRO", "TECHNO", "INDUSTRIAL", "GLITCH", "SOFT", DS_KIT_STYLE_LIST,
-                                              "YOUR KIT", "YOUR KIT", "YOUR KIT", "YOUR KIT", "BIG KIT",
+                                              "-", "-", "-", "-", "-",
                                               "YOUR HEX", "YOUR HEX", "YOUR HEX", "YOUR HEX"};
 _Static_assert(sizeof(DRUM_KIT_NAMES) / sizeof(DRUM_KIT_NAMES[0]) == DRUM_KITS, "a name per kit");
-static uint32_t drum_kit(void) { return (uint32_t)clamp(TDRUM->p[P_E0], 0, DRUM_KITS - 1); }
 #define DRUM_DEFAULT_KIT (DRUM_SAMPLED + 2u)   /* power-on: 606 (PHEBUS, 21 Nov 2026, Ben: "Start on 606"; gen_drumkits.py
                                                 * KITS order: 808, 909, 606) */
+static int drum_kit_none(uint32_t k) { return k >= DRUM_USR && k < DRUM_SYN; }
+static uint32_t drum_kit(void)
+{
+    uint32_t k = (uint32_t)clamp(TDRUM->p[P_E0], 0, DRUM_KITS - 1);
+    return drum_kit_none(k) ? DRUM_DEFAULT_KIT : k;
+}
+/* the kit s detents on from k (PRESETS, the KIT page's KNOB 2), past the numbers no kit has */
+static int16_t drum_kit_step(int32_t k, int32_t s)
+{
+    k = clamp(k, 0, DRUM_KITS - 1);
+    if (drum_kit_none((uint32_t)k))
+        k = DRUM_DEFAULT_KIT;
+    while (s) {
+        int32_t d = s > 0 ? 1 : -1, n = k + d;
+        while (n >= 0 && n < (int32_t)DRUM_KITS && drum_kit_none((uint32_t)n))
+            n += d;
+        if (n < 0 || n >= (int32_t)DRUM_KITS)
+            break;
+        k = n;
+        s -= d;
+    }
+    return (int16_t)k;
+}
 
 /* each sound's own sends, on top of the kit's (GLO > DRUMS REV, DLY): [lane] {reverb 0..15, delay 0..7}; the
  * kit page's KNOB 3 and 4 (ui_studio.c), kept with the project (project.c proj_ds_put) */
@@ -39,21 +59,19 @@ static struct {
     voice_t v[NDRUM];
     uint8_t lane[NDRUM];         /* the sound each voice plays (its sends) */
     uint32_t age;
-    int16_t set;                 /* SMP_SETS index of "PERC" (GM map), -1 = none */
     int32_t tail;                /* declick: the last output of cut voices, decaying */
     int32_t trev, tdly;          /* (3.1.2) .. and their reverb and delay sends: they stepped to 0, a click in
                                   * the echo and the reverb */
     int32_t gs[NDRUM][2];        /* each voice's reverb and delay send gains in the last block, Q15 */
     int32_t peak;                /* largest |output| since the UI last looked (TRACKS meter) */
     uint8_t kit[NDRUM];
-    int32_t filter[NDRUM], env[NDRUM];
     uint8_t synth[NDRUM];        /* the voice plays a synthesised kit (ds[]) */
     dsv_t ds[NDRUM];
     hex_v_t hx[NDRUM];           /* .. or a HEX kit (synth[] 2) */
     volatile uint16_t hits;      /* bit per lane hit since the UI last looked (pads, key LEDs) */
     volatile uint8_t kick;       /* a kick was hit (fx.c DUCK) */
     int32_t a0, a1;              /* the drum track's mute / solo attenuation over this block (fx.c), Q15, 0 = heard */
-} drums = {.set = -2};
+} drums;
 
 static int32_t ds_buf[CTL];
 
@@ -89,22 +107,10 @@ static void drum_cut(uint32_t k)
     drums.tdly += mulq15(s, drums.gs[k][1]);
 }
 
-static int32_t drum_set(void)
-{
-    uint32_t i;
-    if (drums.set == -2) {
-        drums.set = -1;
-        for (i = 0; i < SMP_NSETS; i++)
-            if (str_eq(SMP_SETS[i].name, "PERC"))
-                drums.set = (int16_t)i;
-    }
-    return drums.set;
-}
-
 /* ------------------------------------------------------------ lanes --- */
 /* The drum track's 16 sounds, one per white key, F3 (kick) .. G5 (cowbell): kicks, snare and clap,
  * the hi-hats, rim and a second snare, the toms, the cymbals, the percussion. Each plays a GM note
- * (the sampled kits: their samples; the synthesised kits: drum_synth.c DS_MAP). A black key plays
+ * (the synthesised kits: drum_synth.c DS_MAP). A black key plays
  * the lane of the white key left of it (two fingers on one sound). */
 static const uint8_t LANE_NOTE[DRUM_LANES] = {36, 35, 38, 39, 42, 46, 44, 37, 40, 43, 48, 49, 51, 70, 63, 56};
 static const char *const LANE_NAME[DRUM_LANES] = {
@@ -158,23 +164,6 @@ static void dstep_clr(dstep_t *s, uint32_t l)                                /* 
     s->on[(l >> 3) & 1u] &= (uint8_t)~(1u << (l & 7u));
     s->lvl[b] &= (uint8_t)~(3u << sh);
     s->rat[b] &= (uint8_t)~(3u << sh);
-}
-
-/* the zone a sampled drum voice plays (drum_on: v->s[4]): SMP_ZONES[i], or a user kit's, DZ_USR + slot * 16 + zone */
-#define DZ_USR (1 << 16)                 /* (above every SMP_ZONES index) */
-static const smp_zone_t *drum_zone_of(const voice_t *v)
-{
-    int32_t z = v->s[4];
-    return z >= DZ_USR ? &usr_zone[((uint32_t)(z - DZ_USR) >> 4) % SMP_USER_SLOTS][(uint32_t)z & 15u] : &SMP_ZONES[(uint32_t)z];
-}
-/* a user kit (KIT USR1..3): the zone of slot k for the lane note ln (the lane's GM note), -1 = none */
-static int32_t drum_usr_zone(uint32_t k, uint32_t ln)
-{
-    uint32_t j;
-    for (j = 0; j < usr_nz[k] && j < 16u; j++)
-        if (ln >= usr_zone[k][j].lo && ln <= usr_zone[k][j].hi)
-            return DZ_USR + (int32_t)(k * 16u + j);
-    return -1;
 }
 
 /* the velocity of a level: as played (LV_NORM: vel), ghost, soft, hard */
@@ -349,11 +338,7 @@ static void drum_on(uint32_t note, uint32_t vel)   /* (3.1.3: timed in the measu
 }
 static void drum_on_(uint32_t note, uint32_t vel)
 {
-    int32_t si = drum_set();
-    const smp_set_t *set;
-    voice_t *v = &drums.v[0];
-    uint32_t i, zi = 0xFFFFu, kit = drum_kit();
-    int32_t zid = -1;
+    uint32_t kit = drum_kit();
     if (note != 76u && note != 77u)                 /* the pads and key LEDs (not the click's wood block) */
         drums.hits |= (uint16_t)(1u << lane_of_note(note));
     if (note == 35u || note == 36u)
@@ -361,70 +346,10 @@ static void drum_on_(uint32_t note, uint32_t vel)
     if (kit >= DRUM_SYN) {                          /* SYN1..SYN4: your synthesised kit */
         const dsu_kit_t *u = dsu_kit(kit - DRUM_SYN);
         drum_synth_on(note, vel, kit, 0, 0, u->s);
-        return;
-    }
-    if (kit >= DRUM_USR) {                          /* a user kit: the lane's sound, as its note (the hat choke) */
-        if (note == 76u || note == 77u)
-            return;                                 /* (the click's wood block: not a lane) */
-        note = LANE_NOTE[lane_of_note(note)];
-        if (kit == DRUM_PAIR) {                     /* USR3+4: the lane's sound in USR3, else in USR4 */
-            zid = drum_usr_zone(2, note);
-            if (zid < 0)
-                zid = drum_usr_zone(3, note);
-        } else {
-            zid = drum_usr_zone(kit - DRUM_USR, note);
-        }
-        if (zid < 0)
-            return;                                 /* (an empty slot, or no sound on this lane) */
     } else if (kit < DRUM_SAMPLED) {                /* a HEX kit */
         drum_synth_on(note, vel, kit, 0, 0, HEX_KITS[kit].s);
-        return;
     } else {                                        /* synthesised kit */
         drum_synth_on(note, vel, kit, DS_KITS[kit - DRUM_SAMPLED].s, DS_KITS[kit - DRUM_SAMPLED].crush, 0);
-        return;
-    }
-    if (zid < 0) {                                  /* the GM sample kit */
-        if (si < 0)
-            return;
-        set = &SMP_SETS[si];
-        for (i = 0; i < set->nz; i++)
-            if (note >= SMP_ZONES[set->z0 + i].lo && note <= SMP_ZONES[set->z0 + i].hi)
-                zi = set->z0 + i;
-        if (zi == 0xFFFFu)
-            return;
-        zid = (int32_t)zi;
-    }
-    if (note == 42u || note == 44u)                 /* hi-hat choke */
-        for (i = 0; i < NDRUM; i++)
-            if (drums.v[i].active && drums.v[i].note == 46u) {
-                drums.v[i].active = 0;
-                drum_cut(i);                            /* fade what it was playing, not a step */
-            }
-    v = drum_pick(note);                            /* (3.0.4, SLOOP 2.8.3: a free one, its own, else the oldest but a kick) */
-    if (v->active)
-        drum_cut((uint32_t)(v - drums.v));          /* stolen voice: fade its last value */
-    v->note = (uint8_t)note;
-    v->vel = (uint8_t)vel;
-    v->active = 1;
-    v->s[7] = 0;
-    v->age = ++drums.age;
-    v->s[4] = zid;
-    v->ph[0] = v->ph[1] = 0;
-    v->s[0] = v->s[1] = v->s[2] = 0;
-    {
-        const smp_zone_t *z = drum_zone_of(v);
-        v->s[3] = sample_next(z, v, 0);
-        v->s[5] = (int32_t)((pow2_q16((int32_t)note * 16 - z->root16) >> 8) * (z->rate >> 8));
-    }
-    {
-        uint32_t vi = (uint32_t)(v - drums.v);
-        int32_t shift = kit == 1u ? (note <= 36u ? -5 : -2) : kit == 3u ? 2 : kit == 4u ? -1 : 0;
-        drums.kit[vi] = (uint8_t)kit;
-        drums.lane[vi] = (uint8_t)lane_of_note(note);
-        drums.synth[vi] = 0;
-        drums.filter[vi] = 0;
-        drums.env[vi] = 32767;
-        if (shift) v->s[5] = (int32_t)((pow2_q16((int32_t)note * 16 + shift * 16 - SMP_ZONES[zi].root16) >> 8) * (SMP_ZONES[zi].rate >> 8));
     }
 }
 
@@ -537,66 +462,6 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dl
             drum_cut(k);                            /* ended: no step at the end */
             v->s[7] = 0;
         }
-    }
-    for (k = 0; k < NDRUM; k++) {
-        voice_t *v = &drums.v[k];
-        const smp_zone_t *z;
-        if (drums.synth[k])
-            continue;
-        z = drum_zone_of(v);
-        uint32_t frac = v->ph[1], stepq = (uint32_t)v->s[5];   /* Q16 source samples per output (drum_on) */
-        int32_t g;
-        if (!v->active)
-            continue;
-        drum_voice_sends(k, mono != 0, &send, &dsend);
-        drums.gs[k][0] = send;                      /* (3.1.2: for drum_cut) */
-        drums.gs[k][1] = dsend;
-        g = mulq15(lvl, v->vel * 258);
-        g += g * 3 >> 2;                           /* x1.75 (+5 dB): as loud as the synthesised kits */
-        for (i = 0; i < n; i++) {
-            int32_t s;
-            frac += stepq;
-            while (frac >= 65536u) {
-                frac -= 65536u;
-                v->s[2] = v->s[3];
-                if (v->ph[0] >= z->n) {
-                    v->active = 0;
-                    break;
-                }
-                v->s[3] = sample_next(z, v, 0);
-            }
-            if (!v->active)
-                break;
-            s = v->s[2] + (((v->s[3] - v->s[2]) * (int32_t)(frac >> 1)) >> 15);
-            s = mulq15(s, mulq15(g, 32767 - drums.a0 - (((drums.a1 - drums.a0) * (int32_t)i) >> CTL_LOG2)));
-            if (drums.kit[k] == 1u || drums.kit[k] == 4u) {
-                drums.filter[k] += (s - drums.filter[k]) >> (drums.kit[k] == 1u ? 2 : 1);
-                s = drums.filter[k];
-                if (drums.kit[k] == 4u) s = (s >> 8) * 256;
-            } else if (drums.kit[k] == 2u) {
-                s = mulq15(s, drums.env[k]);
-                drums.env[k] -= (drums.env[k] >> 11) + 1;
-                if (drums.env[k] <= 0) v->active = 0;
-            }
-            v->s[7] = s;
-            if (s > pk || -s > pk)
-                pk = s < 0 ? -s : s;
-            if (mono) {
-                mono[i] += s;
-                if (send)
-                    rev[i] += mulq15(s, send);
-                if (dsend)
-                    dly[i] += mulq15(s, dsend);
-                continue;
-            }
-            ml[i] += (s * gl) >> 12;
-            mr[i] += (s * gr) >> 12;
-            if (send)
-                rev[i] += mulq15(s, send);
-            if (dsend)
-                dly[i] += mulq15(s, dsend);
-        }
-        v->ph[1] = frac;
     }
     drums.peak = pk;
     hx_pre_mask = 0;                                /* (3.1.3: used: the next block is CPU1's again, or rendered here) */

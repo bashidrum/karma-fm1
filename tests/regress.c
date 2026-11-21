@@ -365,10 +365,6 @@ static void job_cpu(const job_t *j)
         trk[p].p[P_VOICE] = V_POLY;
         trk[p].p[P_SUS] = 127;
         trk[p].p[P_AMODE] = 0;
-#if FELUCCA_SLICE
-        if (ENGINES[parts[p][0]] == &ENG_SLICE)
-            trk[p].p[P_E4] = SLC_LOOP;                  /* SLICE: its slices end by themselves; loop them */
-#endif
         for (i = 0; i < parts[p][2]; i++)
             trk_note_on(&trk[p], NOTES[i], 100);
     }

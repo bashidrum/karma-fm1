@@ -62,8 +62,6 @@ run "sequencer 2.0: no drift, ratchets, roll, erase / undo, ghost / hard, chords
 
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/drumkit_test" tests/drumkit_test.c $PLX -lm
 run "synthesised drum kits: every kit x sound bounded, audible, finite, levels, cost" "$OUT/drumkit_test" "$OUT/drum-kits.wav" "$OUT/drum-kits.txt"
-$CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o "$OUT/userkit_test" tests/userkit_test.c $PLX -lm
-run "user drum kits (KIT USR1..USR3): a user slot's sounds on the drum lanes" "$OUT/userkit_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/dsyn_test" tests/dsyn_test.c $PLX -lm
 run "SYN1..SYN4 drum kits and the editor's DRUM SYNTH commands (v10)" "$OUT/dsyn_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/font_test" tests/font_test.c
@@ -157,7 +155,6 @@ run "two cores (the 3.1.3 path, off in 3.1.4: KARMA_CPU1_HEX / FX=1): the HEX vo
 # (3.1.5) the effects in CPU0's wait for CPU1 (KARMA_FX_WAIT, a block behind): the same output with one core
 $CC -O2 -w -DKARMA_DUAL_CORE=1 -DKARMA_CPU1_HEX=1 -DKARMA_CPU1_FX=0 -DKARMA_FX_WAIT=1 -include tests/dualcore_host.h -Ibuild/gen -Ifirmware/src -o "$OUT/dualcore_wait" tests/dualcore_test.c $PLX -lm
 run "two cores, the effects in CPU0's wait (KARMA_FX_WAIT): the same output as one core" sh -c '"$0" 2 | grep -q "blocks with the HEX voices on CPU1 [1-9]" && [ "$("$0" 1 | cut -c1-16)" = "$("$0" 2 | cut -c1-16)" ]' "$OUT/dualcore_wait"
-# SLICE (tests/slice_test.c) needs a FELUCCA_SLICE=1 build; the engine is not built by default
 
 run "regression: target cost of the render loops" python3 tests/target_budget.py \
     build/felucca.dis tests/target_budget.txt

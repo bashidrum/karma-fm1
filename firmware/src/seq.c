@@ -181,19 +181,10 @@ static void lk_push(uint32_t layer, uint32_t k, uint32_t down)
 }
 
 /* ------------------------------------------------------------- keys --- */
-/* the keys of track t play through its scale (kb_pitch): not the drum track, not the GM kit, not SLICE (their own maps) */
+/* the keys of track t play through its scale (kb_pitch): not the drum track (its own map) */
 static int kb_scaled(const track_t *t)
 {
-    if (is_drum(t))
-        return 0;
-    if (ENGINES[t->eng_req % NENGINES] == &ENG_SAMPLE && drum_set() >= 0 &&   /* (the engine it switches to) */
-        (uint32_t)t->p[P_E0] % SMP_NSETS == (uint32_t)drum_set())
-        return 0;
-#if FELUCCA_SLICE
-    if (ENGINES[t->eng_req % NENGINES] == &ENG_SLICE)
-        return 0;
-#endif
-    return 1;
+    return !is_drum(t);
 }
 /* key k's note on a scaled track with the octave buttons at oct (KB_SILENT: none): QNT, ROOT, SCALE, TRN as they are
  * now. WHITE (and chord mode): the white keys walk the scale from C4 = the root, the black keys are silent; SNAP: every
@@ -241,13 +232,6 @@ static uint32_t kb_map(const track_t *t, uint32_t k)
 {
     if (is_drum(t))
         return LANE_NOTE[lane_of_key(k)];
-    if (ENGINES[t->eng_req % NENGINES] == &ENG_SAMPLE && drum_set() >= 0 &&   /* (the engine it switches to) */
-        (uint32_t)t->p[P_E0] % SMP_NSETS == (uint32_t)drum_set())   /* GM KIT: lowest key = kick (C2), no scale */
-        return (uint32_t)clamp(36 + 12 * song.octave + (int32_t)k, 0, 127);
-#if FELUCCA_SLICE
-    if (ENGINES[t->eng_req % NENGINES] == &ENG_SLICE)   /* SLICE: lowest key = slice 0 (C4 + ROOT), no scale */
-        return (uint32_t)clamp(SLC_BASE + t->p[P_ROOT] + 12 * song.octave + (int32_t)k, 0, 127);
-#endif
     return kb_pitch(t, k, song.octave);
 }
 
@@ -1034,7 +1018,7 @@ static int erasing(const track_t *t) { return trk_index(t) == er_trk && (er_lane
 /* ------------------------------------------------------------- arp --- */
 /* 2.6 (after Felucca 1.5, #191): where each track's held[i] came from, so the arp maps it again as it plays (arp_next:
  * TRN, ROOT, SCALE, QNT as they are now). held_key: the key + 1 (bits 0..4) and the octave buttons then + 3 (bits
- * 5..7); 0: not a key of the track's scale (MIDI IN, the drum track, the GM kit, SLICE), held[i] plays as it is.
+ * 5..7); 0: not a key of the track's scale (MIDI IN, the drum track), held[i] plays as it is.
  * held_dt: held[i] above the key's own note (a chord's other notes). in_key: the key (+ 1) whose notes go into
  * input_on now (key_down, chord_revoice), 0: none */
 static uint8_t held_key[NTRK][16];

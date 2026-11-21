@@ -32,7 +32,6 @@ static void song_setup(void)
     song.g[G_BPM] = BPM;
     song.master_q12 = 2048;
     memset(&drums, 0, sizeof drums);
-    drums.set = -2;
     TDRUM->p[P_E0] = DRUM_DEFAULT_KIT;
     for (j = 0; j < 16u; j++) {
         static const uint8_t KICK[1] = {36}, KS[2] = {36, 38}, HAT[1] = {42};

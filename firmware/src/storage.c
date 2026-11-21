@@ -17,7 +17,7 @@
 #define ST_PAYLOAD_MAX (ST_SECTOR - ST_PAYLOAD_OFF)
 
 /* flash map (FL_DATA 0x97000..0xDFFFF, FL_GLOB 0xFC000..): settings 0xFC000 / 0xFD000, projects
- * 0x97000..0x9EFFF, user sample slots 0xA0000..0xDBFFF (eng_sample.c), user preset banks 0xDC000..0xDFFFF
+ * 0x97000..0x9EFFF, 0xA0000..0xDBFFF free (KARMA's user sample slots, cut in PHEBUS wave 1), user preset banks 0xDC000..0xDFFFF
  * (upreset.c); the working project (autosave, project.c): copy A 0x9F000, copy B 0xFE000 (the two sectors
  * left: A/B needs no two neighbours); the FM6 patch bank (fm6_bank.c, SLOOP 2.4): 0xE5000 / 0xE6000, the first
  * two sectors of the free 0xE5000..0xFBFFF after the update staging (FL_FM6, fm1_flash.h) */

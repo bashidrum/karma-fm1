@@ -26,7 +26,6 @@ static void block(void)
 static void reset(uint32_t kit)
 {
     memset(&drums, 0, sizeof drums);
-    drums.set = -2;
     TDRUM->p[P_E0] = (int16_t)kit;
     song.g[G_DRLVL] = 100;
     song.g[G_DRREV] = song.g[G_DRDLY] = 0;

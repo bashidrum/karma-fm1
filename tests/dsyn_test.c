@@ -104,9 +104,9 @@ int main(void)
     host_tracks_init();
     song.g[G_DRREV] = 0;
     song.g[G_BPM] = 120;
-    check(DRUM_SYN == DRUM_PAIR + 1u && DRUM_KITS == DRUM_SYN + 4u && !strcmp(DRUM_KIT_NAMES[DRUM_SYN], "SYN1") &&
+    check(DRUM_SYN == DRUM_USR + 5u && DRUM_KITS == DRUM_SYN + 4u && !strcmp(DRUM_KIT_NAMES[DRUM_SYN], "SYN1") &&
           !strcmp(DRUM_KIT_NAMES[DRUM_KITS - 1u], "SYN4") && !strcmp(DRUM_KIT_STYLES[DRUM_SYN], "YOUR SYNTH"),
-          "the kit list ends with SYN1..SYN4, after USR3+4 (older projects keep their kit)");
+          "the kit list ends with SYN1..SYN4, after the five numbers of the cut user kits (older projects keep their kit)");
     (void)dsu_kit(0);
     ok = 1;
     for (k = 0; k < DSU_N; k++)

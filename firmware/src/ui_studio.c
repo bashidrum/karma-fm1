@@ -687,7 +687,7 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
             ui.force = 1;
         }
     }
-    if ((s = panel_enc(EN_PRESET))) TDRUM->p[P_E0] = (int16_t)clamp(TDRUM->p[P_E0] + s, 0, DRUM_KITS - 1);
+    if ((s = panel_enc(EN_PRESET))) TDRUM->p[P_E0] = drum_kit_step(TDRUM->p[P_E0], s);
     if (drum_page)                                      /* KIT: a key played picks its sound (KNOB 3, 4: its sends) */
         for (k = 0; k < 27u; k++)
             if ((fm1_in.notes >> k) & 1u) {
@@ -728,7 +728,7 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
                 if (l != drum_lane) audition_lane(l);
                 drum_lane = l;
             }
-            if (k == 1) TDRUM->p[P_E0] = (int16_t)clamp(TDRUM->p[P_E0] + s, 0, DRUM_KITS - 1);
+            if (k == 1) TDRUM->p[P_E0] = drum_kit_step(TDRUM->p[P_E0], s);
             if (k == 2) drum_send[drum_lane][0] = (uint8_t)clamp(drum_send[drum_lane][0] + s, 0, DRUM_SEND_REV);
             if (k == 3) drum_send[drum_lane][1] = (uint8_t)clamp(drum_send[drum_lane][1] + s, 0, DRUM_SEND_DLY);
         }

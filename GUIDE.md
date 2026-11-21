@@ -46,7 +46,7 @@ The FM-1 has these controls: the buttons PLAY, REC, SAVE, HOME, ENV, LFO, FX, SE
 15. [Settings and menus](#15-settings-and-menus)
 16. [MIDI and USB](#16-midi-and-usb)
 17. [The engines and the sound list](#17-the-engines-and-the-sound-list)
-18. [Samples, kits and the web editor](#18-samples-kits-and-the-web-editor)
+18. [Kits and the web editor](#18-kits-and-the-web-editor)
 19. [Every button gesture, screen by screen](#19-every-button-gesture-screen-by-screen)
 20. [Troubleshooting and recovery](#20-troubleshooting-and-recovery)
 21. [Credits](#21-credits)
@@ -317,7 +317,7 @@ Tap **SEQ** on the drum GRID for the KIT page, and again to go back to the GRID.
 
 ### Kits
 
-The kit list is: five HEX kits (HEX BOOM, HEX ACID, HEX METAL, HEX GLITCH, HEX ROOM), then 32 synthesised kits (808, 909, **606** (the power-on kit), 80S, VINTAGE, TRAP, DRILL, BOOMBAP, LO-FI, PHONK, HOUSE, D.HOUSE, TECHNO, MINIMAL, ELECTRO, DISCO, GARAGE, JUNGLE, DUBSTEP, DEMBOW, AMAPIANO, AFRO, LATIN, TRIBAL, SYNTHWV, CHIP, ARCADE, GLITCH, INDUSTR, HYPER, AMBIENT, JAZZ), then your sample kits USR1 to USR4 and USR3+4, then MY HEX 1 to 4.
+The kit list is: five HEX kits (HEX BOOM, HEX ACID, HEX METAL, HEX GLITCH, HEX ROOM), then 32 synthesised kits (808, 909, **606** (the power-on kit), 80S, VINTAGE, TRAP, DRILL, BOOMBAP, LO-FI, PHONK, HOUSE, D.HOUSE, TECHNO, MINIMAL, ELECTRO, DISCO, GARAGE, JUNGLE, DUBSTEP, DEMBOW, AMAPIANO, AFRO, LATIN, TRIBAL, SYNTHWV, CHIP, ARCADE, GLITCH, INDUSTR, HYPER, AMBIENT, JAZZ), then MY HEX 1 to 4. A project saved on one of KARMA's user sample kits (USR1 to USR4, USR3+4, no longer in PHEBUS) plays the 606.
 
 ### Drum sounds and mutes
 
@@ -733,17 +733,16 @@ Where they come from: ACID is Charles Vestal's TB-303 voice from X0X (after Open
 
 ---
 
-## 18. Samples, kits and the web editor
+## 18. Kits and the web editor
 
 *This section is carried over from KARMA and was not re-checked against PHEBUS's colours or the editor's current pages in this pass.*
 
-- The FM-1 has four sample slots, **USR1 to USR4**, of about 7.4 seconds each (22 kHz mono). A slot holds a drum kit: choose **USR1 to USR4**, or **USR3+4** (one kit of about 15 seconds over two slots) as the drum voice's kit. The synth voices do not play samples. You fill the slots from the web editor.
 - **MY HEX 1 to 4** are the last four kits. A copy of a HEX kit is made the first time you turn a knob on a built-in HEX kit.
-- The **web editor** (Chrome or Edge, FM-1 on USB, press Connect) follows the device live and edits sounds, sequences, songs, samples, drum kits and settings. It also makes **backups** (Projects > Backup).
+- The **web editor** (Chrome or Edge, FM-1 on USB, press Connect) follows the device live and edits sounds, sequences, songs, drum kits and settings. It also makes **backups** (Projects > Backup).
 - Try the editor without hardware by adding `?mock=1` to its address. Its protocol is in [web/EDITOR_PROTOCOL.md](web/EDITOR_PROTOCOL.md).
 - The browser simulator and its cheat sheet are in `web/emu/`.
 
-A backup holds the music you are working on, the four projects, the 32 user presets, the MY HEX kits, the samples and the settings. Save a backup before you flash anything.
+A backup holds the music you are working on, the four projects, the 32 user presets, the MY HEX kits and the settings. Save a backup before you flash anything.
 
 ---
 

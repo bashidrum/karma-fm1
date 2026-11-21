@@ -22,7 +22,6 @@ static inline int32_t soft_knee(int32_t y, int32_t k)   /* linear up to k, then 
 /* SLOOP for the FM-1 OS (2026-10-19, Ariel's call): the bass track plays ACID or JUNO, track 2 ELEMENTS, track 3
  * PLAITS; the other engines are gone. Their numbers stay (projects, user presets and the editor keep them) and
  * hold ENG_GONE, which no track can choose (eng_allowed) */
-#include "eng_sample.c"         /* (the sample store: the drum track's user kits use it; SAMPLE itself is gone) */
 #include "eng_phys.c"           /* PHYS's bank and models, for ELEMENTS (from Felucca 1.0: DaisySP, Rings: MIT) */
 #include "eng_elem.c"           /* ELEMENTS: Elements' exciters (Emilie Gillet, MIT) on PHYS's bank */
 #include "eng_acid.c"           /* ACID: X0X's TB-303 (Charles Vestal, GPL-3.0; Open303, MIT) */
@@ -91,17 +90,11 @@ static void *eng_arena_of(const track_t *t, uint32_t eng)
                   : eng == ENGI_PRISM ? sizeof(prism_slot_t) : PHYS_ARENA;
     return eng_arena_need(t, eng, need);
 }
-#if FELUCCA_SLICE
-#include "eng_slice.c"
-#endif
 
 static const engine_t *const ENGINES[NENGINES] = {&ENG_GONE, &ENG_GONE, &ENG_GONE, &ENG_GONE, &ENG_GONE,
                                                     &ENG_GONE, &ENG_GONE, &ENG_GONE, &ENG_GONE,
                                                     &ENG_GONE,   /* 9: FM6 was here */
                                                     &ENG_GONE, &ENG_GONE,   /* PHYS, NOISE were here */
-#if FELUCCA_SLICE
-                                                    &ENG_SLICE,
-#endif
                                                     &ENG_PRISM, &ENG_ELEM, &ENG_ACID, &ENG_JUNO,
 };
 /* the engines each synth track may play (the drum track: none). PRESETS lists only theirs */

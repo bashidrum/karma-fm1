@@ -24,8 +24,8 @@ int main(int argc,char **argv)
     for(i=0;i<DRUM_LANES;i++)assert(lane_of_note(LANE_NOTE[i])==i);
     /* Render the same hits through all five kits; each must be distinct,
      * finite and silent after its one-shots have finished. */
-    for(i=0;i<DRUM_USR;i++)   /* (the built-in kits: USR1..3 are the user slots) */ {
-        memset(&drums,0,sizeof drums);drums.set=-2;
+    for(i=0;i<DRUM_USR;i++)   /* (the built-in kits: HEX and synthesised) */ {
+        memset(&drums,0,sizeof drums);
         TDRUM->p[P_E0]=(int16_t)i;
         drum_on(36,110);drum_on(38,100);drum_on(46,80);
         for(j=0;j<FS*2u/CTL;j++) {
@@ -37,11 +37,17 @@ int main(int argc,char **argv)
         for(k=0;k<NDRUM;k++)assert(!drums.v[k].active);
         for(k=0;k<i;k++)assert(energy[k]!=energy[i]);
     }
+    /* (PHEBUS wave 1) the user sample kits are cut: their five numbers are no kit. A project on one plays the power-on
+     * kit; PRESETS / KIT step over them (MY HEX 1 comes straight after the last synthesised kit) */
+    for(i=DRUM_USR;i<DRUM_SYN;i++){TDRUM->p[P_E0]=(int16_t)i;assert(drum_kit()==DRUM_DEFAULT_KIT);}
+    assert(drum_kit_step(DRUM_USR-1,1)==(int16_t)DRUM_SYN && drum_kit_step(DRUM_SYN,-1)==(int16_t)(DRUM_USR-1));
+    assert(drum_kit_step(DRUM_KITS-1,5)==(int16_t)(DRUM_KITS-1) && drum_kit_step(0,-3)==0 && drum_kit_step(3,2)==5);
+    TDRUM->p[P_E0]=(int16_t)DRUM_DEFAULT_KIT;
     /* LIVE metronome (seq.c click_tick): 120 BPM, 2 s = 4 beats; REC mode clicks only while a
      * track records, ON always while playing, OFF never; the first beat of the bar is louder */
     for(v=0;v<4;v++) {
         uint32_t hits=0,loud=0,age0;
-        host_tracks_init();memset(&drums,0,sizeof drums);drums.set=-2;
+        host_tracks_init();memset(&drums,0,sizeof drums);
         song.g[G_BPM]=120;song.g[G_CLOCK]=v==3?0:v==2?2:1;song.rec=v==0?1u:0u;rec_wait=0;   /* OFF / ON / REC */
         transport_req=1;age0=drums.age;
         for(j=0;j<(FS*2u-FS/4u)/CTL;j++) {               /* up to just before beat 4 */

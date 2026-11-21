@@ -14,21 +14,17 @@
 enum { V_POLY, V_MONO, V_LEGATO, V_UNISON };   /* P_VOICE */
 #define NSTEP 64
 #define HALF_FRAMES 256          /* I2S half buffer: 5.8 ms at 44.1 kHz */
-#ifndef FELUCCA_SLICE
-#define FELUCCA_SLICE 0          /* the SLICE engine (eng_slice.c): kept in the tree, not built by default */
-#endif
-/* SLOOP 2.4: FM6 (eng_fm6.c) is engine 9 in every build; SLICE, when built, comes last (10). Projects and user
- * presets store the engine index as a byte, and no shipped SLOOP was built with SLICE, so its number is stored
- * nowhere: FM6 may take 9 and SLICE moves up (engines.c ENGINES[], params.c N_ENGNAME follow this order) */
-#define NENGINES (16 + FELUCCA_SLICE)
+/* SLOOP 2.4: FM6 (eng_fm6.c) is engine 9 in every build. Projects and user presets store the engine index as a byte
+ * (engines.c ENGINES[], params.c N_ENGNAME follow this order). (The SLICE engine, never built by default, went with the
+ * user sample slots it played: PHEBUS wave 1) */
+#define NENGINES 16
 #define ENGI_GRAIN 8u            /* GRAIN, PHYS, NOISE (SLOOP 2.5, appended after FM6: the stores keep the numbers) */
 #define ENGI_PHYS 10u
 #define ENGI_NOISE 11u
-#define ENGI_SLICE 12u           /* with FELUCCA_SLICE: after NOISE */
-#define ENGI_PRISM (12u + FELUCCA_SLICE)   /* PRISM (Plaits' models), appended after them all */
-#define ENGI_ELEM (13u + FELUCCA_SLICE)    /* ELEMENTS (Elements' exciters on PHYS's bank: eng_elem.c) */
-#define ENGI_ACID (14u + FELUCCA_SLICE)    /* ACID (X0X's TB-303: eng_acid.c) */
-#define ENGI_JUNO (15u + FELUCCA_SLICE)    /* JUNO (FM-106's Juno-106 voice: eng_juno.c) */
+#define ENGI_PRISM 12u           /* PRISM (Plaits' models), appended after them all */
+#define ENGI_ELEM 13u            /* ELEMENTS (Elements' exciters on PHYS's bank: eng_elem.c) */
+#define ENGI_ACID 14u            /* ACID (X0X's TB-303: eng_acid.c) */
+#define ENGI_JUNO 15u            /* JUNO (FM-106's Juno-106 voice: eng_juno.c) */
 #define ENGI_FM6 9u              /* the FM6 engine's index (eng_fm6.c, the stores: append-only) */
 #define UP_SLOTS 32u             /* user presets (upreset.c) */
 #define NELEM(a) (sizeof(a) / sizeof((a)[0]))

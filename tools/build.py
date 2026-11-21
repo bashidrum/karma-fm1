@@ -95,13 +95,12 @@ def tc_all(*cmds):
 
 
 def generate():
-    """generated headers (fonts, icons, tables, samples)"""
+    """generated headers (fonts, icons, tables, drum kits, logo, words)"""
     GEN.mkdir(parents=True, exist_ok=True)
     tools = SRC / "tools"
     cmds = [[tools / "gen_font.py", GEN / "felucca_font.h"],
             [tools / "gen_icons.py", GEN / "felucca_icons.h"],
             [tools / "gen_tables.py", GEN / "felucca_tables.h"],
-            [tools / "gen_samples.py", GEN / "felucca_samples.h"],
             [tools / "gen_drumkits.py", GEN / "felucca_drumkits.h"],
             [tools / "gen_logo.py", GEN / "sloop_logo.h"],
             [tools / "gen_words.py", SRC / "firmware" / "words.tsv", SRC / "web" / "words", GEN / "ann_words.h"]]   # screen reader
