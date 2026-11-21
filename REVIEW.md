@@ -32,7 +32,7 @@
 | 21 | Words | Fix all |
 | 22 | Docs and site | Rewrite guide and cheat sheet, remove the analytics counter. Power-on kit: 606 |
 
-Status, 21 Nov 10:00: built, merged and live in the simulator: 1, 2, 3, 4, 5, 6, 7, 11, 12 (test repaired), 13, 20, the 606 kit and the analytics removal. Part built, waiting on a choice from Ben: 9 (one-knob pages) and 10 (how to insert and delete). Being built: 14, 15, 16, 18, 19, 21. Still to do: 8, then the guide and cheat sheet.
+Status, 21 Nov 10:00: built, merged and live in the simulator: 1, 2, 3, 4, 5, 6, 7, 11, 12 (test repaired), 13, 20, the 606 kit and the analytics removal. Chosen by Ben and queued for the next wave: 9 (keep the one-knob pages, show page names in the strip), 10 (hold an entry's key, then OCT+ inserts and OCT- deletes), and removing the step keys from held SEQ. THIRD EYE stays. Being built: 14, 15, 16, 18, 19, 21. Still to do: 8, then the guide and cheat sheet.
 
 ---
 
