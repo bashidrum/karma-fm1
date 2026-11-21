@@ -130,22 +130,24 @@ static uint32_t px_count(uint32_t x0, uint32_t y0, uint32_t w, uint32_t h, uint1
 { uint32_t x, y, n = 0; for (y = y0; y < y0 + h; y++) for (x = x0; x < x0 + w; x++) n += swap16(screen[y * 240u + x]) == c; return n; }   /* the layer's sub line as last drawn (ui_layers.c) */
 
 /* PHEBUS (Ben, 21 Nov 2026: "just a plain sawtooth is fine for the bass, chords, and lead"; "Keep presets, plain start";
- * "JUNO on track 2"): the default sounds. Track 1 JUNO mono, an octave down; track 2 JUNO polyphonic; track 3 PLAITS VA
+ * "JUNO on track 2"; picker "ACID for bass"): the default sounds. Track 1 ACID INIT mono, an octave down (a saw through
+ * the 303's filter, part open, a moderate envelope: AC below); track 2 JUNO polyphonic; track 3 PLAITS VA
  * mono; each a plain saw (JUNO: SAW, PW 0, SUB 0, NOISE 0, CUT 127, RES 0, ENV 0, CHORUS OFF; VA: MODEL 5, HARM 64,
  * TIMB 0, MRPH 64, ENV 0, SUB 0), the INIT preset, no send, no LFO routing, no glide, no insert, full sustain */
 static int plain_defaults(void)
 {
-    static const int8_t JU[8] = {0, 0, 0, 0, 127, 0, 0, 0}, VA[8] = {5, 64, 0, 64, 0, 0, 0, 0};
+    static const int8_t JU[8] = {0, 0, 0, 0, 127, 0, 0, 0}, VA[8] = {5, 64, 0, 64, 0, 0, 0, 0}, AC[8] = {0, 45, 45, 55, 55, 0, 0, 21};
     uint32_t i, k;
-    int ok = trk[0].eng_req == ENGI_JUNO && trk[1].eng_req == ENGI_JUNO && trk[2].eng_req == ENGI_PRISM &&
-             !strcmp(ENGINES[ENGI_JUNO]->presets[trk[0].preset].name, "INIT") && trk[1].preset == trk[0].preset &&
+    int ok = trk[0].eng_req == ENGI_ACID && trk[1].eng_req == ENGI_JUNO && trk[2].eng_req == ENGI_PRISM &&
+             !strcmp(ENGINES[ENGI_ACID]->presets[trk[0].preset].name, "INIT") && trk[0].preset == ACID_INIT &&
+             !strcmp(ENGINES[ENGI_JUNO]->presets[trk[1].preset].name, "INIT") &&
              !strcmp(ENGINES[ENGI_PRISM]->presets[trk[2].preset].name, "INIT") &&
              trk[0].p[P_VOICE] != V_POLY && trk[1].p[P_VOICE] == V_POLY && trk[2].p[P_VOICE] != V_POLY &&
              trk[0].p[P_TRANS] == -12 && trk[1].p[P_TRANS] == 0 && trk[2].p[P_TRANS] == 0;
     for (i = 0; i < NPART; i++) {
         const track_t *t = &trk[i];
         for (k = 0; k < 8u; k++)
-            ok &= t->p[P_E0 + k] == (i < 2u ? JU[k] : VA[k]);
+            ok &= t->p[P_E0 + k] == (i == 0u ? AC[k] : i == 1u ? JU[k] : VA[k]);
         ok &= !t->p[P_DIST] && !t->p[P_CHOR] && !t->p[P_DLY] && !t->p[P_REV] && !t->p[P_ITYPE] && !t->p[P_GLIDE] &&
               !t->p[P_LD_PIT] && !t->p[P_LD_FLT] && !t->p[P_LD_SHP] && !t->p[P_LD_AMP] && !t->p[P_ED_FLT] &&
               !t->p[P_ED_PIT] && !t->p[P_ED_SHP] && t->p[P_SUS] == 127 && t->p[P_ATK] <= 10 && t->p[P_REL] <= 20 &&
@@ -227,7 +229,11 @@ int main(int argc, char **argv)
               !song.g[G_DRDLY] && !song.g[G_CLSEND] && !song.g[G_CLFRZ] && !song.g[G_SWING] && !song.g[G_DUST] &&
               !song.g[G_DUCK] && !song.g[G_FILT] && !song.g[G_TXSRC];
         check(ok, "power-on: every send 0 (tracks, drum sounds, CLOUD), no DIST / INSERT, no swing, master FX off");
-        check(plain_defaults(), "power-on: plain saws: JUNO bass (mono, -12), JUNO chords (poly), PLAITS VA lead (mono)");
+        check(plain_defaults(), "power-on: plain saws: ACID INIT bass (mono, -12), JUNO chords (poly), PLAITS VA lead (mono)");
+        check(ACID_INIT == NELEM(ACID_PRESETS) - 1u && ACID_INIT == 6u && !strcmp(ACID_PRESETS[ACID_INIT].name, "INIT") &&
+              ACID_PRESETS[ACID_INIT].e[0] == 0 && !ACID_PRESETS[ACID_INIT].e[5] && !ACID_PRESETS[ACID_INIT].e[6] &&
+              ACID_PRESETS[ACID_INIT].mono && preset_trim(ENGI_ACID, ACID_INIT) == 18 && preset_trim(ENGI_ACID, 0) == 23,
+              "ACID INIT: appended last (the others keep their numbers and trims), SAW, no ACC, no DRIVE, mono, level-trimmed");
     }
     sloop_splash(); ppm("page-splash");
     { static const uint32_t SEED[6] = {0u, 0x1231u, 0x2462u, 0x7733u, 0x51A4u, 0x9C55u}; uint32_t k;   /* the boot: FLOW, PHEBUS black in it */
@@ -2338,7 +2344,7 @@ int main(int argc, char **argv)
               !song.g[G_DRDLY] && !song.g[G_CLSEND] && !song.g[G_CLFRZ] && !song.g[G_SWING] && !song.g[G_DUST] &&
               !song.g[G_DUCK] && !song.g[G_FILT] && !song.g[G_TXSRC];
         check(ok, "TOOLS > NEW: the default sounds dry, every send 0, no swing, master FX off");
-        check(plain_defaults(), "TOOLS > NEW: the plain saws again (JUNO bass, JUNO chords, PLAITS VA lead)");
+        check(plain_defaults(), "TOOLS > NEW: the plain saws again (ACID INIT bass, JUNO chords, PLAITS VA lead)");
         check(!stl.on[0] && stl.len == 16u && stl.act, "TOOLS > NEW: the STUTTER lane empty, 16 steps, ON");
     }
     printf("ui: %s\n", fails ? "FAILED" : "pages, layers (punch, steps, erase, roll, key, mix), layer lock, song layer, REC hold, drums, REC, 20000-frame fuzz PASS");

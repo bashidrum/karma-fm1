@@ -472,8 +472,9 @@ static void go_home(void)
  * writes the sequencer: every pattern is the one the player records or enters. */
 
 /* the parts' sounds at power-on (engine, preset): bass, pad, lead */
-static const uint8_t TRK_DEF[NPART][2] = {{ENGI_JUNO, JUNO_INIT}, {ENGI_JUNO, JUNO_INIT}, {ENGI_PRISM, PRISM_INIT}};   /* (PHEBUS)
-                                                                 * JUNO INIT, JUNO INIT, PLAITS INIT: plain saws */
+static const uint8_t TRK_DEF[NPART][2] = {{ENGI_ACID, ACID_INIT}, {ENGI_JUNO, JUNO_INIT}, {ENGI_PRISM, PRISM_INIT}};   /* (PHEBUS)
+                                                                 * ACID INIT (Ben, 21 Nov 2026, picker "ACID for bass"), JUNO
+                                                                 * INIT, PLAITS INIT: plain saws */
 static uint32_t trk_def_engine(uint32_t i) { return i < NPART ? TRK_DEF[i][0] : 0u; }
 
 static int seq_is_empty(const track_t *t) { return track_empty(t); }
@@ -590,7 +591,7 @@ enum { BK_BASS, BK_KEYS, BK_ORGAN, BK_PAD, BK_LEAD, BK_PLUCK, BK_STAB, BK_FX, BK
 static const char *const BANK_KIND[] = {"BASS", "KEYS", "ORGN", "PAD", "LEAD", "PLCK", "STAB", "FX", "INIT"};
 static const struct { uint8_t kind, e; const char *name; } BANK[] = {   /* the PRESETS list: each track sees its engines' */
     /* ACID (track 1) */
-    {BK_BASS, ENGI_ACID, "TB ACID"}, {BK_BASS, ENGI_ACID, "TB SQUARE"}, {BK_BASS, ENGI_ACID, "TB DIRTY"},
+    {BK_INIT, ENGI_ACID, "INIT"}, {BK_BASS, ENGI_ACID, "TB ACID"}, {BK_BASS, ENGI_ACID, "TB SQUARE"}, {BK_BASS, ENGI_ACID, "TB DIRTY"},
     {BK_BASS, ENGI_ACID, "TB DEEP"}, {BK_BASS, ENGI_ACID, "TB SQUELCH"}, {BK_BASS, ENGI_ACID, "TB RUBBER"},
     /* JUNO (tracks 1 and 2) */
     {BK_INIT, ENGI_JUNO, "INIT"}, {BK_BASS, ENGI_JUNO, "JUNO BASS"}, {BK_BASS, ENGI_JUNO, "SUB 106"}, {BK_KEYS, ENGI_JUNO, "JUNO KEYS"},

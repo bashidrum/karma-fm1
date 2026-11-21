@@ -128,7 +128,7 @@ A new project (and a power-on with nothing saved) starts with plain sounds and *
 
 | Voice | Starts as |
 | --- | --- |
-| 1 | JUNO INIT, a plain sawtooth, one note at a time (mono, legato), an octave down. Good for bass |
+| 1 | ACID INIT: a plain sawtooth through the 303-style filter, the filter part open with a little resonance and a short envelope sweep so each note speaks. No accent, slide or drive. One note at a time, an octave down. Good for bass |
 | 2 | JUNO INIT, a plain sawtooth, polyphonic. Good for chords |
 | 3 | PLAITS INIT, a plain sawtooth (the VA model), one note at a time, about 6 dB quieter. Good for lead |
 | Drums | the 606 kit |
@@ -140,7 +140,7 @@ To make a first sound:
 1. Press **PLAY**. The beat lights run.
 2. Play the keys. On a synth voice, the white and black keys are notes. On the drum voice, the keys are 16 drum sounds.
 3. Turn **ALGORITHM** to pick a voice: 1, 2, 3 or DRUM.
-4. Turn **PRESETS** to browse that voice's sounds. At the end of the JUNO and PLAITS lists there is an **INIT** sound: the plain sawtooth again.
+4. Turn **PRESETS** to browse that voice's sounds. The ACID, JUNO and PLAITS sounds each have an **INIT** sound: the plain starting point again.
 5. Tap **EDIT** to open the sound's first page, and turn the knobs.
 6. Tap **OCT-** or **OCT+** to change the octave of a synth voice, from -3 to +3. Press both together to go back to 0.
 
@@ -774,7 +774,7 @@ OSC page knobs:
 | ELEMENTS | MODEL, STRC, BRIT, DAMP | POS, ACC, BOW, EXC |
 | PLAITS | MODEL, HARM, TIMB, MRPH | ENV, SUB |
 
-The factory sounds are listed by kind in PRESETS. Voice 1 offers the ACID and JUNO sounds, voice 2 the JUNO and ELEMENTS sounds, voice 3 the PLAITS sounds. Each list also has your user presets after the factory ones. A few examples: ACID has TB ACID, TB SQUARE, TB DIRTY, TB DEEP, TB SQUELCH and TB RUBBER. JUNO has JUNO BASS, SUB 106, JUNO KEYS, JUNO ORGAN, JUNO STRING, JUNO PAD, JUNO SWEEP, JUNO LEAD, JUNO HOOVER, JUNO BRASS and JUNO STAB. The INIT sounds are listed at the start of the JUNO and PLAITS sounds.
+The factory sounds are listed by kind in PRESETS. Voice 1 offers the ACID and JUNO sounds, voice 2 the JUNO and ELEMENTS sounds, voice 3 the PLAITS sounds. Each list also has your user presets after the factory ones. A few examples: ACID has TB ACID, TB SQUARE, TB DIRTY, TB DEEP, TB SQUELCH and TB RUBBER. JUNO has JUNO BASS, SUB 106, JUNO KEYS, JUNO ORGAN, JUNO STRING, JUNO PAD, JUNO SWEEP, JUNO LEAD, JUNO HOOVER, JUNO BRASS and JUNO STAB. The INIT sounds are listed at the start of the ACID, JUNO and PLAITS sounds. ACID INIT (the power-on bass) is a plain saw with the filter part open, RES 45 %, ENVMOD 55 % and DECAY 55 %.
 
 Engine details carried over from KARMA: ELEMENTS models are BOUNC, PICK, BOW, BLOW and OMIN (the Ominous Voice, one note at a time). PLAITS has FOLD, SWARM, WAVE, HARM, CHORD, VA, VCF, PHDIS, FM, 6OP A, B and C, GRAIN, TERRN, STRMC, CHIP, STRNG, MODAL, NOISE, SPECH, PARTC, KICK, SNARE and HIHAT. The heavy models (6OP, STRMC, STRNG, SPECH, PARTC) play one note at a time.
 
