@@ -543,6 +543,16 @@ static void pads_tick(void)                             /* once a frame: the hit
         for (i = 0; i < NTRK; i++)
             if (op_strike[i])
                 op_strike[i]--;
+        {   /* the sequencer's ACC steps (seq.c seq_acc): UNISON, a legato ACC + SLIDE too */
+            uint32_t a;
+            fm1_irq_off();
+            a = seq_acc;
+            seq_acc = 0;
+            fm1_irq_on();
+            for (i = 0; i < NPART; i++)
+                if ((a >> i) & 1u)
+                    op_strike[i] = OP_STRIKE_FR;
+        }
         for (i = 0; i < NPART; i++)
             for (j = 0; j < NVOICE; j++) {
                 const voice_t *v = &trk[i].v[j];

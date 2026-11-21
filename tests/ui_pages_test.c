@@ -892,6 +892,49 @@ int main(int argc, char **argv)
         memcpy(trk, keep, sizeof keep); sync_reload = 1;
         song.sel = TRK_DRUM;
     }
+    {   /* REVIEW 13: the STRIKE pose on the sequencer's ACC steps: UNISON (velocity scaled under the threshold) and a
+         * legato ACC + SLIDE (no new voice) too */
+        track_t *t = &trk[0];
+        static track_t keep[NTRK];
+        uint32_t j, hit_uni = 0, hit_leg = 0, hit_plain = 0, ti = 0;
+        memcpy(keep, trk, sizeof keep);
+        for (j = 0; j < NPART; j++) {                     /* (a track whose UNISON stacks voices: their velocity scaled) */
+            int16_t v0 = trk[j].p[P_VOICE];
+            trk[j].p[P_VOICE] = V_UNISON;
+            if (trk_nvoice(&trk[j]) > 1u) { ti = j; trk[j].p[P_VOICE] = v0; break; }
+            trk[j].p[P_VOICE] = v0;
+        }
+        t = &trk[ti];
+        song.sel = (uint8_t)ti; go_home(); frames(4);
+        steps_clear(t); t->p[P_SLEN] = 16;
+        for (j = 0; j < 16u; j += 4u) {
+            memset(&t->step[j], 0, sizeof(step_t));
+            t->step[j].n = 1; t->step[j].note[0] = 48; t->step[j].time = ST_NOTE; t->step[j].vel = 80;
+        }
+        t->p[P_VOICE] = V_UNISON;
+        frames(4);
+        transport_req = 1;
+        for (j = 0; j < 140u; j++) { frame(); hit_plain |= op_strike[ti] != 0; }
+        transport_req = 2; frames(16);
+        t->step[4].flags = SF_ACCENT;
+        transport_req = 1;
+        for (j = 0; j < 140u; j++) { frame(); hit_uni |= op_strike[ti] != 0; }
+        transport_req = 2; frames(16);
+        t->p[P_VOICE] = V_LEGATO;
+        t->step[4].flags = SF_SLIDE;                      /* step 5 slides into an ACC step 6 */
+        memset(&t->step[5], 0, sizeof(step_t));
+        t->step[5].n = 1; t->step[5].note[0] = 55; t->step[5].time = ST_NOTE; t->step[5].vel = 80; t->step[5].flags = SF_ACCENT | SF_SLIDE;
+        for (j = 0; j < 16u; j += 4u) t->step[j].vel = 80;
+        transport_req = 1;
+        for (j = 0; j < 140u; j++) { frame(); hit_leg |= op_strike[ti] != 0; }
+        transport_req = 2; frames(16);
+        check(!hit_plain, "STRIKE: no ACC step, soft notes: no pose");
+        check(hit_uni, "STRIKE: UNISON, an ACC step: the pose (from the sequencer's accent)");
+        check(hit_leg, "STRIKE: LEGATO, a slide into an ACC + SLIDE step: the pose");
+        go_home(); frames(4);
+        memcpy(trk, keep, sizeof keep); sync_reload = 1;
+        song.sel = TRK_DRUM;
+    }
     {   /* the free take screens */
         static track_t keep[NTRK];
         memcpy(keep, trk, sizeof keep);
