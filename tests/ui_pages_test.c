@@ -1518,6 +1518,10 @@ int main(int argc, char **argv)
             check(stl_shown() && song.sel == TRK_DRUM && grid_keys_on() && kb_grid,
                   "STUTTER: ALGORITHM right of DRUM on the GRID: the lane, the keys its steps");
             ui.force = 1; frame(); ppm("grid-stutter-empty");
+            check(px_count(0, OP_BAR_Y + 24, 240, 3, TE_COL[3]) == 0 && px_count(0, OP_BAR_Y + 24, 240, 3, TE_COL[0]) == 0,
+                  "STUTTER: the track strip underlines no track (the lane is not DR)");
+            check(px_count(2, 1, 46, 18, TE_G4) > 40u && px_count(48, 0, 4, 20, TE_G4) == 0,
+                  "STUTTER: its header tag drawn in the box (STUT, not SYN)");
             key(kw12);
             check(stl_lit(12) && stl_code(12) == 1u, "STUTTER: tap step 13: lit, 1/8 (the length for new steps)");
             check(!dstep_mask(&TDRUM->dstep[12]), "STUTTER: ... and no drum hit set");

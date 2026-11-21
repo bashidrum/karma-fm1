@@ -172,7 +172,7 @@ static void stl_draw(void)
     fmt_int(t, (int32_t)stl_pg + 1);
     str_cpy(t + str_len(t), "/", 2);
     fmt_int(t + str_len(t), (int32_t)stl_pages());
-    op_header("STUTTER", TE_G4, t, &head);
+    op_header("STUT", TE_G4, t, &head);       /* (the tag box holds five letters: STUT, not SYN) */
     sig = studio_hash(stl.len * 7u + stl.act * 131u + stl_pg * 977u + stl_held * 3u + stl_new * 7919u +
                       (song.playing ? stl_pos + 1u : 0u) * 71u, "");
     for (j = 0; j < 24u; j++)

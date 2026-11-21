@@ -159,7 +159,7 @@ static void op_badge(int32_t x, int32_t y, char ch, uint16_t bg)   /* 10 x 14: a
 static void op_trackbar(uint32_t *cache)
 {
     static const char *const NAME[NTRK] = {"1", "2", "3", "DR"};
-    uint32_t i, sig = 1u + song.sel + song.rec * 16u + song.solo * 256u;
+    uint32_t i, sig = 1u + song.sel + song.rec * 16u + song.solo * 256u + (uint32_t)(on_drum_page() && stl_shown()) * 4096u;
     for (i = 0; i < NTRK; i++)
         sig = sig * 3u + (trk[i].p[P_MUTE] != 0);
     if (!ui.force && sig == *cache)
@@ -169,7 +169,7 @@ static void op_trackbar(uint32_t *cache)
     cv_rect(0, 0, 240, 1, TE_G1);
     for (i = 0; i < NTRK; i++) {
         int32_t x = 4 + 58 * (int32_t)i, nx = x + OP_HM_W + 4, bx;
-        uint32_t sel = song.sel == i;
+        uint32_t sel = song.sel == i && !(on_drum_page() && stl_shown());   /* (the STUTTER lane, after DR: no track underlined, PHEBUS) */
         op_sprite_wh(OP_SPR_HM[i], OP_HM_W, OP_HM_H, x, 5, 0, TE_COL[i], 1);
         bx = cv_text(nx, 5, &FONT_S, NAME[i], sel ? TE_COL[i] : TE_G3) + 3;
         if ((song.rec >> i) & 1u)
