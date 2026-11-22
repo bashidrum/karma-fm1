@@ -246,7 +246,12 @@ static int16_t *home_knob(uint32_t k, const param_desc_t **d)
 static void studio_tracks_draw(void)
 {
     static uint32_t head, footer, bar;
-    op_header("HOME", TE_G3, "", &head);
+    {   /* (PHEBUS wave 2: the header's title was empty since the song cut) the pattern playing, A..D, as the Rytm names
+         * its pattern; none stored or picked yet: the instrument's name */
+        char ti[12] = "PATTERN A";
+        ti[8] = (char)('A' + (live_sec & 3));
+        op_header("HOME", TE_G3, live_sec >= 0 && live_sec <= 3 ? ti : "PHEBUS", &head);
+    }
     op_home_body();                                    /* the deck, the selected track, the four lanes (ui_op.c) */
     {   /* KNOB 1 cutoff, 2 decay of the selected voice, 3 the STUTTER lane on / off (everyone's), 4 the voice's level */
         track_t *t = TSEL;
@@ -290,6 +295,7 @@ static uint16_t lvl_col(uint32_t lvl)                   /* a hit's colour by its
 {
     return lvl == LV_GHOST ? TE_DIM[3] : lvl == LV_SOFT ? TE_MID[3] : lvl == LV_HARD ? C_WHITE : TE_DRUM;
 }
+static uint16_t vel_col(uint32_t vel) { return lvl_col(vel_lvl(vel)); }   /* .. a drum trig's by its velocity's band */
 static uint16_t pad_lit[DRUM_LANES];                   /* pads and key LEDs: frames left lit */
 static uint8_t key_lit[27];                             /* menu NOTES, a synth track: frames its key stays lit */
 static uint8_t key_lit_trk = 0xFF;                      /* (the track key_lit is for) */
@@ -415,7 +421,7 @@ static uint32_t dg_rows(uint8_t *row)
 {
     uint32_t used = 1u << drum_lane, i, l, n = 0, sel = 0, len = trk_len(TDRUM), st;
     for (i = 0; i < len; i++)
-        used |= dstep_mask(&TDRUM->dstep[i]);
+        used |= dt_mask(i);
     for (l = 0; l < DRUM_LANES; l++)
         if ((used >> l) & 1u) {
             if (l == drum_lane)
@@ -441,12 +447,11 @@ static void dg_band(uint32_t y, uint32_t h, const uint8_t *row, uint32_t r0, uin
         cv_text(2, yy, &FONT_S, LANE_SHORT[l], l == drum_lane ? C_WHITE : TE_G3);
         for (j = 0; j < 16u; j++) {
             uint32_t p = bank * 16u + j;
-            const dstep_t *s = &TDRUM->dstep[p % NSTEP];
             int32_t x = 52 + (int32_t)j * 11 + (int32_t)(j / 4u);   /* (room for the 6-letter names, review 21) */
             if (p >= len)
                 continue;
-            if (dstep_has(s, l))
-                cv_rect(x, yy + 1, 10, 13, lvl_col(dstep_lvl(s, l)));
+            if (dt_has(p, l))
+                cv_rect(x, yy + 1, 10, 13, vel_col(dt_vel(p, l)));
             else
                 op_box(x, yy + 1, 10, 13, j % 4u ? TE_G2 : TE_G3);
             if (l == drum_lane && p == drum_cursor)
@@ -492,18 +497,22 @@ static void drum_screen_draw(void)
     }
     for (i = 0; i < DRUM_LANES; i++) lit = lit * 2u + (pad_lit[i] != 0);
     for (i = 0; i < len; i++) {
-        const dstep_t *s = &TDRUM->dstep[i];
-        pat = pat * 31u + dstep_mask(s);
-        pat = pat * 31u + s->lvl[0] + s->lvl[1] * 7u + s->lvl[2] * 49u + s->lvl[3] * 343u;
-        pat = pat * 31u + s->rat[0] + s->rat[1] * 7u + s->rat[2] * 49u + s->rat[3] * 343u;
+        uint32_t l;
+        for (l = 0; l < DRUM_LANES; l++)
+            pat = pat * 31u + dpat.vel[i][l];
     }
+    for (i = 0; i < DT_NX; i++)
+        pat = pat * 31u + dpat.x[i].step + dpat.x[i].lane * 7u + dpat.x[i].cond * 11u + dpat.x[i].prob * 13u +
+              (uint32_t)(dpat.x[i].micro + 64) * 17u + dpat.x[i].rrate * 19u + dpat.x[i].rlen * 23u + (uint32_t)(dpat.x[i].rfade + 128) * 29u;
+    for (i = 0; i < DT_NLK; i++)
+        pat = pat * 31u + dpat.lk[i].step + dpat.lk[i].lane * 7u + dpat.lk[i].param * 11u + dpat.lk[i].val * 13u;
     sig = pat * 31u + drum_lane * 977u + drum_cursor * 101u + len * 3u + (song.playing ? TDRUM->seq_idx + 1u : 0u) * 71u;
     if (!drum_page) {                                  /* GRID: every sound in use, a row each */
         if (sg_held) {                                 /* a step held: its sound's 16 steps at the top, all it holds under them */
             uint32_t ls = 0;
             for (i = 0; i < NLOCK; i++)
                 ls = ls * 31u + TDRUM->lock[i].step + TDRUM->lock[i].param * 257u + (uint32_t)TDRUM->lock[i].val * 65537u;
-            ls = ls * 31u + sig + sg_held + (uint32_t)TDRUM->micro[drum_cursor] * 7u + step_fill(TDRUM, drum_cursor) * 3u;
+            ls = ls * 31u + sig + sg_held + sg_alt * 5u + song.g[G_HXMODEL] * 3u;
             if (ui.force || ls * 131u + 1u != scene_sig) {
                 scene_sig = ls * 131u + 1u;
                 sg_detail_draw(SG_BODY_Y + 36u, SG_SCENE_H, (uint32_t)sg_first(), 1);   /* (the steps above it) */
@@ -549,21 +558,23 @@ static void drum_screen_draw(void)
     {
         static char v[4][12];
         const char *val[4] = {v[0], v[1], v[2], v[3]};
-        static const char *const LG[4] = {"sound", "step", "hit", "level"}, *const LK[4] = {"sound", "kit", "reverb", "delay"};
+        static const char *const LG[4] = {"sound", "step", "hit", "vel"}, *const LK[4] = {"sound", "kit", "reverb", "delay"};
         int32_t ratio[4];
         if (!drum_page && (sg_held || sg_lpage < NPAGES)) {
             sg_knobs_held((uint32_t)(sg_held ? sg_first() : (int32_t)drum_cursor), &footer);
         } else if (!drum_page) {
-            const dstep_t *s = &TDRUM->dstep[drum_cursor];
+            uint32_t on = (uint32_t)dt_has(drum_cursor, drum_lane), vel = dt_vel(drum_cursor, drum_lane);
             str_cpy(v[0], LANE_SHORT[drum_lane], 8);
             fmt_int(v[1], drum_cursor + 1);
-            str_cpy(v[2], dstep_has(s, drum_lane) ? "on" : "--", 4);
-            str_cpy(v[3], dstep_has(s, drum_lane) ? LV_NAME[dstep_lvl(s, drum_lane)] : "--", 8);
+            str_cpy(v[2], on ? "on" : "--", 4);
+            if (on)
+                fmt_int(v[3], (int32_t)vel);
+            else
+                str_cpy(v[3], "--", 8);
             ratio[0] = (int32_t)drum_lane * 1000 / (DRUM_LANES - 1);
             ratio[1] = (int32_t)drum_cursor * 1000 / (int32_t)(len > 1u ? len - 1u : 1u);
-            ratio[2] = v[2][0] == 'o' ? 1000 : 0;
-            ratio[3] = dstep_has(s, drum_lane) ? (int32_t)lvl_rank(dstep_lvl(s, drum_lane)) * 333 : 0;   /* ghost left ..
-                                                                     * hard right (2.5: it followed the stored order) */
+            ratio[2] = on ? 1000 : 0;
+            ratio[3] = on ? (int32_t)vel * 1000 / 127 : 0;   /* (PHEBUS wave 2: the trig's velocity, 1..127) */
             knob_tint_all(TRK_DRUM);
             op_knobs(LG, val, 0, ratio, 0, 1u, &footer);
         } else {
@@ -637,7 +648,6 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
         ui.hot_col = (uint8_t)k;
         ui.hot_t = 40;
         if (!drum_page) {
-            dstep_t *st = &TDRUM->dstep[drum_cursor];
             if (k == 0) {                              /* the sound: heard */
                 uint8_t l = (uint8_t)clamp(drum_lane + s, 0, DRUM_LANES - 1);
                 if (l != drum_lane) audition_lane(l);
@@ -645,18 +655,17 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
             }
             if (k == 1) {                              /* the step: what it holds, heard */
                 uint8_t c = (uint8_t)clamp(drum_cursor + s, 0, TDRUM->p[P_SLEN] - 1);
-                if (c != drum_cursor) audition_step(&TDRUM->dstep[c]);
+                if (c != drum_cursor) audition_step(c);
                 drum_cursor = c;
             }
             if (k >= 2) {
                 undo_mark(TDRUM, ui.step_sess ? ui.step_sess : (ui.step_sess = (undo_sess += 4u) | 3u));
                 fm1_irq_off();
                 if (k == 2) {
-                    if (s > 0) dstep_set(st, drum_lane, LV_NORM, 0);
-                    else dstep_clr(st, drum_lane);
-                } else if (dstep_has(st, drum_lane)) {
-                    uint32_t r = (uint32_t)clamp((int32_t)lvl_rank(dstep_lvl(st, drum_lane)) + (s > 0 ? 1 : -1), 0, 3);
-                    dstep_set(st, drum_lane, LV_UP[r], dstep_rat(st, drum_lane));
+                    if (s > 0 && !dt_has(drum_cursor, drum_lane)) dt_set(drum_cursor, drum_lane, DT_VEL_DEF);
+                    else if (s < 0) dt_clr(drum_cursor, drum_lane);
+                } else if (dt_has(drum_cursor, drum_lane)) {   /* VEL: the trig's velocity, 1..127 */
+                    dt_set(drum_cursor, drum_lane, (uint32_t)clamp((int32_t)dt_vel(drum_cursor, drum_lane) + accel(EN_K4, s, 126), 1, 127));
                 }
                 fm1_irq_on();
                 sync_reload = 1;

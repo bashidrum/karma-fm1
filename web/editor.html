@@ -283,10 +283,11 @@ function backupObjects(file) {
 /* write it back: banks, projects, the working project, the settings */
 /* the project format of a backup object ("FUN6" .. as stored, low byte first: 6 ..), 0 not a project */
 const bkProjFormat = (d) => (d && d.length >= 4 && d[1] === 0x4E && d[2] === 0x55 && d[3] === 0x46 ? d[0] - 0x30 : 0);
-/* the newest project format a device reads, from its INFO: KARMA and PHEBUS 7 ("FUN7"), SLOOP 2.6 (71 parameters) 6,
+/* the newest project format a device reads, from its INFO: PHEBUS from wave 2 (protocol 12) 8 ("FUN8"), KARMA and
+   PHEBUS before it 7 ("FUN7"), SLOOP 2.6 (71 parameters) 6,
    2.4 .. 2.5 (61) 5, older 4. (KARMA's editor stopped at 6, so it refused to restore a backup with a FUN7 project
    into the FM-1 that made it: fixed here) */
-const bkDevFormat = (info) => (/KARMA/.test(info.version || "") ? 7 : info.pcount >= 71 ? 6 : info.pcount >= 61 ? 5 : 4);
+const bkDevFormat = (info) => (info.proto >= 12 ? 8 : /KARMA/.test(info.version || "") ? 7 : info.pcount >= 71 ? 6 : info.pcount >= 61 ? 5 : 4);
 /* "SLOOP 2.6" -> true when at least maj.min.patch */
 const bkFwAtLeast = (v, want) => {
   const m = /(\d+)\.(\d+)(?:\.(\d+))?/.exec(String(v || ""));

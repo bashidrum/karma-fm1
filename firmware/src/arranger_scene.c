@@ -4,7 +4,7 @@ static uint32_t arrangement_ready(void)
 {
     uint32_t i, ready = 0;
     for (i = 0; i < 4u; i++)
-        if (proj_ok(&proj_slot[i])) ready |= 1u << i;
+        if (proj_ok(PSLOT(i))) ready |= 1u << i;
     return ready;
 }
 
@@ -24,12 +24,12 @@ static void section_keep_ui(uint32_t now, uint32_t input_ms)
     int32_t s = live_sec;
     uint32_t b = clk_beat & 3u, pt0 = PROF_NOW(), was;
     if (!song.playing || s < 0 || s > 3 || s == sec_fresh || input_ms == kept_ms || now - input_ms <= 300u ||
-        (b != 1u && b != 2u) || !proj_ok(&proj_slot[s]))
+        (b != 1u && b != 2u) || !proj_ok(PSLOT(s)))
         return;
     kept_ms = input_ms;
-    was = proj_slot[s].sum;
-    proj_capture(&proj_slot[s]);
-    if (proj_slot[s].sum != was)
+    was = PSLOT(s)->sum;
+    proj_capture_core(PSLOT(s));
+    if (PSLOT(s)->sum != was)
         sec_kept |= (uint8_t)(1u << s);
     if (PROF_NOW() - pt0 > prof_keep_max)
         prof_keep_max = PROF_NOW() - pt0;
@@ -46,7 +46,7 @@ static void arrangement_apply(uint32_t scene)
         t->nheld = t->arp_phys = t->arp_note = t->rh_n = t->rskip_n = 0;
         t->rskip_lanes = 0;
     }
-    proj_apply(&proj_slot[scene], 0);
+    proj_apply(PSLOT(scene), 0);
     if (PROF_NOW() - pt1 > prof_apply_max)
         prof_apply_max = PROF_NOW() - pt1;
     live_sec = (int8_t)(scene & 3u);                /* (what it keeps, what HOME shows) */

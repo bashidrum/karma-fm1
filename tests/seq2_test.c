@@ -32,7 +32,7 @@ static uint8_t sync_reload;
 static void store_part(uint32_t s)
 {
     s &= 3u;
-    proj_capture(&proj_slot[s]);
+    proj_capture_core(PSLOT(s));
     live_sec = (int8_t)s;
     sec_fresh = (int8_t)s;
 }
@@ -105,7 +105,7 @@ static void t_drift(void)
         uint64_t kb[80], cb[80];
         reset(BPM[bi]);
         song.g[G_CLOCK] = 2;                         /* the click on: its downbeat (77) */
-        dstep_set(&TDRUM->dstep[0], 0, LV_NORM, 0);  /* a kick on the 1 */
+        dtest_set(0, 0, LV_NORM, 0);  /* a kick on the 1 */
         transport_req = 1;
         while (blk < (uint64_t)(FS * 60.0 / BPM[bi] * 4 * 66 / CTL))
             run_block();
@@ -134,7 +134,7 @@ static void t_burst(void)
     reset(90);
     TDRUM->p[P_SDIV] = 0;                            /* 1/4 */
     for (i = 0; i < 16u; i++)
-        dstep_set(&TDRUM->dstep[i], 4, LV_NORM, 0);
+        dtest_set(i, 4, LV_NORM, 0);
     transport_req = 1;
     while (clk_beat < 2u || clk_pos < BEAT_U * 85u / 100u)
         run_block();
@@ -144,7 +144,7 @@ static void t_burst(void)
     ok1 = nhits - n0 <= 1u;
     reset(40);
     for (i = 0; i < 16u; i++)
-        dstep_set(&TDRUM->dstep[i], 4, LV_NORM, 0);
+        dtest_set(i, 4, LV_NORM, 0);
     transport_req = 1;
     while (clk_beat < 1u || clk_pos < BEAT_U / 4u * 3u / 4u)
         run_block();
@@ -202,8 +202,8 @@ static void t_ratchet(void)
     uint32_t i, n = 0, gaps_ok = 1;
     uint64_t b[8];
     reset(120);
-    dstep_set(&TDRUM->dstep[0], 4, LV_NORM, 3);      /* a hat x4 on step 0 */
-    dstep_set(&TDRUM->dstep[1], 0, LV_NORM, 0);      /* a kick on step 1 */
+    dtest_set(0, 4, LV_NORM, 3);      /* a hat x4 on step 0 */
+    dtest_set(1, 0, LV_NORM, 0);      /* a kick on step 1 */
     transport_req = 1;
     while (blk < div_samples(2) * 2u / CTL + 2u)
         run_block();
@@ -252,8 +252,8 @@ static void t_roll(void)
     {
         uint32_t s, rat_ok = 1, on = 0;
         for (s = 1; s < 7u; s++) {
-            on += dstep_has(&TDRUM->dstep[s], 3);
-            rat_ok &= !dstep_has(&TDRUM->dstep[s], 3) || dstep_rat(&TDRUM->dstep[s], 3) == 1u;
+            on += dt_has(s, 3);
+            rat_ok &= !dt_has(s, 3) || dtest_rat(s, 3) == 1u;
         }
         if (n < 15u || n > 17u)
             printf("seq2:   roll: %u hits\n", n);
@@ -267,9 +267,9 @@ static void t_erase_undo(void)
     uint32_t i, left = 0, kept = 0;
     reset(120);
     for (i = 0; i < 16u; i++) {
-        dstep_set(&TDRUM->dstep[i], 4, LV_NORM, 0);  /* hats everywhere */
+        dtest_set(i, 4, LV_NORM, 0);  /* hats everywhere */
         if (i % 4u == 0u)
-            dstep_set(&TDRUM->dstep[i], 0, LV_NORM, 0);
+            dtest_set(i, 0, LV_NORM, 0);
     }
     song.sel = TRK_DRUM;
     transport_req = 1;
@@ -285,22 +285,22 @@ static void t_erase_undo(void)
     fm1_in.buttons = 0;
     run_block();
     for (i = 0; i < 16u; i++) {
-        left += dstep_has(&TDRUM->dstep[i], 4);
-        kept += dstep_has(&TDRUM->dstep[i], 0);
+        left += dt_has(i, 4);
+        kept += dt_has(i, 0);
     }
     if (left != 12u)
-        printf("seq2:   erase: %u hats left, %u kicks; %d %d\n", left, kept, dstep_has(&TDRUM->dstep[5], 4), dstep_has(&TDRUM->dstep[9], 4));
-    check(left == 12u && kept == 4u && !dstep_has(&TDRUM->dstep[5], 4) && dstep_has(&TDRUM->dstep[9], 4),
+        printf("seq2:   erase: %u hats left, %u kicks; %d %d\n", left, kept, dt_has(5, 4), dt_has(9, 4));
+    check(left == 12u && kept == 4u && !dt_has(5, 4) && dt_has(9, 4),
           "EDIT + hat while playing steps 4..7: those hats gone, the rest and the kicks kept");
-    {   /* undo (ui.c undo_swap): the hats back */
-        step_t tmp[NSTEP];
-        memcpy(tmp, TDRUM->step, sizeof tmp);
-        memcpy(TDRUM->step, undo.st, sizeof tmp);
-        memcpy(undo.st, tmp, sizeof tmp);
+    {   /* undo (ui.c undo_swap): the hats back (PHEBUS wave 2: the drum pattern, whole) */
+        static dpat_t tmp;
+        tmp = dpat;
+        dpat = undo.dp;
+        undo.dp = tmp;
     }
     left = 0;
     for (i = 0; i < 16u; i++)
-        left += dstep_has(&TDRUM->dstep[i], 4);
+        left += dt_has(i, 4);
     check(left == 16u && undo.trk == TRK_DRUM, "undo: the erased hats are back");
     transport_req = 2;
     run_block();
@@ -311,7 +311,7 @@ static void t_erase_undo(void)
     run_block();
     left = 0;
     for (i = 0; i < 16u; i++)
-        left += dstep_has(&TDRUM->dstep[i], 4);
+        left += dt_has(i, 4);
     check(left == 0u, "EDIT + hat while stopped: every hat gone");
 }
 
@@ -336,10 +336,10 @@ static void t_levels(void)
     fm1_in.notes = fm1_in.buttons = 0;
     run_block();
     for (i = 0; i < 16u; i++) {
-        if (dstep_has(&TDRUM->dstep[i], 2))
-            gh = dstep_lvl(&TDRUM->dstep[i], 2);
-        if (dstep_has(&TDRUM->dstep[i], 0))
-            hd = dstep_lvl(&TDRUM->dstep[i], 0);
+        if (dt_has(i, 2))
+            gh = dtest_lvl(i, 2);
+        if (dt_has(i, 0))
+            hd = dtest_lvl(i, 0);
     }
     check(gh == LV_GHOST && hd == LV_HARD, "OCT- / OCT+ held on the drums: a ghost snare and a hard kick recorded");
     {
@@ -503,7 +503,7 @@ static void t_mute(void)
     uint32_t i, n0;
     reset(120);
     for (i = 0; i < 16u; i++)
-        dstep_set(&TDRUM->dstep[i], 0, LV_NORM, 0);
+        dtest_set(i, 0, LV_NORM, 0);
     transport_req = 1;
     while (blk < 200u)
         run_block();
@@ -847,12 +847,12 @@ static void t_spp(void)
         trk[i].p[P_SLEN] = 16;
         trk[i].p[P_SDIV] = 2;
     }
-    proj_capture(&proj_slot[0]);                     /* A: one bar */
+    proj_capture_core(PSLOT(0));                     /* A: one bar */
     TDRUM->p[P_SLEN] = 32;
-    proj_capture(&proj_slot[1]);                     /* B: two bars */
+    proj_capture_core(PSLOT(1));                     /* B: two bars */
     TDRUM->p[P_SLEN] = 48;
-    proj_capture(&proj_slot[2]);                     /* C: three bars */
-    proj_slot[3].magic = 0;
+    proj_capture_core(PSLOT(2));                     /* C: three bars */
+    PSLOT(3)->magic = 0;
     song.g[G_SYNC] = 1;
     mclk_run(&t, &next, per, 300, 0);
     mclk_push(0xFA0Fu);                               /* START */
@@ -995,7 +995,7 @@ static void t_fixes24(void)
     TDRUM->p[P_SDIV] = 4;                             /* 8T: 3 a beat */
     TDRUM->p[P_SLEN] = 12;
     for (i = 0; i < 12u; i++)
-        dstep_set(&TDRUM->dstep[i], 4, LV_NORM, 0);
+        dtest_set(i, 4, LV_NORM, 0);
     transport_req = 1;
     for (k = 0; k < 8u * (uint32_t)(FS / CTL) / 2u; k++) run_block();   /* 4 s = 8 beats */
     {
@@ -1015,7 +1015,7 @@ static void t_fixes24(void)
     TDRUM->p[P_SDIV] = 1;                             /* 1/8 */
     TDRUM->p[P_SLEN] = 16;
     for (i = 0; i < 16u; i++)
-        dstep_set(&TDRUM->dstep[i], 4, LV_NORM, 0);
+        dtest_set(i, 4, LV_NORM, 0);
     transport_req = 1;
     run_block();                                      /* (the clock is at 0 from here) */
     while (clk_beat < 1u && clk_pos < BEAT_U * 6u / 10u) run_block();   /* 60 % into beat 1: abs 1 of 1/8 */
@@ -1034,8 +1034,8 @@ static void t_longdiv(void)
     reset(120);
     TDRUM->p[P_SDIV] = 8;                             /* 2BAR: a step every 8 beats */
     TDRUM->p[P_SLEN] = 2;
-    dstep_set(&TDRUM->dstep[0], 4, LV_NORM, 0);
-    dstep_set(&TDRUM->dstep[1], 5, LV_NORM, 0);
+    dtest_set(0, 4, LV_NORM, 0);
+    dtest_set(1, 5, LV_NORM, 0);
     transport_req = 1;
     run_block();
     n0 = nhits;
@@ -1050,7 +1050,7 @@ static void t_longdiv(void)
     reset(120);
     TDRUM->p[P_SDIV] = 6;                             /* 1/2: every 2 beats */
     TDRUM->p[P_SLEN] = 4;
-    for (i = 0; i < 4u; i++) dstep_set(&TDRUM->dstep[i], 4, LV_NORM, 0);
+    for (i = 0; i < 4u; i++) dtest_set(i, 4, LV_NORM, 0);
     transport_req = 1;
     run_block();
     n0 = nhits;
@@ -1324,7 +1324,7 @@ static void t_midiout(void)
     for (i = 0; i < 4u; i++) { trk[0].step[i].time = ST_NOTE; trk[0].step[i].n = 1; trk[0].step[i].note[0] = 60 + i; trk[0].step[i].vel = 100; }
     TDRUM->p[P_SDIV] = 0;
     TDRUM->p[P_SLEN] = 4;
-    dstep_set(&TDRUM->dstep[0], 4, LV_NORM, 0);
+    dtest_set(0, 4, LV_NORM, 0);
     transport_req = 1;
     for (k = 0; k < 4u * bpb + 2u; k++) run_block();
     mo_drain(&on, &off, &od, &ln);
@@ -1343,20 +1343,20 @@ static void t_midiout(void)
         run_block();                                  /* (the released voices die down for the next test) */
 }
 
-/* SLOOP 2.4: per-step nudge (micro timing). A step nudged +16 fires a quarter step after its grid time,
- * -16 a quarter step before it (inside the previous grid step); over 8 bars, with two neighbours whose
- * nudges cross, no step is lost or played twice */
+/* SLOOP 2.4: per-step nudge (micro timing); PHEBUS wave 2: on the drum track, each trig's own. A trig nudged +16 fires a
+ * quarter step after its grid time, -16 a quarter step before it (inside the previous grid step); over 8 bars, with two
+ * neighbours whose nudges cross, no trig is lost or played twice */
 static void t_micro(void)
 {
     uint32_t i, k, nk = 0, ns = 0, nc = 0, bad = 0, bpb = (uint32_t)((double)FS * 60.0 / 120.0 / CTL + 0.5);
     double sb = (double)FS * 60.0 / 120.0 / 4.0 / CTL, worst = 0;   /* blocks a 1/16 step */
     uint64_t kb[16], sbk[16], cb[16];
     reset(120);
-    dstep_set(&TDRUM->dstep[0], 0, LV_NORM, 0);      /* a kick on step 1: the grid reference */
-    dstep_set(&TDRUM->dstep[4], 2, LV_NORM, 0);      /* a snare on step 5, nudged +16 (a quarter step late) */
-    dstep_set(&TDRUM->dstep[8], 3, LV_NORM, 0);      /* a clap on step 9, nudged -16 (a quarter step early) */
-    TDRUM->micro[4] = 16;
-    TDRUM->micro[8] = -16;
+    dtest_set(0, 0, LV_NORM, 0);      /* a kick on step 1: the grid reference */
+    dtest_set(4, 2, LV_NORM, 0);      /* a snare on step 5, nudged +16 (a quarter step late) */
+    dtest_set(8, 3, LV_NORM, 0);      /* a clap on step 9, nudged -16 (a quarter step early) */
+    dtest_micro(4, 2, 16);
+    dtest_micro(8, 3, -16);
     transport_req = 1;
     for (k = 0; k < 8u * 4u * bpb - 10u; k++)        /* 8 bars (short of bar 9's kick) */
         run_block();
@@ -1379,12 +1379,12 @@ static void t_micro(void)
 
     reset(120);
     for (i = 0; i < 16u; i++)
-        dstep_set(&TDRUM->dstep[i], 4, LV_NORM, 0);  /* a hat on every step, nudged all over the place */
+        dtest_set(i, 4, LV_NORM, 0);  /* a hat on every step, nudged all over the place */
     for (i = 0; i < 16u; i++)
-        TDRUM->micro[i] = (int8_t)((int32_t)(i * 23u % 64u) - 32);
-    TDRUM->micro[5] = 31;                            /* two neighbours whose nudges cross */
-    TDRUM->micro[6] = -32;
-    TDRUM->micro[0] = -32;                           /* the first step as early as it goes (across the loop) */
+        dtest_micro(i, 4, (int32_t)(i * 23u % 64u) - 32);
+    dtest_micro(5, 4, 31);                            /* two neighbours whose nudges cross */
+    dtest_micro(6, 4, -32);
+    dtest_micro(0, 4, -32);                           /* the first trig as early as it goes (across the loop) */
     transport_req = 1;
     {
         uint32_t prev = TDRUM->seq_idx, order_ok = 1, fired = 0;
@@ -1401,10 +1401,10 @@ static void t_micro(void)
         if (fired != 128u || !order_ok)
             printf("seq2:   micro: %u hats in 8 bars (want 128), order %s\n", fired, order_ok ? "ok" : "broken");
         bad = fired != 128u || !order_ok;
-        check(!bad, "2.4: 16 nudged steps (two crossing) over 8 bars: every step once, in order, none doubled");
+        check(!bad, "2.4: 16 nudged trigs (two crossing) over 8 bars: every one once, in order, none doubled");
     }
     transport_req = 2; run_block();
-    for (i = 0; i < 16u; i++) TDRUM->micro[i] = 0;
+    dpat_clear(&dpat);
 }
 
 /* SLOOP 2.4: parameter locks. A lock on P_E0 at step 3 sets t->p[P_E0] for that step, the base is back at
@@ -1476,18 +1476,21 @@ static void t_fill(void)
     uint32_t b[8], i, ok, starts0, starts1;
     track_t *t = &trk[0];
     reset(120);
-    dstep_set(&TDRUM->dstep[0], 0, LV_NORM, 0);      /* a kick on step 1: always */
-    dstep_set(&TDRUM->dstep[4], 2, LV_NORM, 3);      /* a snare x4 on step 5: FILL ONLY */
-    dstep_set(&TDRUM->dstep[8], 4, LV_NORM, 0);      /* a hat on step 9: NO FILL */
-    step_fill_set(TDRUM, 4, FC_FILL);
-    step_fill_set(TDRUM, 8, FC_NOFILL);
-    step_fill_set(TDRUM, 12, FC_FILL);               /* (an empty step: nothing either way) */
+    dtest_set(0, 0, LV_NORM, 0);      /* a kick on step 1: always */
+    dtest_set(4, 2, LV_NORM, 3);      /* a snare x4 on step 5: FILL ONLY */
+    dtest_set(8, 4, LV_NORM, 0);      /* a hat on step 9: NO FILL */
+    dtest_cond(4, 2, FC_FILL);                       /* (PHEBUS wave 2: each trig's own condition) */
+    dtest_cond(8, 4, FC_NOFILL);
+    dtest_cond(12, 5, FC_FILL);                      /* (no trig there: no entry, nothing either way) */
     host_preset(t, 0, 7);                            /* a synth part: C on step 1, E on step 5 FILL ONLY */
     put_step(t, 0, 1, (const uint8_t[]){60}, ST_NOTE, 0);
     put_step(t, 4, 1, (const uint8_t[]){64}, ST_NOTE, 0);
     step_fill_set(t, 4, FC_FILL);
-    check(step_fill(TDRUM, 4) == FC_FILL && step_fill(TDRUM, 8) == FC_NOFILL && step_fill(TDRUM, 5) == FC_NORM &&
-          step_fill(TDRUM, 70) == step_fill(TDRUM, 6), "2.4: step_fill / step_fill_set: 2 bits a step, the index bounded");
+    step_fill_set(&trk[1], 8, FC_NOFILL);
+    check(step_fill(t, 4) == FC_FILL && step_fill(&trk[1], 8) == FC_NOFILL && step_fill(t, 5) == FC_NORM &&
+          step_fill(t, 70) == step_fill(t, 6) && dt_x(12, 5) < 0 && dt_x(4, 2) >= 0,
+          "2.4: step_fill / step_fill_set: 2 bits a step, the index bounded; a drum trig's condition in its extras");
+    step_fill_set(&trk[1], 8, FC_NORM);
     transport_req = 1;
     b[0] = (uint32_t)blk;
     starts0 = vage;
@@ -1548,14 +1551,14 @@ static void t_edits_stick(void)
         trk[i].p[P_SLEN] = 16;
         trk[i].p[P_SDIV] = 2;
     }
-    dstep_set(&TDRUM->dstep[0], 0, LV_NORM, 0);
-    dstep_set(&TDRUM->dstep[4], 2, LV_NORM, 0);
-    proj_capture(&proj_slot[0]);                     /* A: kick on 1, snare on 5 */
-    dstep_clr(&TDRUM->dstep[4], 2);
-    dstep_set(&TDRUM->dstep[8], 4, LV_NORM, 0);
-    proj_capture(&proj_slot[1]);                     /* B: kick on 1, hat on 9 */
-    proj_slot[2].magic = proj_slot[3].magic = 0;
-    proj_apply(&proj_slot[0], 1);
+    dtest_set(0, 0, LV_NORM, 0);
+    dtest_set(4, 2, LV_NORM, 0);
+    proj_capture_core(PSLOT(0));                     /* A: kick on 1, snare on 5 */
+    dt_clr(4, 2);
+    dtest_set(8, 4, LV_NORM, 0);
+    proj_capture_core(PSLOT(1));                     /* B: kick on 1, hat on 9 */
+    PSLOT(2)->magic = PSLOT(3)->magic = 0;
+    proj_apply(PSLOT(0), 1);
     live_sec = 0;
     sec_kept = 0;
     transport_req = 1;
@@ -1563,7 +1566,7 @@ static void t_edits_stick(void)
     bar_run(1);
     while (live_sec != 0 && blk < 40000u)            /* (on A) */
         run_block();
-    dstep_clr(&TDRUM->dstep[4], 2);                  /* the snare erased while A plays (a key, at 1000 ms) */
+    dt_clr(4, 2);                  /* the snare erased while A plays (a key, at 1000 ms) */
     while ((clk_beat & 3u) != 1u && live_sec == 0 && blk < 40000u)
         run_block();
     section_keep_ui(1400u, 1000u);                   /* (the main loop, 0.4 s later, on beat 2) */
@@ -1573,8 +1576,8 @@ static void t_edits_stick(void)
     live_req = 0;                                    /* SAVE + 1: A again */
     while (live_sec != 0 && blk < 40000u)
         run_block();
-    ok = !dstep_has(&TDRUM->dstep[4], 2) && dstep_has(&TDRUM->dstep[0], 0) && !dstep_has(&proj_slot[0].t[TRK_DRUM].dstep[4], 2) &&
-         (sec_kept & 1u) && !dstep_has(&proj_slot[1].t[TRK_DRUM].dstep[4], 2) && dstep_has(&proj_slot[1].t[TRK_DRUM].dstep[8], 4);
+    ok = !dt_has(4, 2) && dt_has(0, 0) && !(PSLOT(0)->d.pat.vel[4][2] != 0) &&
+         (sec_kept & 1u) && !(PSLOT(1)->d.pat.vel[4][2] != 0) && (PSLOT(1)->d.pat.vel[8][4] != 0);
     check(ok, "edits stick: a hit erased while A plays stays erased when A comes back after B (and in A's slot)");
     transport_req = 2;
     run_block();
@@ -1583,34 +1586,34 @@ static void t_edits_stick(void)
     /* (3.0.5, GitHub issue #3) SAVE + 5 stores the loop in A; the next pattern built after it is not A's (it went
      * into A, and SAVE + 6 then made A and B the same); A picked again (SAVE + 1): its edits stick again */
     live_sec = -1;
-    proj_slot[0].magic = proj_slot[1].magic = proj_slot[2].magic = proj_slot[3].magic = 0;
+    PSLOT(0)->magic = PSLOT(1)->magic = PSLOT(2)->magic = PSLOT(3)->magic = 0;
     for (i = 0; i < 16u; i++) {
-        dstep_clr(&TDRUM->dstep[i], 0); dstep_clr(&TDRUM->dstep[i], 2); dstep_clr(&TDRUM->dstep[i], 4); dstep_clr(&TDRUM->dstep[i], 5);
+        dt_clr(i, 0); dt_clr(i, 2); dt_clr(i, 4); dt_clr(i, 5);
     }
-    dstep_set(&TDRUM->dstep[0], 0, LV_NORM, 0);      /* pattern 1: a kick on 1 */
+    dtest_set(0, 0, LV_NORM, 0);      /* pattern 1: a kick on 1 */
     store_part(0);                                   /* SAVE + 5 (stopped) */
     sec_kept = 0;
     transport_req = 1;
     run_block();
-    dstep_set(&TDRUM->dstep[4], 2, LV_NORM, 0);      /* the next pattern: a snare on 5 (a key at 5000 ms) */
+    dtest_set(4, 2, LV_NORM, 0);      /* the next pattern: a snare on 5 (a key at 5000 ms) */
     for (i = 0; i < 4u * bar && (clk_beat & 3u) != 1u; i++)
         run_block();
     section_keep_ui(5400u, 5000u);                   /* (0.4 s later, on beat 2) */
-    ok = !dstep_has(&proj_slot[0].t[TRK_DRUM].dstep[4], 2) && !(sec_kept & 1u) && live_sec == 0;
+    ok = !(PSLOT(0)->d.pat.vel[4][2] != 0) && !(sec_kept & 1u) && live_sec == 0;
     store_part(1);                                   /* SAVE + 6 */
-    ok = ok && dstep_has(&proj_slot[1].t[TRK_DRUM].dstep[4], 2) && !dstep_has(&proj_slot[0].t[TRK_DRUM].dstep[4], 2);
+    ok = ok && (PSLOT(1)->d.pat.vel[4][2] != 0) && !(PSLOT(0)->d.pat.vel[4][2] != 0);
     check(ok, "issue #3: the pattern built after SAVE + 5 stays out of A; SAVE + 6 stores it in B, A as it was");
     live_req = 0;                                    /* SAVE + 1: A on the next bar */
     for (i = 0; i < 8u * bar && live_sec != 0; i++)
         run_block();
-    ok = live_sec == 0 && sec_fresh == -1 && !dstep_has(&TDRUM->dstep[4], 2);
-    dstep_set(&TDRUM->dstep[12], 5, LV_NORM, 0);     /* A edited while it plays (a key at 9000 ms) */
+    ok = live_sec == 0 && sec_fresh == -1 && !dt_has(4, 2);
+    dtest_set(12, 5, LV_NORM, 0);     /* A edited while it plays (a key at 9000 ms) */
     for (i = 0; i < 4u * bar && (clk_beat & 3u) != 1u; i++)
         run_block();
     for (i = 0; i < 4u * bar && (clk_beat & 3u) != 2u; i++)
         run_block();
     section_keep_ui(9400u, 9000u);
-    ok = ok && dstep_has(&proj_slot[0].t[TRK_DRUM].dstep[12], 5) && !dstep_has(&proj_slot[1].t[TRK_DRUM].dstep[12], 5);
+    ok = ok && (PSLOT(0)->d.pat.vel[12][5] != 0) && !(PSLOT(1)->d.pat.vel[12][5] != 0);
     check(ok, "issue #3: A picked again (SAVE + 1): its edits stick to it again, B untouched");
     transport_req = 2;
     run_block();
@@ -1630,13 +1633,13 @@ static void t_section_next(void)
         trk[i].p[P_SLEN] = 16;
         trk[i].p[P_SDIV] = 2;
     }
-    dstep_set(&TDRUM->dstep[0], 0, LV_NORM, 0);
-    proj_capture(&proj_slot[0]);                     /* A */
-    dstep_set(&TDRUM->dstep[4], 2, LV_NORM, 0);
-    proj_capture(&proj_slot[2]);                     /* C */
-    proj_slot[1].magic = proj_slot[3].magic = 0;
+    dtest_set(0, 0, LV_NORM, 0);
+    proj_capture_core(PSLOT(0));                     /* A */
+    dtest_set(4, 2, LV_NORM, 0);
+    proj_capture_core(PSLOT(2));                     /* C */
+    PSLOT(1)->magic = PSLOT(3)->magic = 0;
     check(arrangement_ready() == 5u, "sections: the stored ones (A, C), a bit each");
-    proj_apply(&proj_slot[2], 1);                    /* C is the loop */
+    proj_apply(PSLOT(2), 1);                    /* C is the loop */
     live_sec = 2;
     transport_req = 1;
     run_block();
@@ -1655,7 +1658,7 @@ static void t_section_next(void)
             last = live_sec;
         }
     }
-    check(before == 2u && changes == 0u && live_sec == 0 && live_req < 0 && !dstep_has(&TDRUM->dstep[4], 2),
+    check(before == 2u && changes == 0u && live_sec == 0 && live_req < 0 && !dt_has(4, 2),
           "sections: A asked for mid bar 1 plays from bar 2, and stays (no chain)");
     transport_req = 2;
     run_block();
@@ -1664,7 +1667,7 @@ static void t_section_next(void)
         run_block();
     reset(120);
     for (i = 0; i < 4u; i++)
-        proj_slot[i].magic = 0;
+        PSLOT(i)->magic = 0;
     live_sec = -1;
 }
 

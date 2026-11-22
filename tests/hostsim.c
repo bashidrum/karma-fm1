@@ -133,14 +133,35 @@ static uint32_t at_step(const track_t *t, uint32_t *q100)
     return abs % trk_len(t);
 }
 
+/* (PHEBUS wave 2) the drum pattern's trigs as the tests set and read them in the old steps' terms: a level (LV_*: its
+ * velocity, drums.c lvl_vel) and a ratchet x1..x4 (rat: hits - 1, a retrig of a step at the rate nearest step / hits) */
+static void dtest_set(uint32_t i, uint32_t l, uint32_t lvl, uint32_t rat)
+{
+    dt_set(i, l, lvl_vel(lvl, DT_VEL_DEF));
+    if (rat)
+        dt_retrig_hits(i, l, rat + 1u);
+}
+static uint32_t dtest_lvl(uint32_t i, uint32_t l) { return vel_lvl(dt_vel(i, l)); }
+static uint32_t dtest_rat(uint32_t i, uint32_t l)      /* the hits of its retrig in its step - 1 (none: 0) */
+{
+    int x = dt_x(i, l);
+    uint32_t su = div_units(trk_div(TDRUM));
+    if (x < 0 || !dpat.x[x].rrate)
+        return 0;
+    return (su + rt_units(dpat.x[x].rrate) / 2u) / rt_units(dpat.x[x].rrate) - 1u;
+}
+static void dtest_clear(uint32_t i) { uint32_t l; for (l = 0; l < DRUM_LANES; l++) dt_clr(i, l); }   /* step i: no trig */
+static void dtest_micro(uint32_t i, uint32_t l, int32_t m) { dtx_t *x = dt_has(i, l) ? dt_x_make(i, l) : 0; if (x) x->micro = (int8_t)m; }
+static void dtest_cond(uint32_t i, uint32_t l, uint32_t c) { dtx_t *x = dt_has(i, l) ? dt_x_make(i, l) : 0; if (x) x->cond = (uint8_t)c; }
+
 static void put_step(track_t *t, uint32_t i, uint32_t n, const uint8_t *notes, uint32_t time, uint32_t flags)
 {
     step_t *s = &t->step[i];
     uint32_t k;
     if (is_drum(t)) {                            /* the drum track: GM notes -> its lanes (accent: hard) */
-        memset(&t->dstep[i], 0, sizeof t->dstep[i]);
+        dtest_clear(i);
         for (k = 0; k < n && time == ST_NOTE; k++)
-            dstep_set(&t->dstep[i], lane_of_note(notes[k]), (flags & SF_ACCENT) ? LV_HARD : LV_NORM, 0);
+            dtest_set(i, lane_of_note(notes[k]), (flags & SF_ACCENT) ? LV_HARD : LV_NORM, 0);
         return;
     }
     s->n = (uint8_t)n;
@@ -270,17 +291,16 @@ static int tracks_demo(const char *dir, const char *name, uint32_t solo)
     if (solo)
         return bmax > NVOICE;
     {
-        const dstep_t *s4 = &td->dstep[4];
         const step_t *l1 = &t3->step[1], *p14 = &t2->step[14];
-        uint32_t lanes = dstep_mask(s4), nl = 0, m;
+        uint32_t lanes = dt_mask(4), nl = 0, m;
         int ok_clap;
         for (m = lanes; m; m >>= 1)
             nl += m & 1u;
-        ok_clap = nl == 4u && dstep_has(s4, lane_of_note(39)) && clap_hits == 3u;
+        ok_clap = nl == 4u && dt_has(4, lane_of_note(39)) && clap_hits == 3u;
         int ok_lead = l1->n == 1u && l1->note[0] == 84u && l1->time == ST_NOTE;
         int ok_keys = p14->n == 2u && p14->time == ST_NOTE && p14->note[0] == 60u && p14->note[1] == 64u;
         printf("tracks: recording: drums step 4 = %u lanes (kick snare hat + clap: %s), hits when step 4 played right "
-               "after: %u (want 3: the clap is not triggered twice) %s\n", nl, dstep_has(s4, lane_of_note(39)) ? "yes" : "no",
+               "after: %u (want 3: the clap is not triggered twice) %s\n", nl, dt_has(4, lane_of_note(39)) ? "yes" : "no",
                clap_hits, ok_clap ? "ok" : "FAIL");
         printf("tracks: recording: MIDI ch 3 -> lead step 1 = %u (want 84) %s; keys -> pad step 14 = %u notes %u %u %s\n",
                l1->note[0], ok_lead ? "ok" : "FAIL", p14->n, p14->note[0], p14->note[1], ok_keys ? "ok" : "FAIL");

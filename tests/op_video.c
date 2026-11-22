@@ -80,8 +80,8 @@ int main(int argc, char **argv)
         else st->time = BASS[i] < 0 ? ST_TIE : ST_REST;
     }
     for (i = 0; i < 16u; i++) {
-        if (i % 4u == 0u) dstep_set(&TDRUM->dstep[i], 0, LV_NORM, 0);
-        dstep_set(&TDRUM->dstep[i], i % 4u == 2u ? 5 : 4, LV_NORM, 0);
+        if (i % 4u == 0u) dtest_set(i, 0, LV_NORM, 0);
+        dtest_set(i, i % 4u == 2u ? 5 : 4, LV_NORM, 0);
     }
     for (i = 0; i < NTRK; i++)
         trk[i].seq_active = 1;

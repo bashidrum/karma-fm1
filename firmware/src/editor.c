@@ -15,7 +15,8 @@ enum { ED_INFO = 1, ED_PING = 25, ED_BK_LIST = 34, ED_BK_GET = 35, ED_BK_PUT = 3
        ED_STAT = 90,                                                            /* (3.0.4) the load and the USB, read only */
        ED_PCOST = 91, ED_PVAR = 92, ED_CRASH = 93,                              /* (3.0.5) KARMA_PCOST builds: the stages' time */
        ED_PROF = 94 };                                                          /* (3.1.3) where mix_block's time goes, read only */
-#define ED_PROTO 11u                                   /* the protocol version INFO ends with (backup: 6 and later) */
+#define ED_PROTO 12u                                   /* the protocol version INFO ends with (backup: 6 and later; 12, PHEBUS
+                                                        * wave 2: the projects are format 8, "FUN8", 6,768 / 5,744 bytes) */
 
 static uint8_t ed_out[600];
 static uint32_t ed_n;
@@ -108,8 +109,8 @@ static const uint8_t *ed_bk_obj(uint32_t id, uint32_t *len)   /* 0 = no such obj
     }
     if (id >= 2u && id <= 5u) {
         if (project_used(id - 2u))
-            *len = sizeof proj_slot[0];
-        return (const uint8_t *)&proj_slot[id - 2u];
+            *len = sizeof(proj_core_t);                   /* (PHEBUS wave 2: a slot is a project's core, format 8) */
+        return (const uint8_t *)PSLOT(id - 2u);
     }
     if (id == 6u || id == 7u) {
         if (up_bank[id - 6u].magic == UP_BANK_MAGIC)

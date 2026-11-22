@@ -87,23 +87,24 @@ int main(void)
     nor[st_sector(OBJ_PROJECT0 + 2, 0) + 8] ^= 0x01;    /* both headers broken */
     nor[st_sector(OBJ_PROJECT0 + 2, 1) + 8] ^= 0x01;
     bad += check("both headers broken -> nothing", st_load(OBJ_PROJECT0 + 2, got, sizeof got) < 0);
-    {   /* every copy of every object in the Felucca regions, off the sample slots (0xA0000..0xDBFFF) and
-         * the update staging (0xE0000..0xE4FFF; the FM6 bank's two sectors follow it), and no two sectors shared */
+    {   /* every copy of every object in the Felucca regions, off the update staging (0xE0000..0xE4FFF; the FM6 bank's two
+         * sectors follow it), and no two sectors shared. PHEBUS wave 2: the big objects (the projects, two sectors a copy) in
+         * 0xA0000..0xB3FFF, where the user sample slots were */
         uint32_t o, c, o2, c2, inside = 1, apart = 1;
         for (o = 0; o < OBJ_COUNT; o++)
             for (c = 0; c < 2u; c++) {
-                uint32_t a = st_sector(o, c);
+                uint32_t a = st_sector(o, c), n = st_big(o) ? 2u : 1u, k, k2;
                 int data = a >= 0x97000u && a + 4096u <= 0xA0000u, ups = a >= 0xDC000u && a + 4096u <= 0xE0000u;
-                int glob = a >= 0xFC000u && a + 4096u <= 0xFF000u, fm6 = a >= 0xE5000u && a + 4096u <= 0xE7000u;
-                int song3 = a == 0xFB000u;               /* (3.0.5) SONG 3, after the sample slot USR4 */
-                if (o == OBJ_FM6BANK)
-                    continue;                            /* (retired with FM6: its sectors are SONG 1, 2) */
-                inside &= (data || ups || glob || fm6 || song3) && !(a & 0xFFFu);
+                int glob = a >= 0xFC000u && a + 4096u <= 0xFF000u, big = st_big(o) && a >= 0xA0000u && a + 8192u <= 0xB4000u;
+                if (o == OBJ_FM6BANK || st_gone(o))
+                    continue;                            /* (retired with FM6; the songs' numbers) */
+                inside &= (data || ups || glob || big) && !(a & 0xFFFu);
                 for (o2 = 0; o2 < OBJ_COUNT; o2++)
                     for (c2 = 0; c2 < 2u; c2++)
-                        if (o2 != OBJ_FM6BANK && (o2 != o || c2 != c) && st_sector(o2, c2) == a &&
-                            !(o2 == o && o >= OBJ_SONG0))   /* (a song: one sector, both copies) */
-                            apart = 0;
+                        for (k = 0; k < n; k++)
+                            for (k2 = 0; k2 < (st_big(o2) ? 2u : 1u); k2++)
+                                if (o2 != OBJ_FM6BANK && !st_gone(o2) && (o2 != o || c2 != c) && st_sector(o2, c2) + k2 * 4096u == a + k * 4096u)
+                                    apart = 0;
             }
         bad += check("data stays in the Felucca regions (autosave too)", inside);
         bad += check("every object copy has its own sector", apart);
@@ -127,29 +128,54 @@ int main(void)
         bad += check("2.5: ... a torn save keeps the last one", n == (int)sizeof all && !memcmp(got2, all, sizeof all));
         bad += check("2.5: ... too big for a sector: refused", st_save2(OBJ_SETTINGS, p2, 3000, p2, 1000) == -1);
     }
-    {   /* 3.0.5: a saved song, one sector (no A/B): saved, saved over, erased, the last one loads; a torn save loses
-         * that song only (it reads as empty, never as garbage) */
-        static uint8_t s1[3000], s2[1200], g[3840];
+    {   /* PHEBUS wave 2: a big object (a project, up to 7936 bytes over two sectors): saved, loaded, saved over, the
+         * A/B commit as the others (a torn save keeps the last one, rot in the newer copy falls back), an empty one, too
+         * big refused; the small objects refuse a big save and big objects the small one */
+        static uint8_t p1[6800], p2[7936], g[7936];
         uint32_t k;
-        memset(s1, 'S', sizeof s1);
-        memset(s2, 'T', sizeof s2);
-        for (k = 0; k < 3u; k++) {
-            bad += check("3.0.5 song: empty at first", st_load(OBJ_SONG0 + k, g, sizeof g) < 0);
-            bad += check("3.0.5 song: saved", st_save(OBJ_SONG0 + k, s1, sizeof s1) == 0 &&
-                         st_load(OBJ_SONG0 + k, g, sizeof g) == (int)sizeof s1 && !memcmp(g, s1, sizeof s1));
-            bad += check("3.0.5 song: saved over (same sector)", st_save(OBJ_SONG0 + k, s2, sizeof s2) == 0 &&
-                         st_load(OBJ_SONG0 + k, g, sizeof g) == (int)sizeof s2 && !memcmp(g, s2, sizeof s2));
-            bad += check("3.0.5 song: and again", st_save(OBJ_SONG0 + k, s1, sizeof s1) == 0 &&
-                         st_load(OBJ_SONG0 + k, g, sizeof g) == (int)sizeof s1 && !memcmp(g, s1, sizeof s1));
-        }
-        bad += check("3.0.5 song: the three apart", st_load(OBJ_SONG0, g, sizeof g) == (int)sizeof s1 &&
-                     st_save(OBJ_SONG0 + 1u, s2, 0) == 0 && st_load(OBJ_SONG0 + 1u, g, sizeof g) == 0 &&
-                     st_load(OBJ_SONG0 + 2u, g, sizeof g) == (int)sizeof s1 && st_load(OBJ_SONG0, g, sizeof g) == (int)sizeof s1);
-        fail_after = 4;
-        st_save(OBJ_SONG0 + 2u, s2, sizeof s2);
+        for (k = 0; k < sizeof p1; k++)
+            p1[k] = (uint8_t)(k * 7u + 1u);
+        for (k = 0; k < sizeof p2; k++)
+            p2[k] = (uint8_t)(k * 13u + 5u);
+        bad += check("big: empty at first", st_load(OBJ_PRJ0, g, sizeof g) < 0 && st_load(OBJ_WORK, g, sizeof g) < 0);
+        bad += check("big: saved", st_save_big(OBJ_PRJ0, p1, sizeof p1, 0) == 0);
+        n = st_load(OBJ_PRJ0, g, sizeof g);
+        bad += check("big: loads whole", n == (int)sizeof p1 && !memcmp(g, p1, sizeof p1));
+        bad += check("big: the largest saved", st_save_big(OBJ_PRJ0, p2, sizeof p2, 0) == 0);
+        n = st_load(OBJ_PRJ0, g, sizeof g);
+        bad += check("big: ... loads whole (the newer copy)", n == (int)sizeof p2 && !memcmp(g, p2, sizeof p2));
+        fail_after = 20;                             /* the first sector's pages and some of the second's, then torn */
+        st_save_big(OBJ_PRJ0, p1, sizeof p1, 0);
         fail_after = -1;
-        n = st_load(OBJ_SONG0 + 2u, g, sizeof g);
-        bad += check("3.0.5 song: a torn save reads as empty", n < 0);
+        n = st_load(OBJ_PRJ0, g, sizeof g);
+        bad += check("big: a torn save keeps the last one", n == (int)sizeof p2 && !memcmp(g, p2, sizeof p2));
+        bad += check("big: saved again", st_save_big(OBJ_PRJ0, p1, sizeof p1, 0) == 0);
+        {
+            st_hdr_t h;
+            int cur = st_current(OBJ_PRJ0, &h);
+            nor[st_sector(OBJ_PRJ0, (uint32_t)cur) + 4096u + 1000u] ^= 0x04;   /* rot in the newer copy's second sector */
+        }
+        n = st_load(OBJ_PRJ0, g, sizeof g);
+        bad += check("big: rot in the second sector: the older copy", n == (int)sizeof p2 && !memcmp(g, p2, sizeof p2));
+        bad += check("big: too big refused", st_save_big(OBJ_PRJ0, p2, sizeof p2 + 1u, 0) == -1 && st_save_big(OBJ_PRJ0, p2, 7000, 937) == -1);
+        bad += check("big: a small object refuses it", st_save_big(OBJ_SETTINGS, p1, 100, 0) == -1 &&
+                     st_save(OBJ_WORK, p1, 100) == -1);
+        bad += check("big: the others untouched", st_load(OBJ_PRJ0 + 1u, g, sizeof g) < 0 && st_load(OBJ_WORK, g, sizeof g) < 0);
+        bad += check("big: an empty one (an erased slot)", st_save_big(OBJ_PRJ0 + 3u, p1, 0, 0) == 0 &&
+                     st_load(OBJ_PRJ0 + 3u, g, sizeof g) == 0);
+        bad += check("big: the working project", st_save_big(OBJ_WORK, p2, 5000, 0) == 0 &&
+                     st_load(OBJ_WORK, g, sizeof g) == 5000 && !memcmp(g, p2, 5000));
+        n = st_load(OBJ_WORK, g, 3000);
+        bad += check("big: a shorter load takes its part", n == 3000 && !memcmp(g, p2, 3000));
+        {   /* a part of zeros after the bytes (a reserved part, in no RAM): 5744 bytes then 1024 zeros */
+            static uint8_t want[6768];
+            memset(want, 0, sizeof want);
+            memcpy(want, p2, 5744);
+            bad += check("big: bytes then a zero tail (5744 + 1024): loads as one object, its sum good",
+                         st_save_big(OBJ_WORK, p2, 5744, 1024) == 0 && st_load(OBJ_WORK, g, sizeof g) == 6768 &&
+                         !memcmp(g, want, sizeof want));
+        }
+        bad += check("the songs' objects are released", st_save(OBJ_FM6BANK + 1u, p1, 10) == -1 && st_load(OBJ_FM6BANK + 2u, g, 10) < 0);
     }
     {   /* 2.6: SAVE > PROJECT > ERASE (project.c project_erase), as the editor's restore of an empty slot: an object
          * of no bytes; a load reads 0 bytes (proj_fetch: no project), the next save works as ever */

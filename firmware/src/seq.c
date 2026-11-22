@@ -9,9 +9,9 @@
  * its LEN. So the tracks, the click, the arp, the rolls and the sections never drift apart, a
  * tempo or DIV change plays at most one step a block, and a polymeter (any LEN) stays in phase.
  *
- * Four tracks: tracks 1..3 are synth parts (steps of up to 4 notes), track 4 the drum track (steps
- * of 16 lanes, one per white key). Each step note / lane has a level (ghost .. hard) and a ratchet
- * (x1..x4 hits in its step). The keys play the selected track; MIDI channels 1..3 play parts 1..3,
+ * Four tracks: tracks 1..3 are synth parts (steps of up to 4 notes, each note a level (ghost .. hard) and a ratchet:
+ * x1..x4 hits in its step), track 4 the drum track (PHEBUS wave 2: 16 sounds, one per white key, each with its own
+ * trigs, core.h dpat_t: a velocity, and maybe a condition, a chance, a nudge, a retrig and locks of its own sound). The keys play the selected track; MIDI channels 1..3 play parts 1..3,
  * the DRUMS channel (GLO > DRUMS, default 10) the drum track, any other channel the selected track.
  *
  * Layers: a function button held turns the keys into something else (TE style: hold + touch):
@@ -39,6 +39,8 @@ static const uint16_t SCALE_MASK[] = {
 };
 #define NSCALES (sizeof SCALE_MASK / sizeof SCALE_MASK[0])
 #define SEQ_NONE 0xFFFFFFFFu
+static void drum_rt_clear(void);              /* (the drum trigs as they play, below) */
+static uint32_t seq_src(const struct track *t, uint32_t nabs);
 
 #define KB_SILENT 255u
 static uint32_t kb_prev;
@@ -432,25 +434,37 @@ static uint32_t trk_len(const track_t *t) { return t->p[P_SLEN] > 0 ? (uint32_t)
 /* One step back (and forward again) for the pattern of one track: what it was before the last
  * recording pass, erase, step edit, tool or clear (a session: one mark). EDIT + OCT- / OCT+. The whole of
  * every step: its notes and length, and its locks, nudge and condition (REVIEW.md 7, 21 Nov 2026) */
+/* (PHEBUS wave 2) the drum track: its whole pattern (dpat) and its bus locks. In .noinit (RAM is short; it is
+ * garbage after a power-off: undo_init clears it at start) */
 static struct {
     uint8_t valid, undone, trk;
     int16_t len;
     uint32_t sess;
-    step_t st[NSTEP];
-    int8_t micro[NSTEP];
+    union {
+        struct {
+            step_t st[NSTEP];
+            int8_t micro[NSTEP];
+            uint8_t fill[NSTEP / 4];
+        };
+        dpat_t dp;                       /* (the drum track) */
+    };
     plock_t lock[NLOCK];
-    uint8_t fill[NSTEP / 4];
-} undo;
+} undo __attribute__((section(".noinit")));
+static void undo_init(void) { memset(&undo, 0, sizeof undo); }
 static uint32_t undo_sess = 1;           /* UI sessions (seq.c: recording passes use the track's pass) */
 static void undo_mark(const track_t *t, uint32_t sess)
 {
     uint32_t i = trk_index(t);
     if (undo.valid && !undo.undone && undo.trk == i && undo.sess == sess)
         return;                                          /* (this session is marked already) */
-    memcpy(undo.st, t->step, sizeof undo.st);
-    memcpy(undo.micro, t->micro, sizeof undo.micro);
+    if (is_drum(t)) {
+        memcpy(&undo.dp, &dpat, sizeof undo.dp);
+    } else {
+        memcpy(undo.st, t->step, sizeof undo.st);
+        memcpy(undo.micro, t->micro, sizeof undo.micro);
+        memcpy(undo.fill, t->fill, sizeof undo.fill);
+    }
     memcpy(undo.lock, t->lock, sizeof undo.lock);
-    memcpy(undo.fill, t->fill, sizeof undo.fill);
     undo.len = t->p[P_SLEN];
     undo.trk = (uint8_t)i;
     undo.sess = sess;
@@ -536,12 +550,16 @@ static void rec_note(track_t *t, uint32_t note, uint32_t vel, uint32_t rat, int 
         t->rh_note[t->rh_n++] = (uint8_t)note;      /* a chord: held until its last key is up */
 }
 
-/* live recording into the drum track: lane, level, ratchet */
-static void rec_hit(track_t *t, uint32_t lane, uint32_t lvl, uint32_t rat)
+static void dt_retrig_hits(uint32_t i, uint32_t l, uint32_t hits);   /* (below) */
+/* live recording into the drum track: the sound's trig at the velocity played (over one there: its velocity), and a roll
+ * faster than the steps (rat: hits in the step - 1) as its retrig */
+static void rec_hit(track_t *t, uint32_t lane, uint32_t vel, uint32_t rat)
 {
-    uint32_t later, abs = rec_target(t, &later);
+    uint32_t later, abs = rec_target(t, &later), i = abs % trk_len(t);
     undo_mark(t, UNDO_REC(t));
-    dstep_set(&t->dstep[abs % trk_len(t)], lane, lvl, rat);
+    dt_set(i, lane, vel);
+    if (rat)
+        dt_retrig_hits(i, lane, rat + 1u);
     t->seq_active = 1;
     if (later) {
         if (t->rskip_abs != abs)
@@ -620,7 +638,7 @@ static int track_empty(const track_t *t)
 {
     uint32_t k;
     for (k = 0; k < NSTEP; k++)
-        if (is_drum(t) ? dstep_mask(&t->dstep[k]) != 0u : t->step[k].time == ST_NOTE && t->step[k].n)
+        if (is_drum(t) ? dt_mask(k) != 0u : t->step[k].time == ST_NOTE && t->step[k].n)
             return 0;
     return 1;
 }
@@ -771,8 +789,8 @@ static volatile uint8_t fill_arm;            /* GLO + key 10: the next bar is a 
 static uint8_t fill_bar_on;                  /* that bar, while it plays (the ISR) */
 static uint8_t fill_now;                     /* this block is a fill: fill_held || fill_bar_on, read once a block */
 static uint32_t fill_last_bar = 0xFFFFFFFFu; /* clk_beat / 4 of the last bar seen (events_block) */
-/* a step's condition holds now. CHNC (FC_CHANCE): a fixed chance, 64 in 127 (about 50 %, what SEQ > PLAY's CHANCE
- * started at; PLAY is cut, PHEBUS wave 1; the trigs get their own probability with the new project format) */
+/* a step's condition holds now. CHNC (FC_CHANCE): a synth step's is a fixed chance, 64 in 127 (about 50 %, what SEQ >
+ * PLAY's CHANCE started at; PLAY is cut, PHEBUS wave 1); a drum trig has its own (dt_plays) */
 #define STEP_CHANCE 64u
 static uint32_t step_plays(const track_t *t, uint32_t idx)
 {
@@ -781,14 +799,27 @@ static uint32_t step_plays(const track_t *t, uint32_t idx)
         return rng() % 127u < STEP_CHANCE;
     return c == FC_FILL ? fill_now : c == FC_NOFILL ? !fill_now : 1u;
 }
+/* (PHEBUS wave 2) a drum trig's condition holds now (x: its extras' entry, -1 = none: always); CHNC: its chance */
+static uint32_t dt_plays(int x)
+{
+    const dtx_t *e;
+    if (x < 0)
+        return 1u;
+    e = &dpat.x[x];
+    if (e->cond == FC_CHANCE)
+        return rng() % 100u < e->prob;
+    return e->cond == FC_FILL ? fill_now : e->cond == FC_NOFILL ? !fill_now : 1u;
+}
 
-static void steps_clear(track_t *t)           /* an empty pattern (synth: REST steps, drums: no lane); no lock, no nudge, no condition */
+static void steps_clear(track_t *t)           /* an empty pattern (synth: REST steps, drums: no trig); no lock, no nudge, no condition */
 {
     uint32_t k;
     memset(t->step, 0, sizeof t->step);
     if (!is_drum(t))
         for (k = 0; k < NSTEP; k++)
             t->step[k].time = ST_REST;
+    else
+        dpat_clear(&dpat);
     locks_clear(t);
     memset(t->fill, 0, sizeof t->fill);
 }
@@ -811,11 +842,10 @@ static int er_has(uint32_t note) { return (er_notes[(note >> 5) & 3u] >> (note &
 static void erase_step(track_t *t, uint32_t idx)
 {
     if (is_drum(t)) {
-        dstep_t *s = &t->dstep[idx];
-        uint32_t l, m = dstep_mask(s) & er_lanes;
+        uint32_t l, m = dt_mask(idx) & er_lanes;
         for (l = 0; m; l++, m >>= 1)
             if (m & 1u) {
-                dstep_clr(s, l);
+                dt_clr(idx, l);                       /* (its extras and locks with it) */
                 er_flash = 1;
             }
     } else {
@@ -1035,7 +1065,7 @@ static void arm_start(track_t *t)
     }
 }
 
-static void drum_input(uint32_t lane, uint32_t lvl, uint32_t rat, int rec);
+static void drum_input(uint32_t lane, uint32_t vel, uint32_t rat, int rec);
 static const uint8_t *in_chord;                    /* input_on's note is note in_chord_i of in_chord (CHORD+) */
 static uint32_t in_chord_n, in_chord_i;
 /* SLOOP 2.6: the sustain pedal (MIDI CC 64, on the track its channel plays): while it is down, a synth track's notes let
@@ -1047,7 +1077,7 @@ static void input_off_now(track_t *t, uint32_t note);
 static void input_on(track_t *t, uint32_t note, uint32_t vel)
 {
     if (is_drum(t)) {                             /* (a GM note on the drum track: its lane) */
-        drum_input(lane_of_note(note), vel_lvl(vel), 0, 1);
+        drum_input(lane_of_note(note), vel, 0, 1);   /* (PHEBUS wave 2: at its velocity, recorded so) */
         return;
     }
     last_note = (uint8_t)note;
@@ -1089,16 +1119,17 @@ static void input_off_now(track_t *t, uint32_t note)
     trk_note_off(t, note);                          /* other mode (ARP switched while held) */
 }
 
-/* a drum hit from a key, MIDI or a roll: lane, level; rat: its ratchet when recorded (rolls); rec: it
- * may be recorded (a roll records one hit a step) */
-static void drum_input(uint32_t lane, uint32_t lvl, uint32_t rat, int rec)
+/* a drum hit from a key, MIDI or a roll: lane, velocity; rat: its retrig when recorded (rolls: hits in the step - 1);
+ * rec: it may be recorded (a roll records one hit a step) */
+static void drum_input(uint32_t lane, uint32_t vel, uint32_t rat, int rec)
 {
     track_t *t = TDRUM;
     lane &= 15u;
+    vel = vel < 1u ? 1u : vel > 127u ? 127u : vel;
     arm_start(t);
     if (rec && ((song.rec >> TRK_DRUM) & 1u) && song.playing)
-        rec_hit(t, lane, lvl, rat);
-    trk_note_on(t, LANE_NOTE[lane], lvl_vel(lvl, 100));
+        rec_hit(t, lane, vel, rat);
+    trk_note_on(t, LANE_NOTE[lane], vel);
 }
 
 /* -------------------------------------------------------------- roll --- */
@@ -1145,7 +1176,7 @@ static void roll_hit(uint32_t r)
         roll[r].rec_abs = abs;
     }
     if (is_drum(t)) {
-        drum_input(roll[r].note, roll[r].lvl, rat, rec || !armed);
+        drum_input(roll[r].note, lvl_vel(roll[r].lvl, 100), rat, rec || !armed);
         seq_out_on(t, LANE_NOTE[roll[r].note & 15u], lvl_vel(roll[r].lvl, 100));
         return;
     }
@@ -1355,7 +1386,7 @@ static void key_down(uint32_t k)
             return;
         }
         kb_kind[k] = KS_DRUM;
-        drum_input(lane, lvl, 0, 1);
+        drum_input(lane, lvl_vel(lvl, 100), 0, 1);
         mc = trk_midi_ch(sel);
         midi_out_note(mc, (uint32_t)LANE_NOTE[lane], lvl_vel(lvl, 100));
         return;
@@ -1455,24 +1486,18 @@ static void key_up(uint32_t k)
 }
 
 /* the UI asks to hear drum sounds (a sound or a step picked with a knob, a step set from a key):
- * aud_lanes the lanes, each at its level aud_lvl (2 bits a lane), played here, in the audio context */
-static volatile uint32_t aud_lanes, aud_lvl;
-static void audition_req(uint32_t lanes, uint32_t lvls)
+ * aud_lanes the lanes, played here, in the audio context: at their trigs' velocities on step aud_step (as they are
+ * then), or at 100 (aud_step NSTEP) */
+static volatile uint32_t aud_lanes, aud_step;
+static void audition_req(uint32_t lanes, uint32_t step)
 {
     fm1_irq_off();
-    aud_lvl = lvls;
+    aud_step = step;
     aud_lanes = lanes & 0xFFFFu;
     fm1_irq_on();
 }
-static void audition_lane(uint32_t lane) { audition_req(1u << (lane & 15u), 0u); }   /* (LV_NORM = 0) */
-static void audition_step(const dstep_t *s)            /* every sound of a drum step, at its level */
-{
-    uint32_t m = dstep_mask(s), lv = 0, l;
-    for (l = 0; l < 16u; l++)
-        if ((m >> l) & 1u)
-            lv |= dstep_lvl(s, l) << (2u * l);
-    audition_req(m, lv);
-}
+static void audition_lane(uint32_t lane) { audition_req(1u << (lane & 15u), NSTEP); }
+static void audition_step(uint32_t i) { audition_req(dt_mask(i % NSTEP), i % NSTEP); }   /* every sound of a drum step */
 /* the UI asks to hear a synth step (the GRID: a step set, its NOTE turned; REVIEW.md 1, 21 Nov 2026): its notes on
  * track aud_syn_trk, played here and let go AUD_SYN_BLOCKS blocks (~150 ms) later. Only the voices: nothing recorded,
  * nothing to the arp or MIDI out. A new one ends the one before */
@@ -1509,14 +1534,14 @@ static void audition_syn_block(void)
 }
 static void audition_block(void)
 {
-    uint32_t m = aud_lanes, lv = aud_lvl, l;
+    uint32_t m = aud_lanes, st = aud_step, l;
     audition_syn_block();
     if (!m)
         return;
     aud_lanes = 0;
     for (l = 0; m; l++, m >>= 1)
         if (m & 1u)
-            trk_note_on(TDRUM, LANE_NOTE[l], lvl_vel((lv >> (2u * l)) & 3u, 100));
+            trk_note_on(TDRUM, LANE_NOTE[l], st < NSTEP && dt_vel(st, l) ? dt_vel(st, l) : 100u);
 }
 
 static void keyboard_block(void)
@@ -1616,6 +1641,7 @@ static void seq_reset_tracks(uint32_t pos)
     }
     for (i = 0; i < NROLL; i++)
         roll[i].last = SEQ_NONE - 1u;               /* (a roll held over the start: on the grid from here) */
+    drum_rt_clear();
     clk_beat = 0;
     clk_pos = pos;
 #if FELUCCA_ARRANGER
@@ -1667,6 +1693,7 @@ static void seq_stop(void)
         trk[i].rh_n = 0;                           /* a recorded note held over the stop: as far as it got */
     }
     seq_out_all_off();
+    drum_rt_clear();
 }
 
 /* the velocity of note i of synth step s */
@@ -1734,41 +1761,204 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
     t->seq_hold = !s->rat && ((s->flags & SF_SLIDE) != 0 || next_tie);   /* next step a TIE: keep the notes to it */
 }
 
-/* play one drum step: each lane a hit (skip: lanes already played by live recording, or rolling) */
-static void drum_step(track_t *t, const dstep_t *s, uint32_t skip)
+/* ---- the drum trigs as they play (PHEBUS wave 2, core.h dpat_t). On each step, each sound's trig: its condition
+ * (CHNC: its own chance), then its hit at its velocity with its sound's locks (drums.c drum_lk_*), on the grid or nudged:
+ * late, it waits in dq; early (before its step), it is queued when the step before it plays. Its retrig repeats it at
+ * the retrig's rate over its length (drt), each hit its velocity through the curve, its locks again; the sound's next
+ * trig ends it. Everything runs a block at a time, like the steps (a hit lands in the block it falls in) */
+static const uint8_t RT_DEN[18] = {0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 32, 40, 48, 64, 80};   /* 1/1 .. 1/80 note */
+#define NRTRG 17u
+static uint32_t rt_units(uint32_t r) { return BEAT_U * 4u / RT_DEN[r < 1u ? 1u : r > NRTRG ? NRTRG : r]; }   /* (exact) */
+#define DQ_N 32u
+static struct { int32_t left; uint8_t step, lane; } dq[DQ_N];   /* nudged hits waiting: units from the block's start to
+                                                                  * when each is due (as a step: it plays in the first block
+                                                                  * that starts at or after that), the trig */
+static uint8_t dq_n;
+static uint32_t dq_ahead = SEQ_NONE;            /* the grid step whose early trigs are queued (dq_early: their sounds) */
+static uint16_t dq_early;
+#define RT_INF 0xFFFFFFFFu
+/* a retrig as it runs: units since its trig (at the block's start), when its next hit is due, its rate and length */
+static struct { uint32_t el, nx, per, len; uint8_t on, step, vel, now; int8_t fade; } drt[DRUM_LANES];   /* (now: it started
+                                                                  * in this block: its hits from the next) */
+static void drum_rt_clear(void)                 /* nothing waits, nothing retrigs (STOP, PLAY, a section, a load) */
 {
-    uint32_t l, m = dstep_mask(s) & ~skip & ~roll_lanes(t) & ~(uint32_t)drum_mute;
-    seq_out_track_off(t);                           /* the last step's hits end here */
-    for (l = 0; m; l++, m >>= 1)
-        if (m & 1u) {
-            trk_note_on(t, LANE_NOTE[l], lvl_vel(dstep_lvl(s, l), 100));
-            seq_out_on(t, LANE_NOTE[l], lvl_vel(dstep_lvl(s, l), 100));
+    uint32_t l;
+    dq_n = 0;
+    dq_ahead = SEQ_NONE;
+    dq_early = 0;
+    for (l = 0; l < DRUM_LANES; l++)
+        drt[l].on = 0;
+}
+/* a trig of hits x1..x4 in its step (an old ratchet, a roll recorded): a retrig of a step's length at the rate nearest a
+ * step / hits on the drum track's DIV */
+static void dt_retrig_hits(uint32_t i, uint32_t l, uint32_t hits)
+{
+    uint32_t want = div_units(trk_div(TDRUM)) / (hits ? hits : 1u), r, best = 1, bd = 0xFFFFFFFFu;
+    dtx_t *x;
+    for (r = 1; r <= NRTRG; r++) {
+        uint32_t u = rt_units(r), d = u > want ? u - want : want - u;
+        if (d < bd)
+            bd = d, best = r;
+    }
+    if (hits > 1u && (x = dt_x_make(i, l)) != 0) {
+        x->rrate = (uint8_t)best;
+        x->rlen = DT_RLEN_DEF;
+        x->rfade = 0;
+    }
+}
+/* one hit of trig (i, l) at vel: its sound's locks, unless the sound is muted live or rolling */
+static void dhit(track_t *t, uint32_t i, uint32_t l, uint32_t vel)
+{
+    uint32_t k, n = 0;
+    if (((roll_lanes(t) | drum_mute) >> l) & 1u)
+        return;
+    for (k = 0; k < DT_NLK && n < DSP_COUNT; k++)
+        if (dpat.lk[k].step == i && dpat.lk[k].lane == l && dpat.lk[k].param < DSP_COUNT) {
+            drum_lk_p[n] = dpat.lk[k].param;
+            drum_lk_v[n++] = dpat.lk[k].val;
         }
+    drum_lk_n = (uint8_t)n;
+    trk_note_on(t, LANE_NOTE[l], vel < 1u ? 1u : vel);
+    drum_lk_n = 0;
+    seq_out_on(t, LANE_NOTE[l], vel < 1u ? 1u : vel);
+}
+/* a retrig's velocity at the hit units after its start (len: its length): the curve, fade out (< 0) to fade in (> 0) */
+static uint32_t rt_vel(uint32_t vel, int32_t fade, uint32_t at, uint32_t len)
+{
+    int32_t p, v;
+    if (!fade || len == RT_INF || !len)
+        return vel;
+    p = (int32_t)((uint64_t)(at < len ? at : len) * 1024u / len);   /* 0..1024 */
+    v = fade < 0 ? (int32_t)vel * (131072 + fade * p) / 131072
+                 : (int32_t)vel * (131072 - fade * (1024 - p)) / 131072;
+    return (uint32_t)(v < 1 ? 1 : v > 127 ? 127 : v);
+}
+/* trig (i, l) plays now, late units after it was due (a step of slen units): its hit, its retrig started (the sound's
+ * last one ends) */
+static void dtrig(track_t *t, uint32_t i, uint32_t l, uint32_t slen, uint32_t late)
+{
+    int x = dt_x(i, l);
+    uint32_t vel = dt_vel(i, l);
+    drt[l].on = 0;
+    if (!vel)
+        return;                                     /* (cleared while it waited) */
+    if (x >= 0 && dpat.x[x].rrate) {
+        const dtx_t *e = &dpat.x[x];
+        drt[l].per = rt_units(e->rrate);
+        drt[l].len = e->rlen ? (uint32_t)((uint64_t)slen * e->rlen / 16u) : RT_INF;
+        drt[l].el = late;
+        drt[l].nx = drt[l].per;
+        drt[l].vel = (uint8_t)vel;
+        drt[l].fade = e->rfade;
+        drt[l].step = (uint8_t)i;
+        drt[l].on = 1;
+        drt[l].now = 1;
+        vel = rt_vel(vel, e->rfade, 0, drt[l].len);
+    }
+    dhit(t, i, l, vel);
+}
+/* a nudged hit of trig (i, l) due left units from this block's start: now when it is due already, else queued */
+static void dq_push(track_t *t, int32_t left, uint32_t i, uint32_t l, uint32_t slen)
+{
+    if (left <= 0) {
+        dtrig(t, i, l, slen, (uint32_t)-left);
+    } else if (dq_n < DQ_N) {
+        dq[dq_n].left = left;
+        dq[dq_n].step = (uint8_t)i;
+        dq[dq_n].lane = (uint8_t)l;
+        dq_n++;
+    }
+}
+/* once a block while playing (adv units since the last block's start), before a step fires: the nudged hits due */
+static void drum_block(track_t *t, uint32_t adv, uint32_t slen)
+{
+    uint32_t k, l;
+    for (k = 0; k < dq_n;) {
+        dq[k].left -= (int32_t)adv;
+        if (dq[k].left > 0) {
+            k++;
+            continue;
+        }
+        l = dq[k].lane;
+        dtrig(t, dq[k].step, l, slen, (uint32_t)-dq[k].left);
+        dq[k] = dq[--dq_n];
+    }
+}
+/* .. and after it: the retrigs' hits (after: a sound's next trig in this block ends its retrig first, no double hit) */
+static void drum_retrigs(track_t *t, uint32_t adv)
+{
+    uint32_t l;
+    for (l = 0; l < DRUM_LANES; l++) {
+        if (!drt[l].on || drt[l].now) {
+            drt[l].now = 0;
+            continue;
+        }
+        drt[l].el += adv;
+        if (drt[l].el < drt[l].nx)
+            continue;
+        if (drt[l].len != RT_INF && drt[l].nx >= drt[l].len) {
+            drt[l].on = 0;                          /* its length is over */
+            continue;
+        }
+        dhit(t, drt[l].step, l, rt_vel(drt[l].vel, drt[l].fade, drt[l].nx, drt[l].len));
+        drt[l].nx += drt[l].per;                    /* (the rate is longer than a block: one hit a block at most) */
+        if (drt[l].len == RT_INF) {                 /* (until the sound's next trig: kept small) */
+            drt[l].el -= drt[l].per;
+            drt[l].nx -= drt[l].per;
+        }
+    }
+}
+/* the drum notes sent on MIDI out end here, but those of the step's trigs that played early */
+static void seq_out_drum_off(const track_t *t, uint32_t keep)
+{
+    uint32_t l;
+    for (l = 0; l < DRUM_LANES; l++)
+        if (!((keep >> l) & 1u))
+            seq_out_off(t, LANE_NOTE[l]);
+}
+/* play drum step idx (grid step nabs, slen units long, the grid into units past its start now, the pattern len steps):
+ * each trig whose condition holds, on the grid or nudged late (skip: sounds already played by live recording); then the
+ * next step's trigs nudged early are queued */
+static void drum_step(track_t *t, uint32_t idx, uint32_t nabs, uint32_t slen, uint32_t into, uint32_t len, uint32_t skip)
+{
+    uint32_t l, m = dt_mask(idx) & ~skip, nxt, ahead = dq_ahead == nabs;
+    seq_out_drum_off(t, ahead ? dq_early : 0u);
+    for (l = 0; m; l++, m >>= 1) {
+        int x;
+        int32_t mu;
+        if (!(m & 1u))
+            continue;
+        x = dt_x(idx, l);
+        mu = x >= 0 ? dpat.x[x].micro : 0;
+        if (mu < 0 && ahead)
+            continue;                               /* (queued a step ahead) */
+        if (!dt_plays(x))
+            continue;
+        if (mu <= 0)
+            dtrig(t, idx, l, slen, mu < 0 ? 0u : into);   /* (nudged early but not queued: PLAY, a jump: now) */
+        else
+            dq_push(t, (int32_t)(slen / 64u) * mu - (int32_t)into, idx, l, slen);
+    }
+    nxt = seq_src(t, nabs + 1u) % (len ? len : 1u);
+    dq_early = 0;
+    for (l = 0, m = dt_mask(nxt); m; l++, m >>= 1) {
+        int x;
+        if (!(m & 1u) || (x = dt_x(nxt, l)) < 0 || dpat.x[x].micro >= 0 || !dt_plays(x))
+            continue;
+        dq_early |= (uint16_t)(1u << l);
+        dq_push(t, (int32_t)slen + (int32_t)(slen / 64u) * dpat.x[x].micro - (int32_t)into, nxt, l, slen);
+    }
+    dq_ahead = nabs + 1u;
 }
 
-/* ratchets: the further hits of the playing step's notes / lanes, each at its share of the step */
+/* ratchets: the further hits of the playing synth step's notes, each at its share of the step */
 static void seq_ratchets(track_t *t, uint32_t into, uint32_t slen)
 {
     uint32_t i;
     if (t->seq_skip)
         return;                                     /* (its condition failed: no hit at all) */
-    if (is_drum(t)) {
-        const dstep_t *s = &t->dstep[t->seq_idx % NSTEP];
-        uint32_t m = dstep_mask(s) & ~roll_lanes(t) & ~(uint32_t)drum_mute;
-        for (i = 0; m; i++, m >>= 1) {
-            uint32_t hits = 1u + dstep_rat(s, i), h, done;
-            if (!(m & 1u) || hits == 1u)
-                continue;
-            h = into * hits / slen;
-            done = (t->rat_lanes >> (2u * i)) & 3u;
-            if (h > done && h < hits) {
-                t->rat_lanes = (t->rat_lanes & ~(3u << (2u * i))) | h << (2u * i);
-                trk_note_on(t, LANE_NOTE[i], lvl_vel(dstep_lvl(s, i), 100));
-                seq_out_on(t, LANE_NOTE[i], lvl_vel(dstep_lvl(s, i), 100));
-            }
-        }
-        return;
-    }
+    if (is_drum(t))
+        return;                                     /* (the drum trigs' retrigs: drum_retrigs) */
     {
         const step_t *s = &t->step[t->seq_idx % NSTEP];
         if (s->time != ST_NOTE || !s->rat)
@@ -1843,6 +2033,8 @@ static void seq_tick(track_t *t, uint32_t adv)
     if (!song.playing)
         return;
     abs = trk_grid(t, &into, &slen);
+    if (is_drum(t))
+        drum_block(t, adv, slen);                    /* (nudged hits and retrigs due in this block) */
     {
         uint32_t div = trk_div(t);
         if (t->seq_abs != SEQ_NONE && div != t->seq_den)
@@ -1869,7 +2061,6 @@ static void seq_tick(track_t *t, uint32_t adv)
         idx = seq_src(t, nabs) % (len ? len : 1u);   /* (a 1/2 or 1/1 STUTTER run: replayed) */
         t->seq_idx = (uint16_t)idx;
         t->rat_done[0] = t->rat_done[1] = t->rat_done[2] = t->rat_done[3] = 0;
-        t->rat_lanes = 0;
         if (!idx) {
             t->pass++;                               /* a new pass of the loop (recording: one undo) */
             if (t->p[P_LTRIG] == 2 && !is_drum(t))   /* (PHEBUS, Ben 21 Nov 2026, picker "Add PATTERN") LFO SYNC > TRIG
@@ -1891,9 +2082,9 @@ static void seq_tick(track_t *t, uint32_t adv)
             }
         } else if (is_drum(t)) {
             uint32_t skip = t->rskip_abs == nabs ? t->rskip_lanes : 0u;
-            lock_step(t, idx);                       /* its parameter locks, before the block renders */
+            lock_step(t, idx);                       /* its bus's locks, before the block renders */
             t->rskip_lanes = 0;
-            drum_step(t, &t->dstep[idx], skip);
+            drum_step(t, idx, nabs, slen, abs == nabs ? into : 0u, len, skip);
         } else {
             const step_t *s = &t->step[idx];
             uint32_t skip = 0, i, k;
@@ -1917,6 +2108,8 @@ static void seq_tick(track_t *t, uint32_t adv)
         rel = (int32_t)into;
     if (t->seq_abs != SEQ_NONE)
         seq_ratchets(t, rel < 0 ? 0u : (uint32_t)rel, slen);
+    if (is_drum(t))
+        drum_retrigs(t, adv);
 }
 
 /* MIDI in: the track that has channel ch (0..15) as its own: the drum track's GLO > DRUMS > CH, synth track i's
@@ -2529,7 +2722,7 @@ static void events_block(uint32_t n)
         }
         if (is_drum(t)) {
             if (st == 0x90u && d2)
-                drum_input(lane_of_note(d1), vel_lvl(d2), 0, 1);
+                drum_input(lane_of_note(d1), d2, 0, 1);
         } else if (st == 0x90u && d2) {
             if (t == TSEL) {                          /* the SEQ layer's pen: this note, or the chord held (2.6) */
                 if (!(mi_pen[0] | mi_pen[1] | mi_pen[2] | mi_pen[3]) || pen_n >= 4u)

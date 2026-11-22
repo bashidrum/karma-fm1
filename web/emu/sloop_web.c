@@ -105,8 +105,8 @@ EXPORT void web_boot(void)
     web_booted = 1;
 }
 
-/* the project, as the FM-1 saves one (project.c, format 7: tracks, steps, locks, conditions, the globals a project
- * holds, the CLOUD): the page keeps it in the browser (a reload brings it back) and in a file (SAVE / OPEN PATTERN).
+/* the project, as the FM-1 saves one (project.c, format 8 since PHEBUS wave 2: tracks, steps, locks, conditions, the
+ * drum trigs, the globals a project holds): the page keeps it in the browser (a reload brings it back) and in a file (SAVE / OPEN PATTERN).
  * web_proj_get: what plays now into the buffer; web_proj_put: the buffer's n bytes loaded (any format the FM-1 reads),
  * 0 = not a project */
 #define PROJ_HOST 1                                  /* project.c: the format, capture and apply (the flash is none) */
@@ -121,9 +121,9 @@ EXPORT uint8_t *web_proj_get(void)
 }
 EXPORT uint32_t web_proj_put(uint32_t n)
 {
-    static project_t q;
+    static proj_core_t q;
     uint32_t i;
-    if (!proj_import(&q, &web_proj, (int)n))
+    if (n > sizeof web_proj || !proj_import(&q, &web_proj, (int)n, PROJ_V7_TMP))   /* (an older one: through format 7) */
         return 0;
     proj_apply(&q, 1);
     song.sel = (uint8_t)(q.sel < NTRK ? q.sel : 0u);
@@ -145,11 +145,11 @@ EXPORT void web_demo(void)
         trk[j].p[P_SLEN] = 16;
     }
     for (j = 0; j < 16u; j++) {
-        if (BEAT[j] & 1u) dstep_set(&TDRUM->dstep[j], 0, LV_HARD, 0);
-        if (BEAT[j] & 4u) dstep_set(&TDRUM->dstep[j], 2, LV_NORM, 0);
-        if (BEAT[j] & 8u) dstep_set(&TDRUM->dstep[j], 3, LV_GHOST, 0);
-        if (BEAT[j] & 0x10u) dstep_set(&TDRUM->dstep[j], 4, j % 4u ? LV_SOFT : LV_NORM, j == 14u ? 2u : 0u);
-        if (BEAT[j] & 0x20u) dstep_set(&TDRUM->dstep[j], 5, LV_NORM, 0);
+        if (BEAT[j] & 1u) dtest_set(j, 0, LV_HARD, 0);   /* (the drum trigs: a level's velocity, a ratchet's retrig) */
+        if (BEAT[j] & 4u) dtest_set(j, 2, LV_NORM, 0);
+        if (BEAT[j] & 8u) dtest_set(j, 3, LV_GHOST, 0);
+        if (BEAT[j] & 0x10u) dtest_set(j, 4, j % 4u ? LV_SOFT : LV_NORM, j == 14u ? 2u : 0u);
+        if (BEAT[j] & 0x20u) dtest_set(j, 5, LV_NORM, 0);
         if (BASS[j]) { trk[0].step[j].n = 1; trk[0].step[j].note[0] = BASS[j]; trk[0].step[j].time = ST_NOTE; }
         if (LEAD[j]) { trk[2].step[j].n = 1; trk[2].step[j].note[0] = LEAD[j]; trk[2].step[j].time = ST_NOTE; }
     }

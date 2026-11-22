@@ -60,6 +60,9 @@ run "drums: each sound's sends and the kit through a project (load, power-on, se
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/seq2_test" tests/seq2_test.c $PLX -lm
 run "sequencer 2.0: no drift, ratchets, roll, erase / undo, ghost / hard, chords, mute / solo, nudge, locks, sections" "$OUT/seq2_test"
 
+$CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/drumtrig_test" tests/drumtrig_test.c $PLX -lm
+run "drum trigs (PHEBUS wave 2): a sound's lock is its own, velocity, chance per trig, conditions, retrig, nudge per trig" "$OUT/drumtrig_test"
+
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/drumkit_test" tests/drumkit_test.c $PLX -lm
 run "synthesised drum kits: every kit x sound bounded, audible, finite, levels, cost" "$OUT/drumkit_test" "$OUT/drum-kits.wav" "$OUT/drum-kits.txt"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/font_test" tests/font_test.c
@@ -133,7 +136,7 @@ run "DSP render (JUNO, the host default)" "$OUT/hostsim" 0 0 1 "$OUT/render.wav"
 mkdir -p build/tracks_demo
 run "TRACKS: 4-track pattern, live recording (lengths, swing), voice budget, engine switch, cost" env TRACKS=build/tracks_demo "$OUT/hostsim" 0 0 1 "$OUT/tracks.wav"
 $CC -w -Ibuild/gen -Ifirmware/src -o "$OUT/project_test" tests/project_test.c $PLX -lm
-run "project formats (FUN4 / FUN3 / FUN2 / FUN1 -> FUN5), capture / apply, autosave" "$OUT/project_test"
+run "project formats (FUN8: the drum trigs; FUN7 .. FUN1 converted), capture / apply, autosave" "$OUT/project_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/slicer_test" tests/slicer_test.c $PLX -lm
 mkdir -p build/slicer_demo
 run "SLICER: no clicks, timing, sync with the sequencer, STUT, cost, demos" "$OUT/slicer_test" build/slicer_demo

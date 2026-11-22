@@ -141,7 +141,7 @@ static void t_insert(void)
         setup();
         song.g[G_BPM] = 120;
         for (i = 0; i < 16u; i++)
-            if (!(i & 3u)) dstep_set(&TDRUM->dstep[i], 0, LV_NORM, 0);
+            if (!(i & 3u)) dtest_set(i, 0, LV_NORM, 0);
         TDRUM->p[P_SLEN] = 16;
         TDRUM->p[P_REV] = 60;
         transport_req = 1;
@@ -149,7 +149,7 @@ static void t_insert(void)
         a = rms(0, 1400u * CTL);
         setup();
         for (i = 0; i < 16u; i++)
-            if (!(i & 3u)) dstep_set(&TDRUM->dstep[i], 0, LV_NORM, 0);
+            if (!(i & 3u)) dtest_set(i, 0, LV_NORM, 0);
         TDRUM->p[P_SLEN] = 16;
         TDRUM->p[P_REV] = 60;
         TDRUM->p[P_ITYPE] = 4, TDRUM->p[P_IA] = 127, TDRUM->p[P_IMIX] = 127;   /* FUZZ, full drive */
@@ -283,8 +283,8 @@ static void t_mutes(void)
     setup();
     memset(&drums, 0, sizeof drums);
     for (i = 0; i < 16u; i++) {
-        dstep_set(&TDRUM->dstep[i], 0, LV_NORM, i == 4u ? 1u : 0u);   /* the kick on every step, a ratchet on 5 */
-        dstep_set(&TDRUM->dstep[i], 2, LV_NORM, 0);                   /* the snare too */
+        dtest_set(i, 0, LV_NORM, i == 4u ? 1u : 0u);   /* the kick on every step, a ratchet on 5 */
+        dtest_set(i, 2, LV_NORM, 0);                   /* the snare too */
     }
     TDRUM->p[P_SLEN] = 16;
     transport_req = 1;

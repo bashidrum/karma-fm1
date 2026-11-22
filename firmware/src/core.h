@@ -192,7 +192,8 @@ typedef struct {                 /* a step of a synth part (10 bytes): up to 4 n
     uint8_t rat;                 /* 2 bits per note: the hits it plays in its step - 1 (ratchet x1..x4) */
 } step_t;
 #define DRUM_LANES 16            /* the drum track: 16 sounds, one per white key (drums.c LANE_*) */
-typedef struct {                 /* a step of the drum track (10 bytes, the size of a step_t) */
+typedef struct {                 /* a step of the drum track until PHEBUS wave 2 (10 bytes, the size of a step_t): only the
+                                  * old project formats have it now (project.c); the drum pattern is dpat_t (below) */
     uint8_t on[2];               /* bit per lane */
     uint8_t lvl[4];              /* 2 bits per lane (lane k: byte k / 4, bits 2 (k % 4)..): LV_* */
     uint8_t rat[4];              /* 2 bits per lane: ratchet */
@@ -209,7 +210,46 @@ typedef struct {                 /* a lock: on step `step` the track's p[param] 
 } plock_t;
 #define LOCK_FREE 0xFFu
 /* a step's condition (SLOOP 2.4 fill, GLO + key 9 / 10): plays always, only during a fill, never during one */
-enum { FC_NORM, FC_FILL, FC_NOFILL, FC_CHANCE };   /* FC_CHANCE: plays at the track's SEQ > PLAY CHANCE (2026-10-20) */
+enum { FC_NORM, FC_FILL, FC_NOFILL, FC_CHANCE };   /* FC_CHANCE: a chance (a synth step: 50 %; a drum trig: its own) */
+
+/* ---- the drum pattern (PHEBUS wave 2; Ben, 21 Nov 2026, picker "Per-sound trigs, one track": "each sound's hits get their
+ * own velocity, condition, nudge, retrig and locks; all sounds share one pattern length"). Each of the 16 sounds has its own
+ * trig on each step: vel[step][lane], 0 = none, else its velocity 1..127. What few trigs have besides (a condition, a
+ * chance, a nudge, a retrig) is in a pool of DT_NX extras, and each sound's parameter locks in a pool of DT_NLK: a trig
+ * without an entry plays on the grid, always, once, at its velocity, with its sound as the kit has it. The drum track's
+ * own parameters (its bus: filter, INSERT, sends, SLICER, the kit) keep their per-step locks in track_t.lock as before */
+#define DT_NX 64u                /* trigs with extras, per pattern */
+#define DT_NLK 128u              /* per-sound parameter locks, per pattern */
+#define DT_FREE 0xFFu            /* a free entry's step */
+#define DT_VEL_DEF 100u          /* a trig's velocity when it is set (as the keys play, and the Rytm's default) */
+#define DT_PROB_DEF 50u          /* the chance a trig set to CHNC starts at (the old fixed CHNC: 64 in 127) */
+#define DT_RLEN_DEF 16u          /* a retrig's length when it is switched on: 16/16, one step */
+typedef struct {                 /* a trig's extras (8 bytes) */
+    uint8_t step, lane;          /* the trig (step DT_FREE: a free entry) */
+    uint8_t cond;                /* FC_* */
+    uint8_t prob;                /* FC_CHANCE: plays prob % of the time, 1..100 */
+    int8_t micro;                /* nudge, MICRO_MIN..MICRO_MAX: 1/64 of a step, - early, + late */
+    uint8_t rrate;               /* retrig: 0 off, else its rate (seq.c RT_DEN: 1/1 .. 1/80 of a bar) */
+    uint8_t rlen;                /* .. its length in 1/16 of a step (16: one step), 0 = until the sound's next trig */
+    int8_t rfade;                /* .. its velocity curve: -128 fades out over the length .. 127 fades in */
+} dtx_t;
+typedef struct {                 /* a lock of one sound (4 bytes): on step, sound lane's parameter param is val */
+    uint8_t step, lane;          /* (step DT_FREE: a free entry) */
+    uint8_t param;               /* DSP_* */
+    uint8_t val;                 /* the parameter's byte as the kit stores it (DSP_FINE: signed) */
+} dlk_t;
+typedef struct {
+    uint8_t vel[NSTEP][DRUM_LANES];
+    dtx_t x[DT_NX];
+    dlk_t lk[DT_NLK];
+} dpat_t;
+_Static_assert(sizeof(dtx_t) == 8 && sizeof(dlk_t) == 4 && sizeof(dpat_t) == 2048, "the drum pattern: 2 KB");
+/* a drum sound's parameters a lock can hold (the lock's param byte: stored in projects, never renumber): a HEX sound's
+ * bytes in their order (hex_drums.c hex_snd_t, the drum track's EDIT pages G_HXMODEL ..). Ids from DSP_COUNT are free for
+ * the sound pages to come (wave 3: LFO, pan, sends; wave 6: the project's own kits) */
+enum { DSP_MODEL, DSP_WAVE, DSP_COARSE, DSP_FINE, DSP_ATK, DSP_DEC, DSP_SLOPE, DSP_LEVEL, DSP_PAMT, DSP_PDEC, DSP_RATIO,
+       DSP_FM, DSP_CLICK, DSP_CLVL, DSP_CTONE, DSP_FTYPE, DSP_CUT, DSP_RES, DSP_DRIVE, DSP_AUX1, DSP_AUX2, DSP_CRUSH, DSP_COUNT };
+_Static_assert(DSP_COUNT == G_HXCRUSH - G_HXMODEL + 1, "a drum sound's lockable parameters: the EDIT pages' G_HX*, in order");
 
 typedef struct track {
     int16_t p[P_COUNT];
@@ -234,13 +274,10 @@ typedef struct track {
     uint8_t arp_note;            /* sounding arp note, 0 = none */
     uint8_t arp_new;             /* a chord just started: its first note now */
     uint32_t arp_off;            /* units to its note-off */
-    /* sequencer: synth parts step[], the drum track dstep[] (16 lanes) */
-    union {
-        step_t step[NSTEP];
-        dstep_t dstep[NSTEP];
-    };
+    /* sequencer: synth parts step[] (the drum track's pattern: dpat, below; its step[], micro[], fill[] stay empty) */
+    step_t step[NSTEP];
     int8_t micro[NSTEP];         /* each step's nudge, MICRO_MIN..MICRO_MAX (1/64 of a step; - early, + late) */
-    plock_t lock[NLOCK];         /* parameter locks, unsorted (step LOCK_FREE = a free slot) */
+    plock_t lock[NLOCK];         /* parameter locks, unsorted (step LOCK_FREE = a free slot); the drum track: its bus's */
     uint8_t fill[NSTEP / 4];     /* each step's condition, 2 bits (seq.c step_fill): FC_* */
     /* the locks in force (seq.c lock_step): the params overridden now, what they were, what the lock set */
     uint8_t lk_n;
@@ -260,7 +297,6 @@ typedef struct track {
     uint32_t seq_off;            /* units to the note-off of the step's notes */
     uint8_t seq_active;          /* any step programmed */
     uint8_t rat_done[4];         /* ratchet hits played in this step: per note (synth) */
-    uint32_t rat_lanes;          /* .. per lane (drums): 2 bits each */
     uint32_t rskip_abs;          /* live recording put notes into the step about to play: */
     uint8_t rskip_n, rskip[4];   /* do not trigger them again there (they sound already) */
     uint16_t rskip_lanes;        /* (the drum track: lanes) */
@@ -310,6 +346,7 @@ typedef struct {
 } song_t;
 
 static track_t trk[NTRK];        /* the instrument: three parts and the drum track */
+static dpat_t dpat;              /* the drum track's pattern (PHEBUS wave 2) */
 static song_t song;
 
 /* The transport clock (seq.c runs it). One unit = one sample at 1 BPM: a beat is BEAT_U units at any

@@ -107,7 +107,7 @@ After a layer lets go, the knobs ignore you for a quarter of a second, so a knob
 
 ### The HOME screen
 
-Tap **HOME** for the HOME screen. At the top: the bar counter, a strip of the **FLOW** backdrop, and the sections A to D. In the strip each voice has a band in its colour that swells as that voice gets louder and sinks to a dim line when it is quiet. It flows while the song plays or a voice sounds, and stands still otherwise. Under them, the selected voice's sound and engine (and REC, SOLO or MUTE), then a lane for each voice: its character, the 16 steps in view, the step playing and its level.
+Tap **HOME** for the HOME screen. The header reads PATTERN A to D while one of the sections plays, otherwise PHEBUS. At the top: the bar counter, a strip of the **FLOW** backdrop, and the sections A to D. In the strip each voice has a band in its colour that swells as that voice gets louder and sinks to a dim line when it is quiet. It flows while the song plays or a voice sounds, and stands still otherwise. Under them, the selected voice's sound and engine (and REC, SOLO or MUTE), then a lane for each voice: its character, the 16 steps in view, the step playing and its level.
 
 The four knobs play the selected voice, for quick changes while it plays:
 
@@ -185,7 +185,7 @@ While you hold a step, the knobs edit it. A step you edited is kept, never clear
 | first set | **NOTE**, by degrees of the scale (you hear it) | **LEN**, in steps (the following steps become ties) | **VEL**, 1 to 127 (turning it clears the accent) | **COND**: -, FILL, NOFL, CHNC |
 | after **SELECT** right | **FLAG**: -, ACC, SLD, A+S | **RATCH**: x1 to x4 | **NUDGE** | |
 
-SELECT left goes back to the first set. On a drum step the knobs are **LEVEL**, **RATCH**, **NUDGE** and **COND**.
+SELECT left goes back to the first set. On the drum voice each sound has its own trigs, and the knobs edit the picked sound's trig on the held step (see [The drum GRID](#the-drum-grid)).
 
 - **Conditions.** FILL plays only during a fill. NOFL plays except during a fill. CHNC plays about one time in two. A skipped step is silent in full: no note, no MIDI, no ratchet, no lock. Start a fill with **GLO + key 9** (while held) or **GLO + key 10** (the whole next bar; again cancels it).
 - **Ratchets** repeat the step 1 to 4 times inside its time.
@@ -204,6 +204,8 @@ A lock gives one sound parameter a different value on one step only.
 Tap the same button again to go to the next page that can be locked. EDIT walks OSC, FILT and ENV only. A value drawn in full colour is a lock. A dim value is the voice's own value.
 
 There is a limit of **24 locks per voice**. Messages you may see: NOTHING TO LOCK HERE, NOT LOCKABLE, NO LOCK LEFT, LOCKS FULL: HOLD FEWER STEPS, LOCKS FULL: 24 A TRACK.
+
+On the drum voice, a lock made on the sound's own pages (HEX OSC, HEX MOD, HEX CLICK, HEX MORE, HEX FILT, HEX AEG) belongs to the picked sound alone: a snare lock on step 5 changes only that snare hit, not the kick on the same step and not the snare on other steps. MODEL cannot be locked. Sound locks work on the HEX and MY HEX kits; the synthesised kits (606 and the rest) have no editable sounds yet and play their hits unlocked. A pattern holds up to 128 sound locks (SOUND LOCKS FULL: 128). Locks made on the drum voice's own pages (FILTER, FX, INSERT, SLICER) still act on the whole drum voice on that step, as before, and the step detail lists them under DRUMS.
 
 ### Pages, length and follow
 
@@ -296,11 +298,24 @@ Tap **SEQ** with the drum voice selected. The GRID shows up to seven rows: the s
 | KNOB 1 **SOUND** | picks the drum sound (you hear it) |
 | KNOB 2 **STEP** | moves the cursor (you hear that step) |
 | KNOB 3 **HIT** | right sets the step, left clears it |
-| KNOB 4 **LEVEL** | ghost, soft, norm, hard |
+| KNOB 4 **VEL** | the velocity of the cursor's trig, 1 to 127 |
 | **PRESETS** | picks the kit |
 | step keys | the 16 steps of the page, as on synth voices |
 
-Hold a drum step to edit it (LEVEL, RATCH, NUDGE, COND). Pages, length and follow work as in [section 4](#4-the-grid-placing-steps).
+Each of the 16 sounds has its own trig on each step. A new trig plays at velocity 100. Hold a step to edit the picked sound's trig on it:
+
+| Held trig | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
+| --- | --- | --- | --- | --- |
+| first set | **VEL**, 1 to 127 | **RETRIG**: OFF, 1/1, 1/2, 1/3, 1/4, 1/5, 1/6, 1/8, 1/10, 1/12, 1/16, 1/20, 1/24, 1/32, 1/40, 1/48, 1/64, 1/80 | **NUDGE** | **COND**: -, FILL, NOFL, CHNC |
+| after **SELECT** right | **CHANCE**, 1 to 99 % (what CHNC plays) | **LENGTH** of the retrig, 1/8 step to 16 steps, or INF | **CURVE** of the retrig's velocity, -128 (fades out) to 127 (fades in) | |
+
+- **Velocity** sets how hard that hit plays.
+- **Retrig** repeats the hit at its rate for its length, from where the trig plays. INF repeats it until that sound's next trig. CHANCE, LENGTH and CURVE show dim until they count (CHNC chosen, a retrig on).
+- **Nudge** and **condition** are the trig's own: two sounds on one step can sit at different nudges and conditions.
+- **OCT+** goes round the trig's conditions. **OCT-** clears its condition, chance, nudge, retrig and sound locks, and the drum voice's own locks on that step.
+- A pattern has room for 64 trigs with a condition, nudge or retrig (TRIG EXTRAS FULL: 64). A trig with none of them takes no room.
+
+Recording on the drum voice keeps each hit's velocity (from MIDI as played, from the keys 100, ghost and hard with OCT- and OCT+ held). A roll faster than the steps is recorded as a retrig. Pages, length and follow work as in [section 4](#4-the-grid-placing-steps). EDIT + KNOB 1 (SHIFT) and the length x2 take each trig's extras and sound locks with it.
 
 ### The KIT page
 
@@ -544,7 +559,7 @@ Holding and releasing SAVE with nothing else does not save anything. Tap **SAVE*
 
 On the REC screen: KNOB 2 the length (1, 2 or 4 bars), KNOB 3 **START** (on a note, or with a count-in). The click setting is GLO > GLOBAL > CLICK (OFF, REC, ON). The beat lights turn red on beat 1 only while recording.
 
-Notes are recorded as you play them, quantised to the voice's DIV. Rolls (hold ARP and a key) are recorded as ratchets.
+Notes are recorded as you play them, quantised to the voice's DIV. Rolls (hold ARP and a key) are recorded as ratchets (on the drum voice, as a retrig).
 
 ### The EDIT layer: erase, shift, undo
 
@@ -817,8 +832,10 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 | Gesture | Does |
 | --- | --- |
 | step keys | as on a synth voice, with the sound KNOB 1 picks |
-| hold a step + KNOB 1 to 4 | LEVEL, RATCH, NUDGE, COND |
-| KNOB 1 to 4 (nothing held) | SOUND, STEP, HIT, LEVEL |
+| hold a step + KNOB 1 to 4 | VEL, RETRIG, NUDGE, COND of the picked sound's trig |
+| hold a step + SELECT right or left | CHANCE, LENGTH, CURVE, or back |
+| hold a step + tap EDIT or ENV | lock the picked sound's parameters on that step (HEX kits) |
+| KNOB 1 to 4 (nothing held) | SOUND, STEP, HIT, VEL |
 | PRESETS | the kit |
 | tap SEQ | KIT, then back to the GRID |
 | EDIT + black key | erase or mute mode |

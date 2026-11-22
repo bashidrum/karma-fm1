@@ -236,7 +236,7 @@ static void op_ell(int32_t cx, int32_t cy, int32_t rx, int32_t ry, uint16_t c) {
 /* ---------------------------------------------------------------- DRUMS --- */
 #define OP_STEPS_H 36
 
-/* the 16 steps of KNOB 1's sound: a hit filled in its level's colour (a notch per ratchet), the cursor
+/* the 16 steps of KNOB 1's sound: a trig filled in its velocity's colour (notches: a retrig), the cursor
  * framed white, the step that plays underlined */
 static void op_drum_steps(uint32_t bank, uint32_t len)   /* (a step held: at the top, as on a synth's GRID, review 19) */
 {
@@ -244,13 +244,13 @@ static void op_drum_steps(uint32_t bank, uint32_t len)   /* (a step held: at the
     cv_begin(240, OP_STEPS_H, C_BLACK);
     for (j = 0; j < 16u; j++) {
         uint32_t p = bank * 16u + j;
-        const dstep_t *s = &TDRUM->dstep[p < NSTEP ? p : 0];
-        int32_t x = 4 + (int32_t)j * 14 + (int32_t)(j / 4u) * 2;
+        int32_t x = 4 + (int32_t)j * 14 + (int32_t)(j / 4u) * 2, xi;
         if (p >= len)
             continue;
-        if (dstep_has(s, drum_lane)) {
-            cv_rect(x, 4, 12, 22, lvl_col(dstep_lvl(s, drum_lane)));
-            for (r = 0; r < dstep_rat(s, drum_lane); r++)
+        if (dt_has(p, drum_lane)) {
+            cv_rect(x, 4, 12, 22, vel_col(dt_vel(p, drum_lane)));
+            xi = dt_x(p, drum_lane);
+            for (r = 0; xi >= 0 && dpat.x[xi].rrate && r < 3u; r++)
                 cv_rect(x + 2, 7 + (int32_t)r * 4, 8, 2, C_BLACK);
         } else {
             op_box(x, 4, 12, 22, j % 4u ? OP_PUR_D : OP_PUR);
@@ -1224,7 +1224,7 @@ static void op_home_body(void)
               (uint32_t)air * 5003u + ((song.solo >> i) & 1u) * 4999u;
         for (j = 0; j < len; j++) {
             if (i == TRK_DRUM) {
-                sig = sig * 31u + dstep_mask(&t->dstep[j]);
+                sig = sig * 31u + dt_mask(j);
             } else {
                 const step_t *st = &t->step[j];
                 sig = sig * 31u + (step_on(st) ? st->note[0] + 1u : 0u);
@@ -1249,7 +1249,7 @@ static void op_home_body(void)
             if (p >= len)
                 continue;
             if (i == TRK_DRUM) {                        /* a bar: 3 px a sound, up to 4 */
-                uint32_t m = dstep_mask(&t->dstep[p]), n = 0;
+                uint32_t m = dt_mask(p), n = 0;
                 for (; m; m &= m - 1u)
                     n++;
                 if (n)
