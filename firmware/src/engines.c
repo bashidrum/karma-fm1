@@ -47,17 +47,32 @@ static const engine_t ENG_GONE = {
     .poly = 1,
 };
 
-/* each part's arena, as big as its engines need (2026-10-20): track 1 ACID / JUNO, track 2 ELEMENTS, track 3
- * PLAITS, whose biggest model (PARTICLE: Plaits' reverb) takes what is left of the pool */
+/* each part's arena. (PHEBUS wave 4; Ben, 22 Nov 2026: "Make the perfect version. Then we'll compromise": every oscillator
+ * Type on every track) every part plays any engine, one at a time, so each part's arena is as big as the biggest engine's
+ * state (Plaits' PARTICLE, STRING and SPEECH models, ~16 KB each, one voice; the rest fit several voices in it, prism_poly).
+ * A part's engines take turns in its arena (voice.c engine_block: the old one fades out first), as before. PHEBUS_ARENA_T12:
+ * the bytes of tracks 1 and 2's arenas, the full size unless a build asks for less (the device build, when the pool cannot
+ * hold three full ones: tools/build.py; a Plaits model that then does not fit one voice in a part's arena is silent there,
+ * and the OSC page says so) */
 #define PRISM_ARENA (sizeof(void *) == 8u ? 16704u : 16640u)   /* (a 64-bit host: the pointers in Plaits' objects) */
-typedef union { acid_slot_t acid; juno_slot_t juno; } eng_arena0_t;
-typedef union { uint32_t phys[PHYS_ARENA / 4u]; } eng_arena1_t;
-_Static_assert(sizeof(juno_slot_t) <= PHYS_ARENA, "track 2's arena holds JUNO (PHEBUS: its chords)");
-typedef union { prism_slot_t prism[NVOICE]; uint64_t plx[(sizeof(void *) == 8u ? 16704u : 16640u) / 8u]; } eng_arena2_t;
-static eng_arena0_t eng_arena0 __attribute__((section(".pool")));
-static eng_arena1_t eng_arena1 __attribute__((section(".pool")));
-static eng_arena2_t eng_arena2 __attribute__((section(".pool")));
-static void *const ENG_ARENA[NPART] = {&eng_arena0, &eng_arena1, &eng_arena2};
+typedef union {
+    acid_slot_t acid;
+    juno_slot_t juno;
+    uint32_t phys[PHYS_ARENA / 4u];
+    prism_slot_t prism[NVOICE];
+    uint64_t plx[PRISM_ARENA / 8u];
+} eng_arena_full_t;
+#define ARENA_FULL ((uint32_t)sizeof(eng_arena_full_t))
+#ifndef PHEBUS_ARENA_T12
+#define PHEBUS_ARENA_T12 ARENA_FULL
+#endif
+#define ARENA_T12 ((((uint32_t)(PHEBUS_ARENA_T12) < ARENA_FULL ? (uint32_t)(PHEBUS_ARENA_T12) : ARENA_FULL) + 7u) & ~7u)
+_Static_assert(ARENA_T12 >= sizeof(juno_slot_t) && ARENA_T12 >= sizeof(acid_slot_t) && ARENA_T12 >= PHYS_ARENA,
+               "every part's arena holds ACID, JUNO and ELEMENTS whole (PHEBUS_ARENA_T12 trims Plaits' biggest models only)");
+static uint64_t eng_arena0[ARENA_T12 / 8u] __attribute__((section(".pool")));
+static uint64_t eng_arena1[ARENA_T12 / 8u] __attribute__((section(".pool")));
+static eng_arena_full_t eng_arena2 __attribute__((section(".pool")));
+static void *const ENG_ARENA[NPART] = {eng_arena0, eng_arena1, &eng_arena2};
 static const uint32_t ENG_ARENA_N[NPART] = {sizeof eng_arena0, sizeof eng_arena1, sizeof eng_arena2};
 static uint8_t eng_arena_own[NPART];            /* the engine + 1 whose state is in it, 0 = none */
 #ifdef ARENA_STATS
@@ -97,12 +112,13 @@ static const engine_t *const ENGINES[NENGINES] = {&ENG_GONE, &ENG_GONE, &ENG_GON
                                                     &ENG_GONE, &ENG_GONE,   /* PHYS, NOISE were here */
                                                     &ENG_PRISM, &ENG_ELEM, &ENG_ACID, &ENG_JUNO,
 };
-/* the engines each synth track may play (the drum track: none). PRESETS lists only theirs */
+/* the engines each synth track may play (the drum track: none). PRESETS lists only theirs. (PHEBUS wave 4; Ben, 21 Nov
+ * 2026: "Oscillator type ... The same layout on every voice"; 22 Nov: "Make the perfect version": every Type on every
+ * track) every synth track plays every engine */
 static int eng_allowed(const track_t *t, uint32_t e)
 {
     uint32_t p = (uint32_t)(t - trk);
-    return p == 0u ? (e == ENGI_ACID || e == ENGI_JUNO) : p == 1u ? (e == ENGI_JUNO || e == ENGI_ELEM)   /* (PHEBUS: */
-         : p == 2u ? e == ENGI_PRISM : 0;                                    /* JUNO's chords on track 2, Ben 21 Nov) */
+    return p < NPART && (e == ENGI_ACID || e == ENGI_JUNO || e == ENGI_ELEM || e == ENGI_PRISM);
 }
 static uint32_t eng_default(const track_t *t)        /* the engine a track falls back to */
 {

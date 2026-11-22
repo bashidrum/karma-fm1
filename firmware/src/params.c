@@ -12,8 +12,11 @@ static const char *const N_LPOL[] = {"BI", "UNI"};
 /* GLO > MIDI (2.6): a synth track's MIDI channel, and the other channels */
 static const char *const N_MCH[] = {"OFF", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16"};
 static const char *const N_MOTH[] = {"SEL", "OFF"};
-/* ANALOG's filter TYPE (eng_analog.c): the SVF's low-pass (as always), band-pass, high-pass output */
-static const char *const N_FTYPE[] = {"LP", "BP", "HP"};
+/* (PHEBUS wave 4) the voice filter's TYPE (vfilt.c VF_*; P_FTYPE was ANALOG's, an engine gone): the ladder's 24 dB and
+ * 12 dB low-pass, its band-pass, its 12 dB high-pass. LP24 on ACID and JUNO is their own ladder (the 303's, the IR3109) */
+static const char *const N_FTYPE[] = {"LP24", "LP12", "BP", "HP"};
+_Static_assert(sizeof N_FTYPE / sizeof N_FTYPE[0] == VF_NTYPE, "a name a filter type");
+static const char *const N_FLINK[] = {"AMP", "OWN"};   /* the filter's envelope: LINK to the amp ENV, or its OWN ADSR */
 /* ENV SYNC (voice.c): ATK DEC REL as note values of the tempo, shortest first. 0..127 split evenly over these 25
  * (param_format's F_INT name list: value v is ESYNC_NAMES[v * 25 / 128]); ESYNC_UNITS: each in 1/384 of a bar of
  * 4/4 (a quarter 96), 0 = the shortest time ATK / DEC / REL 0 has. 0-terminated (param_format) */
@@ -76,16 +79,17 @@ static const char *const N_ENGNAME[] = {"ANALOG", "DIGITAL", "PHASE", "LOFI", "S
 };
 _Static_assert(sizeof N_ENGNAME / sizeof N_ENGNAME[0] == NENGINES, "a name an engine");
 
+#include "vtype.c"            /* (PHEBUS wave 4) the oscillator Types and their macros */
 #define PD(l, f, mn, mx, df) {l, f, mn, mx, df, 0, 0}
 #define PE(l, n, df) {l, F_ENUM, 0, (int16_t)(sizeof(n) / sizeof(n[0]) - 1), df, n, 0}
 
 static const param_desc_t TP[P_COUNT] = {
     [P_LEVEL] = PD("LVL", F_DB, 0, 127, 104),
-    [P_ATK] = PD("ATK", F_TIME, 0, 127, 10),
-    [P_DEC] = PD("DEC", F_TIME, 0, 127, 70),
-    [P_SUS] = PD("SUS", F_PCT, 0, 127, 90),
-    [P_REL] = PD("REL", F_TIME, 0, 127, 60),
-    [P_ED_FLT] = PD("FLT", F_BIPCT, -64, 63, 0),
+    [P_ATK] = PD("ATTACK", F_TIME, 0, 127, 10),   /* (wave 4: the ENV page's names, mock-synth-env-A) */
+    [P_DEC] = PD("DECAY", F_TIME, 0, 127, 70),
+    [P_SUS] = PD("SUSTN", F_PCT, 0, 127, 90),
+    [P_REL] = PD("RELEAS", F_TIME, 0, 127, 60),
+    [P_ED_FLT] = PD("ENV", F_BIPCT, -64, 63, 0),  /* (wave 4) the voice filter's ENV amount: +-64 a full sweep (voice.c) */
     [P_ED_PIT] = PD("PIT", F_BIPCT, -64, 63, 0),
     [P_ED_SHP] = PD("SHP", F_BIPCT, -64, 63, 0),
     [P_ED_FX] = PD("TRIM", F_INT, -64, 63, 0),   /* the sound's level trim, 1/2 dB (presets set it) */
@@ -140,11 +144,24 @@ static const param_desc_t TP[P_COUNT] = {
     [P_IB] = PD("INS B", F_PCT, 0, 127, 96),
     [P_IC] = PD("INS C", F_PCT, 0, 127, 96),
     [P_IMIX] = PD("MIX", F_PCT, 0, 127, 127),
-    [P_FTYPE] = PE("TYPE", N_FTYPE, 0),           /* ANALOG's filter, LP = as before (eng_analog.c) */
+    [P_FTYPE] = PE("TYPE", N_FTYPE, 0),           /* (wave 4) the voice filter's type (vfilt.c) */
     [P_ESYNC] = PE("ESYNC", N_ONOFF, 0),          /* OFF = ATK DEC REL in ms, as before (voice.c) */
     [P_LSYNC] = PE("SYNC", N_LSYNC, 0),           /* LFO 2: OFF = RATE, as before */
     [P_LTRIG] = PE("TRIG", N_LTRIG, 0),
     [P_LPOL] = PE("POL", N_LPOL, 0),
+    /* (PHEBUS wave 4) the voice filter, its envelope, the oscillator's OCT and TUNE (core.h). The filter's ADSR starts as the
+     * amp ENV's defaults: LINK is the start, and turning one of them first copies the amp ENV (ui_input.c) */
+    [P_FCUT] = PD("CUTOFF", F_PCT, 0, 127, 127),
+    [P_FRES] = PD("RESO", F_PCT, 0, 127, 0),
+    [P_FKEY] = PD("KEY", F_PCT, 0, 127, 0),
+    [P_FDRV] = PD("DRIVE", F_PCT, 0, 127, 0),
+    [P_FLINK] = PE("LINK", N_FLINK, 0),
+    [P_FATK] = PD("ATTACK", F_TIME, 0, 127, 10),
+    [P_FDEC] = PD("DECAY", F_TIME, 0, 127, 70),
+    [P_FSUS] = PD("SUSTN", F_PCT, 0, 127, 90),
+    [P_FREL] = PD("RELEAS", F_TIME, 0, 127, 60),
+    [P_OCT] = {"OCT", F_SIGN, -3, 3, 0, 0, 0},
+    [P_TUNE] = {"TUNE", F_SIGN, -99, 99, 0, 0, "ct"},
 };
 /* a preset's extra parameters (preset_t.x) into p, each clamped to its range */
 static void preset_extras(int16_t *p, const preset_t *pr)
@@ -245,9 +262,9 @@ static const param_desc_t *ins_desc(int32_t type, uint32_t k)
     return &INS_DESC[type < 5 ? 0 : type == 5 ? 1 : 2][k % 3u];   /* (SOFT .. FUZZ, CRUSH, the swept ones) */
 }
 static const param_desc_t ESYNC_DESC[3] = {   /* ATK DEC REL with ENV SYNC on: the range and defaults as ever */
-    {"ATK", F_INT, 0, 127, 10, ESYNC_NAMES, 0},
-    {"DEC", F_INT, 0, 127, 70, ESYNC_NAMES, 0},
-    {"REL", F_INT, 0, 127, 60, ESYNC_NAMES, 0},
+    {"ATTACK", F_INT, 0, 127, 10, ESYNC_NAMES, 0},
+    {"DECAY", F_INT, 0, 127, 70, ESYNC_NAMES, 0},
+    {"RELEAS", F_INT, 0, 127, 60, ESYNC_NAMES, 0},
 };
 
 static const param_desc_t *track_desc(const track_t *t, uint32_t id)
@@ -255,12 +272,22 @@ static const param_desc_t *track_desc(const track_t *t, uint32_t id)
     if(is_drum(t) && id==P_E0) return &DRUM_KIT_DESC;
     if (id >= P_IA && id <= P_IC)                     /* the INSERT's values as its TYPE names them */
         return ins_desc(t->p[P_ITYPE], id - P_IA);
-    if (t->p[P_ESYNC] && (id == P_ATK || id == P_DEC || id == P_REL))   /* ENV SYNC: note values */
-        return &ESYNC_DESC[id == P_ATK ? 0 : id == P_DEC ? 1 : 2];
+    if (t->p[P_ESYNC] && (id == P_ATK || id == P_DEC || id == P_REL || id == P_FATK || id == P_FDEC || id == P_FREL))
+        return &ESYNC_DESC[id == P_ATK || id == P_FATK ? 0 : id == P_DEC || id == P_FDEC ? 1 : 2];   /* ENV SYNC: note
+                                                       * values (wave 4: the filter's envelope too) */
     if (id >= P_E0 && id <= P_E7) {                   /* the engine asked for (t->engine follows after a fade) */
         const engine_t *e = ENGINES[t->eng_req % NENGINES];
         const param_desc_t *d = e->desc ? e->desc(t, id - P_E0) : 0;   /* a mode-dependent label / names */
-        return d ? d : &e->edit[id - P_E0];
+        const char *l = is_drum(t) ? 0 : vtype_label(t, id - P_E0);
+        if (!d)
+            d = &e->edit[id - P_E0];
+        if (l) {                                      /* (wave 4) the macro as the Type names it (vtype.c) */
+            static param_desc_t vt_d[8];
+            vt_d[id - P_E0] = *d;
+            vt_d[id - P_E0].label = l;
+            return &vt_d[id - P_E0];
+        }
+        return d;
     }
     return &TP[id];
 }
@@ -357,6 +384,17 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
             *unit = "dB";
         }
         break;
+    case F_SIGN:                                      /* (wave 4) a signed whole number, + shown: OCT, TUNE */
+        fmt_int(val, v);
+        if (v > 0) {
+            char t[8];
+            fmt_int(t, v);
+            val[0] = '+';
+            str_cpy(val + 1, t, 6);
+        }
+        if (d->unit)
+            *unit = d->unit;
+        break;
     case F_SEMI:
         fmt_int(val, v);
         if (v > 0) {
@@ -435,44 +473,39 @@ typedef struct {
 #define PG_ENG(e) ((uint8_t)((e) + 1u))
 #define PG_OTHER 0xFFu
 
+/* (PHEBUS wave 4) the OSC page's knobs that are not a parameter of their own: TYPE (the engine and its MODEL, vtype.c) and
+ * the Type's macros M1 .. M5 (an engine's E0 .. E7 by Type: pg_id resolves them on the selected track). Above every P_ id */
+enum { V_TYPE = 0xF0, V_M1, V_M2, V_M3, V_M4, V_M5 };
+_Static_assert(P_COUNT <= V_TYPE, "the virtual knob ids above every parameter");
+
 static const page_t PAGES[] = {
-    /* ---- the sound chain (fam_stage): OSC > FILTER > ENV > FX > MOD. The pages a voice does not have are skipped
-     * (page_shown); the drum track's are its own FILTER, INSERT and SLICER (its sounds' pages are the drum screen's,
-     * SRC FLTR AMP LFO: PHEBUS wave 3, ui_drum.c). An engine's E0..E7 keep their meaning: only where they are shown moved */
-    /* OSC: the engine's source, then the voice (mono / poly, glide, unison) */
-    {"OSC", FAM_OSC, SC_TRACK, GR_NONE, {P_E0, P_E5, P_E7, P_E6}, PG_ENG(ENGI_ACID)},   /* WAVE ACC SLIDE DRV */
-    {"OSC", FAM_OSC, SC_TRACK, GR_NONE, {P_E0, P_E1, P_E2, P_E3}, PG_ENG(ENGI_JUNO)},   /* WAVE PW SUB NOISE (DCO) */
-    {"OSC", FAM_OSC, SC_TRACK, GR_NONE, {P_E0, P_E1, P_E2, P_E3}, PG_ENG(ENGI_ELEM)},   /* MODEL STRC BRIT DAMP (BODY) */
-    {"OSC 2", FAM_OSC, SC_TRACK, GR_NONE, {P_E4, P_E5, P_E6, P_E7}, PG_ENG(ENGI_ELEM)}, /* POS ACC BOW EXC (EXCT) */
-    {"OSC", FAM_OSC, SC_TRACK, GR_NONE, {P_E0, P_E1, P_E2, P_E3}, PG_ENG(ENGI_PRISM)},  /* MODEL HARM TIMB MRPH */
-    {"OSC 2", FAM_OSC, SC_TRACK, GR_NONE, {P_E4, P_E5, 0xFF, 0xFF}, PG_ENG(ENGI_PRISM)},  /* ENV SUB (E6, E7: unused) */
-    {"OSC", FAM_OSC, SC_TRACK, GR_NONE, {P_E0, P_E1, P_E2, P_E3}, PG_OTHER},
-    {"OSC 2", FAM_OSC, SC_TRACK, GR_NONE, {P_E4, P_E5, P_E6, P_E7}, PG_OTHER},
-    {"VOICE", FAM_OSC, SC_TRACK, GR_NONE, {P_VOICE, P_GLIDE, P_GLMODE, P_PRIO}},
-    {"VOICE 2", FAM_OSC, SC_TRACK, GR_NONE, {P_ALLOC, P_DETUNE, P_PAN, P_MUTE}},
-    /* FILTER: the engine's filter (cutoff, resonance, envelope amount first), then FILT, the track's own LP / HP
-     * filter (every voice, the drum track too; FX + KNOB 4) */
-    {"FILTER", FAM_FLT, SC_TRACK, GR_NONE, {P_E1, P_E2, P_E3, P_E4}, PG_ENG(ENGI_ACID)},   /* CUT RES ENV DEC */
-    {"FILTER 2", FAM_FLT, SC_TRACK, GR_NONE, {P_TFLT, 0xFF, 0xFF, 0xFF}, PG_ENG(ENGI_ACID)},
-    {"FILTER", FAM_FLT, SC_TRACK, GR_NONE, {P_E4, P_E5, P_E6, P_TFLT}, PG_ENG(ENGI_JUNO)},   /* CUT RES ENV, FILT */
-    {"FILTER", FAM_FLT, SC_TRACK, GR_NONE, {P_FTYPE, P_E4, P_E5, P_E7}, PG_OTHER},   /* ANALOG only (2.6, Felucca 1.5):
-                                                                          * TYPE CUT RES KTR (page_shown) */
-    {"FILTER", FAM_FLT, SC_TRACK, GR_NONE, {P_TFLT, 0xFF, 0xFF, 0xFF}},   /* (not ACID's, JUNO's: page_shown) */
-    /* ENV: the amp envelope, then where it goes (FLT: the filter envelope amount) and its sync */
+    /* ---- the sound chain (fam_stage): OSC > FILT > ENV > FX > MOD. (PHEBUS wave 4; Ben, 21 Nov 2026: "Melodic voices: the
+     * MiniFreak's swift sound design ... The same layout on every voice") every synth track has these pages, the same
+     * knobs in the same places, whatever its Type; the drum track's are its own FILTER, INSERT and SLICER (its sounds'
+     * pages are the drum screen's, SRC FLTR AMP LFO: PHEBUS wave 3, ui_drum.c) */
+    /* OSC: the Type and its three macros (mock-synth-osc-A); the pitch and the voice; the Type's other controls */
+    {"OSC", FAM_OSC, SC_TRACK, GR_NONE, {V_TYPE, V_M1, V_M2, V_M3}},
+    {"OSC 2", FAM_OSC, SC_TRACK, GR_NONE, {P_OCT, P_TUNE, P_GLIDE, P_VOICE}},
+    {"OSC 3", FAM_OSC, SC_TRACK, GR_NONE, {V_M4, V_M5, P_DETUNE, P_PRIO}},
+    /* FILT: the voice filter (vfilt.c; mock-synth-filt-A): CUTOFF RESO ENV TYPE, then KEY DRIVE and the envelope's LINK */
+    {"FILT", FAM_FLT, SC_TRACK, GR_NONE, {P_FCUT, P_FRES, P_ED_FLT, P_FTYPE}},
+    {"FILT 2", FAM_FLT, SC_TRACK, GR_NONE, {P_FKEY, P_FDRV, P_FLINK, 0xFF}},
+    {"FILTER", FAM_FLT, SC_TRACK, GR_NONE, {P_TFLT, 0xFF, 0xFF, 0xFF}},   /* the drum track's own LP / HP (page_shown) */
+    /* ENV: the amp envelope, then the filter's own (mock-synth-env-A: AMP | FILT) */
     {"ENV", FAM_ENV, SC_TRACK, GR_ADSR, {P_ATK, P_DEC, P_SUS, P_REL}},
-    {"ENV DEST", FAM_ENV, SC_TRACK, GR_NONE, {P_ED_FLT, P_ED_PIT, P_ED_SHP, P_ESYNC}},   /* (P_ED_FX: the level trim, no
-                                                                       * page); 2.6: ESYNC, ENV's times as note values */
+    {"FILT ENV", FAM_ENV, SC_TRACK, GR_ADSR, {P_FATK, P_FDEC, P_FSUS, P_FREL}},
     /* FX: the track's drive and sends, its own effects in signal order (PHEBUS, 21 Nov 2026, Ben: "Merge and move": the
-     * shared effects, DLY and REV/CHO, are GLO's pages now, not in each voice's chain) */
+     * shared effects, DLY and REV/CHO, are GLO's pages now, not in each voice's chain). Rebuilt in wave 5 */
     {"FX", FAM_FX, SC_TRACK, GR_FX, {P_DIST, P_CHOR, P_DLY, P_REV}},
-    {"CHORUS", FAM_FX, SC_TRACK, GR_NONE, {P_E7, 0xFF, 0xFF, 0xFF}, PG_ENG(ENGI_JUNO)},   /* JUNO's own BBD chorus */
     {"INSERT", FAM_FX, SC_TRACK, GR_INS, {P_ITYPE, P_IA, P_IB, P_IC}},   /* 2.6 (Felucca 1.5): the track's INSERT (fx.c), */
     {"INSERT 2", FAM_FX, SC_TRACK, GR_INS, {P_IMIX, 0xFF, 0xFF, 0xFF}},  /* .. its dry / wet; the drum track too */
     {"SLICER", FAM_FX, SC_TRACK, GR_SLCR, {P_SLCR, P_SLPAT, P_SLRATE, P_SLDEPTH}},   /* drum track too */
-    /* MOD: the LFO, where it goes, then its sync (2.6, Felucca 1.4; PHEBUS 21 Nov: named LFO SYNC, it was LFO 2) */
+    /* MOD: the LFO, where it goes, its sync; then where the amp ENV goes besides the amp (pitch, shape) and ENV SYNC.
+     * Rebuilt in wave 5 (the matrix) */
     {"LFO", FAM_MOD, SC_TRACK, GR_LFO, {P_LRATE, P_LWAVE, P_LPHASE, P_LFADE}},
     {"LFO DEST", FAM_MOD, SC_TRACK, GR_NONE, {P_LD_PIT, P_LD_FLT, P_LD_SHP, P_LD_AMP}},
     {"LFO SYNC", FAM_MOD, SC_TRACK, GR_LFO, {P_LSYNC, P_LTRIG, P_LPOL, 0xFF}},   /* SYNC TRIG POL */
+    {"ENV DEST", FAM_MOD, SC_TRACK, GR_NONE, {P_ED_PIT, P_ED_SHP, P_ESYNC, 0xFF}},   /* (P_ED_FX: the level trim, no page) */
     /* ---- the other pages */
     {"SEL", FAM_SCL, SC_TRACK, GR_SCALE, {P_ROOT, P_SCALE, P_QUANT, P_CHORD}},
     {"SEL 2", FAM_SCL, SC_TRACK, GR_SCALE, {P_TRANS, P_STRUM, P_VLEAD, 0xFF}},   /* (2.4: the chords played) */
@@ -513,35 +546,38 @@ static int page_for_drum(const page_t *pg)
     return pg->scope != SC_ENGINE && (pg->scope != SC_TRACK || pg->fam == FAM_SEQ || pg->graph == GR_SLCR ||
                                       pg->graph == GR_INS || pg->id[0] == P_TFLT);   /* (FILTER: the drum track's too) */
 }
-/* the selected synth track's engine has page pg (pg->eng: PG_ENG(e) e's own, PG_OTHER any engine without its own) */
-static int page_eng_ok(const page_t *pg)
-{
-    uint32_t e = TSEL->eng_req % NENGINES;
-    int own = e == ENGI_ACID || e == ENGI_JUNO || e == ENGI_ELEM || e == ENGI_PRISM;
-    if (pg->eng == PG_OTHER)
-        return !own;
-    if (pg->eng)
-        return pg->eng == PG_ENG(e);
-    if (pg->fam == FAM_FLT && pg->id[0] == P_TFLT)   /* FILTER (FILT alone): where the engine's own pages do not */
-        return e != ENGI_ACID && e != ENGI_JUNO;    /* hold it already */
-    return 1;
-}
 /* a page the buttons and SELECT reach on the selected track. On the sound chain (fam_stage) a page the voice does
- * not have is skipped, never shown empty: an engine's own pages on that engine only, the drum track's the ones it
- * has (its HEX sound, FILTER, INSERT, SLICER, the global FX); ANALOG's FILTER (TYPE) on ANALOG only */
+ * not have is skipped, never shown empty: (wave 4) every synth track has the same chain, the drum track its own (FILTER,
+ * INSERT, SLICER, the global FX) */
 static int page_shown(const page_t *pg)
 {
     if (pg->graph == GR_HEX)                         /* (the HEX sound pages: cut, PHEBUS wave 3: the drum screen's pages) */
         return 0;
     if (fam_stage(pg->fam) >= 0)
-        return is_drum(TSEL) ? page_for_drum(pg) : page_eng_ok(pg) &&
-                                   (pg->id[0] != P_FTYPE || TSEL->eng_req % NENGINES == 0u);
+        return is_drum(TSEL) ? page_for_drum(pg) : pg->id[0] != P_TFLT;
     return 1;
 }
-
+/* (wave 4) knob k's parameter id on page pg for the selected track: the OSC page's macros M1 .. M5 (vtype.c) as the
+ * engine's E0 .. E7 they are on its Type (0xFF: the Type has none); every other id as it is (V_TYPE stays V_TYPE) */
+static uint32_t pg_id(const page_t *pg, uint32_t k)
+{
+    uint32_t id = pg->id[k & 3u];
+    if (id >= V_M1 && id <= V_M5) {
+        uint32_t m = is_drum(TSEL) ? 0xFFu : vtype_macro(TSEL, id - V_M1);
+        return m < 8u ? P_E0 + m : 0xFFu;
+    }
+    return id;
+}
+static const param_desc_t VTYPE_DESC = {"TYPE", F_INT, 0, NVTYPE - 1u, 0, 0, 0};   /* (formatted by vtype_fmt) */
+static int16_t vtype_shown;                            /* (TYPE's value, as page_desc hands it out: vtype_of) */
 static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **valp)
 {
-    uint32_t id = pg->id[slot];
+    uint32_t id = pg_id(pg, slot);
+    if (id == V_TYPE && !is_drum(TSEL)) {
+        vtype_shown = (int16_t)vtype_of(TSEL);
+        *valp = &vtype_shown;
+        return &VTYPE_DESC;
+    }
     if (id == 0xFFu || (is_drum(TSEL) && (!page_for_drum(pg) || (pg->scope == SC_GLOBAL && id == G_INITSND)))) {
         *valp = 0;
         return 0;

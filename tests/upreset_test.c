@@ -49,16 +49,16 @@ static int up_parse(const uint8_t *a, uint32_t na, up_rec_t *r, uint32_t *slot)
         ;
     k = 3u + n;                                  /* after the name's 0 */
     if (a[0] >= UP_SLOTS || a[1] >= NENGINES || 2u + n >= na || !up_name_ok(a + 2, n) ||
-        na < k + 2u * P_COUNT + 32u)
+        na < k + 2u * P_COUNT_V8 + 32u)
         return 1;
     memset(r, 0, sizeof *r);
     r->used = UP_USED;
-    r->ver = UP_VER;
+    r->ver = 1;                                  /* (the old editor's record: record 1, wave 4 reads it) */
     r->engine = a[1];
-    r->np = P_COUNT;
+    r->np = P_COUNT_V8;
     for (i = 0; i < n; i++)
         r->name[i] = (char)a[2 + i];
-    for (i = 0; i < P_COUNT; i++, k += 2u)
+    for (i = 0; i < P_COUNT_V8; i++, k += 2u)
         r->p[i] = (int16_t)((int32_t)((a[k] & 127u) | (a[k + 1] & 127u) << 7) - 8192);
     for (i = 0; i < 16u; i++, k += 2u) {
         r->note[i] = a[k];
@@ -82,7 +82,7 @@ static uint32_t put_frame(uint8_t *a, uint32_t slot, uint32_t eng, const char *n
     for (i = 0; name[i]; i++)
         a[n++] = (uint8_t)name[i];
     a[n++] = 0;
-    for (i = 0; i < P_COUNT; i++) {
+    for (i = 0; i < P_COUNT_V8; i++) {
         uint32_t u = (uint32_t)(base + (int32_t)i + 8192);
         a[n++] = u & 127u;
         a[n++] = (u >> 7) & 127u;
@@ -147,8 +147,9 @@ int main(void)
     /* map by count: a record from a build with 2 parameters fewer */
     for (i = 0; i < P_COUNT; i++)
         def[i] = (int16_t)(1000 + i);
-    r.np = P_COUNT - 2u;
-    for (i = 0; i < P_COUNT; i++)
+    r.ver = 1;
+    r.np = P_COUNT_V8 - 2u;
+    for (i = 0; i < P_COUNT_V8; i++)
         r.p[i] = (int16_t)i;
     up_params(&r, v, def);
     ok = 1;
@@ -156,6 +157,8 @@ int main(void)
         ok &= v[i] == (i < P_E0 - 2u ? (int16_t)i : def[i]);
     for (i = 0; i < 8u; i++)
         ok &= v[P_E0 + i] == (int16_t)(P_E0 - 2u + i);
+    for (i = P_COUNT_V8; i < P_COUNT; i++)
+        ok &= v[i] == def[i];                   /* (record 1: wave 4's take the defaults; firmware: mapped, up_values) */
     bad += check("np < P_COUNT: mapped by count", ok);
     /* a record saved before the SLICER (P_COUNT 53, P_E0 45): the four SLICER parameters (just
      * before P_E0) take their defaults, everything else keeps its id */
@@ -210,14 +213,21 @@ int main(void)
     for (i = 0; i < 8u; i++)
         ok &= v[P_E0 + i] == (int16_t)(3000 + 49 + i);
     bad += check("SLOOP 1.0 record (np 57): CHORD default, the rest kept", ok);
-    r.np = P_COUNT;
-    for (i = 0; i < P_COUNT; i++)
+    r.np = P_COUNT_V8;                          /* (PHEBUS wave 4) record 2: P_COUNT_V8 as stored, wave 4's a byte each */
+    r.ver = 2;
+    for (i = 0; i < P_COUNT_V8; i++)
         r.p[i] = (int16_t)i;
+    for (i = P_COUNT_V8; i < P_COUNT; i++)
+        r.px[i - P_COUNT_V8] = (int8_t)(i - 120);
     up_params(&r, v, def);
     ok = 1;
-    for (i = 0; i < P_COUNT; i++)
+    for (i = 0; i < P_COUNT_V8; i++)
         ok &= v[i] == (int16_t)i;
-    bad += check("np == P_COUNT: as stored", ok);
+    for (i = P_COUNT_V8; i < P_COUNT; i++)
+        ok &= v[i] == (int16_t)(i - 120);
+    bad += check("np == P_COUNT: as stored (record 2)", ok);
+    r.ver = 1;
+    bad += check("record 1 still read (wave 4)", up_valid(&r));
 
     {   /* steps -> pattern (UP_STORE) */
         step_t st[NSTEP];

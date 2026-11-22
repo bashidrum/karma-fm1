@@ -277,7 +277,7 @@ static int sg_lock_page_ok(const page_t *pg)
     if (!page_shown(pg) || (pg->scope != SC_TRACK && pg->scope != SC_ENGINE) || (is_drum(TSEL) && !page_for_drum(pg)))
         return 0;
     for (s = 0; s < 4u; s++) {
-        uint32_t id = pg->id[s];
+        uint32_t id = pg_id(pg, s);
         if (id < P_COUNT && p_lockable(id) && lock_desc(TSEL, id)->max > lock_desc(TSEL, id)->min &&
             !(is_drum(TSEL) && id > P_E0 && id <= P_E7))
             return 1;
@@ -448,7 +448,7 @@ static void sg_held_knob(uint32_t k, int32_t s)
     uint32_t w, len = trk_len(t);
     int32_t heard = -1;                                 /* a step whose NOTE moved: heard */
     if (sg_lpage < NPAGES) {
-        sg_lock_turn(PAGES[sg_lpage].id[k], s, EN_K1 + k);
+        sg_lock_turn(pg_id(&PAGES[sg_lpage], k), s, EN_K1 + k);
         return;
     }
     sg_undo(t);
@@ -578,7 +578,7 @@ static void sg_held_oct(uint32_t up)
                 }
             } else if (sg_lpage < NPAGES) {
                 for (s = 0; s < 4u; s++) {
-                    uint32_t id = PAGES[sg_lpage].id[s];
+                    uint32_t id = pg_id(&PAGES[sg_lpage], s);
                     if (id < P_COUNT && lock_find(t, idx, id, 0) >= 0) {
                         lock_del(t, idx, id);
                         n++;
@@ -599,8 +599,8 @@ static void sg_held_oct(uint32_t up)
             step_fill_set(t, idx, v);
         } else if (sg_lpage < NPAGES) {
             for (s = 0; s < 4u; s++)
-                if (PAGES[sg_lpage].id[s] < P_COUNT && lock_find(t, idx, PAGES[sg_lpage].id[s], 0) >= 0) {
-                    lock_del(t, idx, PAGES[sg_lpage].id[s]);
+                if (pg_id(&PAGES[sg_lpage], s) < P_COUNT && lock_find(t, idx, pg_id(&PAGES[sg_lpage], s), 0) >= 0) {
+                    lock_del(t, idx, pg_id(&PAGES[sg_lpage], s));
                     n++;
                 }
         } else {
@@ -1165,7 +1165,7 @@ static void sg_knobs_held(uint32_t idx, uint32_t *footer)
     if (sg_lpage < NPAGES) {
         const page_t *pg = &PAGES[sg_lpage];
         for (k = 0; k < 4u; k++) {
-            uint32_t id = pg->id[k];
+            uint32_t id = pg_id(pg, k);
             lab[k] = lb[k];
             lb[k][0] = v[k][0] = 0;
             if (id < P_COUNT && p_lockable(id) && !(is_drum(t) && id > P_E0 && id <= P_E7) &&

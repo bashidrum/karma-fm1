@@ -38,6 +38,7 @@ static void *omin_of(track_t *t)
         elx_ready[p] = 0;
     }
     if (!elx_ready[p]) {
+        memset(a, 0, eng_arena_size(t));                 /* (wave 4: as a fresh arena; a PHYS layout left its slots in it) */
         elx_init(a);
         elx_ready[p] = 1;
         phys_lay[p] = 0;                                 /* (the PHYS slots, back: every one starts over) */
@@ -69,7 +70,8 @@ static void elem_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     q.fm = p[P_E2] * (1.0f / 127.0f);
     q.feedback = p[P_E3] * (1.0f / 127.0f);
     q.detune = p[P_E4] * (1.0f / 127.0f);
-    q.brightness = (float)clamp((p[P_E5] << 8) + m->cutoff, 0, 127 << 8) * (1.0f / (127 << 8));   /* (ENV, LFO > FLT) */
+    q.brightness = (float)clamp(p[P_E5] << 8, 0, 127 << 8) * (1.0f / (127 << 8));   /* (wave 4: ENV, LFO > FLT move the voice
+                                                      * filter now) */
     q.shape = (float)clamp((p[P_E6] << 8) + m->shape - (64 << 8), 0, 127 << 8) * (1.0f / (127 << 8));   /* (LFO > SHP) */
     q.space = p[P_E7] * (1.0f / 127.0f);
     PC_T0();
@@ -109,6 +111,9 @@ static const preset_t ELEM_PRESETS[] = {
     {"DARK DRONE", {EM_OMIN, 30, 90, 80, 50, 40, 20, 90}, {90, 90, 127, 110}, 0, 1, FX(0, 30, 24, 70)},
     /* (3.1.3) OMEN BELL removed (Ariel 2026-11-15): ~600 us of a 725 us block for its one note on an FM-1, too heavy
      * beside two other tracks; a project with it keeps its sound (its values are saved), named as the last one here */
+    /* (PHEBUS wave 4) a plain start for the Type list (vtype.c: an engine's INIT is its last preset): a plucked bar, no
+     * sends. Last, so the other presets keep their numbers and level trims */
+    {"INIT", {EM_PICK, 64, 80, 80, 20, 90, 50, 0}, {0, 0, 127, 40}, 0, 0, FX(0, 0, 0, 0)},
 };
 
 static const engine_t ENG_ELEM = {

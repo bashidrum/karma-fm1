@@ -656,7 +656,40 @@ static int p_lockable(uint32_t id)
 {
     return id <= P_LD_AMP || id == P_SGATE || (id >= P_DIST && id <= P_REV) || id == P_GLIDE || id == P_PAN ||
            id == P_DETUNE || (id >= P_SLCR && id <= P_SLDEPTH) || (id >= P_E0 && id <= P_E7) || id == P_TFLT ||
-           (id >= P_IA && id <= P_IMIX);   /* 2.6: the INSERT's values and MIX */
+           (id >= P_IA && id <= P_IMIX) ||   /* 2.6: the INSERT's values and MIX */
+           id == P_FTYPE || (id >= P_FCUT && id <= P_TUNE);   /* (wave 4) the voice filter, its envelope, OCT, TUNE */
+}
+static void locks_restore(track_t *t);
+/* (PHEBUS wave 4) Type ty (vtype.c) on track t, as the MiniFreak's Type knob: the rest of the sound stays (the filter, the
+ * envelopes, the FX, the voice). Another engine: its knobs at their defaults (JUNO's chorus off, PLAITS' T.ENV 0: plain),
+ * the old one's voices fade out first (voice.c engine_block, sound_change); the same engine: its MODEL, the macros where
+ * they were. The UI calls it (ui.c vtype_set), with the audio IRQ on */
+static void vtype_switch(track_t *t, uint32_t ty)
+{
+    const vtype_t *v = &VTYPES[ty % NVTYPE];
+    uint32_t i;
+    if (is_drum(t) || ty >= NVTYPE)
+        return;
+    fm1_irq_off();
+    locks_restore(t);
+    if (v->eng != t->eng_req % NENGINES) {
+        const engine_t *e = ENGINES[v->eng];
+        sound_change(t);
+        t->eng_req = v->eng;
+        for (i = 0; i < 8u; i++)
+            t->p[P_E0 + i] = e->edit[i].def;
+        if (v->eng == ENGI_JUNO)
+            t->p[P_E7] = 0;
+        if (v->eng == ENGI_PRISM)
+            t->p[P_E4] = 0;
+        t->preset = (uint8_t)(e->npresets ? e->npresets - 1u : 0u);   /* (each engine's INIT is its last preset) */
+        t->user = 0;
+    }
+    if (v->model != 0xFFu)
+        t->p[P_E0] = v->model;
+    if (v->eng == ENGI_ELEM && (v->model == EM_BOW || v->model == EM_BLOW) && t->p[P_E7] < 60)
+        t->p[P_E7] = 80;                                /* (BOW, BLOW: their TONE, which a strike's EXC 0 leaves near silent) */
+    fm1_irq_on();
 }
 /* the range of p[id] on track t (the engine that renders: t->engine; the drum track's P_E0: the kit) */
 static const param_desc_t *lock_desc(const track_t *t, uint32_t id)
@@ -2294,12 +2327,14 @@ static const uint8_t MIDI_CC_MAP[][2] = {
  * interrupts off; ml_arm / ml_heard hand it a CC heard while learning */
 #define ML_N 16u
 #define ML_E0 120u
-_Static_assert(P_E0 < ML_E0 && P_COUNT - P_E0 == 8, "MIDI LEARN: a code per parameter");
+_Static_assert(P_E0 < ML_E0 && P_COUNT_V8 - P_E0 == 8 && P_COUNT < ML_E0, "MIDI LEARN: a code per parameter");
 static volatile uint16_t ml_tab[ML_N];
 static volatile uint8_t ml_arm, ml_heard;  /* the UI waits for a CC; the CC that came meanwhile + 1 (0 none) */
 static uint32_t ml_id(uint32_t code)        /* an entry's code -> P_* id, P_COUNT: none this firmware knows */
 {
-    return code >= ML_E0 ? (code - ML_E0 < 8u ? P_E0 + code - ML_E0 : P_COUNT) : code && code <= P_E0 ? code - 1u : P_COUNT;
+    return code >= ML_E0 ? (code - ML_E0 < 8u ? P_E0 + code - ML_E0 : P_COUNT)
+         : code && (code <= P_E0 || (code > P_COUNT_V8 && code <= P_COUNT)) ? code - 1u : P_COUNT;   /* (wave 4: the ids after
+                                                * P_E7 are their id + 1 too: codes 64 .. 71, which P_E0 .. P_E7 never use) */
 }
 static int ml_free_cc(uint32_t cc)
 {
@@ -2325,7 +2360,7 @@ static void sus_set(track_t *t, int on)
 static void midi_cc_set(track_t *t, uint32_t id, uint32_t value)
 {
     const param_desc_t *d = is_drum(t) && id == P_E0 ? &DRUM_KIT_DESC
-                            : id >= P_E0 ? &ENGINES[t->eng_req % NENGINES]->edit[(id - P_E0) & 7u] : &TP[id % P_COUNT];
+                            : id >= P_E0 && id <= P_E7 ? &ENGINES[t->eng_req % NENGINES]->edit[(id - P_E0) & 7u] : &TP[id % P_COUNT];
     if (d->max > d->min)
         t->p[id % P_COUNT] = (int16_t)(d->min + ((int32_t)(value & 127u) * (d->max - d->min) + 63) / 127);
 }

@@ -91,6 +91,8 @@ static void setup(void)
     trk[0].p[P_REV] = trk[0].p[P_CHOR] = trk[0].p[P_DLY] = 0;          /* (the preset's sends: off again) */
     trk[0].p[P_E0] = 0, trk[0].p[P_E1] = 0, trk[0].p[P_E2] = 0, trk[0].p[P_E3] = 0;   /* JUNO: SAW, no PW, SUB, NOISE */
     trk[0].p[P_E4] = 127, trk[0].p[P_E5] = 0, trk[0].p[P_E6] = 0, trk[0].p[P_E7] = 0;  /* open, no RES, ENV, CHORUS */
+    trk[0].p[P_FCUT] = 127, trk[0].p[P_FRES] = 0, trk[0].p[P_FKEY] = 0, trk[0].p[P_FTYPE] = VF_LP24;   /* (PHEBUS wave 4: the
+                                                         * voice filter is JUNO's filter now: open, no RES) */
     trk[0].p[P_ATK] = 0, trk[0].p[P_DEC] = 0, trk[0].p[P_SUS] = 127, trk[0].p[P_REL] = 0;
     trk[0].p[P_ED_FLT] = trk[0].p[P_ED_PIT] = trk[0].p[P_ED_SHP] = 0;
     trk[0].p[P_LD_PIT] = trk[0].p[P_LD_FLT] = trk[0].p[P_LD_SHP] = trk[0].p[P_LD_AMP] = 0;

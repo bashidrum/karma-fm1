@@ -11,6 +11,7 @@
  * over one block (stage 4: the envelope goes to 0, the block's amplitude ramp
  * declicks it); one of the part's own is restarted in place. Extra UNISON
  * voices only start when there is room. The drum track has its own voices (drums.c). */
+#include "vfilt.c"                                      /* (PHEBUS wave 4) the voice filter */
 static uint32_t vage;                                   /* voice ages: one clock for every part */
 static int32_t lfo_wave(track_t *t, uint32_t ph)
 {
@@ -312,9 +313,12 @@ static void voice_start(track_t *t, voice_t *v, uint32_t note, uint32_t vel, int
     v->pitch16 = (int32_t)note * 16;
     glide_set(t, v, glide);
     v->penv = 32767;                                    /* the pitch envelope starts over (not on legato) */
+    v->fstage = 1;                                      /* (wave 4) the filter's own envelope starts over too */
     if (!sounding) {
         v->env = 0;
         v->env_out = 0;
+        v->fenv = 0;
+        v->vf[0] = v->vf[1] = v->vf[2] = v->vf[3] = v->vf[4] = 0.0f;   /* (the filter: from rest) */
     }                                                   /* sounding: the attack starts from the current level */
     e->note_on(t, v);
     if (sounding) {                 /* retrigger / steal: keep phases and filter states */
@@ -652,7 +656,8 @@ static void engine_block(track_t *t)
  * below a block) takes the tables' 0, as with SYNC OFF. OFF: the tables' values, as before (looked up once a block here
  * instead of once a voice in env_tick: the same numbers) */
 _Static_assert(CTL == 32, "esync_one: 4.6 CTL in Q16 is 9646899");
-static uint32_t esync_k[NTRK][3];   /* ATK's step, DEC's and REL's coefficient (Q16): each track's, this block (env_tick).
+static uint32_t esync_k[NTRK][6];   /* ATK's step, DEC's and REL's coefficient (Q16): each track's, this block (env_tick);
+                                     * (wave 4) then the filter's own envelope's three (fenv_tick).
                                      * (3.1.5) one set a track: one shared set, two tracks rendering at once on the two
                                      * cores took each other's (ThreadSanitizer, 2026-11-15): a release or an attack at
                                      * another track's rate now and then */
@@ -682,10 +687,18 @@ static __attribute__((noinline)) void esync_coef(const track_t *t)   /* (not inl
         k[0] = esync_one(q, p[P_ATK], 0);
         k[1] = esync_one(q, p[P_DEC], 1);
         k[2] = esync_one(q, p[P_REL], 2);
+        if (p[P_FLINK]) {
+            k[3] = esync_one(q, p[P_FATK], 0);
+            k[4] = esync_one(q, p[P_FDEC], 1);
+            k[5] = esync_one(q, p[P_FREL], 2);
+        }
     } else {                                            /* OFF: the tables, as always */
         k[0] = ENV_LIN[p[P_ATK] & 127];
         k[1] = ENV_EXP[p[P_DEC] & 127];
         k[2] = ENV_EXP[p[P_REL] & 127];
+        k[3] = ENV_LIN[p[P_FATK] & 127];
+        k[4] = ENV_EXP[p[P_FDEC] & 127];
+        k[5] = ENV_EXP[p[P_FREL] & 127];
     }
 }
 
@@ -732,6 +745,47 @@ static int32_t env_tick(track_t *t, voice_t *v)
     return v->env >> 9;
 }
 
+/* (PHEBUS wave 4; Ben, 21 Nov 2026, picker "Own ADSR + link switch": "you can fudge it to be linked to the adsr of the amp
+ * very easily or put it on its own ADSR envelope just for the filter") one control tick of the filter's OWN envelope, as
+ * env_tick's ADSR (the same curves, ENV SYNC too): it starts with the note, releases when the key is let go; it never ends
+ * the voice (the amp ENV does). Returns Q15 */
+static int32_t fenv_tick(track_t *t, voice_t *v)
+{
+    const int16_t *p = t->p;
+    const uint32_t *ek = esync_k[(uint32_t)(t - trk) % NTRK];
+    if (!v->gate && v->fstage && v->fstage < 3u)
+        v->fstage = 3;
+    switch (v->fstage) {
+    case 1:
+        v->fenv += (int32_t)ek[3];
+        if (v->fenv >= (1 << 24)) {
+            v->fenv = 1 << 24;
+            v->fstage = 2;
+        }
+        break;
+    case 2:
+        v->fenv += mulq16(((int32_t)p[P_FSUS] << 17) - v->fenv, ek[4]);
+        break;
+    case 3:
+        v->fenv -= mulq16(v->fenv, ek[5]);
+        if (v->fenv < (1 << 12)) {
+            v->fenv = 0;
+            v->fstage = 0;
+        }
+        break;
+    default:
+        v->fenv = 0;
+        break;
+    }
+    return v->fenv >> 9;
+}
+/* (wave 4) the filter of engine e on track t is the engine's own (LP24 on ACID: the 303's diode ladder; on JUNO: its
+ * IR3109): the engine filters, vfilt.c does not. Every other type, and every other engine, takes vfilt.c's ladder */
+static int vf_native(const track_t *t, const engine_t *e)
+{
+    return (e == &ENG_ACID || e == &ENG_JUNO) && t->p[P_FTYPE] == VF_LP24;
+}
+
 /* render one block of a part into out (cleared here); returns the voices rendered */
 static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
 {
@@ -743,8 +797,9 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
     int32_t tune = song.g[G_TUNE] >= 0 ? song.g[G_TUNE] * 16 / 100 : -((-song.g[G_TUNE] * 16 + 99) / 100);
     int32_t tune_fine = (song.g[G_TUNE] * 16 - tune * 100) * 2367 / 16000;   /* rest, in 1/4096 (1 ct = 2.367) */
     uint32_t nr = 0, fade = t->xf_on && t->xf;
-    int32_t bendq;
+    int32_t bendq, octq = (int32_t)clamp(p[P_OCT], -3, 3) * 12 * 4096 + p[P_TUNE] * 4096 / 100;   /* (wave 4) OCT, TUNE */
     int16_t pe_new[8];
+    int vgen;
     for (i = 0; i < n; i++)
         out[i] = 0;
     if (fade)                                           /* engine switch: the old engine, its own values */
@@ -759,12 +814,14 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
                                                                          * gliding (a quarter of the way a block) */
     if (e->block)                                       /* the engine's per-part work (DRAWBAR: bars, rotor) */
         e->block(t);
+    vgen = !vf_native(t, e) && !is_drum(t) && e != &ENG_GONE;   /* (wave 4) the voice filter, vfilt.c's */
     for (i = 0; i < NVOICE; i++) {
         voice_t *v = &t->v[i];
         vmod_t m;
         int32_t env, pitch;
         if (!v->active)
             continue;
+        int32_t fe;
         {
             env = env_tick(t, v);
             if (e->ownenv && v->active) {               /* the engine's envelopes (FM6): they end the voice */
@@ -784,6 +841,7 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
             if (e->amp)                                 /* the engine's own amplitude curve */
                 env = e->amp(t, v, env);
             m.envq15 = e->ownenv ? 0 : env;
+            fe = p[P_FLINK] ? fenv_tick(t, v) : m.envq15;   /* (wave 4) the filter's: LINK the amp ENV's, OWN its own */
             m.amp1 = e->ownenv ? env : mulq15(env, v->vel * 258);
             if (p[P_LD_AMP])
                 m.amp1 = mulq15(m.amp1, 32767 - mulq15(p[P_LPOL] ? lfo : (lfo + 32768) >> 1, p[P_LD_AMP] * 258));
@@ -807,7 +865,7 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
             continue;                                   /* held at a silent sustain (SUS 0): nothing to render */
         {   /* the pitch in 1/4096 semitone: glide, LFO, the pitch envelope; the fraction goes into the increment */
             int32_t q = (v->pitch_cur << 8) + v->pitch_frac + ((lfo * p[P_LD_PIT] * 3) >> 7) +
-                        ((v->penv * p[P_ED_PIT] * 3) >> 7) + bendq;
+                        ((v->penv * p[P_ED_PIT] * 3) >> 7) + bendq + octq;
             pitch = (q >> 8) + tune;
             m.pitch16 = clamp(pitch, 0, 2047);
             m.inc = pitch_inc(m.pitch16);
@@ -816,11 +874,28 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
             if (m.fine)                                 /* unison detune, fine tune and the fraction */
                 m.inc += (uint32_t)((int32_t)(m.inc >> 12) * m.fine);
         }
-        m.cutoff = ((lfo * p[P_LD_FLT]) >> 7) + ((m.envq15 * p[P_ED_FLT]) >> 7);
+        /* (wave 4) the voice filter's modulation, 1/256 of a CUTOFF step: the LFO (FLT), the filter's envelope (ENV: +-64 a
+         * full sweep, 127 steps, ten octaves), an accent (with the envelope), KEY tracking (100 %: the cutoff follows the
+         * note, 127 / 120 of a step a semitone); every engine's filter adds it to CUTOFF (vfilt.c, ACID's, JUNO's) */
+        m.cutoff = ((lfo * p[P_LD_FLT]) >> 7) + ((fe * p[P_ED_FLT]) >> 6) +
+                   (((m.pitch16 - 60 * 16) * 17 * p[P_FKEY]) / 127);
         if (v->vel > 110)                               /* accent opens the filter with the env */
-            m.cutoff += (m.envq15 * 24) >> 7;
+            m.cutoff += (fe * 24) >> 7;
         m.shape = (64 << 8) + ((lfo * p[P_LD_SHP]) >> 7) + ((m.envq15 * p[P_ED_SHP]) >> 7);
-        e->render(t, v, out, n, &m);
+        if (vgen && n <= CTL) {                         /* the oscillator at full level, the filter, then the amp */
+            int32_t tb[CTL];
+            vmod_t mu = m;
+            uint32_t j;
+            mu.amp0 = mu.amp1 = 32767;
+            for (j = 0; j < n; j++)
+                tb[j] = 0;
+            e->render(t, v, tb, n, &mu);
+            vf_run(v, tb, n, ((int32_t)p[P_FCUT] << 8) + m.cutoff, p[P_FRES], p[P_FDRV], (uint32_t)p[P_FTYPE] % VF_NTYPE);
+            for (j = 0; j < n; j++)
+                out[j] += (int32_t)(((int64_t)tb[j] * amp_at(&m, j)) >> 15);   /* (64-bit: a ringing filter is loud) */
+        } else {
+            e->render(t, v, out, n, &m);
+        }
         nr++;
     }
     if (e->post)                                        /* the engine's work on the part's sum (JUNO: chorus) */

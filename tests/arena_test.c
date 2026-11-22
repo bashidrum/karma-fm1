@@ -45,6 +45,9 @@ static const cfg_t CFG[] = {   /* (2026-10-19: the engines that are left: ACID, 
 static const uint8_t LIVE[] = {ENGI_ACID, ENGI_JUNO, ENGI_PRISM, ENGI_ELEM};
 #define NCFG (sizeof CFG / sizeof CFG[0])
 
+static uint32_t AT;                                     /* (PHEBUS wave 4) the track the pairs play on: every one in turn
+                                                         * (every engine on every track) */
+static int want_rms;                                    /* phrase: its level x 1000 instead of its hash */
 static void load(track_t *t, const cfg_t *c)
 {
     host_preset(t, c->e, c->pi);
@@ -58,6 +61,7 @@ static uint64_t phrase(track_t *t)
     static const uint8_t N[4] = {48, 55, 60, 64};
     int32_t out[CTL];
     uint64_t h = 0xCBF29CE484222325ull;
+    double e2 = 0;
     uint32_t b, k;
     pr_rng = 0x21;                                      /* (SWARM's random pitches: its generator runs on by design) */
     for (b = 0; b < 3000u; b++) {                       /* ~2.2 s */
@@ -75,8 +79,10 @@ static uint64_t phrase(track_t *t)
             out[k] = 0;
         track_render(t, out, CTL);
         h = fnv(h, out, CTL);
+        for (k = 0; k < CTL; k++)
+            e2 += (double)out[k] * out[k];
     }
-    return h;
+    return want_rms ? (uint64_t)(sqrt(e2 / (3000.0 * CTL)) * 1000.0) : h;
 }
 
 /* run f(a, b) in a child (fresh state, as regress.c does); its 64-bit answer through a pipe */
@@ -105,7 +111,7 @@ static uint64_t in_child(uint64_t (*f)(uint32_t, uint32_t), uint32_t a, uint32_t
 static uint64_t fresh(uint32_t ci, uint32_t unused)
 {
     static track_t boot;
-    track_t *t = &trk[0];
+    track_t *t = &trk[AT];
     int32_t out[CTL];
     uint32_t b;
     (void)unused;
@@ -128,7 +134,7 @@ static uint64_t fresh(uint32_t ci, uint32_t unused)
 static uint64_t after(uint32_t di, uint32_t ci)
 {
     static track_t boot;
-    track_t *t = &trk[0];
+    track_t *t = &trk[AT];
     int32_t out[CTL];
     uint32_t b, k, guard;
     host_tracks_init();
@@ -188,7 +194,7 @@ static void play_switch(track_t *t, const cfg_t *c)
 static uint64_t xyx(uint32_t xi, uint32_t yi)
 {
     static track_t boot;
-    track_t *t = &trk[0];
+    track_t *t = &trk[AT];
     host_tracks_init();
     boot = *t;
     load(t, &CFG[xi]);
@@ -218,25 +224,49 @@ int main(int argc, char **argv)
     char what[160];
     uint64_t ref[NCFG];
 
-    /* 1. stale state */
-    for (b = 0; b < NCFG; b++)
-        ref[b] = in_child(fresh, b, 0);
-    for (b = 0; b < NCFG; b++)
-        for (a = 0; a < NCFG; a++) {
-            uint64_t h;
-            if (a == b || (CFG[a].e == CFG[b].e && CFG[a].e != ENGI_ELEM))
-                continue;                               /* (the same engine keeps its arena: not a takeover) */
-            h = in_child(after, a, b);
-            pairs++;
-            if (h == ref[b])
-                same++;
-            else {
-                snprintf(what, sizeof what, "arena: %s after %s sounds as on a fresh FM-1", CFG[b].name, CFG[a].name);
-                check(0, what);
+    /* 1. stale state, on every track (PHEBUS wave 4: every engine on every track) */
+    for (AT = 0; AT < NPART; AT++) {
+        same = pairs = 0;
+        for (b = 0; b < NCFG; b++)
+            ref[b] = in_child(fresh, b, 0);
+        for (b = 0; b < NCFG; b++)
+            for (a = 0; a < NCFG; a++) {
+                uint64_t h;
+                if (a == b || (CFG[a].e == CFG[b].e && CFG[a].e != ENGI_ELEM))
+                    continue;                           /* (the same engine keeps its arena: not a takeover) */
+                if (CFG[a].e == ENGI_ELEM && CFG[b].e == ENGI_ELEM && CFG[b].model == 4) {
+                    /* (wave 4) the Ominous Voice after another ELEMENTS model: the same engine, its arena is not taken
+                     * over, and her voice keeps the tail its own reverb (SPACE) had when the notes of the switch ended:
+                     * never the bits of a fresh start (as on track 2 before; track 1 had no ELEMENTS). Its level then */
+                    uint64_t r0, r1;
+                    want_rms = 1;
+                    r0 = in_child(fresh, b, 0), r1 = in_child(after, a, b);
+                    want_rms = 0;
+                    pairs++;
+                    if (r0 > 1000u && r1 * 100u > r0 * 95u && r1 * 100u < r0 * 105u)
+                        same++;
+                    else {
+                        snprintf(what, sizeof what, "arena: track %u: %s after %s sounds as on a fresh FM-1 (level %llu, %llu)",
+                                 AT + 1u, CFG[b].name, CFG[a].name, (unsigned long long)r1, (unsigned long long)r0);
+                        check(0, what);
+                    }
+                    continue;
+                }
+                h = in_child(after, a, b);
+                pairs++;
+                if (h == ref[b])
+                    same++;
+                else {
+                    snprintf(what, sizeof what, "arena: track %u: %s after %s sounds as on a fresh FM-1", AT + 1u, CFG[b].name,
+                             CFG[a].name);
+                    check(0, what);
+                }
             }
-        }
-    snprintf(what, sizeof what, "arena: every engine after every other one (%u pairs, both ELEMENTS layouts) bit-identical to a fresh start", pairs);
-    check(same == pairs, what);
+        snprintf(what, sizeof what, "arena: track %u: every engine after every other one (%u pairs, both ELEMENTS layouts) "
+                 "as a fresh start", AT + 1u, pairs);
+        check(same == pairs, what);
+    }
+    AT = 0;
     {   /* within PLAITS: Plaits' MODAL and PRISM's own CHORD (HOUSE STAB) back and forth, both ways round */
         uint32_t x, y, ok = 1;
         for (x = 0; x < NCFG; x++)

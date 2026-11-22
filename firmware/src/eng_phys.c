@@ -246,7 +246,7 @@ static void phys_render_e(track_t *t, voice_t *v, int32_t *out, uint32_t n, cons
     int32_t y[CTL], ax[CTL];
     union { px_modal_blk_t m; px_string_blk_t s; } bk;   /* (3.0.5) the block's numbers, one place for every model: each
                                                         * case's own was 1.5 KB of CPU1's 4 KB stack (bow: near its end) */
-    int32_t strc = p[P_E1] * 516, brit = clamp(p[P_E2] * 516 + m->cutoff * 2, 0, 65536);   /* Q16 0..1 */
+    int32_t strc = p[P_E1] * 516, brit = clamp(p[P_E2] * 516, 0, 65536);   /* (wave 4: ENV, LFO > FLT: the voice filter) */   /* Q16 0..1 */
     int32_t damp = p[P_E3] * 516, pos = p[P_E4], exc = p[P_E7] * 258;   /* exc Q15 */
     int32_t bow = p[P_E6] * 206;                         /* BOW: Dust at up to 0.4 (DaisySP's sustain: 1) */
     int32_t acc = clamp(p[P_E5] * v->vel * 4, 0, 65536);   /* ACC at full velocity, Q16 */

@@ -531,6 +531,7 @@ static void apply_preset_to(track_t *t, uint32_t pi)
         }
         preset_extras(t->p, pr);                     /* glide, pitch / LFO modulation, voice mode */
     }
+    voice_from_engine(t->p, t->eng_req % NENGINES, 0);   /* (wave 4) its filter values onto the voice filter */
 }
 
 static void set_engine_of(track_t *t, uint32_t ei);
@@ -572,8 +573,9 @@ static void set_engine(uint32_t ei) { set_engine_of(TSEL, ei); }
 static void track_defaults(track_t *t)
 {
     uint32_t i;
-    for (i = 0; i < P_E0; i++)
-        t->p[i] = TP[i].def;
+    for (i = 0; i < P_COUNT; i++)                     /* (wave 4: the ids after P_E7 too) */
+        if (i < P_E0 || i > P_E7)
+            t->p[i] = TP[i].def;
     track_defaults_steps(t);
 }
 
@@ -584,6 +586,17 @@ static void select_engine(uint32_t e)
         return;
     set_engine(e);
     ui_say("ENGINE ", ENGINES[TSEL->eng_req]->name);
+    ui.force = 1;
+}
+
+/* (PHEBUS wave 4) Type ty on track t (seq.c vtype_switch), and the screen told */
+static void vtype_set(track_t *t, uint32_t ty)
+{
+    if (is_drum(t) || ty >= NVTYPE)
+        return;
+    vtype_switch(t, ty);
+    if (t == TSEL)
+        sync_reload = 1;
     ui.force = 1;
 }
 
@@ -606,7 +619,7 @@ static const struct { uint8_t kind, e; const char *name; } BANK[] = {   /* the P
     {BK_LEAD, ENGI_ELEM, "PIPE"}, {BK_LEAD, ENGI_ELEM, "BREATHY"}, {BK_LEAD, ENGI_ELEM, "BLOWN BELL"},
     {BK_FX, ENGI_ELEM, "BOUNCE BAR"}, {BK_FX, ENGI_ELEM, "MARBLES"}, {BK_PLUCK, ENGI_ELEM, "RATTLE BELL"},
     {BK_PLUCK, ENGI_ELEM, "PICKED BAR"}, {BK_PLUCK, ENGI_ELEM, "PICK CHIME"},
-    {BK_PAD, ENGI_ELEM, "OMINOUS"}, {BK_PAD, ENGI_ELEM, "DARK DRONE"},
+    {BK_PAD, ENGI_ELEM, "OMINOUS"}, {BK_PAD, ENGI_ELEM, "DARK DRONE"}, {BK_INIT, ENGI_ELEM, "INIT"},
     /* PLAITS (track 3) */
     {BK_INIT, ENGI_PRISM, "INIT"}, {BK_LEAD, ENGI_PRISM, "FOLD LEAD"}, {BK_BASS, ENGI_PRISM, "FOLD BASS"}, {BK_PLUCK, ENGI_PRISM, "WEST PLUCK"},
     {BK_PAD, ENGI_PRISM, "GLASS FOLD"}, {BK_PLUCK, ENGI_PRISM, "BUCHLA BELL"}, {BK_PAD, ENGI_PRISM, "FOLD DRONE"},
@@ -806,7 +819,7 @@ static void track_select(uint32_t i)
  * set to it, and stays until something else is learned on it or HOME > SYSTEM > LEARN CLEAR. Then turn the next knob.
  * One CC sets one parameter, a parameter has one CC: learning one again replaces both. The settings keep the map */
 static struct { uint8_t on, pick, trk, id; } mlu;
-static uint32_t ml_code(uint32_t id) { return id >= P_E0 ? ML_E0 + id - P_E0 : id + 1u; }
+static uint32_t ml_code(uint32_t id) { return id >= P_E0 && id <= P_E7 ? ML_E0 + id - P_E0 : id + 1u; }
 static void ml_put(uint32_t i, uint32_t e)       /* (the ISR reads the entry: never half of one) */
 {
     fm1_irq_off();

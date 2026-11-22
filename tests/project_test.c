@@ -132,9 +132,9 @@ int main(void)
     uint32_t i, t;
     int bad = 0, ok;
 
-    bad += check("layout: P_CHORD, P_TFLT, P_STRUM, P_VLEAD, then the ten of 2.6 just before P_E0 (63), P_COUNT = format 5's + 10",
+    bad += check("layout: P_CHORD, P_TFLT, P_STRUM, P_VLEAD, then the ten of 2.6 just before P_E0 (63), P_COUNT_V8 = format 5's + 10; wave 4's after P_E7",
                  P_CHORD + 1 == P_TFLT && P_TFLT + 1 == P_STRUM && P_STRUM + 1 == P_VLEAD && P_VLEAD + 1 == P_ITYPE &&
-                 P_LPOL + 1 == P_E0 && P_E0 == 63 && P_COUNT == PROJ_NP_V5 + 10u && PROJ_NP_V5 == PROJ_NP_V4 + 3u &&
+                 P_LPOL + 1 == P_E0 && P_E0 == 63 && P_COUNT_V8 == PROJ_NP_V5 + 10u && P_FCUT == P_E7 + 1 && P_COUNT <= PROJ_NP && PROJ_NP_V5 == PROJ_NP_V4 + 3u &&
                  PROJ_NP_V4 == PROJ_NP_V3 + 1u && P_SLDEPTH + 1 == P_CHORD);
     bad += check("format 7 as stored: 3840 bytes; format 8: a core 5744, a whole project 6768 (a big flash object: 7936)",
                  sizeof(project_v7_t) == 3840u && sizeof(proj_core_t) == 5744u && sizeof(project_t) == 6768u &&

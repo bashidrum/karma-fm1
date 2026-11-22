@@ -382,6 +382,7 @@ typedef struct bass303 {
     float env_pw[BASS303_CTRL + 1], g1[BASS303_CTRL + 1], g2[BASS303_CTRL + 1];
     float c_inc, c_b0, c_k, c_g2, c_a;
     float osc_freq, slew_y;
+    float ext;               /* (PHEBUS wave 4) the voice's filter modulation, in octaves (eng_acid.c: its envelope, LFO, KEY) */
     float phase;             /* oscillator phase in turns, 0..1 */
     float env_c, env_y;      /* main (filter) decay envelope */
     float rc1_y, rc2_y;
@@ -977,7 +978,7 @@ static void b3_run(bass303_t *b, float *out, int n)
         }
         n_inc = b->slew_y * (1.0f / fso);
         n_a = b->amp_y + amp_boost * b->env_y;
-        fc = cutoff * fm_exp2f(scaler * (b->rc1_y - offset) + acc * b->rc2_y);   /* n1 = n2 = 1 */
+        fc = cutoff * fm_exp2f(scaler * (b->rc1_y - offset) + acc * b->rc2_y + b->ext);   /* n1 = n2 = 1 (+ PHEBUS: ext) */
         fc = fm_clampf(fc, 200.0f, 20000.0f);
         /* TeeBeeFilter::calculateCoefficientsApprox4, TB_303 branch only (the a1 polynomial
          * it computes first is overwritten there, so it is skipped) */

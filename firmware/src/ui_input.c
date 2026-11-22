@@ -315,10 +315,28 @@ static void edit_param(uint32_t slot, int32_t steps)
     int16_t *vp;
     const page_t *pg = cur_page();
     const param_desc_t *d;
-    uint32_t id = pg->id[slot];
+    uint32_t id = pg_id(pg, slot);
     int32_t v;
     if (is_drum(TSEL) && !page_for_drum(pg))
         return;                                           /* "DRUM TRACK": nothing to edit here */
+    if (id == V_TYPE) {                                   /* (wave 4) TYPE: one Type a detent (vtype.c) */
+        int32_t ty = (int32_t)vtype_of(TSEL);
+        ty = clamp((ty < (int32_t)NVTYPE ? ty : 0) + (steps > 0 ? 1 : -1), 0, (int32_t)NVTYPE - 1);
+        if ((uint32_t)ty != vtype_of(TSEL))
+            vtype_set(TSEL, (uint32_t)ty);
+        return;
+    }
+    if (id >= P_FATK && id <= P_FREL && !TSEL->p[P_FLINK]) {   /* (wave 4) the filter's envelope turned while LINKed: its
+                                                         * own from here, starting where the amp ENV is (one turn) */
+        fm1_irq_off();
+        TSEL->p[P_FATK] = TSEL->p[P_ATK];
+        TSEL->p[P_FDEC] = TSEL->p[P_DEC];
+        TSEL->p[P_FSUS] = TSEL->p[P_SUS];
+        TSEL->p[P_FREL] = TSEL->p[P_REL];
+        TSEL->p[P_FLINK] = 1;
+        fm1_irq_on();
+        ui_message("FILTER ENV: OWN");
+    }
     if (pg->scope == SC_TRK) {
         tracks_edit(slot, steps);
         return;
