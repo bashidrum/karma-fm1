@@ -437,7 +437,7 @@ static void engine_tests(void)
     {
         uint32_t n = 0;
         for (i = 0; i < PEV_N; i++) n += stl.ev[i].fx != 0u;
-        snprintf(b, sizeof b, "the lane holds 31 spans; the next one is refused, said once (FX LANE FULL: 31): %u kept, full %u", n, perf.full);
+        snprintf(b, sizeof b, "the lane holds 31 spans; the next one is refused, said once (LANE FULL: 31 PADS): %u kept, full %u", n, perf.full);
         check(n == 31u && perf.full, b);
         perf.full = 0;
     }

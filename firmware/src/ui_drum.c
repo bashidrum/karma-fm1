@@ -438,7 +438,7 @@ static void drum_main_draw(void)
         uint32_t n = 0, w;
         for (w = 0; w < 16u; w++)
             n += (sg_held >> w) & 1u;
-        str_cpy(sub, "TRIG ", 6);
+        str_cpy(sub, "STEP ", 6);                       /* (wave 7: a key is a step, as the synth GRID and the lane say) */
         fmt_int(sub + 5, first + 1);
         str_cpy(sub + str_len(sub), n > 1u ? " +" : " HELD", 6);
         if (n > 1u) {
@@ -480,8 +480,8 @@ static void drum_main_draw(void)
         int xi = dt_x((uint32_t)first, l);
         uint32_t k, n = 0;
         if (xi >= 0 && dpat.x[xi].rrate) {
-            str_cpy(info, "RTRG ", 6);
-            str_cpy(info + 5, SG_RATE[dpat.x[xi].rrate % 18u], 6);
+            str_cpy(info, "RETRIG ", 8);               /* (wave 7: the word every screen uses; was RTRG) */
+            str_cpy(info + 7, SG_RATE[dpat.x[xi].rrate % 18u], 6);
             str_cpy(info + str_len(info), "  ", 3);
         }
         for (k = 0; k < DT_NLK; k++)
@@ -499,6 +499,13 @@ static void drum_main_draw(void)
         if (n > 2u) {
             str_cpy(info + str_len(info), "+", 2);
             fmt_int(info + str_len(info), (int32_t)n - 2);
+        }
+        if (n && text_w(&FONT_S, info) > 180) {         /* (wave 7: never into the page slots: the locks counted instead) */
+            char *lp = info;
+            while (*lp && memcmp(lp, "LOCK ", 5))
+                lp++;
+            str_cpy(lp, "LOCKS ", 7);
+            fmt_int(lp + 6, (int32_t)n);
         }
     } else if (chrom) {
         str_cpy(info, "KEYS PLAY ", sizeof info);

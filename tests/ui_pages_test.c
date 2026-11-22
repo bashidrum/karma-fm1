@@ -2354,7 +2354,7 @@ int main(int argc, char **argv)
         check(stl.ev[1].fx && stl.ev[3].fx, "STUTTER lane: EDIT + OCT-: the erase undone");
         frames(20);                                      /* (the knobs quiet a moment after a layer, #39) */
         encs[panel.enc[EN_K3]] = 1; frame();
-        check(stl.ev[0].fx && !strcmp(ui.msg, "AGAIN: CLEAR FX"), "STUTTER lane: KNOB 3 turned once: asks again");
+        check(stl.ev[0].fx && !strcmp(ui.msg, "AGAIN: CLEAR PADS"), "STUTTER lane: KNOB 3 turned once: asks again");
         frames(20); encs[panel.enc[EN_K3]] = 1; frame();
         {
             uint32_t n = 0;
@@ -2678,6 +2678,123 @@ int main(int argc, char **argv)
         check(ok, "TOOLS > NEW: the default sounds dry, every send 0, no swing, master FX off");
         check(plain_defaults(), "TOOLS > NEW: the plain saws again (ACID INIT bass, JUNO chords, PLAITS VA lead)");
         check(!stl.on[0] && stl.len == 16u && stl.act, "TOOLS > NEW: the STUTTER lane empty, 16 steps, ON");
+    }
+    /* ---- PHEBUS wave 7: HOME as three zones (Ben's picker "HOME: B: three zones"), one value size, the frame and the
+     * colour rule on every screen */
+    {
+        uint32_t i, ok, z0, z1, z2, over0;
+        char b[96];
+        static const uint32_t ZY[3] = {40, 78, 116};   /* SYNTH, DRUM, PERFORM: their rows (the deck above) */
+        uint32_t vcols = 0;
+        go_home(); track_select(0); frames(2);
+        for (i = 0; i < NTRK; i++) trk[i].p[P_MUTE] = 0;
+        song.solo = 0; drum_mute = drum_solo = 0; perf.lat = 0; stl.act = 1; live_sec = -1; live_req = -1;
+        ui.force = 1; frame(); ppm("home-zones");
+        /* the zones: each voice's colour in SYNTH only on its own column; coral in DRUM; PERFORM white and grey only */
+        ok = 1;
+        for (i = 0; i < NPART; i++) {
+            uint32_t v, x0 = 4 + i * 79;
+            ok &= px_count(x0, ZY[0] + 16, 72, 22, TE_COL[i]) > 20u;
+            for (v = 0; v < NTRK; v++)
+                if (v != i)
+                    ok &= px_count(x0, ZY[0], 74, 38, TE_COL[v]) == 0u;
+        }
+        check(ok, "HOME SYNTH: three voices, each in its own colour in its own column, no other voice's colour there");
+        check(px_count(0, ZY[1], 240, 38, TE_DRUM) > 100u && px_count(0, ZY[1], 240, 38, TE_COL[0]) + px_count(0, ZY[1], 240, 38, TE_COL[1]) +
+              px_count(0, ZY[1], 240, 38, TE_COL[2]) == 0u, "HOME DRUM: the drum voice's coral, no melodic voice's colour");
+        for (i = 0; i < NTRK; i++) vcols += px_count(0, ZY[2], 240, 38, TE_COL[i]);
+        check(vcols == 0u, "HOME PERFORM: white and grey only (everyone's: the colour rule)");
+        check(px_count(4, ZY[0] + 17, 70, 16, TE_COL[0]) > 300u && px_count(83, ZY[0] + 17, 70, 16, TE_COL[1]) < 300u,
+              "HOME: the selected voice obvious (its name inverted in its colour; the others plain)");
+        track_select(TRK_DRUM); frames(2); ui.force = 1; frame();
+        check(px_count(2, ZY[1] + 1, 36, 16, TE_DRUM) > 300u && px_count(4, ZY[0] + 17, 70, 16, TE_COL[0]) < 300u,
+              "HOME: the drums selected, DRUM inverted, no voice inverted");
+        ppm("home-zones-drum");
+        track_select(0); frames(2);
+        /* the zones' state: mutes, solos, the drum sounds muted, the lane off, latched pads, the pattern playing */
+        z0 = home_zone_sig[0], z1 = home_zone_sig[1], z2 = home_zone_sig[2];
+        trk[1].p[P_MUTE] = 1; song.solo = 1u << 2; drum_mute = 1u << 2 | 1u << 5; ui.force = 1; frame();
+        check(px_count(83, ZY[0] + 16, 74, 18, TE_MUTE) > 40u && px_count(162, ZY[0] + 16, 74, 18, TE_SOLO) > 40u,
+              "HOME SYNTH: a muted voice's yellow M, a soloed voice's ice-blue S, in its own column");
+        check(px_count(83, ZY[0] + 16, 74, 18, TE_COL[1]) == 0u, "HOME SYNTH: a muted voice's name grey, not its colour");
+        check(px_count(0, ZY[1], 240, 18, TE_MUTE) > 40u && home_zone_sig[1] != z1, "HOME DRUM: sounds muted in MUTE mode: a yellow M and how many");
+        trk[1].p[P_MUTE] = 0; song.solo = 0; drum_mute = 0;
+        perf.lat = 1u << PF_LP | 1u << PF_GATE; stl.act = 0; ui.force = 1; frame(); ppm("home-zones-perform");
+        check(px_count(150, ZY[2] + 1, 88, 16, C_WHITE) > 40u && home_zone_sig[2] != z2,
+              "HOME PERFORM: the latched pads named at the right, white");
+        perf.lat = 0; stl.act = 1;
+        live_sec = 1; ui.force = 1; frame();
+        check(px_count(200, OP_BODY_Y + 1, 11, 16, C_WHITE) > 100u, "HOME deck: the pattern playing (B) filled white");
+        live_sec = -1; ui.force = 1; frame();
+        (void)z0;
+        /* the HOME knob row: the four values one size (the pages' dials: one tall face; DECAY was a small "2.52S") */
+        {
+            uint32_t k, hgt[4], same = 1;
+            for (k = 0; k < 4u; k++) {
+                uint32_t x, y, top = 999, bot = 0, x0 = 2 + 60 * k + DIAL_VX - 2;
+                for (y = OP_KNOB_Y + 20u; y < OP_KNOB_Y + 56u; y++)
+                    for (x = x0; x < x0 + DIAL_VW; x++)
+                        if (swap16(screen[y * 240u + x]) != C_BLACK) {
+                            if (y < top) top = y;
+                            if (y > bot) bot = y;
+                        }
+                hgt[k] = bot >= top ? bot - top : 0u;
+            }
+            for (k = 1; k < 4u; k++) same &= hgt[k] == hgt[0];
+            snprintf(b, sizeof b, "HOME knobs: CUTOFF DECAY STUT LEVEL values one size (%u %u %u %u px)", hgt[0], hgt[1], hgt[2], hgt[3]);
+            check(same && hgt[0] >= 16u, b);
+            check(px_count(0, OP_KNOB_Y, 240, OP_KNOB_H, TE_COL[0]) > 100u &&
+                  px_count(2 + 120, OP_KNOB_Y + 2, 58, OP_KNOB_H - 2, TE_COL[0]) == 0u, "HOME knobs: the voice's in its colour, STUT white-grey");
+        }
+        /* no value past its 40 px column, on every screen of the instrument */
+        dial_over = 0;
+        {
+            uint32_t n = 0, p;
+            go_home(); ui.force = 1; frame(); n++;
+            track_select(TRK_DRUM); frames(2); ui.force = 1; frame(); n++; track_select(0); frames(2);
+            for (p = 0; p < PF_NPAD; p++) { perf.last = (uint8_t)p; press(B_FX); frames(12); ui.force = 1; frame(); release(B_FX); frames(2); n++; }
+            {
+                static const uint32_t LB[6] = {B_EDIT, B_ARP, B_SEQ, B_SCL, B_GLO, B_SAVE};
+                uint32_t q, tr;
+                for (tr = 0; tr < NTRK; tr += 3u) {
+                    track_select(tr); frames(2);
+                    for (q = 0; q < 6u; q++) { press(LB[q]); frames(12); ui.force = 1; frame(); release(LB[q]); frames(2); n++; }
+                }
+                track_select(0); frames(2);
+            }
+            for (p = 0; p < NPAGES; p++)
+                if (PAGES[p].fam == FAM_GLO) { go_home(); page_go(p); frames(2); ui.force = 1; frame(); n++; }
+            go_home(); frames(2);
+            song.sel = TRK_DRUM; studio_open(SC_DRUM); frames(2); stl_algo(1); ui.force = 1; frame(); n++;
+            stl_algo(-1); go_home(); track_select(0); frames(2);
+            over0 = dial_over;
+            snprintf(b, sizeof b, "no value past its 40 px column: HOME, PERFORM's 22 pads, every layer, GLO pages, the lane (%u)", n);
+            check(over0 == 0u, b);
+        }
+        /* the colour rule, pixel by pixel: a shared screen (PERFORM, the STUTTER lane, a GLO page) has no voice colour
+         * above the strip; a voice's page none of the other voices' */
+        {
+            uint32_t v, bad = 0, p;
+            press(B_FX); frames(12); ui.force = 1; frame();
+            for (v = 0; v < NTRK; v++) bad += px_count(0, 0, 240, OP_BAR_Y, TE_COL[v]);
+            release(B_FX); frames(2);
+            check(bad == 0u, "colour rule: PERFORM has no voice colour above the strip");
+            song.sel = TRK_DRUM; studio_open(SC_DRUM); frames(2); stl_algo(1); ui.force = 1; frame();
+            for (v = 0, bad = 0; v < NTRK; v++) bad += px_count(0, 0, 240, OP_BAR_Y, TE_COL[v]);
+            stl_algo(-1); go_home(); track_select(0); frames(2);
+            check(bad == 0u, "colour rule: the STUTTER lane has no voice colour above the strip");
+            for (p = 0; p < NPAGES; p++)
+                if (PAGES[p].fam == FAM_GLO && shared_page(&PAGES[p])) {
+                    go_home(); page_go(p); frames(2); ui.force = 1; frame();
+                    for (v = 0; v < NTRK; v++) bad += px_count(0, 0, 240, OP_BAR_Y, TE_COL[v]);
+                }
+            go_home(); frames(2);
+            check(bad == 0u, "colour rule: every shared GLO page has no voice colour above the strip");
+            track_select(1); frames(2); open_family(FAM_OSC); frames(2); ui.force = 1; frame();
+            bad = px_count(0, 0, 240, OP_BAR_Y, TE_COL[0]) + px_count(0, 0, 240, OP_BAR_Y, TE_COL[2]) + px_count(0, 0, 240, OP_BAR_Y, TE_COL[3]);
+            check(bad == 0u && px_count(0, 0, 240, OP_BAR_Y, TE_COL[1]) > 100u, "colour rule: voice 2's OSC page in its colour only");
+            go_home(); track_select(0); frames(2);
+        }
     }
     printf("ui: %s\n", fails ? "FAILED" : "pages, layers (punch, steps, erase, roll, key, mix), layer lock, song layer, REC hold, drums, REC, 20000-frame fuzz PASS");
     return fails;

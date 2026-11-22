@@ -158,7 +158,7 @@ static void stl_input(uint32_t pressed)
                 stl_put_step(stl_pg * 16u + w, -1);
         stl_fresh = 0;
         stl_pend &= (uint16_t)~stl_held;                /* (a lit step stays when let go) */
-        ui_message(n ? "FX ERASED" : "NO FX ON THIS STEP");
+        ui_message(n ? "PADS ERASED" : "NO PADS ON THIS STEP");
         ui.force = 1;
     }
     panel_enc(EN_PRESET);                               /* (nothing here: no turn waits) */
@@ -190,7 +190,7 @@ static void stl_input(uint32_t pressed)
             uint32_t gap = fm1_ms - last;
             last = fm1_ms;
             if (!pev_count()) {
-                ui_message("NO FX RECORDED");
+                ui_message("NO PADS RECORDED");
             } else if (pev_clear_ms && gap > 200u && fm1_ms - pev_clear_ms < 1500u) {
                 uint32_t i;
                 stl_sess = (undo_sess += 4u) | 3u;
@@ -198,10 +198,10 @@ static void stl_input(uint32_t pressed)
                 for (i = 0; i < PEV_N; i++)
                     stl.ev[i].fx = 0;
                 pev_clear_ms = 0;
-                ui_message("FX CLEARED");
+                ui_message("PADS CLEARED");
             } else if (!pev_clear_ms || fm1_ms - pev_clear_ms >= 1500u) {
                 pev_clear_ms = fm1_ms | 1u;
-                ui_message("AGAIN: CLEAR FX");
+                ui_message("AGAIN: CLEAR PADS");
             }
         } else if (k == 3u) {
             if (!again)
@@ -237,7 +237,7 @@ static void stl_draw(void)
 {
     static uint32_t head, sig_was, footer, bar;
     static char v[4][8];
-    const char *lab[4] = {"len", "on", "fx", "steps"}, *val[4] = {v[0], v[1], v[2], v[3]};
+    const char *lab[4] = {"len", "on", "pads", "steps"}, *val[4] = {v[0], v[1], v[2], v[3]};
     int32_t ratio[4] = {0, 0, 0, 0};
     uint32_t j, sig, hs = 0xFFu, c;
     char t[16];
@@ -299,7 +299,7 @@ static void stl_draw(void)
             for (j = 0; j < PEV_N && !pev_covers(&stl.ev[j], hs); j++)
                 ;
             if (j < PEV_N)                              /* (pads recorded over it: OCT- erases them) */
-                cv_text(236 - text_w(&FONT_S, "OCT-: ERASE FX"), 59, &FONT_S, "OCT-: ERASE FX", TE_G3);
+                cv_text(236 - text_w(&FONT_S, "OCT-: ERASE"), 59, &FONT_S, "OCT-: ERASE", TE_G3);
         } else {                                        /* what the lit steps do; the length new steps take */
             cv_text(4, 59, &FONT_S, !stl.act ? "OFF: KEPT, SILENT" : c >= 4u ? "THE STEPS REPLAY" : "LIT STEPS REPEAT",
                     stl.act ? TE_G4 : TE_G3);
@@ -355,7 +355,7 @@ static void stl_draw(void)
                 cv_text(236 - text_w(&FONT_S, t), 59, &FONT_S, t, TE_G4);
             }
             if (!any)
-                cv_text(4, 92, &FONT_S, "FX: REC + PADS LAND HERE", TE_G3);
+                cv_text(4, 92, &FONT_S, "REC + PERFORM PADS: HERE", TE_G3);
         }
         cv_blit(0, SG_BODY_Y);
         if (ui.force) {                                 /* (the rows under it, to the knobs) */
