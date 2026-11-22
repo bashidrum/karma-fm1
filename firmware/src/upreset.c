@@ -21,7 +21,11 @@
 #define UP_PER_BANK 16u
 #define UP_PMAX 72u                              /* room for P_COUNT to grow */
 #define UP_USED 0xA5u
-#define UP_VER 2u                                /* (wave 4; record 1 still read) */
+#define UP_VER 3u                                /* (wave 5: the FX slots, LFO 2 and the matrix; records 1 and 2 still
+                                                  * read, their DIST, INSERT and sends made slots: modmx.c fx_from_legacy) */
+#ifndef PHEBUS_UP_MX
+#define PHEBUS_UP_MX 1                           /* (wave 5) each record's mod matrix in the bank, after the records */
+#endif
 #define UP_BANK_MAGIC 0x31425055u                /* "UPB1" */
 typedef struct {
     uint8_t used, ver, engine, np;               /* UP_USED, UP_VER, engine, P_COUNT when stored */
@@ -36,16 +40,27 @@ typedef struct {
     uint32_t magic;
     uint16_t rsize, nslot;
     up_rec_t r[UP_PER_BANK];
+#if PHEBUS_UP_MX
+    uint8_t mx[UP_PER_BANK][46];                 /* (wave 5) each record's mod matrix, LFO 2's SYNC and TRIG (project.c
+                                                  * mx_pack's bytes; Spice and Dice there are the pattern's: not loaded). A
+                                                  * bank stored before (without them) loads with none */
+#endif
 } up_bank_t;
+#define UP_BANK_V2 (8u + UP_PER_BANK * sizeof(up_rec_t))   /* a bank as waves 1 to 4 stored it */
+#ifdef ST_PAYLOAD_MAX
+_Static_assert(sizeof(up_bank_t) <= ST_PAYLOAD_MAX, "a bank fits its flash object");
+#endif
 _Static_assert(sizeof(up_rec_t) == 192, "user preset record layout");
 _Static_assert(P_COUNT_V8 <= UP_PMAX && P_COUNT - P_COUNT_V8 <= 32 && P_COUNT < 128, "user preset record: P_COUNT");
+static void mx_pack(uint8_t *b, uint32_t ti);           /* (project.c, wave 5) */
+static void mx_unpack(const uint8_t *b, uint32_t ti);
 static up_bank_t up_bank[UP_SLOTS / UP_PER_BANK];
 
 static up_rec_t *up_rec(uint32_t k) { return &up_bank[k / UP_PER_BANK].r[k % UP_PER_BANK]; }
 
 static int up_valid(const up_rec_t *r)
 {
-    return r->used == UP_USED && (r->ver == UP_VER || r->ver == 1u) && r->engine < NENGINES && r->np >= 8u &&
+    return r->used == UP_USED && r->ver >= 1u && r->ver <= UP_VER && r->engine < NENGINES && r->np >= 8u &&
            r->np <= UP_PMAX && r->name[0];
 }
 
@@ -54,9 +69,13 @@ static int up_used(uint32_t k) { return k < UP_SLOTS && up_valid(up_rec(k)); }
 static void up_bank_check(uint32_t b, int len)  /* after loading bank b (len bytes, -1 = none): wrong shape -> empty */
 {
     up_bank_t *bk = &up_bank[b];
-    if (len != (int)sizeof *bk || bk->magic != UP_BANK_MAGIC || bk->rsize != sizeof(up_rec_t) ||
+    if ((len != (int)sizeof *bk && len != (int)UP_BANK_V2) || bk->magic != UP_BANK_MAGIC || bk->rsize != sizeof(up_rec_t) ||
         bk->nslot != UP_PER_BANK)
         memset(bk, 0, sizeof *bk);
+#if PHEBUS_UP_MX
+    else if (len == (int)UP_BANK_V2)
+        memset(bk->mx, 0, sizeof bk->mx);
+#endif
 }
 
 /* the record's values in today's P_* order (mapped by count, see above); def = the defaults */
@@ -67,8 +86,9 @@ static void up_params(const up_rec_t *r, int16_t *out, const int16_t *def)
         out[i] = i < nc ? r->p[i] : def[i];
     for (i = 0; i < 8u; i++)
         out[P_E0 + i] = r->p[nc + i];
-    for (i = P_COUNT_V8; i < P_COUNT; i++)              /* (record 2: wave 4's; record 1: mapped by up_values) */
-        out[i] = r->ver >= 2u ? r->px[i - P_COUNT_V8] : def[i];
+    for (i = P_COUNT_V8; i < P_COUNT; i++)              /* (record 2: wave 4's; record 1: mapped by up_values; wave 5's
+                                                         * from record 3) */
+        out[i] = r->ver >= (i < P_COUNT_V9 ? 2u : 3u) ? r->px[i - P_COUNT_V8] : def[i];
 }
 
 static void up_name(uint32_t k, char *b)       /* upper case, 0-terminated: b holds 13 */
@@ -198,8 +218,11 @@ static int up_store(uint32_t k, const char *name)
     }
     for (i = 0; i < P_COUNT_V8; i++)
         r.p[i] = TSEL->p[i];
-    for (i = P_COUNT_V8; i < P_COUNT; i++)              /* (record 2: wave 4's parameters, a byte each) */
+    for (i = P_COUNT_V8; i < P_COUNT; i++)              /* (record 2: wave 4's parameters, a byte each; 3: wave 5's) */
         r.px[i - P_COUNT_V8] = (int8_t)clamp(TSEL->p[i], -128, 127);
+#if PHEBUS_UP_MX
+    mx_pack(up_bank[k / UP_PER_BANK].mx[k % UP_PER_BANK], song.sel % NPART);   /* (wave 5) its matrix */
+#endif
     return up_put(k, &r);
 }
 
@@ -228,6 +251,20 @@ static int up_load_to(track_t *t, uint32_t k)       /* user preset k into track 
     for (i = 0; i < P_COUNT; i++)
         t->p[i] = v[i];
     t->preset = 0;
+    {                                                   /* (wave 5) its matrix and LFO 2 (Spice and Dice: the pattern's) */
+        uint32_t ti = trk_index(t) % NPART;
+        int16_t sp = mxt[ti].spice, dc = mxt[ti].dice;
+        mx_clear_sound(ti);
+#if PHEBUS_UP_MX
+        if (r->ver >= 3u)
+            mx_unpack(up_bank[k / UP_PER_BANK].mx[k % UP_PER_BANK], ti);
+#endif
+        mxt[ti].spice = sp, mxt[ti].dice = dc;
+        if (r->ver < 3u) {                              /* stored before: its DIST, INSERT, sends, SHP routings */
+            fx_from_legacy(t->p, 0);
+            mx_from_legacy(ti, t->p, r->engine);
+        }
+    }
     fm1_irq_on();
     t->user = (uint8_t)(k + 1u);
     if (t == TSEL)

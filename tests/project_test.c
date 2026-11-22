@@ -636,7 +636,7 @@ int main(void)
         lock_set(&trk[0], 3, P_FCUT, 10);
         lock_set(&trk[0], 3, P_TUNE, -50);
         proj_capture(&w);
-        ok &= w.c.rsv[0] == PROJ_VOICE_V && proj_ok(&w.c);
+        ok &= w.c.rsv[0] >= PROJ_VOICE_V && proj_ok(&w.c);   /* (wave 5: PROJ_FX_V) */
         host_tracks_init();
         proj_apply(&w.c, 1);
         for (k = 0; k < 11u; k++)

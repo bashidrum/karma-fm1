@@ -657,7 +657,9 @@ static int p_lockable(uint32_t id)
     return id <= P_LD_AMP || id == P_SGATE || (id >= P_DIST && id <= P_REV) || id == P_GLIDE || id == P_PAN ||
            id == P_DETUNE || (id >= P_SLCR && id <= P_SLDEPTH) || (id >= P_E0 && id <= P_E7) || id == P_TFLT ||
            (id >= P_IA && id <= P_IMIX) ||   /* 2.6: the INSERT's values and MIX */
-           id == P_FTYPE || (id >= P_FCUT && id <= P_TUNE);   /* (wave 4) the voice filter, its envelope, OCT, TUNE */
+           id == P_FTYPE || (id >= P_FCUT && id <= P_TUNE) ||   /* (wave 4) the voice filter, its envelope, OCT, TUNE */
+           (id >= P_X1TYPE && id <= P_X3AMT && (id - P_X1TYPE) % 4u) ||   /* (wave 5) the FX slots' knobs (not their */
+           id == P_L2RATE || id == P_L2WAVE;            /* TYPE: the MiniFreak's), LFO 2 */
 }
 static void locks_restore(track_t *t);
 /* (PHEBUS wave 4) Type ty (vtype.c) on track t, as the MiniFreak's Type knob: the rest of the sound stays (the filter, the
@@ -1817,12 +1819,56 @@ static uint32_t step_vel(const step_t *s, uint32_t i)
     return lvl_vel((s->lvl >> (2u * i)) & 3u, base);
 }
 
+/* ---- Spice and Dice (PHEBUS wave 5; Ben, 21 Nov 2026: "Cut all but give me the spice & dice from minifreak"). As the
+ * MiniFreak's: Dice rolls a new random variation of the pattern, Spice sets how much of it is heard; the notes written are never
+ * changed (non-destructive: Spice back to 0 is the pattern as written, and the same roll at the same Spice is the same
+ * variation every loop). A roll (mxt_t.dice) gives each step of each voice five random numbers; Spice s (0..127) lets each
+ * through by how far: the step left out (up to 30 % of the notes at full), an octave up or down (25 %), a ratchet of 2 or 3
+ * hits (20 %), its velocity +-48 and its length x0.25 .. x1.75 (all of them, by s). More Spice is the same roll, further:
+ * the steps varied at a lower Spice stay varied. The melodic voices only (the drums are the Rytm's, which has none) */
+typedef struct { uint8_t off, hits, glen; int8_t oct, dvel; } spv_t;
+static uint32_t sd_hash(uint32_t a, uint32_t b, uint32_t c)
+{
+    uint32_t h = a * 0x9E3779B1u ^ (b + 0x7F4A7C15u) * 0x85EBCA77u ^ (c + 0x165667B1u) * 0xC2B2AE3Du;
+    h ^= h >> 15;
+    h *= 0x2C1B3C6Du;
+    h ^= h >> 12;
+    h *= 0x297A2D39u;
+    h ^= h >> 15;
+    return h;
+}
+/* step idx of track t as the roll and Spice vary it (no Spice: as written, glen 64 = x1) */
+static void spice_of(const track_t *t, uint32_t idx, spv_t *v)
+{
+    uint32_t ti = trk_index(t), sp, seed, r;
+    v->off = v->hits = 0, v->oct = v->dvel = 0, v->glen = 64;
+    if (ti >= NPART || !(sp = (uint32_t)(mxt[ti].spice & 127)))
+        return;
+    seed = (uint32_t)(uint16_t)mxt[ti].dice * 2654435761u + ti * 40503u;
+    r = sd_hash(seed, idx, 1) & 0xFFFFu;               /* left out: r < 30 % x s */
+    v->off = (uint8_t)(r * 127u < sp * 19661u);
+    r = sd_hash(seed, idx, 2) & 0xFFFFu;               /* an octave: 25 % x s, up or down */
+    if (r * 127u < sp * 16384u)
+        v->oct = (int8_t)(sd_hash(seed, idx, 6) & 1u ? 12 : -12);
+    r = sd_hash(seed, idx, 3) & 0xFFFFu;               /* a ratchet: 20 % x s, 2 or 3 hits */
+    if (r * 127u < sp * 13107u)
+        v->hits = (uint8_t)(sd_hash(seed, idx, 7) & 1u ? 3u : 2u);
+    r = sd_hash(seed, idx, 4) & 0xFFFFu;               /* the velocity: +-48 x s */
+    v->dvel = (int8_t)(((int32_t)r - 32768) * 48 / 32768 * (int32_t)sp / 127);
+    r = sd_hash(seed, idx, 5) & 0xFFFFu;               /* the length: x(1 +- 0.75 s) */
+    v->glen = (uint8_t)(64 + (((int32_t)r - 32768) * 48 / 32768) * (int32_t)sp / 127);
+}
+static step_t sp_cur[NPART];                           /* the step playing, as Spice varies it (seq_ratchets) */
+static uint8_t sp_on[NPART], sp_gate[NPART] = {64, 64, 64};   /* .. varied; its length factor (64: x1) */
+
 /* play one synth step: TIE extends, REST releases, NOTE (re)triggers; a SLIDE on the previous
  * step makes this one legato with a glide (acid style). skip: bit k = note k already sounds
  * from live recording (not triggered, not released here). len: the step's length (units). */
 static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
 {
     uint32_t i, j, gate = slen * (uint32_t)t->p[P_SGATE] / 128u;
+    if (trk_index(t) < NPART && sp_gate[trk_index(t)] != 64u)   /* (wave 5) Spice: this step's length */
+        gate = gate / 64u * sp_gate[trk_index(t)];
     uint32_t slide_in = t->seq_hold && t->seq_n;
     uint32_t next_tie = t->step[(t->seq_idx + 1u) % trk_len(t)].time == ST_TIE;
     if (s->time == ST_TIE) {
@@ -2084,7 +2130,9 @@ static void seq_ratchets(track_t *t, uint32_t into, uint32_t slen)
     if (is_drum(t))
         return;                                     /* (the drum trigs' retrigs: drum_retrigs) */
     {
-        const step_t *s = &t->step[t->seq_idx % NSTEP];
+        uint32_t ti = trk_index(t);
+        const step_t *s = ti < NPART && sp_on[ti] ? &sp_cur[ti] : &t->step[t->seq_idx % NSTEP];   /* (wave 5: as Spice
+                                                     * varies it) */
         if (s->time != ST_NOTE || !s->rat)
             return;
         for (i = 0; i < s->n; i++) {
@@ -2098,7 +2146,7 @@ static void seq_ratchets(track_t *t, uint32_t into, uint32_t slen)
                 trk_note_off(t, s->note[i]);
                 trk_note_on(t, s->note[i], step_vel(s, i));
                 seq_out_on(t, s->note[i], step_vel(s, i));
-                t->seq_off = slen / hits * (uint32_t)t->p[P_SGATE] / 128u;
+                t->seq_off = slen / hits * (uint32_t)t->p[P_SGATE] / 128u / 64u * (ti < NPART ? sp_gate[ti] : 64u);
                 for (j = 0; j < t->seq_n && t->seq_notes[j] != s->note[i]; j++)
                     ;
                 if (j == t->seq_n && t->seq_n < 4u)
@@ -2220,6 +2268,35 @@ static void seq_tick(track_t *t, uint32_t adv)
                         if (s->note[i] == t->rskip[k])
                             skip |= 1u << i;
             t->rskip_n = 0;
+            if (trk_index(t) < NPART) {                 /* (wave 5) Spice and Dice: the step as the roll varies it */
+                uint32_t ti = trk_index(t);
+                spv_t sv;
+                spice_of(t, idx, &sv);
+                sp_on[ti] = 0;
+                sp_gate[ti] = 64;
+                if (mxt[ti].spice && s->time == ST_NOTE && s->n) {
+                    step_t *c = &sp_cur[ti];
+                    *c = *s;
+                    if (sv.off) {                       /* left out: as a rest */
+                        c->time = ST_REST;
+                        c->n = 0;
+                    } else {
+                        uint32_t base = (s->flags & SF_ACCENT) ? 127u : (s->vel ? s->vel : 96u);
+                        for (i = 0; i < c->n; i++)
+                            c->note[i] = (uint8_t)clamp((int32_t)c->note[i] + sv.oct, 1, 127);
+                        if (sv.dvel) {
+                            c->vel = (uint8_t)clamp((int32_t)base + sv.dvel, 1, 127);
+                            c->lvl = 0;
+                            c->flags &= (uint8_t)~SF_ACCENT;
+                        }
+                        if (sv.hits && !c->rat)
+                            c->rat = (uint8_t)((sv.hits - 1u) * 0x55u);   /* (each note: 2 bits) */
+                        sp_gate[ti] = sv.glen;
+                    }
+                    sp_on[ti] = 1;
+                    s = c;
+                }
+            }
             seq_step(t, s, slen, skip);
         }
     }
@@ -2475,6 +2552,20 @@ static void __attribute__((noinline)) midi_cc(track_t *t, uint32_t cc, uint32_t 
     } else {
         d = &TP[id];
         slot = &t->p[id];
+        if (id == P_REV || id == P_CHOR || id == P_DLY) {   /* (wave 5) a send: heard through its FX slot. None yet: one put
+                                                         * in the first slot that is OFF (none OFF: the CC does nothing) */
+            int32_t ty = id == P_REV ? XT_REVERB : id == P_CHOR ? XT_CHORUS : XT_DELAY, k, fr = -1;
+            for (k = (int32_t)NXSLOT - 1; k >= 0; k--) {
+                if (t->p[P_XS(k, 0)] == ty)
+                    break;
+                if (t->p[P_XS(k, 0)] == XT_OFF)
+                    fr = k;
+            }
+            if (k < 0 && fr < 0)
+                return;
+            if (k < 0)
+                xs_defaults(t->p, (uint32_t)fr, ty);
+        }
     }
     if (!d || d->max <= d->min)
         return;

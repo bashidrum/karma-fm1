@@ -532,6 +532,11 @@ static void apply_preset_to(track_t *t, uint32_t pi)
         preset_extras(t->p, pr);                     /* glide, pitch / LFO modulation, voice mode */
     }
     voice_from_engine(t->p, t->eng_req % NENGINES, 0);   /* (wave 4) its filter values onto the voice filter */
+    t->p[P_L2RATE] = TP[P_L2RATE].def;               /* (wave 5) LFO 2 and the matrix as a fresh sound has them; */
+    t->p[P_L2WAVE] = TP[P_L2WAVE].def;
+    mx_clear_sound(trk_index(t));
+    fx_from_legacy(t->p, 0);                         /* its sends (and DIST) as FX slots; its LFO > SHP, ENV > SHP */
+    mx_from_legacy(trk_index(t), t->p, t->eng_req % NENGINES);   /* as grid cells */
 }
 
 static void set_engine_of(track_t *t, uint32_t ei);
@@ -544,6 +549,11 @@ static void trk_def_sound(track_t *t, uint32_t i)
     i %= NPART;
     set_engine_of(t, TRK_DEF[i][0]);
     apply_preset_to(t, TRK_DEF[i][1]);
+    {
+        uint32_t k;
+        for (k = 0; k < NXSLOT; k++)                   /* (wave 5) every FX slot OFF, no send */
+            xs_defaults(t->p, k, XT_OFF);
+    }
     t->p[P_DIST] = t->p[P_CHOR] = t->p[P_DLY] = t->p[P_REV] = 0;
     t->p[P_VOICE] = i == 1u ? V_POLY : V_LEGATO;
     t->p[P_TRANS] = i == 0u ? -12 : 0;
@@ -576,6 +586,10 @@ static void track_defaults(track_t *t)
     for (i = 0; i < P_COUNT; i++)                     /* (wave 4: the ids after P_E7 too) */
         if (i < P_E0 || i > P_E7)
             t->p[i] = TP[i].def;
+    if (trk_index(t) < NPART) {                       /* (wave 5) no matrix cell, no Spice */
+        mx_clear_sound(trk_index(t));
+        mxt[trk_index(t)].spice = mxt[trk_index(t)].dice = 0;
+    }
     track_defaults_steps(t);
 }
 
