@@ -2790,9 +2790,24 @@ int main(int argc, char **argv)
                 }
             go_home(); frames(2);
             check(bad == 0u, "colour rule: every shared GLO page has no voice colour above the strip");
-            track_select(1); frames(2); open_family(FAM_OSC); frames(2); ui.force = 1; frame();
-            bad = px_count(0, 0, 240, OP_BAR_Y, TE_COL[0]) + px_count(0, 0, 240, OP_BAR_Y, TE_COL[2]) + px_count(0, 0, 240, OP_BAR_Y, TE_COL[3]);
-            check(bad == 0u && px_count(0, 0, 240, OP_BAR_Y, TE_COL[1]) > 100u, "colour rule: voice 2's OSC page in its colour only");
+            for (v = 0; v < NPART; v++) {               /* each voice's every sound page: no other voice's colour, in any
+                                                         * of its shades (wave 7 found voice 1's OSC drawing dim coral) */
+                uint8_t idx[40];
+                uint32_t np, i2, o, mine = 0;
+                go_home(); track_select(v); frames(2); open_family(FAM_OSC); frames(2);
+                np = chain_list(idx, sizeof idx);
+                for (i2 = 0, bad = 0; i2 < np; i2++) {
+                    page_go(idx[i2]); frames(1); knob_tint_all(TRK_DRUM);   /* (as a drum or shared screen leaves it) */
+                    ui.force = 1; frame();
+                    for (o = 0; o < NTRK; o++)
+                        if (o != v)
+                            bad += px_count(0, 0, 240, OP_BAR_Y, TE_COL[o]) + px_count(0, 0, 240, OP_BAR_Y, TE_MID[o]) +
+                                   px_count(0, 0, 240, OP_BAR_Y, TE_DIM[o]);
+                    mine += px_count(0, 0, 240, OP_BAR_Y, TE_COL[v]) > 100u;
+                }
+                snprintf(b, sizeof b, "colour rule: voice %u's %u sound pages in its colour only (no other voice's shade)", v + 1, np);
+                check(bad == 0u && mine == np, b);
+            }
             go_home(); track_select(0); frames(2);
         }
     }

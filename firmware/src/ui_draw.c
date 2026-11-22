@@ -923,6 +923,9 @@ static void ui_draw(void)
     if (boot_draw())                                    /* (KARMA 3.0: the boot animation first) */
         return;
     pads_tick();
+    knob_tint_all(song.sel & 3u);                       /* (wave 7) the graphs' tints are the selected voice's unless a
+                                                         * screen says otherwise (HOME, the layers and the lane no longer
+                                                         * set them: a stale per-voice tint drew coral on voice 1's OSC) */
     {   /* a message belongs to the screen it showed on: another screen, it goes (review 21) */
         uint16_t k = (uint16_t)((ui.menu * 1000003u + ui.layer * 7919u + ui.hold_kind * 131u + rec_wait * 17u +
                                  ui.home * 3u + ui.page * 977u + drum_keys * 5u + vis_on * 11u) % 65521u);
