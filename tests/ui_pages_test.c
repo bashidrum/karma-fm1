@@ -2542,7 +2542,9 @@ int main(int argc, char **argv)
                 uint32_t h0, h1;
                 int32_t st;
                 uint32_t id = pg_id(pg, k);
-                if (id >= P_COUNT || (d = track_desc(t, id))->max <= d->min || !((SP[c].mask >> k) & 1u)) continue;
+                if (id >= P_COUNT) continue;
+                d = track_desc(t, id);                     /* (wave 7: assigned before it is read) */
+                if (d->max <= d->min || !((SP[c].mask >> k) & 1u)) continue;
                 v0 = t->p[id];
                 st = (d->max - d->min) / 3 > 1 ? (d->max - d->min) / 3 : 1;
                 ui.force = 1; frames(2); h0 = plot_hash();
