@@ -824,7 +824,7 @@ static void drum_grid_input(uint32_t pressed)
             else if (!k)
                 drum_newvel = (uint8_t)clamp(drum_newvel + accel(EN_K1, s, 126), 1, 127);
             else
-                ui_message("HOLD A TRIG");
+                ui_message("HOLD A STEP");             /* (wave 7: a key is a step) */
         } else if ((id = dpg_id(k)) != 0xFFu) {
             if (sg_held)
                 drum_lock_turn(id, s, EN_K1 + k);
