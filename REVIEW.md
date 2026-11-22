@@ -5,7 +5,7 @@
 **Overall state:** about half of PHEBUS already points the right way. The other half is either the old firmware's extras or the right job done the wrong way. The biggest gaps are not on the screen: they are in how drum steps and voice parameters are stored.
 **Decisions waiting:** 24, put to Ben as pickers.
 
-Nothing has been built for this direction. The previous build (branch `f-play`: step-record, HOME knobs, ACID bass, long stutters, LFO trigger, HOME band) is held unmerged.
+(At the time of this review nothing had been built for this direction; see the status at the end: all seven waves are now built.)
 
 Detail: `review/direction/INVENTORY.md` (every item, limits, routes), `VISUAL.md` (screens and mock-ups), `RESEARCH-devices.md` (how the three devices work, with sources). Yesterday's finished review is `review/REVIEW-2026-11-21-polish.md`.
 
@@ -160,4 +160,26 @@ Each is asked in the pickers.
 
 Taken as read, not asked: the visual fixes that follow from the new screens (one value size in fixed columns, the touched knob shown large on pages with no graph, stutter lengths drawn as spans, shared list pages showing values once).
 
-Status: building. Wave 1 (the cuts) is done and merged. Wave 2 (drum hits and the new save format) is in progress. Ben asked on 22 Nov for all seven waves to be built.
+## Status: built, waves 1 to 7 done (22 Nov 2026)
+
+Nothing has been run on a real FM-1. Do not flash until the unit has arrived and its chip revision is checked.
+
+| Wave | Built |
+| --- | --- |
+| 1 | The cuts: song mode, chains, the songs bank, the generators, CLOUD and TEXTURE, sample kits, free take, the screen reader, the web editor's editing (backup and install kept). The held f-play build merged (step record, HOME knobs, ACID bass, long stutters, LFO PATT, the HOME band). A to D kept as patterns |
+| 2 | Drum trigs per sound (velocity, condition, chance, nudge, the Rytm's retrig, sound locks) and project format 8 (FUN8), reading every older format |
+| 3 | The Rytm drum screens: SRC FLTR AMP LFO on every sound, every kit editable (your copy), an LFO per sound, MUTE, CHROMATIC, live RETRIG, FILL, hold a step and turn to lock |
+| 4 | The MiniFreak voices, part one: 31 Types on every voice, Type + three macros, one resonant filter with LINK / OWN envelope, the synth GRID with the drum screen's tabs and locks |
+| 5 | Part two: three FX slots, the mod matrix grid, LFO 2, Spice and Dice, GATE on hold SEQ |
+| 6 | PERFORM: 22 pads on the keys, latch, knobs on the last pad, recorded into the STUTTER lane |
+| 7 | HOME as three zones (SYNTH, DRUM, PERFORM); one frame on every screen (header, line or tabs, dials, strip) including the layers, PERFORM, REC and the lane; one value size; stutter lengths as spans; one word for one thing; the colour rule checked pixel by pixel; 32-bit arithmetic where the device has no 64-bit divide; GUIDE.md rewritten as the manual, the cheat sheet and README updated |
+
+### Open compromises for Ben
+
+The full list, one line each, is at the end of DECISIONS.md under "For Ben to confirm". The main ones:
+
+- **PHEBUS_ARENA_T12**: on the device, six Types (6-OP A, B, C, STRING, SPEECH, PARTICLE) play on track 3 only, to keep the pool's 8 KiB spare.
+- **CPU** is unmeasured on the FM-1: if it runs short, the compromises to offer are a limit of four PERFORM pads at once and fewer heavy Types at once.
+- **RAM** is nearly full: .data+.bss about 96.3 KB of 98.3 KB, the pool about 200 B above the 8 KiB rule.
+- **Old projects** convert with a few lossy cases (sends past three effects, an INSERT's fourth value, old LFO / ENV to the timbre on PLAITS and ELEMENTS).
+- **Calls the spec did not cover** (GATE on hold SEQ, the PERFORM pad map's changes from the mock, latch on OCT+, the HOME zones' contents and others).
