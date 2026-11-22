@@ -178,3 +178,16 @@ Asked whether to pause after wave 4, Ben said: "Noo build the thing we dreamed o
 On the real-device CPU caveat, Ben said: "Let's worry about that once it's built. Make the perfect version. Then we'll compromise".
 
 How this is applied: no feature is trimmed or staged in advance out of worry about CPU headroom. That includes the big multi-model oscillator list on every track, which was to wait for a device check and is now built in wave 4. Anything that turns out not to fit is reported to Ben as a compromise to choose, never dropped quietly.
+
+### 22 Nov 2026, 23:20: the layout, in Ben's words
+
+"Does the way that you interact with the device feel consistently implemented and obvious? Like do the knobs do the same job on every screen wherever possible? Is it obvious on the screen what the knobs control? Could it be more obvious what the knobs do? What the keyboard does? The quickest synths to learn are the ones that have a really clear logic - like the mpc sample - everything is either written on the knob or written below the knob and access by a shift press. The most hidden things get is a long press on a button."
+
+"Are the pages unique? Or do they exist in lots of places at once ( I think this is more confusing). Like fx? I feel each voice's fx sends should be on their own edit page and the fx only does the master fx."
+
+He asked for an audit, not a build (review/LAYOUT-AUDIT-2026-11-22.md). His answers by picker afterwards:
+
+- FX button: "FX = whole mix only". Each voice gets three inserts plus a SENDS page under EDIT. FX tap is the master delay and reverb pages, FX hold is PERFORM. GLO is settings and the mixer.
+- Key legend on every screen: "Leave as built".
+- Hidden depth: "One rule everywhere". One latch gesture, one keep-open gesture, one confirm gesture, no double presses. Nothing deeper than a hold.
+- Same words: same filter page on drums and synths (CUTOFF, RESO, ENV, TYPE; one spelling everywhere); one repeat word (RATCH becomes RETRIG; ROLL stays for held keys; SLICER decided separately); cut the spare filters (the hidden CC 74 filter and the GLO DJ filter; PERFORM LP and HP do that job); tempo in one place.
