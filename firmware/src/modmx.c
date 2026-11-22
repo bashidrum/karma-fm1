@@ -9,7 +9,8 @@
  * -1..+1 over 64 semitones).
  * Destinations (MD_*): PIT (+-12 semitones at full), M1 M2 M3 (the OSC page's three macros, as the Type names them: +-64 steps
  * at full), CUT (the voice filter: the envelopes +-128 steps (ten octaves), the others +-64), RES (+-64), LVL (the voice's
- * level: x0 .. x2), PAN (+-64), FX1 FX2 FX3 (the slot's AMOUNT: its mix, or a shared effect's send, +-128), AS1 AS2 (any
+ * level: x0 .. x2), PAN (+-64), FX1 FX2 FX3 (the insert slot's AMOUNT, its mix, +-128; wave 8: the sends have no column of
+ * their own, an assignable column takes one: the MPC treats a send as a mix level), AS1 AS2 (any
  * sound parameter picked on the page: +- its whole range). PIT M1 M2 M3 CUT RES LVL act on each voice with its own envelopes;
  * PAN, FX and AS on the whole voice part (the LFOs as they run, the envelopes of the note started last).
  *
@@ -172,54 +173,100 @@ static void mx_from_legacy(uint32_t ti, int16_t *p, uint32_t e)
 }
 
 /* ---- (wave 5) the FX slots: a TYPE picked on slot k of the sound p (the MiniFreak's way: a type starts at its own settings).
- * Its own knobs at the type's start; a shared effect's: its send, at the type's start if it was 0 (its TIME and INTENS are
- * GLO's: untouched). OFF: the knobs at 0 */
+ * OFF: the knobs at 0. (Wave 8, Ben 22 Nov 2026: "FX = whole mix only") every slot type is this voice's insert; the old send
+ * types (CHORUS, REVERB, DELAY: the stores' numbers) are never picked, the sends are the SENDS page's (P_DLY P_REV P_CHOR) */
 static void xs_defaults(int16_t *p, uint32_t k, int32_t ty)
 {
     uint32_t f;
     ty = clamp(ty, 0, XT_N - 1);
+    if (xt_send(ty))
+        ty = XT_OFF;
     p[P_XS(k, 0)] = (int16_t)ty;
     for (f = 1; f <= 3u; f++)
-        p[P_XS(k, f)] = (int16_t)(ty && !xt_send(ty) ? XS_DESC[ty][f - 1u].def : 0);
-    if (xt_send(ty) && !p[xs_send_id(ty)])
-        p[xs_send_id(ty)] = (int16_t)XS_DESC[ty][2].def;
+        p[P_XS(k, f)] = (int16_t)(ty ? XS_DESC[ty][f - 1u].def : 0);
 }
-/* slot k of p may take type ty: a shared effect and the FLANGER (its line) once a voice, the others any number of times */
+/* slot k of p may take type ty: any insert, the FLANGER once a voice (its line); never an old send type */
 static int xs_type_ok(const int16_t *p, uint32_t k, int32_t ty)
 {
     uint32_t j;
-    if (ty != XT_CHORUS && ty != XT_REVERB && ty != XT_DELAY && ty != XT_FLANGER)
+    if (xt_send(ty))
+        return 0;
+    if (ty != XT_FLANGER)
         return 1;
     for (j = 0; j < NXSLOT; j++)
         if (j != k && p[P_XS(j, 0)] == ty)
             return 0;
     return 1;
 }
-/* a slot's TYPE turned away from a shared effect: its send to 0 (a voice sends nothing without the slot) */
 static void xs_type_set(int16_t *p, uint32_t k, int32_t ty)
 {
-    int32_t old = p[P_XS(k, 0)];
-    if (old == ty)
-        return;
-    if (xt_send(old))
-        p[xs_send_id(old)] = 0;
-    xs_defaults(p, k, ty);
+    if (p[P_XS(k, 0)] != ty)
+        xs_defaults(p, k, ty);
 }
 
-/* ---- a sound from before wave 5 (a project, user preset, factory preset): its DIST, INSERT and sends as slots, in their
- * order (DIST, the INSERT, then the sends: their place does not change what is heard, they are taken after the level as
- * always). At most three: past three, the sends with the least go (fx_legacy_lost counts them; none of the factory sounds
- * has more than three). Exact but for: an INSERT's fourth value (the drives' LEVEL: into the sound's trim, exact at MIX
- * 100 %; CRUSH's LPF and PHASER's / FLANGER's DEPTH: their defaults), and the INSERT's mono CHORUS (the shared CHORUS now).
- * lk: the sound's locks (NLOCK, 0: none), moved with what they lock */
-static uint32_t fx_legacy_lost, fx_legacy_approx;      /* (the last conversion: tests/fx5_test.c) */
+/* ---- (wave 8) a sound of waves 5 to 7 (a project, a user preset record 3): a CHORUS, REVERB or DELAY slot was the voice's send
+ * to that shared effect (its AMOUNT the send, P_CHOR P_REV P_DLY: the very parameter the SENDS page shows), and a send without
+ * its slot was silent. Now the sends are always heard and every slot is an insert: such a slot becomes OFF in its place (the
+ * inserts keep their order, their locks stay on their knobs), its send stays as it was; a send the sound had no slot for goes
+ * to 0 (as it sounded; its locks, which did nothing, freed). A matrix cell on such a slot's FX column moves to a free
+ * assignable column aimed at that send (the same amount: +-128 there, +- the range on an assignable one); none free: dropped
+ * (fx8_lost counts them). lk: the sound's locks (0: none), ti the synth track (-1: no matrix) */
+static uint32_t fx8_lost;                            /* (the last conversion: tests/fx8_test.c) */
+static void fx_sends_from_slots(int16_t *p, plock_t *lk, int32_t ti)
+{
+    static const uint8_t SID[3] = {P_CHOR, P_REV, P_DLY};
+    uint32_t k, had = 0, i, j;
+    for (k = 0; k < NXSLOT; k++) {
+        int32_t ty = p[P_XS(k, 0)];
+        uint32_t sid;
+        if (!xt_send(ty))
+            continue;
+        sid = xs_send_id(ty);
+        had |= sid == P_CHOR ? 1u : sid == P_REV ? 2u : 4u;
+        if (ti >= 0 && ti < (int32_t)NPART) {        /* its FX column's cells onto an assignable column for its send */
+            for (i = 0; i < MS_N; i++) {
+                int32_t a = mx_get((uint32_t)ti, i, MD_FX1 + k);
+                uint32_t c;
+                if (!a)
+                    continue;
+                for (c = 0; c < 2u; c++)
+                    if (!mxt[ti].as[c] || mxt[ti].as[c] == sid + 1u)
+                        break;
+                mx_set((uint32_t)ti, i, MD_FX1 + k, 0);
+                if (c < 2u) {
+                    mxt[ti].as[c] = (uint8_t)(sid + 1u);
+                    if (mx_set((uint32_t)ti, i, MD_AS1 + c, a) < 0)
+                        fx8_lost++;
+                } else {
+                    fx8_lost++;
+                }
+            }
+        }
+        for (j = 0; lk && j < NLOCK; j++)            /* (its knobs were the shared settings and the send: no lock of its own) */
+            if (lk[j].step != LOCK_FREE && lk[j].param >= P_XS(k, 1) && lk[j].param <= P_XS(k, 3))
+                lk[j].step = LOCK_FREE, lk[j].param = 0, lk[j].val = 0;
+        xs_defaults(p, k, XT_OFF);
+    }
+    for (i = 0; i < 3u; i++) {
+        if ((had >> i) & 1u)
+            continue;
+        p[SID[i]] = 0;
+        for (j = 0; lk && j < NLOCK; j++)
+            if (lk[j].step != LOCK_FREE && lk[j].param == SID[i])
+                lk[j].step = LOCK_FREE, lk[j].param = 0, lk[j].val = 0;
+    }
+}
+
+/* ---- a sound from before wave 5 (a project, user preset, factory preset): its DIST and INSERT as slots, in their order (wave
+ * 8: its sends stay its sends, as they always were, all three heard). Exact but for: an INSERT's fourth value (the drives'
+ * LEVEL: into the sound's trim, exact at MIX 100 %; CRUSH's LPF and PHASER's / FLANGER's DEPTH: their defaults), and the
+ * INSERT's mono CHORUS (the shared CHORUS now, as a send). lk: the sound's locks (NLOCK, 0: none), moved with what they lock */
+static uint32_t fx_legacy_lost, fx_legacy_approx;      /* (the last conversion: tests/fx5_test.c; nothing is lost since wave 8) */
 static void fx_from_legacy(int16_t *p, plock_t *lk)
 {
-    int32_t it = clamp(p[P_ITYPE], 0, 8), mix = clamp(p[P_IMIX], 0, 127), n = 0, k, j;
-    int32_t ty[6], kd = -1, ki = -1;
-    int32_t snd[3] = {p[P_CHOR], p[P_REV], p[P_DLY]};
-    static const int8_t SND_T[3] = {XT_CHORUS, XT_REVERB, XT_DELAY};
-    static const int8_t IT_XT[9] = {XT_OFF, XT_SOFT, XT_HARD, XT_FOLD, XT_FUZZ, XT_CRUSH, XT_PHASER, XT_FLANGER, XT_CHORUS};
+    int32_t it = clamp(p[P_ITYPE], 0, 8), mix = clamp(p[P_IMIX], 0, 127), n = 0, k;
+    int32_t ty[3], kd = -1, ki = -1;
+    static const int8_t IT_XT[9] = {XT_OFF, XT_SOFT, XT_HARD, XT_FOLD, XT_FUZZ, XT_CRUSH, XT_PHASER, XT_FLANGER, XT_OFF};
     int16_t ia = p[P_IA], ib = p[P_IB], ic = p[P_IC];
     for (k = 0; k < (int32_t)NXSLOT; k++)
         xs_defaults(p, (uint32_t)k, XT_OFF);
@@ -227,23 +274,8 @@ static void fx_from_legacy(int16_t *p, plock_t *lk)
         kd = n, ty[n++] = XT_DIST;
     if (it && mix && it != 8)
         ki = n, ty[n++] = IT_XT[it];
-    if (it == 8 && mix && !snd[0])                      /* (the INSERT's mono chorus: the shared one) */
-        snd[0] = mix * 24 / 127 > 0 ? mix * 24 / 127 : 1, fx_legacy_approx++;
-    for (j = 0; j < 3; j++) {                           /* the sends, the largest first */
-        int32_t b = -1, m;
-        for (m = 0; m < 3; m++)
-            if (snd[m] > 0 && (b < 0 || snd[m] > snd[b]))
-                b = m;
-        if (b < 0)
-            break;
-        if (n < (int32_t)NXSLOT)
-            ty[n++] = SND_T[b];
-        else {
-            p[xs_send_id(SND_T[b])] = 0;               /* (no slot left: nothing hidden) */
-            fx_legacy_lost++;
-        }
-        snd[b] = 0;
-    }
+    if (it == 8 && mix && !p[P_CHOR])                   /* (the INSERT's mono chorus: the shared one, a send) */
+        p[P_CHOR] = (int16_t)(mix * 24 / 127 > 0 ? mix * 24 / 127 : 1), fx_legacy_approx++;
     for (k = 0; k < n && k < (int32_t)NXSLOT; k++) {
         p[P_XS(k, 0)] = (int16_t)ty[k];
         if (k == kd)

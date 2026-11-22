@@ -58,7 +58,9 @@ static struct {
     uint8_t force;               /* full redraw pending */
     uint8_t msg_t;               /* transient message frames */
     uint8_t bpm_t;               /* frames the BPM stays highlighted after a SELECT turn */
-    uint8_t arm, arm_t;          /* destructive action armed: param id, frames left to confirm */
+    uint8_t arm, arm_t;          /* (unused since wave 8: the timed second turn is gone, see ask) */
+    uint8_t ask, ask_arg;        /* (wave 8, Ben 22 Nov 2026: "One rule everywhere") a destructive or GO action asked for and
+                                  * waiting: ASK_* and its argument. The one confirm: hold REC until the ring fills (ui_input.c) */
     uint32_t rec_t0;             /* REC press time (btn_hold) */
     uint8_t confirm;             /* 1 = "clear the sequence?" (REC held on SEQ / ARP), 2 = "clear track n?" (TRACKS) */
     uint8_t confirm_trk;         /* the track the dialog clears */
@@ -86,6 +88,8 @@ static struct {
 } ui;
 
 static const page_t *cur_page(void) { return &PAGES[ui.page]; }
+enum { ASK_NONE, ASK_GO, ASK_UP, ASK_KIT, ASK_PADS, ASK_STORE };
+static void ask_set(uint32_t kind, uint32_t arg, const char *what);   /* (ui_input.c, wave 8: the one confirm) */
 static int32_t accel(uint32_t role, int32_t s, int32_t range);   /* ui_input.c */
 static void layer_screen_draw(void);                            /* ui_layers.c */
 static void hold_screen_draw(void);
@@ -367,6 +371,8 @@ static void chain_open(uint32_t fam)
 }
 
 static void drum_open(uint32_t fam);                    /* (ui_drum.c) */
+static void dpg_go(uint32_t pg, uint32_t half);
+#define DPG_FX 5u                                       /* (ui_drum.c: the drum screen's FX tab) */
 static void open_family(uint32_t fam)
 {
     if (is_drum(TSEL) && (fam == FAM_EDIT || fam == FAM_ENV || fam == FAM_LFO)) {
@@ -433,6 +439,13 @@ static void page_fix(void)
     int32_t st = fam_stage(fam), d;
     if (ui.home || page_shown(&PAGES[i]))
         return;
+    if (st >= 0 && is_drum(TSEL)) {                   /* (wave 8) the drum voice on a voice's sound page: its drum screen,
+                                                         * the same kind of page (ENV: AMP, MOD: LFO, FX: its FX tab) */
+        drum_open(fam == FAM_ENV ? FAM_ENV : fam == FAM_MOD ? FAM_LFO : FAM_EDIT);
+        if (fam == FAM_FX)
+            dpg_go(DPG_FX, 0);
+        return;
+    }
     if (st >= 0) {
         uint32_t to = NPAGES;
         for (k = 0; to >= NPAGES && (i = stage_page((uint32_t)st, k)) < NPAGES; k++)

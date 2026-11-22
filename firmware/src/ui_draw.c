@@ -39,13 +39,13 @@ static int32_t batt_shown(void)
     return batt_level();
 }
 
-/* a page every voice shares (Ben's colour rule, review 16b): GLO's GLOBAL, MASTER, the shared effects (DLY, REV/CHO,
- * SYSTEM, MIDI; not GLO > DRUMS (the drum track's level and sends) */
+/* a page every voice shares (Ben's colour rule, review 16b): GLO's GLOBAL, SYSTEM, MIDI; (wave 8) the FX button's DELAY,
+ * REV/CHO, MASTER, the whole mix's */
 static int shared_page(const page_t *pg)
 {
-    return !ui.home && pg->fam == FAM_GLO && pg->scope == SC_GLOBAL && pg->id[1] != G_DRLVL;
+    return !ui.home && (pg->fam == FAM_GLO || pg->fam == FAM_MFX) && pg->scope == SC_GLOBAL;
 }
-static int drums_page(const page_t *pg) { return !ui.home && pg->fam == FAM_GLO && pg->id[1] == G_DRLVL; }   /* GLO > DRUMS */
+static int drums_page(const page_t *pg) { (void)pg; return 0; }   /* (GLO > DRUMS: gone in wave 8, its four elsewhere) */
 
 /* the header (ui_op.c): the track's tag, the page's title; a message shows in the knob band. A shared page: "GLO" in
  * neutral grey; GLO > DRUMS: the drum track's */
@@ -57,7 +57,7 @@ static void draw_head(void)
     if (mlu.on)                                       /* MIDI LEARN on (2.6, GLO + F#3) */
         title = "LEARN";
     if (shared_page(pg))
-        op_header("GLO", TE_G4, title, &ui.head_sig);   /* (wave 7: GLO, the button that opens them; was ALL) */
+        op_header(pg->fam == FAM_MFX ? "FX" : "GLO", TE_G4, title, &ui.head_sig);   /* (wave 7: the button that opens them) */
     else if (drums_page(pg))
         op_header("DRUM", TE_COL[TRK_DRUM], title, &ui.head_sig);
     else
@@ -628,7 +628,7 @@ static void graph_big(void)
  * its knob's number and colour, its name, its value large (the track's character at the side is cut) */
 static int menu_page(const page_t *pg)
 {
-    return pg->scope == SC_GLOBAL && pg->graph == GR_NONE && (pg->fam == FAM_GLO || pg->fam == FAM_SAVE);
+    return pg->scope == SC_GLOBAL && pg->graph == GR_NONE && (pg->fam == FAM_GLO || pg->fam == FAM_SAVE || pg->fam == FAM_MFX);
 }
 static void graph_menu(const track_t *t)
 {
@@ -903,6 +903,13 @@ static void draw_columns_set(void)
  * white value of the knob just turned) */
 static void ui_timers(void)
 {
+    if (ui.ask) {                                       /* (wave 8) a question stays up while its screen does; another
+                                                         * screen or another message: it goes (ui_input.c ask_set) */
+        if (!ui.msg_t || memcmp(ui.msg, "HOLD REC: ", 10))
+            ui.ask = 0;
+        else
+            ui.msg_t = 40;
+    }
     if (ui.msg_t)
         ui.msg_t--;
     if (ui.bpm_t)
@@ -927,7 +934,8 @@ static void ui_draw(void)
                                                          * screen says otherwise (HOME, the layers and the lane no longer
                                                          * set them: a stale per-voice tint drew coral on voice 1's OSC) */
     {   /* a message belongs to the screen it showed on: another screen, it goes (review 21) */
-        uint16_t k = (uint16_t)((ui.menu * 1000003u + ui.layer * 7919u + ui.hold_kind * 131u + rec_wait * 17u +
+        uint16_t k = (uint16_t)((ui.menu * 1000003u + ui.layer * 7919u + rec_wait * 17u +   /* (wave 8: not the hold's ring:
+                                                         * the question it answers stays with its screen) */
                                  ui.home * 3u + ui.page * 977u + drum_keys * 5u + vis_on * 11u) % 65521u);
         if (!ui.msg_t)
             ;

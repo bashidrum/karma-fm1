@@ -133,8 +133,7 @@ static int test_timing(void)
     host_tracks_init();
     memset(sl, 0, sizeof sl);
     song.g[G_BPM] = 97;
-    song.g[G_SWING] = 10;
-    t->p[P_SSWING] = 20;
+    t->p[P_SSWING] = 30;                          /* (wave 8: the pattern's swing is the one; GLOBAL SWING is gone) */
     set_slicer(t, SL_GATE, (int)pat, 1, 127);
     slicer_start(0);
     while (f + CTL <= sizeof out / sizeof out[0]) {
@@ -164,7 +163,7 @@ static int test_timing(void)
             bad_edge++;                           /* opens from the boundary */
     }
     }
-    snprintf(what, sizeof what, "timing: GATE at 97 BPM, swing 20 + 10 %%: %u steps open / closed as the pattern says",
+    snprintf(what, sizeof what, "timing: GATE at 97 BPM, swing 30 %%: %u steps open / closed as the pattern says",
              n);
     bad += check(what, !bad_mid && n > 32u);
     bad += check("timing: every ramp ends / starts on the swung step boundary (sample exact)", !bad_edge);
@@ -218,7 +217,6 @@ static int test_sync(void)
     uint32_t f, k, blocks = 0, miss = 0;
     char what[160];
     song_setup();
-    song.g[G_SWING] = 15;
     for (k = 0; k < NTRK; k++) {
         trk[k].p[P_SSWING] = (int16_t)(10 * k);
         trk[k].p[P_SLEN] = 16;                    /* 16 steps of 1/16: the SLICER's bar */

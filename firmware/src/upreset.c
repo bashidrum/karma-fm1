@@ -21,8 +21,11 @@
 #define UP_PER_BANK 16u
 #define UP_PMAX 72u                              /* room for P_COUNT to grow */
 #define UP_USED 0xA5u
-#define UP_VER 3u                                /* (wave 5: the FX slots, LFO 2 and the matrix; records 1 and 2 still
-                                                  * read, their DIST, INSERT and sends made slots: modmx.c fx_from_legacy) */
+#define UP_VER 4u                                /* (wave 5: the FX slots, LFO 2 and the matrix; records 1 and 2 still
+                                                  * read, their DIST and INSERT made slots: modmx.c fx_from_legacy. Wave 8:
+                                                  * 4, the sends their own, every slot an insert; a record 3's send slots
+                                                  * become OFF with their sends kept: fx_sends_from_slots. A firmware before
+                                                  * wave 8 shows a record 4 as empty) */
 #ifndef PHEBUS_UP_MX
 #define PHEBUS_UP_MX 1                           /* (wave 5) each record's mod matrix in the bank, after the records */
 #endif
@@ -260,9 +263,11 @@ static int up_load_to(track_t *t, uint32_t k)       /* user preset k into track 
             mx_unpack(up_bank[k / UP_PER_BANK].mx[k % UP_PER_BANK], ti);
 #endif
         mxt[ti].spice = sp, mxt[ti].dice = dc;
-        if (r->ver < 3u) {                              /* stored before: its DIST, INSERT, sends, SHP routings */
+        if (r->ver < 3u) {                              /* stored before: its DIST, INSERT, SHP routings */
             fx_from_legacy(t->p, 0);
             mx_from_legacy(ti, t->p, r->engine);
+        } else if (r->ver < 4u) {                       /* (wave 8) a wave 5 to 7 record: its send slots OFF, sends kept */
+            fx_sends_from_slots(t->p, 0, (int32_t)ti);
         }
     }
     fm1_irq_on();

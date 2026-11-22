@@ -12,7 +12,7 @@
  * (wave 6, Ben: "Keep, and record played FX into it") the PERFORM pads played while the sequencer records land here as
  * spans of steps (punch.c stl.ev), drawn under the steps, each named; they play with the pattern while the lane is ON.
  *   hold a step + OCT-   the recorded pads over that step go
- *   KNOB 3               FX: how many are recorded; turned twice within 1.5 s, all of them go
+ *   KNOB 3               PADS: how many are recorded; turned, it asks to clear them all (wave 8: hold REC, the ring)
  * A lit step under the playhead: the mix repeats the span just played at the step's length (steps in a row with the
  * same length: one loop); 1/2 and 1/1: the sequencer replays the half bar / bar before instead (punch.c rep_*); FX held
  * + a key comes first. Saved with the project and each section (project.c stl_put). */
@@ -73,7 +73,16 @@ static uint32_t pev_erase_held(void)                    /* hold a step + OCT-: t
             }
     return n;
 }
-static uint32_t pev_clear_ms;                           /* KNOB 3 turned once: again within 1.5 s clears them all */
+/* (wave 8) the recorded pads cleared: the question KNOB 3 asked, confirmed (hold REC: ui_input.c ask_do) */
+static void stl_pads_clear(void)
+{
+    uint32_t i;
+    stl_sess = (undo_sess += 4u) | 3u;
+    stl_mark();
+    for (i = 0; i < PEV_N; i++)
+        stl.ev[i].fx = 0;
+    ui_message("PADS CLEARED");
+}
 static void stl_put_step(uint32_t s, int32_t code)      /* code < 0: off (bytes: the audio ISR reads them whole) */
 {
     if (code < 0) {
@@ -185,24 +194,12 @@ static void stl_input(uint32_t pressed)
             stl_new = (uint8_t)stl_turn(stl_new, s);
         } else if (k == 1u) {
             stl.act = (uint8_t)(s > 0);
-        } else if (k == 2u) {                           /* (wave 6) FX: twice within 1.5 s clears the recorded pads */
-            static uint32_t last;                       /* (a new turn: 0.2 s since the last click) */
-            uint32_t gap = fm1_ms - last;
-            last = fm1_ms;
-            if (!pev_count()) {
+        } else if (k == 2u) {                           /* (wave 6) PADS: turned, it asks to clear the recorded pads
+                                                         * (wave 8: hold REC until the ring fills; was a second turn) */
+            if (!pev_count())
                 ui_message("NO PADS RECORDED");
-            } else if (pev_clear_ms && gap > 200u && fm1_ms - pev_clear_ms < 1500u) {
-                uint32_t i;
-                stl_sess = (undo_sess += 4u) | 3u;
-                stl_mark();
-                for (i = 0; i < PEV_N; i++)
-                    stl.ev[i].fx = 0;
-                pev_clear_ms = 0;
-                ui_message("PADS CLEARED");
-            } else if (!pev_clear_ms || fm1_ms - pev_clear_ms >= 1500u) {
-                pev_clear_ms = fm1_ms | 1u;
-                ui_message("AGAIN: CLEAR PADS");
-            }
+            else if (ui.ask != ASK_PADS)
+                ask_set(ASK_PADS, 0, "CLEAR PADS");
         } else if (k == 3u) {
             if (!again)
                 stl_sess = (undo_sess += 4u) | 3u;

@@ -1,14 +1,15 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* PHEBUS wave 5, the MiniFreak voices, part two (SPEC.md, "New direction for PHEBUS", "Direction decisions"):
  *   defaults  a fresh sound has every FX slot OFF and sends nothing (Ben: "I don't like having fx on by default")
- *   fx        each FX slot type changes the voice, bounded; OFF, MIX 0, a send of 0 (or the EQ flat): the voice bit for bit
- *             as with no slot; a send heard only through its slot; one CHORUS, REVERB, DELAY, FLANGER a voice
+ *   fx        each FX slot type changes the voice, bounded; OFF, MIX 0 (or the EQ flat): the voice bit for bit as with no
+ *             slot; (wave 8, Ben 22 Nov 2026: "FX = whole mix only") the sends are the voice's own, heard with no slot, and
+ *             CHORUS, REVERB, DELAY are no slot types; one FLANGER a voice
  *   matrix    every source (LFO1 LFO2 AENV FENV PENV VEL KEY) reaches every destination (PIT M1 M2 M3 CUT RES LVL PAN FX1
  *             FX2 FX3 AS1 AS2): a cell set changes what is heard; the fixed cells and their parameters are one value
  *   spice     Spice 0: the pattern exactly as written, whatever the roll; Spice up: the roll varies it, another roll
  *             another variation, the same roll the same (seeded); the notes written never change
  *   project   the slots, the matrix, LFO 2, Spice and Dice through a project; a project from before (DIST, sends, LFO >
- *             SHP, a DIST lock) loads as slots and cells
+ *             SHP, a DIST lock) loads as slots, sends and cells (wave 8: every send kept; tests/fx8_test.c: wave 5's send slots)
  *   cpu       the host's cost of each slot type and of a busy matrix (printed, not checked)
  * Seeded and deterministic. Exit status: the number of failed checks. */
 #include <stdint.h>
@@ -169,6 +170,8 @@ static void t_fx(void)
     for (ty = 1; ty < XT_N; ty++) {
         double d, d0;
         int32_t pk;
+        if (xt_send(ty))                                /* (wave 8: no slot type: the SENDS page, below) */
+            continue;
         fx_zero = 0;
         run(cfg_fx, ty, NB);
         d = diff(NB);
@@ -181,20 +184,26 @@ static void t_fx(void)
         ok_all &= d > 20.0 && pk < 32767;
         byp_all &= d0 == 0.0;
     }
-    check(ok_all, "FX: every slot type (CHORUS PHASER FLANGER REVERB DELAY DIST SOFT HARD FOLD FUZZ CRUSH EQ) changes the voice, bounded");
-    check(byp_all, "FX: at MIX 0, a send of 0 or the EQ flat, every type leaves the voice bit for bit as no slot");
+    check(ok_all, "FX: every slot type (PHASER FLANGER DIST SOFT HARD FOLD FUZZ CRUSH EQ) changes the voice, bounded");
+    check(byp_all, "FX: at MIX 0 or the EQ flat, every type leaves the voice bit for bit as no slot");
     run(cfg_nosend, 0, NB);
-    check(diff(NB) == 0.0, "FX: a send without a slot of its type sends nothing (what is heard is what the slots show)");
-    {   /* one of each shared effect and one FLANGER a voice; a type turned away from a send: its send to 0 */
+    check(diff(NB) > 20.0, "FX (wave 8): the voice's sends to the delay, reverb and chorus are heard with no slot (the SENDS page)");
+    {   /* (wave 8) the old send types are never a slot's; one FLANGER a voice; a slot's type leaves the sends alone */
         int16_t p[P_COUNT];
+        uint32_t k, ok = 1;
         memcpy(p, trk[0].p, sizeof p);
-        xs_type_set(p, 0, XT_OFF);
-        p[P_DLY] = 0;
-        xs_type_set(p, 0, XT_DELAY);
-        check(!xs_type_ok(p, 1, XT_DELAY) && xs_type_ok(p, 1, XT_PHASER) && xs_type_ok(p, 0, XT_DELAY) && p[P_DLY] > 0,
-              "FX: one DELAY a voice (another slot cannot take it); a DELAY picked starts with a send");
-        xs_type_set(p, 0, XT_OFF);
-        check(!p[P_DLY], "FX: the DELAY slot turned OFF: its send back to 0");
+        p[P_DLY] = 50, p[P_REV] = 40, p[P_CHOR] = 30;
+        for (k = 0; k < NXSLOT; k++) {
+            xs_type_set(p, k, XT_OFF);
+            ok &= !xs_type_ok(p, k, XT_CHORUS) && !xs_type_ok(p, k, XT_REVERB) && !xs_type_ok(p, k, XT_DELAY);
+            xs_type_set(p, k, XT_DELAY);
+            ok &= p[P_XS(k, 0)] == XT_OFF;
+        }
+        xs_type_set(p, 0, XT_FLANGER);
+        xs_type_set(p, 1, XT_DIST);
+        xs_type_set(p, 2, XT_CRUSH);
+        ok &= !xs_type_ok(p, 1, XT_FLANGER) && xs_type_ok(p, 0, XT_FLANGER) && p[P_DLY] == 50 && p[P_REV] == 40 && p[P_CHOR] == 30;
+        check(ok, "FX (wave 8): CHORUS REVERB DELAY are no slot types; one FLANGER a voice; three inserts and three sends at once");
     }
 }
 
@@ -208,10 +217,10 @@ static void mx_setup(uint32_t s)                        /* track 1: PLAITS VA (t
     trk[0].p[P_FCUT] = 70, trk[0].p[P_FRES] = 40, trk[0].p[P_SUS] = 60, trk[0].p[P_DEC] = 50;
     trk[0].p[P_FLINK] = 1, trk[0].p[P_FATK] = 30, trk[0].p[P_FDEC] = 40, trk[0].p[P_FSUS] = 50;
     trk[0].p[P_LRATE] = 90, trk[0].p[P_L2RATE] = 80;
-    xs_type_set(trk[0].p, 0, XT_DIST);                  /* FX1 FX2 FX3: a DIST, a PHASER, a DELAY at half */
+    xs_type_set(trk[0].p, 0, XT_DIST);                  /* FX1 FX2 FX3: a DIST, a PHASER, a CRUSH at half (wave 8: inserts) */
     xs_type_set(trk[0].p, 1, XT_PHASER);
-    xs_type_set(trk[0].p, 2, XT_DELAY);
-    trk[0].p[P_X1AMT] = 64, trk[0].p[P_X2AMT] = 64, trk[0].p[P_DLY] = 64;
+    xs_type_set(trk[0].p, 2, XT_CRUSH);
+    trk[0].p[P_X1AMT] = 64, trk[0].p[P_X2AMT] = 64, trk[0].p[P_X3AMT] = 64, trk[0].p[P_DLY] = 64;
     mxt[0].as[0] = P_FCUT + 1u, mxt[0].as[1] = P_E1 + 1u;   /* AS1 the cutoff, AS2 a macro */
     (void)s;
 }
@@ -356,24 +365,24 @@ static void t_project(void)
     int l;
     reset();
     xs_type_set(trk[1].p, 0, XT_FLANGER);
-    xs_type_set(trk[1].p, 2, XT_REVERB);
+    xs_type_set(trk[1].p, 2, XT_EQ);
     trk[1].p[P_X1TIME] = 33, trk[1].p[P_REV] = 77, trk[1].p[P_L2RATE] = 11, trk[1].p[P_L2WAVE] = 3;
     mx_set(1, MS_LFO2, MD_M2, -21);
     mx_set(1, MS_VEL, MD_AS1, 17);
     mxt[1].as[0] = P_FDRV + 1u, mxt[1].l2sync = 5, mxt[1].l2trig = 2, mxt[1].spice = 66, mxt[1].dice = 1234;
     lock_set(&trk[1], 3, P_X1TIME, 90);
     proj_capture(&w);
-    ok &= w.c.rsv[0] == PROJ_FX_V && proj_ok(&w.c);
+    ok &= w.c.rsv[0] == PROJ_SEND_V && proj_ok(&w.c);
     reset();
     proj_apply(&w.c, 1);
     l = lock_find(&trk[1], 3, P_X1TIME, 0);
-    ok &= trk[1].p[P_X1TYPE] == XT_FLANGER && trk[1].p[P_X3TYPE] == XT_REVERB && trk[1].p[P_X1TIME] == 33 &&
+    ok &= trk[1].p[P_X1TYPE] == XT_FLANGER && trk[1].p[P_X3TYPE] == XT_EQ && trk[1].p[P_X1TIME] == 33 &&
           trk[1].p[P_REV] == 77 && trk[1].p[P_L2RATE] == 11 && trk[1].p[P_L2WAVE] == 3 && mx_get(1, MS_LFO2, MD_M2) == -21 &&
           mx_get(1, MS_VEL, MD_AS1) == 17 && mxt[1].as[0] == P_FDRV + 1u && mxt[1].l2sync == 5 && mxt[1].l2trig == 2 &&
           mxt[1].spice == 66 && mxt[1].dice == 1234 && l >= 0 && trk[1].lock[l].val == 90;
     check(ok, "project: the slots, a slot lock, LFO 2, the matrix (cells, an assignable column), Spice and Dice round trip");
-    /* a project from before wave 5: DIST 40, delay 30, reverb 20, chorus 10 (four: the smallest send goes), a DIST lock;
-     * PLAITS with LFO > SHP 20 */
+    /* a project from before wave 5: DIST 40, delay 30, reverb 20, chorus 10 (wave 8: every send kept, as it played), a DIST
+     * lock; PLAITS with LFO > SHP 20 */
     w.c.rsv[0] = PROJ_VOICE_V;
     memset(w.c.t[1].mod, 0, sizeof w.c.t[1].mod);
     {
@@ -392,10 +401,10 @@ static void t_project(void)
     proj_apply(&w.c, 1);
     l = lock_find(&trk[1], 2, P_X1INT, 0);
     ok = trk[1].p[P_X1TYPE] == XT_DIST && trk[1].p[P_X1INT] == 40 && trk[1].p[P_X1AMT] == 127 && trk[1].p[P_X1TIME] == 64 &&
-         trk[1].p[P_X2TYPE] == XT_DELAY && trk[1].p[P_X3TYPE] == XT_REVERB && trk[1].p[P_DLY] == 30 && trk[1].p[P_REV] == 20 &&
-         !trk[1].p[P_CHOR] && !trk[1].p[P_DIST] && fx_legacy_lost == 1u && l >= 0 && trk[1].lock[l].val == 99 &&
+         trk[1].p[P_X2TYPE] == XT_OFF && trk[1].p[P_X3TYPE] == XT_OFF && trk[1].p[P_DLY] == 30 && trk[1].p[P_REV] == 20 &&
+         trk[1].p[P_CHOR] == 10 && !trk[1].p[P_DIST] && fx_legacy_lost == 0u && l >= 0 && trk[1].lock[l].val == 99 &&
          mx_get(2, MS_LFO1, MD_M3) == 20 && mx_get(2, MS_AENV, MD_M3) == -8 && !trk[2].p[P_LD_SHP] && !trk[2].p[P_ED_SHP];
-    check(ok, "a project from before: DIST, the sends (the largest three) as slots, the DIST lock on DRIVE; LFO > SHP as LFO1 > M3");
+    check(ok, "a project from before: DIST as a slot, every send kept (wave 8), the DIST lock on DRIVE; LFO > SHP as LFO1 > M3");
 }
 
 /* ---- a sound from before sounds the same: P_DIST and the sends of wave 4's mix, against the slots they become */
@@ -406,8 +415,9 @@ static void t_same(void)
      * loads its sends as slots, each its value */
     reset();
     host_preset(&trk[0], ENGI_JUNO, 6);
-    check(trk[0].p[P_X1TYPE] && (xt_send(trk[0].p[P_X1TYPE]) || trk[0].p[P_X1TYPE] == XT_DIST) && !trk[0].p[P_DIST],
-          "a factory preset's sends load as FX slots, their values as the sends (nothing on a hidden send)");
+    check(!xt_send(trk[0].p[P_X1TYPE]) && !xt_send(trk[0].p[P_X2TYPE]) && !xt_send(trk[0].p[P_X3TYPE]) && !trk[0].p[P_DIST] &&
+              (trk[0].p[P_REV] || trk[0].p[P_CHOR] || trk[0].p[P_DLY]),
+          "a factory preset's sends load as the voice's sends (wave 8: no slot taken)");
 }
 
 static void t_cpu(void)

@@ -81,6 +81,8 @@ run "after Felucca 1.4 / 1.5: INSERT, filter TYPE, ENV SYNC, LFO 2, drum mutes, 
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/voice4_test" tests/voice4_test.c $PLX -lm
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/fx5_test" tests/fx5_test.c $PLX -lm
 run "PHEBUS wave 5: FX slots (each type, bypass, no FX by default), every matrix source to every destination, the fixed cells, Spice and Dice, projects" "$OUT/fx5_test"
+$CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/fx8_test" tests/fx8_test.c $PLX -lm
+run "PHEBUS wave 8: the sends a voice's own (no slot), inserts independent, wave 5 to 7 projects converted, CC 74 the voice filter" "$OUT/fx8_test"
 run "PHEBUS wave 4: every Type on every track, the voice filter moves (CUTOFF RESO ENV LFO TYPE) on every engine family, LINK / OWN, OCT / TUNE" "$OUT/voice4_test"
 
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o "$OUT/ui_pages_test" tests/ui_pages_test.c $PLX -lm

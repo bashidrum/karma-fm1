@@ -25,9 +25,10 @@ static void led_put(uint8_t *nl, uint32_t id, int on)
         nl[q >> 3] |= (uint8_t)(1u << (q & 7u));
 }
 
-static const uint8_t FAM_BTN[FAM_COUNT] = {B_HOME, B_ENV, B_LFO, B_FX, B_SCL, B_EDIT, B_GLO, B_SAVE,
-                                           B_ARP, B_SEQ, B_HOME, B_EDIT};   /* button of each page family (TRACKS:
-                                                                             * HOME; the chain's FILTER: EDIT) */
+static const uint8_t FAM_BTN[FAM_COUNT] = {B_HOME, B_ENV, B_LFO, B_EDIT, B_SCL, B_EDIT, B_GLO, B_SAVE,
+                                           B_ARP, B_SEQ, B_HOME, B_EDIT, B_FX, B_EDIT};   /* button of each page family
+                                                         * (TRACKS: HOME; the chain's FILTER and, wave 8, its FX stage: EDIT,
+                                                         * which walks the chain; the whole mix's effects: FX) */
 
 static uint32_t cur_fam(void) { return ui.home ? FAM_HOME : cur_page()->fam; }
 static uint32_t cur_btn(void)                      /* the button of the screen shown */
@@ -341,8 +342,8 @@ static void edit_param_pg(const page_t *pg, uint32_t slot, int32_t steps)   /* (
         tracks_edit(slot, steps);
         return;
     }
-    if (pg->graph == GR_XSLOT && slot == 0u && !is_drum(TSEL)) {   /* (wave 5) a slot's TYPE: one a detent, past one a voice
-                                                         * may have once (CHORUS REVERB DELAY FLANGER, in another slot);
+    if (pg->graph == GR_XSLOT && slot == 0u && !is_drum(TSEL)) {   /* (wave 5) a slot's TYPE: one a detent, past the FLANGER
+                                                         * when another slot has it and (wave 8) past the old send types;
                                                          * a type picked starts at its own settings */
         uint32_t k = pg_slot(pg);
         int32_t ty = TSEL->p[P_XS(k, 0)], to = ty, n;
@@ -419,27 +420,19 @@ static void edit_param_pg(const page_t *pg, uint32_t slot, int32_t steps)   /* (
         }
         if (steps <= 0)
             return;
-        if (ui.arm != 0xE0u + slot) {                     /* one detent arms, a second one within ~1.5 s acts */
-            ui.arm = (uint8_t)(0xE0u + slot);
-            ui.arm_t = 90;
-            ui_say("AGAIN: ", UP_GO[slot - 1u]);
-            return;
+        {                                                 /* (wave 8) it asks; hold REC until the ring fills: done */
+            char b[12], l[4];
+            str_cpy(b, UP_GO[slot - 1u], 7);
+            up_slot_label(l, ui.uslot);
+            str_cpy(b + str_len(b), " ", 2);
+            str_cpy(b + str_len(b), l, 4);
+            ask_set(ASK_UP, (slot - 1u) | (uint32_t)ui.uslot << 2, b);
         }
-        ui.arm = 0;
-        up_ui(slot - 1u, ui.uslot);
         return;
     }
     if (pg->graph == GR_SLOTS && slot == 1u) {           /* 2.6: KNOB 2 ERASE, a GO button (the slot KNOB 1 picks) */
-        if (steps <= 0)
-            return;
-        if (ui.arm != 0xE8u) {                            /* one detent arms, a second one within ~1.5 s acts */
-            ui.arm = 0xE8u;
-            ui.arm_t = 90;
-            ui_say("AGAIN: ", "ERASE");
-            return;
-        }
-        ui.arm = 0;
-        project_erase((uint32_t)song.g[G_SLOT] - 1u);
+        if (steps > 0)                                    /* (wave 8: it asks; hold REC: done) */
+            ask_set(ASK_GO, 0xE8u, "ERASE");
         return;
     }
     d = page_desc(pg, slot, &vp);
@@ -452,28 +445,22 @@ static void edit_param_pg(const page_t *pg, uint32_t slot, int32_t steps)   /* (
         ml_knob(TSEL, id);                                /* MIDI LEARN: this parameter (2.6) */
     if (!v)
         return;
-    if (pg->scope == SC_GLOBAL && (id == G_LOAD || id == G_SAVE || id == G_CLRSEQ || id == G_INITSND || id == G_NEWPRJ) &&
-        ui.arm != id) {                                   /* one detent arms, a second one within ~1.5 s acts */
-        *vp = 0;
-        ui.arm = (uint8_t)id;
-        ui.arm_t = 90;
-        ui_say("AGAIN: ", d->label);
-        return;
+    if (pg->scope == SC_GLOBAL && (id == G_LOAD || id == G_SAVE || id == G_CLRSEQ || id == G_INITSND || id == G_NEWPRJ)) {
+        *vp = 0;                                          /* (wave 8) a GO asks; hold REC until the ring fills: done */
+        ask_set(ASK_GO, id, d->label);
     }
-    ui.arm = 0;
-    if (pg->scope != SC_GLOBAL)
-        return;
-    switch (id) {                                         /* GO buttons: act, then back to 0 */
+}
+/* a GO done (its question confirmed: hold REC) */
+static void go_do(uint32_t id)
+{
+    switch (id) {
     case G_LOAD:
-        *vp = 0;
         project_load((uint32_t)song.g[G_SLOT] - 1u);
         break;
     case G_SAVE:
-        *vp = 0;
         project_save((uint32_t)song.g[G_SLOT] - 1u);
         break;
     case G_CLRSEQ:
-        *vp = 0;
         undo_mark(TSEL, (undo_sess += 4u) | 3u);
         fm1_irq_off();
         track_defaults_steps(TSEL);
@@ -481,19 +468,73 @@ static void edit_param_pg(const page_t *pg, uint32_t slot, int32_t steps)   /* (
         ui_message("PATTERN CLEARED");
         break;
     case G_INITSND:
-        *vp = 0;
         set_engine(TSEL->eng_req);                              /* engine defaults + its first preset */
         ui_message("SOUND INIT");
         ui.force = 1;
         break;
     case G_NEWPRJ:
-        *vp = 0;
         project_new();
         ui_message("NEW LOOP");
+        break;
+    case 0xE8u:
+        project_erase((uint32_t)song.g[G_SLOT] - 1u);
         break;
     default:
         break;
     }
+}
+
+/* ---- (wave 8, Ben 22 Nov 2026: "One rule everywhere: one latch gesture, one keep-open gesture, one confirm gesture, no
+ * double presses") THE CONFIRM. Whatever erases or replaces asks first, in a white bar on the screen it was asked on: HOLD
+ * REC: LOAD U07, HOLD REC: NEW, HOLD REC: REPLACE 606*, HOLD REC: CLEAR PADS, HOLD REC: STORE B. Hold REC: a ring fills
+ * (HOLD_CLEAR_MS, as hold REC to clear the voice); full, it is done; let go before, nothing (the question stays). Any other
+ * button, or another screen, drops the question; REC tapped drops it too (and records nothing). No second turn, no timing
+ * to hit: it replaced "turn again within 1.5 s" (GO, USER, the kit), "the key again within 3 s" (SAVE + 5..8) and "KNOB 3
+ * twice" (the lane's pads) */
+static void stl_pads_clear(void);                         /* (ui_stut.c) */
+static void kit_replace(void);                            /* (ui_drum.c) */
+static void ask_set(uint32_t kind, uint32_t arg, const char *what)
+{
+    ui.ask = (uint8_t)kind;
+    ui.ask_arg = (uint8_t)arg;
+    ui_say("HOLD REC: ", what);
+}
+static void ask_drop(void)
+{
+    if (!ui.ask)
+        return;
+    ui.ask = 0;
+    ui.msg_t = 0;
+    ui.force = 1;
+}
+static void ask_do(void)
+{
+    uint32_t kind = ui.ask, a = ui.ask_arg;
+    ui.ask = 0;
+    ui.msg_t = 0;
+    switch (kind) {
+    case ASK_GO:
+        go_do(a);
+        break;
+    case ASK_UP:
+        up_ui(a & 3u, a >> 2);
+        break;
+    case ASK_KIT:
+        kit_replace();
+        break;
+    case ASK_PADS:
+        stl_pads_clear();
+        break;
+    case ASK_STORE: {
+        char b[2] = {(char)('A' + (a & 3u)), 0};
+        section_store(a & 3u);
+        ui_say("SAVED ", b);
+        break;
+    }
+    default:
+        break;
+    }
+    ui.force = 1;
 }
 
 static void edit_param(uint32_t slot, int32_t steps) { edit_param_pg(cur_page(), slot, steps); }
@@ -559,14 +600,10 @@ static void layer_tap(uint32_t layer)
 {
     int drum = is_drum(TSEL);
     switch (layer) {
-    case LY_FX:
-        if (on_drum_page() && !drum && !stl_shown())      /* (wave 4) the synth GRID: its FX tab, a step held or not */
-            syn_open(FAM_FX);
-        else if (on_drum_page() && sg_held)               /* the drum screen, a trig held: the drum voice's own pages lock
-                                                          * (its bus, ui_grid.c) */
-            sg_lock_open(FAM_FX);
-        else
-            open_family(FAM_FX);
+    case LY_FX:                                           /* (wave 8, Ben 22 Nov 2026: "FX = whole mix only") the whole mix's
+                                                          * effects, from every screen; a voice's FX stage is EDIT's (the
+                                                          * chain, the GRID's and the drum screen's tabs) */
+        open_family(FAM_MFX);
         break;
     case LY_ERASE:
     case LY_STEP:
@@ -588,17 +625,11 @@ static void layer_tap(uint32_t layer)
             open_family(FAM_EDIT);                        /* the sound's pages */
             break;
         }
-        /* SEQ (REVIEW.md 2, 21 Nov 2026: the GRID is the only step editor, SEQ always comes back to it). On the GRID:
-         * the sequencing pages (a synth track: SEQ > PATTERN and its family; the drums: TRIG, PHEBUS wave 3); from
-         * anywhere else, every track: the GRID */
-        if (on_drum_page() && !stl_shown()) {
-            if (drum) {
-                sg_lpage = 0xFF;
-                drum_seq_tap();                           /* DRUMS: TRIG, again the sound page */
-            } else if (!sg_held) {
-                ui.fam_last[FAM_SEQ] = 0;                 /* (its first page, PATTERN, every time) */
-                open_family(FAM_SEQ);
-            }
+        /* SEQ (REVIEW.md 2, 21 Nov 2026: the GRID is the only step editor, SEQ always comes back to it). On the drum screen:
+         * TRIG (again: its next half, as every page button; PHEBUS wave 3, wave 8); from anywhere else, every track: the GRID */
+        if (on_drum_page() && !stl_shown() && drum) {
+            sg_lpage = 0xFF;
+            drum_seq_tap();
             break;
         }
         if (drum && drum_keys != DK_PLAY)
@@ -616,7 +647,7 @@ static void layer_tap(uint32_t layer)
             drum_screen_open();
             drum_keys = on ? DK_PLAY : DK_CHROM;
             if (!drum_pg)
-                dpg_go(drum_pg_last, drum_half[drum_pg_last % 5u]);
+                dpg_go(drum_pg_last, drum_half[drum_pg_last % DPG_TABS]);
             ui.force = 1;
             break;
         }
@@ -644,9 +675,11 @@ static void layer_tap(uint32_t layer)
     }
 }
 
-/* a layer locked open: a layer button held + HOME tapped. The layer stays with the button let go (both
- * hands free for the keys and the knobs); any other button but PLAY, REC and OCT- / OCT+ lets it go
- * (and does only that: its press is eaten) */
+/* a layer locked open (wave 8, Ben 22 Nov 2026: "one keep-open gesture ... nothing deeper than a hold"): ANY layer button
+ * held KEEP_MS (0.7 s, the long press) without touching anything, then let go: the layer stays (LOCK), both hands free for the
+ * keys and the knobs. Any other button but PLAY, REC and OCT- / OCT+ lets it go, the same button too (and does only that:
+ * its press is eaten). (Until wave 7 GLO and FX did this and every layer also stayed with HOME tapped while held: that
+ * second gesture, a chord, is gone) */
 static uint8_t home_eat;                                  /* HOME pressed to unlock: its tap is eaten */
 static void layer_unlock(void)
 {
@@ -659,7 +692,7 @@ static void layer_unlock(void)
 /* #39 of Felucca: a layer that showed lets go; KNOB 1..4 belong to no page for LY_QUIET_MS after (the knob still
  * turning as the button comes up is the layer's, not the page's under it). fm1_ms | 1, 0 = none */
 #define LY_QUIET_MS 250u
-#define GLO_KEEP_MS 700u                                  /* GLO held this long, untouched, then let go: the mixer kept */
+#define GLO_KEEP_MS LONG_MS                               /* a layer held this long, untouched, then let go: it stays */
 static uint32_t ly_quiet_t;
 static int ly_quiet(void)
 {
@@ -695,22 +728,16 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
             used[l] = 1;                                  /* a key while held: not a tap */
         if (!d && down[l] && !used[l] && !((shown >> l) & 1u) && now - t0[l] < TAP_MS && !ui.menu && !ui.confirm)
             layer_tap(l);
-        if (!d && down[l] && !used[l] && (l == LY_MIX || l == LY_FX) && now - t0[l] >= GLO_KEEP_MS && ly_lock == LY_PLAY &&
-            !ui.menu && !ui.confirm) {
-            ly_lock = (uint8_t)l;                         /* GLO held a while, nothing touched: the mixer stays (2026-10-28,
-                                                           * Ariel); any other button, or GLO again, lets it go. (PHEBUS
-                                                           * wave 6) FX the same: PERFORM stays */
+        if (!d && down[l] && !used[l] && now - t0[l] >= GLO_KEEP_MS && ly_lock == LY_PLAY && !ui.menu && !ui.confirm &&
+            !ui.hold_kind) {
+            ly_lock = (uint8_t)l;                         /* held a while, nothing touched: it stays (GLO's mixer since
+                                                           * 2026-10-28, Ariel; PERFORM wave 6; every layer wave 8); any
+                                                           * other button, or the same again, lets it go */
             ui.force = 1;
         }
         down[l] = (uint8_t)d;
         if (d && held == LY_PLAY)
             held = l;
-    }
-    if (held != LY_PLAY && home == BT_TAP && !home_eat) {  /* held + HOME: locked open */
-        ly_lock = (uint8_t)held;
-        used[held] = 1;
-        ui.layer = (uint8_t)held;
-        ui.force = 1;
     }
     if (held == LY_PLAY && ly_lock != LY_PLAY) {
         held = ly_lock;
@@ -791,24 +818,13 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
     return 1;
 }
 
-/* the REC screen while armed (ui_studio.c rec_screen_draw): KNOB 2 the length of the selected track (1, 2 or 4 bars),
- * KNOB 3 START note / count (a setting of the FM-1: panel.c lights_word, saved once stopped). KNOB 1 does nothing */
+/* the REC screen while armed (ui_studio.c rec_screen_draw): KNOB 3 START note / count (a setting of the FM-1: panel.c
+ * lights_word, saved once stopped). (Wave 8: its KNOB 2 STEPS was the pattern's length a second time, hold SEQ's: gone) */
 static void rec_knobs(void)
 {
-    static const uint8_t LENS[3] = {16u, 32u, 64u};
     int32_t s;
     panel_enc(EN_K1);
-    if ((s = panel_enc(EN_K2)) != 0) {
-        track_t *t = TSEL;
-        int32_t len = t->p[P_SLEN], i, to = len;
-        if (s > 0) {
-            for (i = 0; i < 3; i++) if (LENS[i] > len) { to = LENS[i]; break; }
-        } else {
-            for (i = 2; i >= 0; i--) if (LENS[i] < len) { to = LENS[i]; break; }
-        }
-        t->p[P_SLEN] = (int16_t)to;
-        ui.hot_col = 1, ui.hot_t = 40;
-    }
+    panel_enc(EN_K2);
     if ((s = panel_enc(EN_K3)) != 0) {
         rec_count = (uint8_t)(s > 0);
         settings_later = 1;
@@ -827,7 +843,13 @@ static void holds_input(uint32_t pressed, uint32_t now_ms)
     uint32_t rb = 1u << panel.btn[B_REC], sb = 1u << panel.btn[B_SAVE];
     uint32_t rec_down = (fm1_in.buttons & rb) != 0u, save_down = (fm1_in.buttons & sb) != 0u;
     /* REC */
-    if (pressed & rb) {
+    if ((pressed & rb) && ui.ask) {                       /* (wave 8) a question showing: REC held is yes (the ring fills from
+                                                          * the press); tapped, no. Nothing records */
+        rec_on = 0;
+        ui.hold_kind = 3;
+        ui.hold_t0 = now_ms;
+        ui.force = 1;
+    } else if (pressed & rb) {
         prev_rec = song.rec;
         prev_wait = rec_wait;
         prev_sr = sr_on;
@@ -840,7 +862,19 @@ static void holds_input(uint32_t pressed, uint32_t now_ms)
         else
             rec_toggle();
     }
-    if (rec_down && rec_on && !ui.hold_kind && now_ms - rec_t0 >= 700u) {
+    if (ui.hold_kind == 3u) {                             /* the confirm's ring */
+        if (rec_down && now_ms - ui.hold_t0 >= HOLD_CLEAR_MS) {
+            ui.hold_kind = 0;
+            ask_do();
+        } else if (!rec_down) {
+            ui.hold_kind = 0;                             /* let go before: nothing (a tap: the question goes too) */
+            if (now_ms - ui.hold_t0 < TAP_MS)
+                ask_drop();
+            ui.force = 1;
+        }
+        return;
+    }
+    if (rec_down && rec_on && !ui.hold_kind && now_ms - rec_t0 >= LONG_MS) {
         song.rec = prev_rec;                              /* a hold: the press is undone */
         rec_wait = prev_wait;
         if (sr_on != prev_sr)
@@ -918,6 +952,8 @@ static void ui_input(void)
             menu_input(pressed);
         return;
     }
+    if (ui.ask && (pressed & ~(1u << panel.btn[B_REC])))   /* (wave 8) another button: the question goes */
+        ask_drop();
     layered = layers_input(notes, &pressed, home);
     if (home_eat && !((fm1_in.buttons >> panel.btn[B_HOME]) & 1u)) {   /* (the HOME that unlocked: let go) */
         if (home == BT_TAP)
@@ -929,10 +965,7 @@ static void ui_input(void)
     holds_input(pressed, fm1_ms);
     pressed &= ~((1u << panel.btn[B_REC]) | (1u << panel.btn[B_SAVE]));
     if (layered || ui.hold_kind) {                      /* a layer / a hold: the rest waits */
-        if ((s = panel_enc(EN_SELECT)) != 0) {           /* (the tempo always) */
-            song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + accel(EN_SELECT, s, 200), GP[G_BPM].min, GP[G_BPM].max);
-            ui.bpm_t = 40;
-        }
+        panel_enc(EN_SELECT);                           /* (wave 8: no tempo here; the tempo is GLO > GLOBAL's BPM only) */
         panel_enc(EN_ALGO);                             /* (track and sound wait: no jump afterwards) */
         panel_enc(EN_PRESET);
         if (ui.hold_kind)
@@ -961,13 +994,11 @@ static void ui_input(void)
         return;
     }
 #endif
-    if (home == BT_TAP) {                               /* HOME acts on release: a hold opens the menu */
-        if (!ui.home && cur_page()->scope == SC_TRK && !vis_on)
-            vis_open();                                 /* HOME on HOME: the visualiser (ui_vis.c) */
-        else {
-            vis_on = 0;                                 /* (HOME again: back to the TRACKS screen) */
-            go_home();
-        }
+    if (home == BT_TAP) {                               /* HOME acts on release: a hold opens the menu. (Wave 8: on HOME it
+                                                         * stays HOME, a screensaver closes; the screensavers are HOME's
+                                                         * pages, SELECT's: no second meaning for a second tap) */
+        vis_on = 0;
+        go_home();
     }
     cursor_fix();                                       /* LEN may have changed (knob, editor, load) */
     for (id = 0; id < 14u; id++) {
@@ -1012,17 +1043,18 @@ static void ui_input(void)
     }
     if ((s = panel_enc(EN_ALGO)) != 0)              /* ALGORITHM: the selected track, on every page */
         track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
-    if (vis_shown() && !rec_wait) {           /* the visualiser: SELECT its style; KNOB 1..4 (the TRACKS
-                                                         * screen's, out of sight) do nothing */
+    if (vis_shown() && !rec_wait) {           /* the visualiser: SELECT its style (before FLOW: HOME); KNOB 1..4 (the
+                                                         * TRACKS screen's, out of sight) do nothing */
         if ((s = panel_enc(EN_SELECT)) != 0)
             vis_select(s);
         for (k = 0; k < 4u; k++)
             panel_enc(EN_K1 + k);
     }
-    if ((s = panel_enc(EN_SELECT)) != 0 && (rec_wait || !page_walk(s))) {   /* SELECT: the pages of the
-                                                     * family shown, else (and on the REC screen) the tempo */
-        song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + accel(EN_SELECT, s, 200), GP[G_BPM].min, GP[G_BPM].max);
-        ui.bpm_t = 40;                              /* the header's BPM lights up; no message over the header */
+    if ((s = panel_enc(EN_SELECT)) != 0 && !rec_wait && !page_walk(s) && !ui.home && cur_page()->scope == SC_TRK &&
+        s > 0) {                                    /* SELECT: the pages of the family shown. (Wave 8) on HOME: its pages
+                                                     * are the screensavers (SELECT right: FLOW); the tempo is GLO's only */
+        vis_style = 0;
+        vis_open();
     }
     for (k = 0; k < 4u; k++) {
         const page_t *pg = cur_page();

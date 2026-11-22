@@ -153,6 +153,21 @@ static void voice_from_engine(int16_t *p, uint32_t e, int old)
     if (old)
         p[P_TFLT] = 0;
 }
+/* (wave 8) a synth track's old FILT (the DJ LP / HP MIDI CC 74 set, with no page since wave 4) onto its voice filter, as
+ * voice_from_engine maps it: a low-pass the cutoff down as far, a high-pass the voice filter's HP at that cutoff */
+static void tflt_onto_voice(int16_t *p, uint32_t e)
+{
+    int32_t tf = p[P_TFLT];
+    if (tf < 0) {
+        p[P_FCUT] = (int16_t)clamp(p[P_FCUT] - (-tf) * 110 / 64, 0, 127);
+        if (e == ENGI_ACID || e == ENGI_JUNO)
+            p[P_FTYPE] = p[P_FTYPE] == VF_LP24 ? VF_LP12 : p[P_FTYPE];
+    } else if (tf > 0) {
+        p[P_FTYPE] = VF_HP;
+        p[P_FCUT] = (int16_t)clamp(tf * 110 / 63, 0, 127);
+    }
+    p[P_TFLT] = 0;
+}
 /* (wave 4) the locks of a sound made before the voice filter (track t, engine e), as voice_from_engine moved its values:
  * an ACID or JUNO lock of its filter becomes the voice filter's */
 static void voice_locks_from_engine(track_t *t, uint32_t e)

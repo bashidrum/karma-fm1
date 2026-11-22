@@ -501,11 +501,24 @@ int main(int argc, char **argv)
     { uint8_t was = song.sel; song.sel = 0; check(keys_guide() == 0u, "synth track, no layer: no landmarks (a piano)"); song.sel = was; }
     /* (Ben's SPEC.md, 20 Nov 2026: step keys on every track. SEQ tapped on HOME is the track's GRID, as on the drum
      *  track; SEQ tapped again: the SEQ pages. Before: straight to the SEQ pages) */
-    tap(B_SEQ); check(on_drum_page(), "SEQ tapped on HOME: the track's GRID");
-    tap(B_SEQ); check(on_drum_page() && syn_tab != 0u, "SEQ tapped again: the GRID's sound tab (wave 4: TRIG / back, as the drums)");
-    tap(B_SEQ); check(on_drum_page() && syn_tab == 0u, "SEQ again: TRIG");
+    tap(B_SEQ); check(on_drum_page() && syn_tab == 0u && syn_hcur() == 0u, "SEQ tapped on HOME: the track's GRID, on TRIG");
+    tap(B_SEQ); check(on_drum_page() && syn_tab == 0u && syn_hcur() == 1u,
+                      "SEQ tapped again: TRIG 2/2 (wave 8: its next half, as every page button; no going back)");
+    tap(B_SEQ); check(on_drum_page() && syn_tab == 0u && syn_hcur() == 0u, "SEQ again: TRIG 1/2");
     go_home(); frame();
-    tap(B_FX); check(cur_fam() == FAM_FX, "FX tapped: the FX pages");
+    tap(B_FX); check(cur_fam() == FAM_MFX && !strcmp(PAGES[ui.page].title, "DELAY"),
+                     "FX tapped: the whole mix's effects (wave 8: FX = whole mix only), DELAY first");
+    ui.force = 1; frame(); ppm("page-fx-delay");
+    check(px_count(0, 0, 50, 20, TE_COL[0]) == 0u && px_count(0, 0, 240, 240, TE_COL[0]) < 300u,
+          "FX's pages drawn white and grey, no voice colour (the strip's underline aside)");
+    encs[panel.enc[EN_SELECT]] = 1; frame(); ui.force = 1; frame(); ppm("page-fx-revcho");
+    check(!strcmp(PAGES[ui.page].title, "REV/CHO"), "FX, SELECT: REV/CHO (SIZE DAMP, the chorus's RATE DEPTH)");
+    tap(B_FX); ui.force = 1; frame(); ppm("page-fx-master");
+    check(!strcmp(PAGES[ui.page].title, "MASTER") && PAGES[ui.page].id[0] == G_DUST && PAGES[ui.page].id[1] == G_DUCK,
+          "FX tapped again: its next page, MASTER (DUST, DUCK)");
+    tap(B_FX); check(!strcmp(PAGES[ui.page].title, "DELAY"), "FX again: round to DELAY");
+    track_select(TRK_DRUM); tap(B_FX); check(cur_fam() == FAM_MFX, "FX on the drum voice: the same whole-mix pages");
+    track_select(0);
     go_home(); frame();
     press(B_FX); frames(12); check(ui.layer == LY_FX, "FX held: PERFORM shows (wave 6)");
     check(keys_guide() == (1u << key_of_white(0) | 1u << key_of_white(4) | 1u << key_of_white(8) | 1u << key_of_white(12)),
@@ -523,11 +536,15 @@ int main(int argc, char **argv)
     perf.par[PF_S8T][1] = 0;
     release(B_FX); check(cur_page()->scope == SC_TRK && ui.layer == LY_PLAY, "FX used then let go: no FX page");
 
-    /* ---- a layer locked open: held + HOME tapped; any other button (not PLAY, REC, OCT) lets it go */
+    /* ---- a layer locked open (wave 8: one keep-open gesture): held 0.7 s untouched, let go; any other button (not PLAY,
+     * REC, OCT) lets it go. Held + HOME (the chord of before) does nothing */
     go_home(); frame();
     press(B_FX); frames(3); tap(B_HOME); release(B_FX); frames(3);
-    check(ly_lock == LY_FX && ui.layer == LY_FX, "FX held + HOME: locked open, FX let go");
-    check(cur_page()->scope == SC_TRK, "FX + HOME: no FX page, no HOME jump");
+    check(ly_lock == LY_PLAY && ui.layer == LY_PLAY, "FX held + HOME (the old chord): nothing kept open (wave 8)");
+    go_home(); frame();
+    press(B_FX); frames(50); release(B_FX); frames(3);
+    check(ly_lock == LY_FX && ui.layer == LY_FX, "FX held 0.7 s untouched, let go: kept open (LOCK)");
+    check(cur_page()->scope == SC_TRK, "kept open: no FX page, no HOME jump");
     fm1_in.notes = 1u << 4; frame(); check(perf.held == 1u << PF_S4, "locked FX + the 3rd white key: the 1/4 pad (no hands on FX)");
     fm1_in.notes = 0; frame(); check(perf.held == 0u, "locked FX, key up: the mix comes back");
     encs[panel.enc[EN_K2]] = 6; frame(); check(perf.par[PF_S4][1] > 0, "locked FX + KNOB 2: the 1/4 pad's DECAY");
@@ -538,22 +555,36 @@ int main(int argc, char **argv)
     tap(B_ENV); frames(2);
     check(ly_lock == LY_PLAY && ui.layer == LY_PLAY && cur_page()->scope == SC_TRK,
           "locked, ENV pressed: unlocked, and only that (no ENV page)");
-    press(B_FX); frames(3); tap(B_HOME); release(B_FX); frames(3);
+    press(B_FX); frames(50); release(B_FX); frames(3);
     tap(B_HOME); frames(2);
     check(ly_lock == LY_PLAY && ui.layer == LY_PLAY && cur_page()->scope == SC_TRK, "locked, HOME tapped: unlocked");
-    press(B_FX); frames(3); tap(B_HOME); release(B_FX); frames(3);
+    press(B_FX); frames(50); release(B_FX); frames(3);
     tap(B_FX); frames(2);
-    check(ly_lock == LY_PLAY && ui.layer == LY_PLAY && cur_fam() != FAM_FX, "locked, FX tapped: unlocked, no FX page");
+    check(ly_lock == LY_PLAY && ui.layer == LY_PLAY && cur_fam() != FAM_MFX, "locked, FX tapped: unlocked, no FX page");
+    {   /* (wave 8) the same keep-open on EVERY layer: EDIT, ARP, SEQ, SEL, GLO, SAVE */
+        static const uint8_t LB[6] = {B_EDIT, B_ARP, B_SEQ, B_SCL, B_GLO, B_SAVE}, LL[6] = {LY_ERASE, LY_ROLL, LY_STEP, LY_SCALE, LY_MIX, LY_SONG};
+        uint32_t q, ok = 1;
+        for (q = 0; q < 6u; q++) {
+            go_home(); frame();
+            press(LB[q]); frames(50); release(LB[q]); frames(3);
+            ok &= ly_lock == LL[q] && ui.layer == LL[q];
+            tap(LB[q]); frames(2);
+            ok &= ly_lock == LY_PLAY && ui.layer == LY_PLAY;
+            press(LB[q]); frames(30); release(LB[q]); frames(3);       /* (0.5 s: a look, it goes) */
+            ok &= ly_lock == LY_PLAY && ui.layer == LY_PLAY;
+        }
+        check(ok, "every layer (EDIT ARP SEQ SEL GLO SAVE): held 0.7 s untouched stays open, the button again lets it go, 0.5 s does not");
+    }
     go_home(); frame();
-    press(B_SEQ); frames(3); tap(B_HOME); release(B_SEQ); frames(3);
+    press(B_SEQ); frames(50); release(B_SEQ); frames(3);
     press(B_FX); frames(12);
     check(ly_lock == LY_PLAY && ui.layer == LY_FX, "locked SEQ, FX held: unlocked, the FX layer");
     release(B_FX); frames(2); check(ui.layer == LY_PLAY, "and FX let go: back to playing");
-    press(B_FX); frames(3); tap(B_HOME); release(B_FX); frames(3);
+    press(B_FX); frames(50); release(B_FX); frames(3);
     press(B_HOME); frames(50); release(B_HOME); frames(2);
     check(ui.menu && ly_lock == LY_PLAY, "locked, HOME held: the menu, unlocked");
     ui.menu = 0; ui.force = 1; frames(2);
-    song.g[G_DUST] = 0; song.g[G_FILT] = 0;
+    song.g[G_DUST] = 0;
 
     /* ---- SEQ layer (PHEBUS, Ben 21 Nov 2026: "Remove them"): held, its keys set no step and play nothing; KNOB 2..4
      * are DIV, SWING, STEPS; the drum steps are made on the GRID (one hold of a step key: one undo) */
@@ -594,7 +625,7 @@ int main(int argc, char **argv)
           dtest_rat(4, 2) == 1u && dt_vel(8, 2) == DT_VEL_DEF && dt_x(8, 2) < 0,
           "GRID: step 5 held + KNOB 1 / 2: velocity 127, retrig 1/32 (two hits in the step); step 9 untouched");
     key(0); check(!dt_has(0, 2), "step 1 again: off");
-    tap(B_SEQ); frames(2); check(drum_pg == 1u, "drum screen: SEQ again: back to the sound page (SRC)");
+    tap(B_SEQ); frames(2); check(drum_pg == 0u && dpg_half() == 1u, "drum screen: SEQ again: TRIG 2/2 (wave 8: its next half)");
     drum_lane = 0; go_home(); frame();
 
     /* ---- EDIT: undo / redo, erase, length */
@@ -650,8 +681,9 @@ int main(int argc, char **argv)
               "strip: the selected track underlined in its colour, 3 px");
         check(px_count(0, OP_BAR_Y + 1, 240, OP_BAR_H - 1, C_WHITE) < 40, "strip: no filled tab (the old bar's look)");
     }
-    for (i = 0; i < 4u; i++) { fm1_in.notes = 1u << 26; frame(); fm1_in.notes = 0; frames(36); }   /* ~0.6 s apart */
-    check(song.g[G_BPM] >= 95 && song.g[G_BPM] <= 105, "GLO + the last key, tapped at ~0.6 s: ~100 BPM");
+    {   int16_t b0 = song.g[G_BPM];
+        for (i = 0; i < 4u; i++) { fm1_in.notes = 1u << 26; frame(); fm1_in.notes = 0; frames(36); }   /* ~0.6 s apart */
+        check(song.g[G_BPM] == b0, "GLO + the last key: nothing (wave 8: no tap tempo; the tempo is GLO > GLOBAL's BPM only)"); }
     key(0); key(9);
     check(!trk[0].p[P_MUTE] && !song.solo, "again: unmuted, no solo");
     /* (2.4) key 9 held: a fill; key 10: the next bar is one (again: cancelled) */
@@ -752,8 +784,13 @@ int main(int argc, char **argv)
     go_home(); frame();
     song.playing = 0; live_sec = -1; live_req = -1;
     press(B_SAVE); frames(15); check(ui.layer == LY_SONG, "SAVE held: the sections layer");
-    key(key_of_white(4)); check(sec_stores == 0 && sec_armed == 1u, "store over a used A: asks again");
-    key(key_of_white(4)); check(sec_stores == 1 && live_sec == 0, "again: the loop stored in A");
+    key(key_of_white(4)); check(sec_stores == 0 && ui.ask == ASK_STORE && !strcmp(ui.msg, "HOLD REC: STORE A"),
+                                "store over a used A: it asks (HOLD REC: STORE A)");
+    key(key_of_white(4)); check(sec_stores == 0, "the key again (wave 8: no double press): nothing stored");
+    press(B_REC); frames(40); release(B_REC);
+    check(sec_stores == 0 && ui.ask == ASK_STORE && !song.rec && !rec_wait, "REC held, let go before the ring is full: nothing, the question stays, no record");
+    press(B_REC); frames(90); release(B_REC);
+    check(sec_stores == 1 && live_sec == 0 && !ui.ask && !song.rec && !rec_wait, "REC held until the ring fills: the loop stored in A");
     key(key_of_white(6)); check(sec_stores == 2 && live_sec == 2, "an empty C: stored at once");
     key(key_of_white(1)); check(sec_loads == 1 && live_sec == 1, "stopped: B loaded as the loop");
     key(key_of_white(3)); check(sec_loads == 1, "an empty D: not played");
@@ -828,8 +865,10 @@ int main(int argc, char **argv)
         tap(B_EDIT); frames(2); ok &= drum_pg == 2u;
         tap(B_EDIT); frames(2); ok &= drum_pg == 3u;
         tap(B_EDIT); frames(2); ok &= drum_pg == 4u;
+        tap(B_EDIT); frames(2); ok &= drum_pg == 5u;
+        ui.force = 1; frame(); ppm("drum-fx");
         tap(B_EDIT); frames(2); ok &= drum_pg == 1u;
-        check(ok && on_drum_page(), "drum pages: EDIT walks SRC > FLTR > AMP > LFO > SRC (the Rytm's order)");
+        check(ok && on_drum_page(), "drum pages: EDIT walks SRC > FLTR > AMP > LFO > FX > SRC (the Rytm's order, then its own FX)");
         tap(B_ENV); frames(2); ok = drum_pg == 3u && dpg_half() == 0u;
         tap(B_ENV); frames(2); ok &= drum_pg == 3u && dpg_half() == 1u;
         ui.force = 1; frame(); ppm("drum-amp");
@@ -864,9 +903,14 @@ int main(int argc, char **argv)
         ppm("drum-src");
         TDRUM->p[P_E0] = DRUM_SAMPLED + 1u; frame();  /* the 909: turning makes its copy, the 606's would go: asked first */
         encs[panel.enc[EN_K1]] = 1; frame();
-        check(pkit.src == DRUM_DEFAULT_KIT && str_eq(ui.msg, "AGAIN: REPLACE 606*"), "drum screen: on another kit the first turn asks (AGAIN: REPLACE 606*)");
+        check(pkit.src == DRUM_DEFAULT_KIT && str_eq(ui.msg, "HOLD REC: REPLACE 606*") && ui.ask == ASK_KIT,
+              "drum screen: on another kit the first turn asks (HOLD REC: REPLACE 606*)");
         encs[panel.enc[EN_K1]] = 1; frame();
-        check(pkit.src == DRUM_SAMPLED + 1u && pkit_on(), "drum screen: turned again at once: the 909's copy replaces it");
+        check(pkit.src == DRUM_DEFAULT_KIT, "drum screen: turned again (wave 8: no second turn): nothing replaced");
+        ui.force = 1; frame(); ppm("drum-ask-replace");
+        press(B_REC); frames(30); ui.force = 1; frame(); ppm("hold-confirm"); frames(60); release(B_REC); frames(2);
+        check(pkit.src == DRUM_SAMPLED + 1u && pkit_on() && !song.rec && !rec_wait,
+              "drum screen: REC held until the ring fills: the 909's copy replaces it (nothing recorded)");
         memset(&pkit, 0, sizeof pkit);
         TDRUM->p[P_E0] = DRUM_DEFAULT_KIT; ui.msg_t = 0; frames(2);
     }
@@ -940,17 +984,23 @@ int main(int argc, char **argv)
         check(drt_live == 10u, "RETRIG: KNOB 1 the rate (1/16)");
         release(B_ARP); frames(20);
     }
-    {   /* F#5 on the drum GRID: FILL while held; twice quickly: latched */
+    {   /* F#5 on the drum GRID: FILL while held; (wave 8) latched as PERFORM's pads are: OCT+ with it held (either order) */
+        uint32_t pg0 = sg_page();
         fm1_in.notes = 1u << FILL_KEY; frame();
         check(fill_held, "FILL: F#5 held on the drum GRID: a fill");
         fm1_in.notes = 0; frame();
         check(!fill_held && !fill_lat, "FILL: let go: no fill");
         key(FILL_KEY); key(FILL_KEY);
-        check(fill_lat, "FILL: F#5 twice quickly: latched");
+        check(!fill_lat, "FILL: F#5 twice quickly (wave 8: no double press): not latched");
+        fm1_in.notes = 1u << FILL_KEY; frame(); tap(B_OCTUP); fm1_in.notes = 0; frame();
+        check(fill_lat && sg_page() == pg0, "FILL: F#5 held + OCT+: latched (PERFORM's latch), no page turned");
         ui.msg_t = 0; ui.force = 1; frame(); ppm("drum-fill");
         check(px_count(52, 2, 70, 16, C_WHITE) > 30u, "FILL: shown inverted in the header while on");
-        key(FILL_KEY); key(FILL_KEY);
-        check(!fill_lat, "FILL: twice again: off");
+        key(FILL_KEY);
+        check(!fill_lat, "FILL: F#5 again: off (as a latched pad)");
+        press(B_OCTUP); key(FILL_KEY); release(B_OCTUP);
+        check(fill_lat, "FILL: OCT+ held + F#5: latched too");
+        key(FILL_KEY); check(!fill_lat, "FILL: F#5: off");
     }
     {   /* a HEX kit: the same pages, the HEX machine's parameters */
         TDRUM->p[P_E0] = 0; dpg_go(1, 0); frames(2); ui.msg_t = 0; ui.force = 1; frame(); ppm("drum-hex");
@@ -1007,8 +1057,9 @@ int main(int argc, char **argv)
         ui.force = 1; frame();
         check(px_count(2 + 60 * 0 + DIAL_VX - 3, SG_KNOB_Y + 21, 30, 34, TE_COL[0]) > 300u,
               "GRID: the locked value drawn inverted (a box in the voice's colour)");
-        tap(B_FX); frame();
-        check(syn_tab == 4u && PAGES[syn_page()].fam == FAM_FX, "GRID: step held + FX tapped: the FX tab");
+        tap(B_EDIT); frame();
+        check(syn_tab == 4u && PAGES[syn_page()].fam == FAM_FX && sg_held,
+              "GRID: step held + EDIT (from ENV): the FX tab, the voice's own (wave 8: the FX button is the whole mix)");
         xs_type_set(t->p, 0, XT_PHASER);               /* (wave 5: FX 1 a PHASER; its TYPE cannot lock, its RATE can) */
         a1 = pg_id(&PAGES[syn_page()], 1);
         encs[panel.enc[EN_K2]] = 2; frame();
@@ -1117,9 +1168,9 @@ int main(int argc, char **argv)
         encs[panel.enc[EN_K3]] = -1; frame();
         check(!step_on(&t->step[1]), "GRID: KNOB 3 left: cleared");
         tap(B_SEQ); frames(2);                          /* (wave 4: as the drum screen's SEQ) */
-        check(on_drum_page() && syn_tab == syn_tab_last && syn_tab >= 1u, "GRID, SEQ: the sound tab it was on (TRIG again: SEQ)");
+        check(on_drum_page() && syn_tab == 0u && syn_hcur() != 0u, "GRID, SEQ on TRIG: its next half (wave 8: no going back to the tab before)");
         tap(B_SEQ); frames(2);
-        check(on_drum_page() && syn_tab == 0u, "GRID, SEQ again: TRIG");
+        check(on_drum_page() && syn_tab == 0u && syn_hcur() == 0u, "GRID, SEQ again: TRIG 1/2");
         open_family(FAM_ENV); frames(2);
         tap(B_SEQ); frames(2);
         check(on_drum_page() && kb_grid && song.sel == 0u, "REVIEW 2: SEQ on a sound page (ENV): back to the GRID");
@@ -1150,12 +1201,24 @@ int main(int argc, char **argv)
             ui.force = 1; frame(); ppm("grid-drum-held-2");
             encs[panel.enc[EN_SELECT]] = -1; frame();
             tap(B_FX); frames(2);
-            check(sg_lpage < NPAGES && PAGES[sg_lpage].fam == FAM_FX, "DRUM GRID: a step held + FX: the drum voice's own page locks (its bus)");
+            check(cur_fam() == FAM_MFX, "DRUM GRID: a step held + FX (wave 8: the old chord): the whole mix's FX, as from anywhere");
+            studio_open(SC_DRUM); frames(2);
+            fm1_in.notes &= ~(1u << key_of_lane(1)); frame();
+            fm1_in.notes |= 1u << key_of_lane(1); frame();
+            dpg_go(4, 1); tap(B_EDIT); frames(2);       /* (LFO, then EDIT: the FX tab, as any tab, a step held) */
+            check(drum_pg == DPG_FX && sg_held, "DRUM GRID: a step held + EDIT from LFO: the FX tab (the drum voice's own pages)");
+            encs[panel.enc[EN_SELECT]] = 1; frame();    /* FILTER > INSERT */
+            check(drum_pg == DPG_FX && dpg_half() == 1u && !strcmp(PAGES[dbus_page(1)].title, "INSERT"), "DRUM GRID: SELECT: the FX tab's INSERT");
             encs[panel.enc[EN_K2]] = 1; frame();
-            check(step_locked(TDRUM, 1), "DRUM GRID: its knob locks the drum voice's parameter on that step");
+            check(step_locked(TDRUM, 1) && lock_find(TDRUM, 1, P_IA, 0) >= 0,
+                  "DRUM GRID: on the FX tab, a knob locks the drum voice's own parameter on that step (as any tab)");
             ui.force = 1; frame(); ppm("grid-drum-lock");
-            sg_lpage = 0xFF;
-            lock_del(TDRUM, 1, P_COUNT);
+            press(B_OCTDN); release(B_OCTDN);
+            check(!step_locked(TDRUM, 1), "DRUM GRID: OCT- on the FX tab: that page's locks go");
+            dpg_go(DPG_FX, 3); frame();                /* SENDS: not lockable (the whole drum voice's) */
+            encs[panel.enc[EN_K1]] = 1; frame();
+            check(!step_locked(TDRUM, 1) && str_eq(ui.msg, "NOT LOCKABLE"), "DRUM GRID: the FX tab's SENDS with a step held: not lockable");
+            lock_del(TDRUM, 1, P_COUNT); dpg_go(0, 0);
         }
         fm1_in.notes &= ~(1u << key_of_lane(1)); frame();
         check(dt_has(1, 0), "DRUM GRID: let go after an edit: kept");
@@ -1165,8 +1228,20 @@ int main(int argc, char **argv)
         check(on_drum_page() && drum_pg == 3u, "DRUM GRID: ENV opens the sound's AMP page (the drum screen's)");
         ui.msg_t = 0; tap(B_LFO); frames(2);
         check(on_drum_page() && drum_pg == 4u, "DRUM GRID: LFO opens the sound's LFO page (every drum sound has one now)");
+        tap(B_EDIT); frames(2);
+        check(on_drum_page() && drum_pg == DPG_FX, "DRUM: EDIT from LFO: the FX tab, the drum voice's own pages (FILTER INSERT SENDS SLICER)");
+        {   /* (wave 8) the FX tab, nothing held: its knobs set the drum voice's own; its SENDS the drum voice's G_DRDLY G_DRREV */
+            int16_t f0 = TDRUM->p[P_TFLT], d0 = song.g[G_DRDLY];
+            dpg_go(DPG_FX, 0); frame();
+            encs[panel.enc[EN_K1]] = -5; frame();
+            dpg_go(DPG_FX, 3); frame(); ui.force = 1; frame(); ppm("drum-fx-sends");
+            encs[panel.enc[EN_K1]] = 4; frame();
+            check(TDRUM->p[P_TFLT] < f0 && song.g[G_DRDLY] > d0 && px_count(0, SG_KNOB_Y, 240, 58, TE_DRUM) > 40u,
+                  "DRUM FX tab: FILTER turns the drum voice's filter; SENDS its delay send (drawn in the drum voice's coral)");
+            TDRUM->p[P_TFLT] = f0, song.g[G_DRDLY] = d0;
+        }
         tap(B_FX); frames(2);
-        check(!on_drum_page() && cur_page()->fam == FAM_FX, "DRUM: FX opens the drum voice's own pages (INSERT, SLICER)");
+        check(!on_drum_page() && cur_fam() == FAM_MFX, "DRUM: FX opens the whole mix's pages (wave 8)");
         tap(B_SEQ); frames(2);
         check(on_drum_page() && drum_keys == DK_PLAY && grid_keys_on(), "DRUM: SEQ from them: back to the drum screen");
         encs[panel.enc[EN_ALGO]] = -1; frames(2);
@@ -1234,7 +1309,7 @@ int main(int argc, char **argv)
             press(B_EDIT); frames((SHOW_MS + 40u) / 16u); release(B_EDIT); frames(2);
             check(on_drum_page() && ui.page == pg, "bug (d): EDIT held until shown, let go: no EDIT page");
             tap(B_FX); frames(2);
-            check(on_drum_page() && syn_tab == 4u, "bug (d): FX tapped quickly: still its tab (wave 4: the GRID's FX tab)");
+            check(cur_fam() == FAM_MFX, "bug (d): FX tapped quickly: a tap (wave 8: the whole mix's FX pages)");
             go_home(); frames(2);
         }
         /* ENG-9: two steps held, one free lock slot: no lock made on either, and the screen says so */
@@ -1430,10 +1505,8 @@ int main(int argc, char **argv)
         check(lights_word() == lw && rec_wait, "REC screen, empty project: KNOB 1 does nothing (no MODE)");
         trk[song.sel].p[P_SLEN] = 16;
         encs[panel.enc[EN_K2]] = 1; frame();
-        encs[panel.enc[EN_K2]] = 1; frame();
-        check(trk[song.sel].p[P_SLEN] == 64, "REC screen: KNOB 2 -> LENGTH 1, 2, 4 bars");
-        encs[panel.enc[EN_K2]] = -1; frame();
-        check(trk[song.sel].p[P_SLEN] == 32, "REC screen: KNOB 2 back -> 2 bars");
+        check(trk[song.sel].p[P_SLEN] == 16, "REC screen: KNOB 2 nothing (wave 8: the length is hold SEQ's STEPS, one place)");
+        trk[song.sel].p[P_SLEN] = 32;
         encs[panel.enc[EN_K3]] = 1; frame();
         check(rec_count == 1u, "REC screen: KNOB 3 -> START count");
         ui.force = 1; frame(); ppm("live-rec-count");
@@ -1629,9 +1702,9 @@ int main(int argc, char **argv)
         {   /* PHEBUS, 21 Nov 2026 (Ben: "Merge and move"): each voice's chain without the shared effects, LFO 2 named
              * LFO SYNC; DLY, REV/CHO under GLO, neutral; every parameter still on a page (CLOUD, TEXTURE: cut, wave 1) */
             /* (PHEBUS wave 4, Ben: "The same layout on every voice") the same chain on every synth engine */
-#define SYN_CHAIN "OSC|OSC 2|OSC 3|OSC 4|FILT|FILT 2|ENV|FILT ENV|FX 1|FX 2|FX 3|SLICER|LFO|LFO SYNC|LFO 2|MATRIX"   /* (wave 5) */
+#define SYN_CHAIN "OSC|OSC 2|OSC 3|OSC 4|FILT|FILT 2|ENV|FILT ENV|FX 1|FX 2|FX 3|SENDS|SLICER|LFO|LFO SYNC|LFO 2|MATRIX"   /* (wave 8: SENDS) */
             static const char *const WANT[5] = {SYN_CHAIN, SYN_CHAIN, SYN_CHAIN, SYN_CHAIN,
-                "FILTER|INSERT|INSERT 2|SLICER"};   /* (PHEBUS wave 3: the drum sounds' pages are the drum screen's) */
+                ""};   /* (wave 8: the drum voice's pages are its drum screen's, SRC FLTR AMP LFO FX) */
 #undef SYN_CHAIN
             static const char *const NM[5] = {"ACID", "JUNO", "ELEMENTS", "PLAITS", "drums (their own bus)"};
             static const uint8_t SEL_OF[5] = {0, 0, 1, 2, 3};
@@ -1654,29 +1727,51 @@ int main(int argc, char **argv)
             }
             song.sel = 0;
             check(glob_ok, "no shared (global) effect page left in any voice's chain");
-            for (i = 0; i < NPAGES; i++)
-                if (PAGES[i].fam == FAM_GLO) {
-                    uint32_t k;
-                    for (k = 0; k < 4u; k++) if (PAGES[i].id[k] != 0xFFu) seen[PAGES[i].id[k]] = 1;
-                    g_glo |= (!strcmp(PAGES[i].title, "DLY") ? 1u : 0u) | (!strcmp(PAGES[i].title, "REV/CHO") ? 2u : 0u) |
-                             (!strncmp(PAGES[i].title, "CLOUD", 5) || !strncmp(PAGES[i].title, "TEXTURE", 7) ? 4u : 0u);
+            {   /* (wave 8) the shared effects' eight settings on the FX button's pages only, the master's DUST DUCK there
+                 * too; GLO is the settings: no effect, no DJ filter, no swing, no drums' level or sends there */
+                uint32_t onglo = 0, nmfx = 0, k;
+                for (i = 0; i < NPAGES; i++) {
+                    for (k = 0; k < 4u; k++) {
+                        uint32_t id = PAGES[i].id[k];
+                        if (id == 0xFFu || PAGES[i].scope != SC_GLOBAL)
+                            continue;
+                        if (PAGES[i].fam == FAM_MFX)
+                            seen[id]++;
+                        else if (id == G_DTIME || id == G_DFDBK || id == G_DCOLOR || id == G_DMIX || id == G_RSIZE || id == G_RDAMP ||
+                                 id == G_CRATE || id == G_CDEPTH || id == G_DUST || id == G_DUCK)
+                            onglo++;
+                        if (PAGES[i].fam == FAM_GLO && (id == G_FILT || id == G_SWING || id == G_ROLL || id == G_DRLVL ||
+                                                        id == G_DRREV || id == G_DRDLY))
+                            onglo++;
+                    }
+                    nmfx += PAGES[i].fam == FAM_MFX;
+                    g_glo |= PAGES[i].fam == FAM_GLO && (!strcmp(PAGES[i].title, "DLY") || !strcmp(PAGES[i].title, "REV/CHO") ||
+                                                         !strcmp(PAGES[i].title, "MASTER") || !strcmp(PAGES[i].title, "DRUMS"));
                 }
-            check(g_glo == 3u && seen[G_DTIME] && seen[G_DFDBK] && seen[G_DCOLOR] && seen[G_DMIX] && seen[G_RSIZE] &&
-                  seen[G_RDAMP] && seen[G_CRATE] && seen[G_CDEPTH],
-                  "GLO: DLY, REV/CHO with all eight of their controls; no CLOUD or TEXTURE page");
+                check(nmfx == 3u && !onglo && !g_glo && seen[G_DTIME] == 1 && seen[G_DFDBK] == 1 && seen[G_DCOLOR] == 1 &&
+                      seen[G_DMIX] == 1 && seen[G_RSIZE] == 1 && seen[G_RDAMP] == 1 && seen[G_CRATE] == 1 && seen[G_CDEPTH] == 1 &&
+                      seen[G_DUST] == 1 && seen[G_DUCK] == 1 && !seen[G_FILT],
+                      "FX: DELAY, REV/CHO, MASTER hold every shared effect setting, once; GLO none (no DLY REV/CHO MASTER DRUMS)");
+                check(!strcmp(GP[G_DFDBK].label, "FDBK") && !strcmp(GP[G_CRATE].label, "RATE") && !strcmp(GP[G_CDEPTH].label, "DEPTH"),
+                      "one spelling: FDBK (was FEEDBK), the chorus's RATE DEPTH (were CRT CDP)");
+            }
             go_home(); open_family(FAM_GLO); frame();
             for (i = 0; i < 16u; i++) { encs[panel.enc[EN_SELECT]] = -1; frame(); }
-            for (i = 0; i < 16u && strcmp(PAGES[ui.page].title, "DLY"); i++) { encs[panel.enc[EN_SELECT]] = 1; frame(); }
-            ui.force = 1; frame(); ppm("page-glo-dly");
-            check(!strcmp(PAGES[ui.page].title, "DLY"), "GLO, SELECT: reaches DLY");
-            encs[panel.enc[EN_SELECT]] = 1; frame();
-            ui.force = 1; frame(); ppm("page-glo-rev");
+            ui.force = 1; frame(); ppm("page-global");
+            check(!strcmp(PAGES[ui.page].title, "GLOBAL") && PAGES[ui.page].id[0] == G_BPM, "GLO: GLOBAL first, BPM on KNOB 1");
         }
         song.playing = 0; song.sel = 0; go_home(); ui.force = 1; frame();
         bpm = song.g[G_BPM];
+        SEL(-1);
+        check(song.g[G_BPM] == bpm && !vis_on, "SELECT left on HOME: nothing (wave 8: the tempo is GLO > GLOBAL's BPM only)");
         SEL(1);
-        check(song.g[G_BPM] > bpm, "SELECT on HOME (TRACKS): the tempo");
-        song.g[G_BPM] = bpm;
+        check(song.g[G_BPM] == bpm && vis_shown(), "SELECT right on HOME: its next page, the first screensaver (FLOW)");
+        SEL(-1);
+        check(!vis_on && cur_page()->scope == SC_TRK, "SELECT left on FLOW: HOME again");
+        open_family(FAM_GLO); frame();
+        encs[panel.enc[EN_K1]] = 3; frame();
+        check(song.g[G_BPM] > bpm, "the tempo: GLO > GLOBAL, KNOB 1 BPM");
+        song.g[G_BPM] = bpm; go_home(); frame();
         tap(B_LFO);
         check(!strcmp(PT(), "LFO"), "SELECT: LFO opens its first page");
         /* (the sound chain, Ben 20 Nov 2026: OSC > FILTER > ENV > FX > MOD; wave 5: MOD is LFO, LFO SYNC, LFO 2, MATRIX) */
@@ -1695,10 +1790,16 @@ int main(int argc, char **argv)
         check(!strcmp(PT(), "LFO"), "SELECT left: LFO");
         SEL(-1);
         check(!strcmp(PT(), "SLICER"), "SELECT left from MOD's first page: FX's last, SLICER (one chain)");
-        tap(B_FX); SEL(1);
-        check(!strcmp(PT(), "FX 2"), "SELECT on FX: next page, FX 2 (wave 5: the next slot)");
+        SEL(-1);
+        check(!strcmp(PT(), "SENDS") && PAGES[ui.page].id[0] == P_DLY && PAGES[ui.page].id[1] == P_REV && PAGES[ui.page].id[2] == P_CHOR,
+              "SELECT left: the voice's SENDS (DELAY REVERB CHORUS: its own amounts)");
+        ui.force = 1; frames(2); ppm("page-sends");
+        check(px_count(0, OP_KNOB_Y, 240, 58, TE_G4) == 0u && px_count(0, OP_KNOB_Y, 240, 58, TE_COL[0]) > 60u,
+              "SENDS: its dials in the voice's colour (they are the voice's), no white-grey");
+        go_home(); tap(B_ENV); tap(B_EDIT); SEL(1);
+        check(!strcmp(PT(), "FX 2"), "ENV, then EDIT: the FX stage (FX 1); SELECT: FX 2 (the next insert)");
         go_home(); tap(B_EDIT); tap(B_EDIT); SEL(1);
-        check(!strcmp(PT(), "FILT 2"), "EDIT, EDIT: FILT; SELECT: FILT 2 (KEY DRIVE LINK)");
+        check(!strcmp(PT(), "FILT 2") && PAGES[ui.page].id[0] == P_FDRV, "EDIT, EDIT: FILT; SELECT: FILT 2 (DRIVE KEY LINK: DRIVE first)");
         ui.force = 1; frames(2); ppm("page-filter");
         {   /* (wave 4) the tabs as the drum screen's: FILT inverted in the voice's colour, 2/2 at the right */
             check(px_count(40, 131 + 4, 50, 17, TE_COL[0]) > 200u && px_count(200, 131, 40, 23, TE_G3) > 10u,
@@ -1712,10 +1813,10 @@ int main(int argc, char **argv)
             uint32_t lit;
             ui.msg_t = 0; ui.force = 1; frame();
             lit = px_count(2, OP_KNOB_Y + 4, 58, 52, TE_COL[0]);
-            check(lit > 30u, "FILT 2: the dials show KEY, in the voice's colour");
+            check(lit > 30u, "FILT 2: the dials show DRIVE, in the voice's colour");
         }
-        tap(B_FX); SEL(3);
-        check(!strcmp(PT(), "SLICER"), "SELECT on FX: on to its last page, SLICER (the shared effects are GLO's)");
+        tap(B_EDIT); tap(B_EDIT); SEL(4);
+        check(!strcmp(PT(), "SLICER"), "SELECT on FX: FX 2, FX 3, SENDS, then its last page, SLICER (the voice's own)");
         SEL(1);
         check(!strcmp(PT(), "LFO"), "SELECT on FX's last page: on to MOD (LFO)");
         go_home(); tap(B_EDIT); SEL(-9);
@@ -1735,7 +1836,7 @@ int main(int argc, char **argv)
         tap(B_SEQ); frames(2);
         check(on_drum_page() && kb_grid && syn_tab == 1u, "SEQ on a sound page (OSC): the GRID, on its OSC tab");
         tap(B_SEQ); frames(2);
-        check(on_drum_page() && syn_tab == 0u, "SEQ again: the GRID's TRIG (the PATTERN page: SEQ held, as the drums)");
+        check(on_drum_page() && syn_tab == 0u, "SEQ again: the GRID's TRIG (the pattern's settings: SEQ held)");
         go_home(); frames(2);
         tap(B_ENV);
         check(!strcmp(PT(), "ENV"), "the button still opens its family");
@@ -1743,11 +1844,10 @@ int main(int argc, char **argv)
         check(!strcmp(PT(), "FILT ENV"), "... and a second tap steps the page (the filter's own envelope)");
         press(B_GLO); frames(3);
         SEL(1);
-        check(!strcmp(PT(), "FILT ENV") && song.g[G_BPM] > bpm, "SELECT with a layer held (GLO): the tempo");
+        check(!strcmp(PT(), "FILT ENV") && song.g[G_BPM] == bpm, "SELECT with a layer held (GLO): nothing (wave 8: no tempo there)");
         release(B_GLO); frames(2);
-        song.g[G_BPM] = bpm;
-        go_home(); frame(); SEL(-1);
-        check(song.g[G_BPM] < bpm, "back on HOME: SELECT is the tempo again");
+        rec_wait = 1; frame(); SEL(1); rec_wait = 0; frame();
+        check(song.g[G_BPM] == bpm, "SELECT on the REC screen: nothing (the tempo in one place, GLO > GLOBAL)");
         song.g[G_BPM] = bpm;
         #undef SEL
         #undef PT
@@ -1947,7 +2047,9 @@ int main(int argc, char **argv)
         transport_req = 1; frames(30);
         check(!vis_shown(), "visualiser: closed on the TRACKS screen");
         tap(B_HOME); frames(2);
-        check(vis_shown() && vis_on, "visualiser: HOME on HOME opens it");
+        check(!vis_shown() && !vis_on, "visualiser: HOME on HOME (wave 8: no second meaning for a second tap): stays HOME");
+        encs[panel.enc[EN_SELECT]] = 1; frames(2);
+        check(vis_shown() && vis_on && vis_style == 0u, "visualiser: SELECT right on HOME opens the first, FLOW (HOME's pages)");
         vis_style = 0; ui.force = 1;
         for (st = 0; st < VIS_N; st++) {
             char nm[80];
@@ -1973,9 +2075,8 @@ int main(int argc, char **argv)
             check(op < 64u && pk > 2000u && lit > 1500u, "visualiser: MASTER at 0: no sound, the picture as at full volume");
             song.master_q12 = m0; frames(4);
         }
-        check(vis_style == 0u, "visualiser: SELECT goes round (THIRD EYE -> FLOW)");
-        encs[panel.enc[EN_SELECT]] = -1; frames(2);
-        check(vis_style == VIS_N - 1u && (lights_word() >> 17 & 15u) == VIS_N - 1u, "visualiser: SELECT left: THIRD EYE (4), kept in the settings word");
+        check(vis_style == VIS_N - 1u && vis_shown(), "visualiser: SELECT stops at the last, THIRD EYE (pages: no wrap)");
+        check((lights_word() >> 17 & 15u) == VIS_N - 1u, "visualiser: kept in the settings word");
         lights_from_word(lights_word());
         check(vis_style == VIS_N - 1u, "visualiser: the style read back");
         {   /* each screensaver follows each voice: silent, one voice loud (each in turn), all loud with a kick; the
@@ -2023,8 +2124,8 @@ int main(int argc, char **argv)
         release(B_GLO); frames(4);
         check(vis_shown(), "visualiser: ... and it comes back");
         tap(B_HOME); frames(2);
-        check(!vis_shown() && !vis_on, "visualiser: HOME again closes it");
-        tap(B_HOME); frames(2);
+        check(!vis_shown() && !vis_on, "visualiser: HOME closes it");
+        encs[panel.enc[EN_SELECT]] = 1; frames(2);
         tap(B_LFO); frames(2);
         check(!vis_shown() && !vis_on && !strcmp(PAGES[ui.page].title, "LFO"), "visualiser: a page button closes it and opens its page");
         transport_req = 2; frames(4);
@@ -2150,8 +2251,9 @@ int main(int argc, char **argv)
         check(er_mute == 0u && drum_mute == 1u, "EDIT let go: out of MUTE mode, the mute stays");
         drum_mute = 0;
         dtest_clear(0);
-        WALK(FAM_FX, "INSERT", ins_d);
-        check(ins_d, "the drum track: the INSERT page in FX");
+        drum_open(FAM_EDIT); dpg_go(DPG_FX, 1); frame();   /* (wave 8: the drum voice's own pages, its drum screen's FX tab) */
+        ins_d = on_drum_page() && !strcmp(PAGES[dbus_page(dpg_half())].title, "INSERT");
+        check(ins_d, "the drum track: the INSERT page on its FX tab");
         go_home(); frames(16);
 
         {   /* (wave 4) the voice filter's TYPE on every engine's FILT page (ANALOG's TYPE page is gone with ANALOG) */
@@ -2354,12 +2456,15 @@ int main(int argc, char **argv)
         check(stl.ev[1].fx && stl.ev[3].fx, "STUTTER lane: EDIT + OCT-: the erase undone");
         frames(20);                                      /* (the knobs quiet a moment after a layer, #39) */
         encs[panel.enc[EN_K3]] = 1; frame();
-        check(stl.ev[0].fx && !strcmp(ui.msg, "AGAIN: CLEAR PADS"), "STUTTER lane: KNOB 3 turned once: asks again");
+        check(stl.ev[0].fx && !strcmp(ui.msg, "HOLD REC: CLEAR PADS"), "STUTTER lane: KNOB 3 turned: it asks (HOLD REC: CLEAR PADS)");
         frames(20); encs[panel.enc[EN_K3]] = 1; frame();
+        check(stl.ev[0].fx, "STUTTER lane: KNOB 3 again (wave 8: no second turn): nothing cleared");
+        ui.force = 1; frame(); ppm("stut-ask");
         {
-            uint32_t n = 0;
+            uint32_t n = 0, r0 = song.rec;
+            press(B_REC); frames(90); release(B_REC);
             for (k = 0; k < PEV_N; k++) n += stl.ev[k].fx != 0u;
-            check(n == 0u && stl_lit(12), "STUTTER lane: KNOB 3 again within 1.5 s: every recorded pad cleared, the lit steps kept");
+            check(n == 0u && stl_lit(12) && song.rec == r0, "STUTTER lane: REC held until the ring fills: every recorded pad cleared, the lit steps kept");
         }
         memset(&stl, 0, sizeof stl); stl.len = 16; stl.act = 1;
         stl_view = 0;
@@ -2402,7 +2507,7 @@ int main(int argc, char **argv)
         tap(B_SEQ); frames(2);
         check(on_drum_page() && drum_pg == 0u, "DRUMS: SEQ on the drum screen: TRIG (PHEBUS wave 3; the KIT page is gone)");
         tap(B_SEQ); frames(2);
-        check(on_drum_page() && drum_pg == 1u, "DRUMS: SEQ on TRIG: back to the sound page");
+        check(on_drum_page() && drum_pg == 0u && dpg_half() == 1u, "DRUMS: SEQ on TRIG: its next half, TRIG 2/2 (wave 8: no going back)");
         track_select(0); frames(2);
         go_home(); frames(2);
     }
@@ -2437,6 +2542,7 @@ int main(int argc, char **argv)
          * shown empty (DRUM TRACK); each page shot as chain-<voice>-<n> */
         static const char *const VN[5] = {"acid", "juno", "elem", "plaits", "drum"};
         uint32_t v, j, n, st, last, seen, want, empty;
+        uint8_t idx_ch[40];
         char nm[40];
         mlu.on = 0;                                     /* (wave 4: the shots without LEARN in the header) */
         for (v = 0; v < 5u; v++) {
@@ -2447,14 +2553,13 @@ int main(int argc, char **argv)
             if (v == 2u)                                 /* (track 2 starts on JUNO since 21 Nov: ELEMENTS for its shots) */
                 host_preset(&trk[1], ENGI_ELEM, 3);
             frames(2);
-            if (v == 4u) {                               /* (PHEBUS wave 3) the drums: EDIT is their sounds' pages (the drum
-                                                          * screen); their chain is the drum voice's own bus, from FX */
+            if (v == 4u) {                               /* (wave 8) the drums: no chain; EDIT is their drum screen's tabs,
+                                                          * SRC FLTR AMP LFO and FX (the drum voice's own pages) */
                 go_home(); frames(2);
                 tap(B_EDIT); frames(2);
                 check(on_drum_page() && drum_pg == 1u, "chain (drums): EDIT opens the drum screen's SRC (the sounds' pages)");
-                tap(B_FX); frames(2);
-                for (j = 0; j < 10u; j++) { encs[panel.enc[EN_SELECT]] = -1; frame(); }
-                check(on_chain() && stage_page(1, 0) == ui.page, "chain (drums): FX, SELECT left: the drum voice's FILTER first");
+                check(!chain_list(idx_ch, sizeof idx_ch), "chain (drums): no page of the synth chain (their pages: the drum screen's)");
+                continue;
             } else {
                 tap(B_EDIT); frames(2);
                 check(on_chain() && fam_stage(cur_page()->fam) == 0 && stage_page(0, 0) == ui.page, "chain: EDIT opens OSC, its first page");
@@ -2483,11 +2588,12 @@ int main(int argc, char **argv)
         check(on_drum_page() && drum_pg == 4u, "chain (drums): LFO opens the drum screen's LFO page (every sound has one)");
         tap(B_ENV); frames(1);
         check(on_drum_page() && drum_pg == 3u, "chain (drums): ENV opens the sound's AMP page");
-        tap(B_FX); frames(2);
+        track_select(2); frames(2); go_home(); tap(B_ENV); tap(B_EDIT); frames(2);
+        check(on_chain() && fam_stage(cur_page()->fam) == 3, "chain: ENV then EDIT: the voice's FX stage (its route, wave 8)");
+        encs[panel.enc[EN_ALGO]] = 1; frames(2);
+        check(song.sel == TRK_DRUM && on_drum_page() && drum_pg == DPG_FX, "chain: from a voice's FX stage to the drums: their FX tab");
         encs[panel.enc[EN_ALGO]] = -1; frames(2);
-        check(song.sel == 2u && on_chain() && fam_stage(cur_page()->fam) == 3, "chain: ALGORITHM from the drums' FX to a synth: its FX");
-        tap(B_LFO); frames(1); encs[panel.enc[EN_ALGO]] = 1; frames(2);
-        check(song.sel == TRK_DRUM && on_chain() && fam_stage(cur_page()->fam) == 3, "chain: on MOD, to the drums: their FX (the stage before)");
+        check(song.sel == 2u && on_drum_page(), "chain: ALGORITHM back from the drum screen: the synth's GRID (the drum screen stays a GRID)");
         track_select(0); host_preset(&trk[0], ENGI_ACID, 0); go_home(); frames(2);
     }
     {   /* PHEBUS (review 8, Ben 21 Nov: "Sound big, character small"): each sound page draws what its knobs do, big, and
@@ -2503,8 +2609,9 @@ int main(int argc, char **argv)
             {0, ENGI_JUNO, 11, FAM_MOD, "MATRIX", "matrix", 0},
             {0, ENGI_ACID, 0, FAM_OSC, "OSC", "osc-acid", 15}, {0, ENGI_ACID, 0, FAM_FLT, "FILT", "filt-acid", 15},
             {2, ENGI_PRISM, 58, FAM_OSC, "OSC", "osc-va", 15}, {2, ENGI_PRISM, 0, FAM_OSC, "OSC", "osc-fold", 15},
-            {1, ENGI_ELEM, 3, FAM_OSC, "OSC", "osc-elem", 15}, {3, 0, 0, FAM_FLT, "FILTER", "filter-drum", 15},
-            {3, 0, 0, FAM_FX, "INSERT", "insert-drum", 15}};
+            {1, ENGI_ELEM, 3, FAM_OSC, "OSC", "osc-elem", 15},
+            /* (wave 8) the SENDS page; the drum voice's FILTER and INSERT are its drum screen's FX tab (drum-fx shots) */
+            {0, ENGI_JUNO, 11, FAM_FX, "SENDS", "sends", 7}};
         uint32_t c, k, ok_all = 1, chr = 1;
         char nm[40], what[120];
         song.playing = 0;
