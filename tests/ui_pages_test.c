@@ -922,7 +922,7 @@ int main(int argc, char **argv)
         check(!fill_held && !fill_lat, "FILL: let go: no fill");
         key(FILL_KEY); key(FILL_KEY);
         check(fill_lat, "FILL: F#5 twice quickly: latched");
-        ui.force = 1; frame();
+        ui.msg_t = 0; ui.force = 1; frame(); ppm("drum-fill");
         check(px_count(52, 2, 70, 16, C_WHITE) > 30u, "FILL: shown inverted in the header while on");
         key(FILL_KEY); key(FILL_KEY);
         check(!fill_lat, "FILL: twice again: off");
