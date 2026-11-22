@@ -385,17 +385,17 @@ static void syn_matrix(const track_t *t, uint16_t c)
 {
     uint32_t ti = (uint32_t)(t - trk) % NPART, r, d, d0 = (uint32_t)clamp(mx_col - 5, 0, (int32_t)MD_N - 6);
     for (d = d0; d < d0 + 6u; d++)
-        cv_text(40 + (int32_t)(d - d0) * 33 + (33 - text_w(&FONT_S, N_MDST[d])) / 2, 0, &FONT_S, N_MDST[d],
+        cv_text(38 + (int32_t)(d - d0) * 32 + (32 - text_w(&FONT_S, N_MDST[d])) / 2, 0, &FONT_S, N_MDST[d],
                 d == (uint32_t)mx_col ? C_WHITE : TE_G3);
     if (d0)                                             /* (more columns either side: the cursor slides the view) */
-        cv_text(32, 0, &FONT_S, "<", TE_G2);
+        cv_text(31, 0, &FONT_S, "<", TE_G2);
     if (d0 + 6u < MD_N)
-        cv_text(234, 0, &FONT_S, ">", TE_G2);
+        cv_text(232, 0, &FONT_S, ">", TE_G2);
     for (r = 0; r < MS_N; r++) {
         int32_t y = 16 + (int32_t)r * 13;
         cv_text(2, y - 2, &FONT_S, N_MSRC[r], r == (uint32_t)mx_row ? C_WHITE : TE_G4);
         for (d = d0; d < d0 + 6u; d++) {
-            int32_t x = 40 + (int32_t)(d - d0) * 33 + 16, a = mx_get(ti, r, d), cy = y + 5, rad;
+            int32_t x = 38 + (int32_t)(d - d0) * 32 + 16, a = mx_get(ti, r, d), cy = y + 5, rad;
             if ((r == MS_LFO1 && d == MD_LVL) || (r == MS_KEY && d == MD_CUT))
                 a = a / 2;                              /* (the one-way fixed cells: 0..127) */
             rad = a ? 1 + (a < 0 ? -a : a) * 4 / 64 : 0;

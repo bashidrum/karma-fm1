@@ -564,7 +564,19 @@ int main(int argc, char **argv)
         check(!ac && keys_lit() == 0u && keys_guide() == 0u, "SEQ held + white keys: no step set, no sound, no key lit");
     }
     ppm("layer-steps");
-    release(B_SEQ); check(ui.layer == LY_PLAY && !on_drum_page(), "SEQ used then let go: no page change");
+    release(B_SEQ);
+    {   /* (PHEBUS wave 5) hold SEQ on a synth voice: KNOB 1 the pattern's GATE (it had no page since wave 4) */
+        int16_t g0;
+        song.sel = 0; go_home(); frame();
+        g0 = trk[0].p[P_SGATE];
+        press(B_SEQ); frames(10);
+        encs[panel.enc[EN_K1]] = 10; frames(2);
+        check(trk[0].p[P_SGATE] > g0, "SEQ held + KNOB 1 (a synth voice): GATE up");
+        ui.force = 1; frame(); ppm("layer-steps-gate");
+        release(B_SEQ); frames(2);
+        trk[0].p[P_SGATE] = g0;
+        song.sel = TRK_DRUM; go_home(); frame();
+    } check(ui.layer == LY_PLAY && !on_drum_page(), "SEQ used then let go: no page change");
     studio_open(SC_DRUM); frames(16); drum_lane = 2;   /* (the knobs quiet ~250 ms after a layer: #39) */
     key(0); key(7); key(14);                          /* steps 1, 5, 9 on the GRID */
     check(dt_has(0, 2) && dt_has(4, 2) && dt_has(8, 2) &&
@@ -1058,6 +1070,23 @@ int main(int argc, char **argv)
         press(B_OCTDN); release(B_OCTDN);
         check(!step_locked(t, 4) && !step_fill(t, 4), "GRID: step held + OCT-: its locks, nudge and condition go");
         fm1_in.notes &= ~(1u << k5); frame(); ui.msg_t = 0;
+        {   /* (PHEBUS wave 5, Ben: "give me the spice & dice from minifreak") TRIG 2/2 with nothing held: SPICE, DICE; the tiles
+             * show the roll's variation; the notes stay as written */
+            step_t keep[NSTEP];
+            int16_t d0 = mxt[0].dice;
+            memcpy(keep, t->step, sizeof keep);
+            check(syn_tab == 0u && syn_hcur() == 1u, "GRID: TRIG 2/2, nothing held");
+            encs[panel.enc[EN_K1]] = 80; frame();
+            check(mxt[0].spice > 60, "GRID: TRIG 2/2, KNOB 1: SPICE up");
+            encs[panel.enc[EN_K2]] = 1; frame();
+            check(mxt[0].dice == (d0 + 1) % 10000 && !strncmp(ui.msg, "DICE #", 6), "GRID: TRIG 2/2, KNOB 2: a new roll (DICE #n)");
+            encs[panel.enc[EN_K2]] = -1; frame();
+            check(mxt[0].dice == d0, "GRID: KNOB 2 left: back to the roll before");
+            encs[panel.enc[EN_K2]] = 3; frame();
+            ui.msg_t = 0; ui.force = 1; frame(); ppm("grid-synth-spice");
+            check(!memcmp(keep, t->step, sizeof keep), "GRID: Spice and Dice change no step");
+            mxt[0].spice = 0; mxt[0].dice = d0;
+        }
         encs[panel.enc[EN_SELECT]] = -1; frame();       /* (TRIG 1/2: NOTE STEP HIT VEL) */
         key(3);                                           /* the second black key: steps 17-32 */
         check(ui.cursor / 16u == 1u, "GRID: black key 2: the page of steps 17-32");
