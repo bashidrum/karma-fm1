@@ -236,7 +236,9 @@ static void t_roll(void)
 {
     uint32_t i, k = 6, n;                           /* key 6 = B3 -> lane 3 (clap) */
     reset(120);
-    song.g[G_ROLL] = 2;                              /* 1/32 */
+    song.g[G_ROLL] = 2;                              /* 1/32 (the synth tracks' rolls) */
+    drt_live = 13;                                   /* (PHEBUS wave 3: the drum track's ARP + key is the Rytm's live
+                                                      * RETRIG, at its own rate: 1/32) */
     song.sel = TRK_DRUM;
     song.rec = 1u << TRK_DRUM;
     transport_req = 1;

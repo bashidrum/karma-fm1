@@ -551,14 +551,17 @@ static void rec_note(track_t *t, uint32_t note, uint32_t vel, uint32_t rat, int 
 }
 
 static void dt_retrig_hits(uint32_t i, uint32_t l, uint32_t hits);   /* (below) */
+static void dt_retrig_rate(uint32_t i, uint32_t l, uint32_t r);
 /* live recording into the drum track: the sound's trig at the velocity played (over one there: its velocity), and a roll
  * faster than the steps (rat: hits in the step - 1) as its retrig */
-static void rec_hit(track_t *t, uint32_t lane, uint32_t vel, uint32_t rat)
+static uint32_t rec_hit(track_t *t, uint32_t lane, uint32_t vel, uint32_t rat)   /* the step it went on */
 {
     uint32_t later, abs = rec_target(t, &later), i = abs % trk_len(t);
     undo_mark(t, UNDO_REC(t));
     dt_set(i, lane, vel);
-    if (rat)
+    if (rat >= 0x80u)                                /* (PHEBUS wave 3: a live retrig's own rate, RT_DEN's index | 0x80) */
+        dt_retrig_rate(i, lane, rat & 0x7Fu);
+    else if (rat)
         dt_retrig_hits(i, lane, rat + 1u);
     t->seq_active = 1;
     if (later) {
@@ -567,6 +570,7 @@ static void rec_hit(track_t *t, uint32_t lane, uint32_t vel, uint32_t rat)
         t->rskip_abs = abs;
         t->rskip_lanes |= (uint16_t)(1u << lane);
     }
+    return i;
 }
 
 /* the sequencer enters step idx (before playing it): a recorded note still held ties into it */
@@ -787,7 +791,8 @@ static void step_fill_set(track_t *t, uint32_t idx, uint32_t v)
 static volatile uint8_t fill_held;           /* GLO + key 9 down (the UI) */
 static volatile uint8_t fill_arm;            /* GLO + key 10: the next bar is a fill (the UI; the ISR clears it) */
 static uint8_t fill_bar_on;                  /* that bar, while it plays (the ISR) */
-static uint8_t fill_now;                     /* this block is a fill: fill_held || fill_bar_on, read once a block */
+static volatile uint8_t fill_lat;            /* (PHEBUS wave 3) a latched fill: on until it is unlatched or STOP (the UI) */
+static uint8_t fill_now;                     /* this block is a fill: fill_held || fill_lat || fill_bar_on, read once a block */
 static uint32_t fill_last_bar = 0xFFFFFFFFu; /* clk_beat / 4 of the last bar seen (events_block) */
 /* a step's condition holds now. CHNC (FC_CHANCE): a synth step's is a fixed chance, 64 in 127 (about 50 %, what SEQ >
  * PLAY's CHANCE started at; PLAY is cut, PHEBUS wave 1); a drum trig has its own (dt_plays) */
@@ -835,6 +840,20 @@ static uint16_t er_lanes;                     /* drums: lanes held */
  * state: never saved, not undone; a project load or NEW clears it */
 static volatile uint16_t drum_mute;
 static volatile uint8_t er_mute;
+/* (PHEBUS wave 3, after the Rytm's pad modes) what the keys do on the drum track when they are not the GRID's steps:
+ * play the sounds (DK_PLAY), mute / unmute them (DK_MUTE, the Rytm's MUTE mode; SEL + key: solo, the UI), or play the
+ * selected sound (drums.c drum_lane) across the keys at pitches (DK_CHROM, the Rytm's CHROMATIC mode; recorded, the
+ * pitch is the trig's DSP_NOTE lock). drum_solo: the sounds soloed (none: all play). Performance state, as drum_mute */
+enum { DK_PLAY, DK_MUTE, DK_CHROM };
+static volatile uint8_t drum_keys;
+static volatile uint16_t drum_solo;
+static volatile int8_t drum_chr_oct;          /* chromatic mode: the keys' octave, -2..+2 (OCT- / OCT+, the UI) */
+#define CHR_KEY0 7u                           /* chromatic mode: the key that plays the sound at its own pitch (C4) */
+static volatile uint8_t dlk_full;             /* a recorded pitch found the locks' pool full (the UI says it) */
+static int drum_silenced(uint32_t l)          /* the sequencer skips sound l: muted live, or another one soloed */
+{
+    return ((drum_mute >> l) & 1u) || (drum_solo && !((drum_solo >> l) & 1u));
+}
 static uint32_t er_notes[4];                  /* synth: notes held (bit per MIDI note) */
 static volatile uint8_t er_flash;             /* something was erased (the UI flashes) */
 
@@ -1121,15 +1140,32 @@ static void input_off_now(track_t *t, uint32_t note)
 
 /* a drum hit from a key, MIDI or a roll: lane, velocity; rat: its retrig when recorded (rolls: hits in the step - 1);
  * rec: it may be recorded (a roll records one hit a step) */
-static void drum_input(uint32_t lane, uint32_t vel, uint32_t rat, int rec)
+static void drum_input_x(uint32_t lane, uint32_t vel, uint32_t rat, int rec, int chr, int32_t xs);
+static void drum_input(uint32_t lane, uint32_t vel, uint32_t rat, int rec) { drum_input_x(lane, vel, rat, rec, 0, 0); }
+/* .. chr: from chromatic mode, xs semitones from the sound's pitch: heard so, and recorded as the trig's pitch lock (PHEBUS
+ * wave 3, the Rytm's CHROMATIC mode records the note of each trig) */
+static void drum_input_x(uint32_t lane, uint32_t vel, uint32_t rat, int rec, int chr, int32_t xs)
 {
     track_t *t = TDRUM;
     lane &= 15u;
     vel = vel < 1u ? 1u : vel > 127u ? 127u : vel;
     arm_start(t);
-    if (rec && ((song.rec >> TRK_DRUM) & 1u) && song.playing)
-        rec_hit(t, lane, vel, rat);
+    if (rec && ((song.rec >> TRK_DRUM) & 1u) && song.playing) {
+        uint32_t i = rec_hit(t, lane, vel, rat);
+        if (chr && xs) {
+            if (!dt_lk_set(i, lane, DSP_NOTE, (uint32_t)(uint8_t)(int8_t)xs))
+                dlk_full = 1;
+        } else if (chr) {
+            dt_lk_del(i, lane, DSP_NOTE);            /* (the sound's own pitch: no lock) */
+        }
+    }
+    if (chr && xs) {
+        drum_lk_n = 1;
+        drum_lk_p[0] = DSP_NOTE;
+        drum_lk_v[0] = (uint8_t)(int8_t)xs;
+    }
     trk_note_on(t, LANE_NOTE[lane], vel);
+    drum_lk_n = 0;
 }
 
 /* -------------------------------------------------------------- roll --- */
@@ -1145,6 +1181,24 @@ static struct {
     uint32_t rec_abs;                   /* the step its last recorded hit went into */
 } roll[NROLL];
 static uint32_t roll_den(void) { return ROLL_DEN[(uint32_t)clamp(song.g[G_ROLL], 0, 4)]; }
+/* (PHEBUS wave 3, the Rytm's live RETRIG: hold RETRIG + a pad) on the drum track ARP + a key retrigs the sound at
+ * drt_live, one of the per-trig retrig's rates (RT_DEN below: 1/1 .. 1/80 of a bar; the black keys or KNOB 1 pick it,
+ * the UI), not G_ROLL's. A roll's unit and its grid: */
+static volatile uint8_t drt_live = 10;          /* (RT_DEN's index: 10 = 1/16) */
+static uint32_t rt_units(uint32_t r);
+static uint32_t roll_unit(uint32_t ti) { return ti == TRK_DRUM ? rt_units(drt_live) : BEAT_U / roll_den(); }
+static uint32_t roll_grid(uint32_t ti, uint32_t *into, uint32_t *len)
+{
+    uint64_t a;
+    uint32_t u;
+    if (ti != TRK_DRUM)
+        return grid_den(roll_den(), 0, into, len);
+    u = roll_unit(ti);
+    a = (uint64_t)clk_beat * BEAT_U + clk_pos;
+    *into = (uint32_t)(a % u);
+    *len = u;
+    return (uint32_t)(a / u);
+}
 /* the lanes / notes a roll plays live on track t: the pattern does not play them meanwhile (no flam
  * with what was recorded, nor with what this roll is recording) */
 static uint32_t roll_lanes(const track_t *t)
@@ -1167,8 +1221,10 @@ static int roll_has(const track_t *t, uint32_t note)
 static void roll_hit(uint32_t r)
 {
     track_t *t = &trk[roll[r].trk % NTRK];
-    uint32_t u = BEAT_U / roll_den(), su = div_units((uint32_t)t->p[P_SDIV]);
+    uint32_t u = roll_unit(roll[r].trk), su = div_units((uint32_t)t->p[P_SDIV]);
     uint32_t hits = su / u, rat = hits > 4u ? 3u : hits > 1u ? hits - 1u : 0u;
+    if (is_drum(t))                                  /* (a retrig faster than a step: recorded at its own rate) */
+        rat = hits > 1u ? 0x80u | drt_live : 0u;
     uint32_t armed = ((song.rec >> trk_index(t)) & 1u) && song.playing, later, abs = 0, rec = 0;
     if (armed) {                                     /* one recorded hit a step: the ratchet does the rest */
         abs = rec_target(t, &later);
@@ -1192,7 +1248,7 @@ static void roll_hit(uint32_t r)
 
 static void roll_start(uint32_t k, track_t *t, uint32_t note, uint32_t lvl)
 {
-    uint32_t r, den = roll_den(), into, slen, abs;
+    uint32_t r, into, slen, abs;
     for (r = 0; r < NROLL && roll[r].on; r++)
         ;
     if (r == NROLL)
@@ -1205,7 +1261,7 @@ static void roll_start(uint32_t k, track_t *t, uint32_t note, uint32_t lvl)
     roll[r].off = 0;
     roll[r].rec_abs = SEQ_NONE;
     if (song.playing) {
-        abs = grid_den(den, 0, &into, &slen);
+        abs = roll_grid(roll[r].trk, &into, &slen);
         roll[r].last = abs;
         if (into * 4u >= slen * 3u)
             return;                                  /* the grid is just ahead: it starts there */
@@ -1228,10 +1284,11 @@ static void roll_end(uint32_t r)
 
 static void roll_block(uint32_t adv)
 {
-    uint32_t r, den = roll_den(), u = BEAT_U / den, into, slen;
+    uint32_t r, u, into, slen;
     for (r = 0; r < NROLL; r++) {
         if (!roll[r].on)
             continue;
+        u = roll_unit(roll[r].trk);
         if (roll[r].off) {
             if (roll[r].off <= adv) {
                 trk_note_off(&trk[roll[r].trk % NTRK], roll[r].note);
@@ -1242,7 +1299,7 @@ static void roll_block(uint32_t adv)
             }
         }
         if (song.playing) {
-            uint32_t abs = grid_den(den, 0, &into, &slen);
+            uint32_t abs = roll_grid(roll[r].trk, &into, &slen);
             if (abs != roll[r].last) {
                 roll[r].last = abs;
                 roll_hit(r);
@@ -1381,8 +1438,31 @@ static void key_down(uint32_t k)
         kb_nt[k][0] = (uint8_t)lane;
         kb_n[k] = 1;
         if (layer == LY_ROLL) {
+            if (punch_key(k) < 0) {                   /* (PHEBUS wave 3) RETRIG: a black key picks the rate */
+                static const uint8_t RATE_OF_BLACK[11] = {4, 6, 7, 9, 10, 12, 13, 14, 15, 16, 17};   /* 1/4 .. 1/80 */
+                uint32_t b;
+                for (b = 0; b < 11u && PUNCH_BLACK[b] != k; b++)
+                    ;
+                if (b < 11u)
+                    drt_live = RATE_OF_BLACK[b];
+                return;
+            }
             kb_kind[k] = KS_ROLL;
             roll_start(k, t, lane, lvl);
+            return;
+        }
+        if (layer == LY_PLAY && drum_keys == DK_MUTE) {   /* (wave 3) MUTE mode: a white key mutes / unmutes its sound */
+            if (punch_key(k) >= 0)
+                drum_mute ^= (uint16_t)(1u << lane);
+            return;
+        }
+        if (layer == LY_PLAY && drum_keys == DK_CHROM) {  /* (wave 3) CHROMATIC: the selected sound at the key's pitch */
+            int32_t xs = (int32_t)k - (int32_t)CHR_KEY0 + 12 * drum_chr_oct;
+            lane = drum_lane & 15u;
+            kb_nt[k][0] = (uint8_t)lane;
+            kb_kind[k] = KS_DRUM;
+            drum_input_x(lane, 100, 0, 1, 1, xs);
+            midi_out_note(trk_midi_ch(sel), (uint32_t)LANE_NOTE[lane], 100u);
             return;
         }
         kb_kind[k] = KS_DRUM;
@@ -1683,7 +1763,8 @@ static void seq_stop(void)
 #endif
     if (song.playing)
         guard_stop();                               /* (3.1.5 test 11) how far the overload guard had trimmed */
-    fill_held = 0;                                  /* STOP ends a fill, held or armed */
+    fill_held = 0;                                  /* STOP ends a fill, held, latched or armed */
+    fill_lat = 0;
     fill_arm = 0;
     fill_bar_on = 0;
     song.playing = 0;
@@ -1806,14 +1887,24 @@ static void dt_retrig_hits(uint32_t i, uint32_t l, uint32_t hits)
         x->rfade = 0;
     }
 }
-/* one hit of trig (i, l) at vel: its sound's locks, unless the sound is muted live or rolling */
+/* (PHEBUS wave 3) a trig recorded from a live retrig faster than its step: a retrig of one step at rate r (RT_DEN) */
+static void dt_retrig_rate(uint32_t i, uint32_t l, uint32_t r)
+{
+    dtx_t *x;
+    if (r >= 1u && r <= NRTRG && (x = dt_x_make(i, l)) != 0) {
+        x->rrate = (uint8_t)r;
+        x->rlen = DT_RLEN_DEF;
+        x->rfade = 0;
+    }
+}
+/* one hit of trig (i, l) at vel: its sound's locks, unless the sound is muted live (or another soloed) or rolling */
 static void dhit(track_t *t, uint32_t i, uint32_t l, uint32_t vel)
 {
     uint32_t k, n = 0;
-    if (((roll_lanes(t) | drum_mute) >> l) & 1u)
+    if (((roll_lanes(t) >> l) & 1u) || drum_silenced(l))
         return;
-    for (k = 0; k < DT_NLK && n < DSP_COUNT; k++)
-        if (dpat.lk[k].step == i && dpat.lk[k].lane == l && dpat.lk[k].param < DSP_COUNT) {
+    for (k = 0; k < DT_NLK && n < DLK_MAX; k++)
+        if (dpat.lk[k].step == i && dpat.lk[k].lane == l && dpat.lk[k].param < DSP_NIDS) {
             drum_lk_p[n] = dpat.lk[k].param;
             drum_lk_v[n++] = dpat.lk[k].val;
         }
@@ -2582,7 +2673,7 @@ static void events_block(uint32_t n)
         fill_bar_on = fill_arm;
         fill_arm = 0;
     }
-    fill_now = (uint8_t)(fill_held || fill_bar_on);
+    fill_now = (uint8_t)(fill_held || fill_lat || fill_bar_on);
     {   /* GLO > SYSTEM > IN changed to or from CH n, or a channel of GLO > MIDI / DRUMS (2.6): what the other routing
          * started is released (its note-offs would go elsewhere now: stuck notes), the pedals and wheels too */
         static uint8_t route_was;
