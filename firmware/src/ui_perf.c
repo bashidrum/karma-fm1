@@ -8,7 +8,8 @@
  *             LP HP CRUSH GATE / STOP DROP ECHO VERB. Held: white. Latched: grey with a white dot. Played by the lane
  *             (recorded): grey with a white bar under it. The knobs' pad: outlined
  *   caption   the last pad pressed, in words, and its state
- *   dials     its four knobs, the drum and synth pages' dials (KNOB 4 is AMOUNT wherever a pad has one)
+ *   dials     its four knobs, the drum and synth pages' dials (ui_drum.c op_dials; KNOB 4 is AMOUNT wherever a pad has
+ *             one), white-grey
  * Everything here acts on the whole mix: white and grey only (the colour rule). */
 #define PF_Y 32                                         /* the chips and pads' canvas, 122 rows */
 #define PF_CAP_Y 155                                    /* the caption */
@@ -190,17 +191,16 @@ static void perf_screen_draw(void)
         lab[i] = PFD[p].k[i].lab;
         pf_knob_str(p, i, v[i], &ratio[i]);
     }
-    knob_tint_all(TINT_NEUTRAL);
-    {
+    {   /* the synth and drum pages' dials (a ring, the value in the tall face), white-grey: the whole mix's */
         uint8_t m = ui.msg_t;                           /* (a message shows in the title: the dials stay) */
         ui.msg_t = 0;
-        opk_y = PF_KNOB_Y;
-        op_knobs(lab, val, 0, ratio, 0, 0x50E7u + p * 977u, &foot);
-        opk_y = OP_KNOB_Y;
+        dials_y = PF_KNOB_Y;
+        op_dials(lab, val, ratio, 0, 0, TE_G4, 0x50E7u + p * 977u, &foot);
+        dials_y = SG_KNOB_Y;
         ui.msg_t = m;
     }
     if (ui.force) {                                     /* (the rows under the dials) */
-        cv_begin(240, 240 - PF_KNOB_Y - OP_KNOB_H, C_BLACK);
-        cv_blit(0, PF_KNOB_Y + OP_KNOB_H);
+        cv_begin(240, 240 - PF_KNOB_Y - 58u, C_BLACK);
+        cv_blit(0, PF_KNOB_Y + 58u);
     }
 }

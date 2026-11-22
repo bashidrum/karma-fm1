@@ -98,7 +98,6 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
  * nothing now (dim: a bit per knob): grey. A label left empty: an empty column. unit may be 0. A message replaces
  * the band (as te_dials) */
 #define OPK_BASE 50                                     /* the values' baseline, in the band */
-static uint32_t opk_y = OP_KNOB_Y;                      /* where the band goes (PHEBUS wave 6: PERFORM's lower) */
 static void op_knobs(const char *const lab[4], const char *const val[4], const char *const *unit, const int32_t ratio[4],
                      uint32_t dim, uint32_t sig, uint32_t *cache)
 {
@@ -118,7 +117,7 @@ static void op_knobs(const char *const lab[4], const char *const val[4], const c
     if (ui.msg_t) {                                     /* a message: a white bar */
         cv_rect(0, 14, 240, 32, C_WHITE);
         cv_text((240 - text_w(&FONT_S, ui.msg)) / 2, 22, &FONT_S, ui.msg, C_BLACK);
-        cv_blit(0, opk_y);
+        cv_blit(0, OP_KNOB_Y);
         return;
     }
     for (k = 0; k < 4u; k++) {
@@ -153,7 +152,7 @@ static void op_knobs(const char *const lab[4], const char *const val[4], const c
         if (hot)
             cv_rect(x0, 54, 52, 3, tint_col(k, 0));
     }
-    cv_blit(0, opk_y);
+    cv_blit(0, OP_KNOB_Y);
 }
 
 #include "op_sprites.h"
