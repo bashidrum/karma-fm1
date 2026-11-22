@@ -2021,8 +2021,40 @@ static void t_drdly(void)
           "2.5: GLO > DRUMS > DLY: the drums echo in the tempo delay (more with more DLY, through the FILTER too); 0: none");
 }
 
+/* (wave 7) the drum RETRIG grid and the retrig curve in 32 bits (the device has no 64-bit divide) equal the 64-bit forms */
+static void t_div32(void)
+{
+    uint32_t r, ok = 1, n;
+    uint32_t sb = clk_beat, sp = clk_pos, sl = drt_live;
+    for (r = 1; r <= NRTRG; r++) {
+        uint32_t u = rt_units(r);
+        ok &= BEAT_U * 4u % u == 0u;                    /* (what the 32-bit form stands on) */
+        drt_live = (uint8_t)r;
+        for (n = 0; n < 20000u; n++) {
+            uint32_t into, len, got;
+            uint64_t a;
+            clk_beat = n < 10000u ? n : n * 2654435761u;
+            clk_pos = (n * 40503u) % BEAT_U;
+            if (n % 7u == 0u)
+                clk_pos = BEAT_U - 1u;
+            a = (uint64_t)clk_beat * BEAT_U + clk_pos;
+            got = roll_grid(TRK_DRUM, &into, &len);
+            ok &= got == (uint32_t)(a / u) && into == (uint32_t)(a % u) && len == u;
+        }
+    }
+    for (n = 0; n < 200000u; n++) {                     /* x 1024 / len, x <= len < 2^31 */
+        uint32_t len = 1u + (n * 2654435761u) % 0x7FFFFFFFu, x = n < 1000u ? len - n % len : (n * 40503u) % (len + 1u);
+        if (n % 5u == 0u)
+            len = 1u + n % 5000u, x = (n * 7u) % (len + 1u);
+        ok &= rt_frac1024(x, len) == (uint32_t)((uint64_t)x * 1024u / len);
+    }
+    clk_beat = sb, clk_pos = sp, drt_live = (uint8_t)sl;
+    check(ok, "RETRIG grid and curve in 32 bits = the 64-bit divide and modulo (every rate, beats up to 2^32)");
+}
+
 int main(void)
 {
+    t_div32();
     t_midich();
     t_arp191();
     t_drdly();

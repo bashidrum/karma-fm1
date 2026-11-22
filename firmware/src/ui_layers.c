@@ -377,6 +377,12 @@ static void layer_title(const char *name, const char *sub, uint16_t col, uint32_
  * that plays filled in the voice's colour, an empty one outlined; the playing one white. What the three knobs do,
  * seen as they turn */
 #define BAR_U (4u * BEAT_U)
+/* (wave 7) r 231 / (BAR_U per) rounded down, r <= BAR_U per, in 32 bits: BAR_U is a multiple of 64, so r 231 / 64 first
+ * (exact as an integer part and a remainder part), then / (BAR_U / 64 per): the same as the 64-bit form */
+static uint32_t row_px(uint32_t r, uint32_t per)
+{
+    return ((r >> 6) * 231u + ((r & 63u) * 231u >> 6)) / (BAR_U / 64u * per);
+}
 static void seq_time_draw(const track_t *t, uint16_t col, uint32_t *cache)
 {
     uint32_t len = trk_len(t), div = trk_div(t), u = div_units(div), i, k;
@@ -402,16 +408,17 @@ static void seq_time_draw(const track_t *t, uint16_t col, uint32_t *cache)
         }
         for (i = 0; i < len; i++) {                     /* the steps: from where they start (the odd ones swung), three
                                                          * fifths of a step long, so the swing shows as pairs */
-            uint64_t a = (uint64_t)i * u + (i & 1u ? sw : 0u), e = a + (u * 3u + 4u) / 5u;
+            uint32_t a = i * u + (i & 1u ? sw : 0u), e = a + (u * 3u + 4u) / 5u;   /* (wave 7: 32 bits, the device has no
+                                                         * 64-bit divide; 64 steps of 2BAR: 1.4e9 units) */
             uint32_t on = is_drum(t) ? dt_mask(i) != 0
                         : step_on(&t->step[i]) ? 1u : t->step[i].time == ST_TIE ? 2u : 0u;
             uint16_t c = (int32_t)i == play ? C_WHITE : on == 1u ? col : on ? TE_DIM[song.sel & 3u] : TE_G2;
             if (t->step[i].time == ST_TIE && !is_drum(t))
                 e = a + u;                              /* (a tie runs on to the next step) */
             while (a < e) {                             /* (a step longer than a row: on into the next) */
-                uint64_t row = a / (BAR_U * per), re = (row + 1u) * BAR_U * per, b2 = e < re ? e : re;
-                int32_t x0 = 4 + (int32_t)((a - row * BAR_U * per) * 231u / (BAR_U * per)) + 1;
-                int32_t x1 = 4 + (int32_t)((b2 - row * BAR_U * per) * 231u / (BAR_U * per)) - 1, y = top + 4 + (int32_t)row * pitch;
+                uint32_t row = a / (BAR_U * per), re = (row + 1u) * BAR_U * per, b2 = e < re ? e : re;
+                int32_t x0 = 4 + (int32_t)row_px(a - row * BAR_U * per, per) + 1;
+                int32_t x1 = 4 + (int32_t)row_px(b2 - row * BAR_U * per, per) - 1, y = top + 4 + (int32_t)row * pitch;
                 if (row >= 4u)
                     break;
                 if (x1 < x0)

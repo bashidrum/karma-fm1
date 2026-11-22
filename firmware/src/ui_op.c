@@ -889,7 +889,10 @@ static void gp_bars(const track_t *t, const page_t *pg)
     for (k = 0; k < 4u; k++) {
         const param_desc_t *d;
         int32_t x = 6 + (int32_t)k * 60, h, y, bi;
-        if (pg_id(pg, k) >= P_COUNT || (d = track_desc(t, pg_id(pg, k)))->max <= d->min)
+        if (pg_id(pg, k) >= P_COUNT)
+            continue;
+        d = track_desc(t, pg_id(pg, k));                /* (wave 7: assigned before it is read; was one unsequenced line) */
+        if (d->max <= d->min)
             continue;
         bi = d->min < 0;
         op_box(x, SP_T, 48, SP_B - SP_T + 1, tint_col(k, 2));
