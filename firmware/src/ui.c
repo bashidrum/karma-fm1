@@ -366,8 +366,13 @@ static void chain_open(uint32_t fam)
     page_go(i);
 }
 
+static void drum_open(uint32_t fam);                    /* (ui_drum.c) */
 static void open_family(uint32_t fam)
 {
+    if (is_drum(TSEL) && (fam == FAM_EDIT || fam == FAM_ENV || fam == FAM_LFO)) {
+        drum_open(fam);                                 /* (PHEBUS wave 3) the drum sounds' pages: the drum screen's */
+        return;
+    }
     if (fam_stage(fam) >= 0) {
         chain_open(fam);
         return;

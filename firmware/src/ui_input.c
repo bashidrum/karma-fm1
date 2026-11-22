@@ -257,8 +257,11 @@ static void tracks_edit(uint32_t slot, int32_t steps)
         }
         vp = is_drum(t) ? &song.g[G_DRLVL] : &t->p[P_LEVEL];
         d = is_drum(t) ? &GP[G_DRLVL] : &TP[P_LEVEL];
+    } else if (slot == 1u && is_drum(t)) {
+        drum_param_turn(drum_dec_id(), steps, EN_K2);   /* (PHEBUS wave 3: the selected sound's decay, any kit) */
+        return;
     } else if ((vp = home_knob(slot, &d)) == 0) {
-        return;                                         /* (a drum kit with no DEC) */
+        return;
     }
     *vp = (int16_t)clamp(*vp + accel(EN_K1 + slot, steps, d->max - d->min), d->min, d->max);
     if (!is_drum(t) && vp >= &t->p[0] && vp < &t->p[P_COUNT])
@@ -290,7 +293,12 @@ static void project_new(void)
         fm1_irq_on();
     }
     TDRUM->p[P_E0] = DRUM_DEFAULT_KIT;
+    fm1_irq_off();
+    memset(&pkit, 0, sizeof pkit);                      /* (PHEBUS wave 3) no kit of its own: the built-in 606 */
+    pkit_gen++;
+    fm1_irq_on();
     drum_mute = 0;                                      /* (2.6: the live mutes) */
+    drum_solo = 0;
     for (i = 0; i < G_COUNT; i++)
         if (i != G_SLOT && i != G_DRCH && i != G_SYNC && i != G_MIDI && i != G_ROUTE && (i < G_CH1 || i > G_CHOTH) &&
             i != G_BEND)                                                                                   /* (the
@@ -479,47 +487,72 @@ static uint32_t btn_hold(uint32_t *t0, uint32_t label, uint32_t now, int hold_ok
 /* a layer button tapped (pressed and let go, nothing touched): its pages, as before the layers */
 static void layer_tap(uint32_t layer)
 {
+    int drum = is_drum(TSEL);
     switch (layer) {
     case LY_FX:
-        if (on_drum_page() && sg_held)                    /* the GRID, a step held: the FX pages lock (ui_grid.c) */
+        if (on_drum_page() && sg_held)                    /* the GRID, a step held: the FX pages lock (ui_grid.c; the drum
+                                                          * screen: the drum voice's own pages, its bus) */
             sg_lock_open(FAM_FX);
         else
             open_family(FAM_FX);
         break;
     case LY_ERASE:
     case LY_STEP:
-        if (on_drum_page() && sg_held) {                  /* the GRID, a step held: EDIT walks the pages that lock
+        if (drum && layer == LY_ERASE) {                  /* (PHEBUS wave 3) EDIT on the drum track: the drum screen's SRC,
+                                                          * again its next page, a trig held too (the Rytm's page keys) */
+            sg_lpage = 0xFF;
+            drum_open(FAM_EDIT);
+            break;
+        }
+        if (on_drum_page() && sg_held && !drum) {         /* the synth GRID, a step held: EDIT walks the pages that lock
                                                           * (OSC > FILT > ENV, ui_grid.c); SEQ nothing */
             if (layer == LY_ERASE)
                 sg_lock_open(FAM_EDIT);
             break;
         }
         if (layer == LY_ERASE) {
-            if (on_drum_page() || ui.home || cur_page()->scope != SC_TRK || !is_drum(TSEL))
-                open_family(FAM_EDIT);                    /* the sound's pages (drums: HEX OSC ..) */
-            else
-                studio_open(SC_DRUM);                     /* HOME, the drum track: EDIT -> its GRID */
+            open_family(FAM_EDIT);                        /* the sound's pages */
             break;
         }
         /* SEQ (REVIEW.md 2, 21 Nov 2026: the GRID is the only step editor, SEQ always comes back to it). On the GRID:
-         * the sequencing pages (a synth track: SEQ > PATTERN and its family; the drums: the KIT); from
+         * the sequencing pages (a synth track: SEQ > PATTERN and its family; the drums: TRIG, PHEBUS wave 3); from
          * anywhere else, every track: the GRID */
-        if (on_drum_page()) {
-            if (is_drum(TSEL)) {
-                drum_seq_tap();                           /* DRUMS: GRID -> KIT -> GRID */
-            } else {
+        if (on_drum_page() && !stl_shown()) {
+            if (drum) {
+                sg_lpage = 0xFF;
+                drum_seq_tap();                           /* DRUMS: TRIG, again the sound page */
+            } else if (!sg_held) {
                 ui.fam_last[FAM_SEQ] = 0;                 /* (its first page, PATTERN, every time) */
                 open_family(FAM_SEQ);
             }
             break;
         }
-        drum_page = 0;                                    /* (the drums: their GRID, not the KIT) */
+        if (drum && drum_keys != DK_PLAY)
+            drum_keys = DK_PLAY;
         studio_open(SC_DRUM);
         break;
     case LY_ROLL:
+        if (drum) {                                       /* (wave 3) ARP on the drum track: CHROMATIC mode (again: off) */
+            int on = on_drum_page() && drum_keys == DK_CHROM && !stl_shown();
+            sg_drop();
+            drum_screen_open();
+            drum_keys = on ? DK_PLAY : DK_CHROM;
+            if (!drum_pg)
+                dpg_go(drum_pg_last, drum_half[drum_pg_last % 5u]);
+            ui.force = 1;
+            break;
+        }
         open_family(FAM_ARP);
         break;
     case LY_SCALE:
+        if (drum) {                                       /* (wave 3) SEL on the drum track: MUTE mode (again: off) */
+            int on = on_drum_page() && drum_keys == DK_MUTE && !stl_shown();
+            sg_drop();
+            drum_screen_open();
+            drum_keys = on ? DK_PLAY : DK_MUTE;
+            ui.force = 1;
+            break;
+        }
         open_family(FAM_SCL);
         break;
     case LY_MIX:

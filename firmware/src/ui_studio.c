@@ -6,7 +6,8 @@
  * LAYERS (a function button held: what the 16 white keys and the knobs do now), HOLD (a hold to
  * confirm: clear, save), REC (armed). Every band is drawn into the canvas only when its
  * signature changed. */
-static uint8_t drum_page, drum_lane, drum_cursor;   /* drum_page: 0 GRID, 1 KIT */
+static uint8_t drum_cursor;              /* the drum GRID's step anchor (its page of steps); drum_lane, the selected sound: drums.c */
+static uint32_t drum_dec_id(void) { return drum_model() == DM_SYN ? DSP_S0 + DS_DECAY : DSP_DEC; }   /* the sound's decay */
 static void trk_short_name(uint32_t c, char *b);
 static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t *cache);   /* ui_op.c */
 static void op_knobs(const char *const lab[4], const char *const val[4], const char *const *unit, const int32_t ratio[4],
@@ -15,6 +16,7 @@ static void op_trackbar(uint32_t *cache);
 static void op_drum_steps(uint32_t bank, uint32_t len);   /* (ui_op.c) */
 static void op_home_body(void);
 static void op_box(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c);
+static void op_badge(int32_t x, int32_t y, char ch, uint16_t bg);
 static int on_drum_page(void) { return !ui.home && cur_page()->scope == SC_DRUM; }
 
 /* ---------------------------------------------------------------- style --- */
@@ -221,19 +223,25 @@ static void swing_str(char *b, int32_t v)            /* 0 straight .. 100 the mo
  * and 2, for the selected voice: CUTOFF, the engine's own filter cutoff (its CUT: ACID, JUNO), else the voice's FILTER
  * (P_TFLT: PLAITS, ELEMENTS, and the drums' track filter); DECAY, the decay of the envelope that moves the sound: the
  * engine's own envelope where it has one (ACID's DECAY), else the shared ENV's DEC (JUNO, PLAITS, ELEMENTS); on the
- * drums the selected sound's DEC of a HEX kit (its HEX AEG; the other kits have none: 0). (KNOB 3 the STUTTER lane on /
+ * drums the selected sound's decay on every kit (PHEBUS wave 3: its AMP page's DEC / DECAY; a built-in kit's first turn
+ * makes the project's copy, ui_drum.c). (KNOB 3 the STUTTER lane on /
  * off, KNOB 4 LEVEL: ui_input.c tracks_edit) */
 static int16_t *home_knob(uint32_t k, const param_desc_t **d)
 {
     track_t *t = TSEL;
     uint32_t i, kit = drum_kit();
     if (is_drum(t)) {
+        static int16_t dec;                             /* (PHEBUS wave 3: the selected sound's DECAY, every kit: a mirror;
+                                                         * ui_input.c tracks_edit turns it through the drum pages') */
         if (!k) {
             *d = &TP[P_TFLT];
             return &t->p[P_TFLT];
         }
-        *d = &GP[G_HXDEC];
-        return kit < DRUM_SAMPLED || kit >= DRUM_SYN ? &song.g[G_HXDEC] : 0;
+        (void)kit;
+        if (!(*d = dsp_desc(drum_model(), lane_snd(drum_lane), drum_dec_id())))
+            return 0;
+        dec = (int16_t)dsp_get(drum_model(), lane_snd(drum_lane), lane_lfo(drum_lane), drum_lane, drum_dec_id());
+        return &dec;
     }
     for (i = 0; i < 8u; i++)
         if (str_eq(ENGINES[t->eng_req % NENGINES]->edit[i].label, k ? "DECAY" : "CUT")) {
@@ -301,74 +309,6 @@ static uint8_t key_lit[27];                             /* menu NOTES, a synth t
 static uint8_t key_lit_trk = 0xFF;                      /* (the track key_lit is for) */
 static uint8_t op_note = 60, op_hit;                    /* the selected synth track: its last note, frames since (8 .. 0) */
 
-/* the drum track's EDIT pages (HEX OSC .. HEX MORE): G_HXMODEL.. show the selected sound (drum_lane) of the
- * drum track's kit, if it is a HEX kit, and what the knobs set goes into it. A factory kit (HEX BOOM ..) is not
- * changed: the first turn copies it into the first MY HEX kit not edited yet and the drum track takes that one
- * (all four edited: a message, nothing changed). An edit is stored with the settings when all is quiet
- * (project.c). On these pages a key played picks its sound, as on KIT. Once a frame */
-static uint8_t hex_resync;
-static uint32_t hex_gen;                                /* (the preview, ui_op.c: redrawn when it moves) */
-static void hex_ui_sync(void)
-{
-    static uint16_t was_sel = 0xFFFF;
-    static int16_t was[22];
-    uint32_t kit = drum_kit(), lane, i, k, on_page = cur_page()->graph == GR_HEX && !ui.home && song.sel == TRK_DRUM;
-    int changed = 0;
-    const hex_snd_t *src;
-    hex_snd_t *dst;
-    if (on_page)
-        for (k = 0; k < 27u; k++)
-            if ((fm1_in.notes >> k) & 1u) {
-                drum_lane = (uint8_t)lane_of_key(k);
-                break;
-            }
-    {                                                   /* the track's lane -> the kit's sound (PEDAL: the HAT's) */
-        int32_t semi;
-        lane = ds_lane(LANE_NOTE[drum_lane % DRUM_LANES], &semi) % DS_LANES;
-    }
-    if (kit >= DRUM_SAMPLED && kit < DRUM_SYN)
-        return;                                         /* not a HEX kit: nothing to show */
-    src = kit < DRUM_SAMPLED ? &HEX_KITS[kit].s[lane] : &dsu_kit(kit - DRUM_SYN)->s[lane];
-    if ((uint16_t)(kit << 4 | lane) != was_sel || hex_resync) {
-        for (i = 0; i < 22u; i++)
-            song.g[G_HXMODEL + i] = was[i] = i == 3u ? (int16_t)(int8_t)((const uint8_t *)src)[i] : ((const uint8_t *)src)[i];
-        was_sel = (uint16_t)(kit << 4 | lane);
-        hex_resync = 0;
-        hex_gen++;
-        return;
-    }
-    for (i = 0; i < 22u; i++)
-        changed |= song.g[G_HXMODEL + i] != was[i];
-    if (!changed)
-        return;
-    if (kit < DRUM_SAMPLED) {                           /* a factory kit: into a MY HEX kit */
-        char m[20] = "MY HEX ";
-        for (k = 0; k < DSU_N && dsu_kit(k)->rsv[0]; k++)
-            ;
-        if (k == DSU_N) {
-            ui_message("4 MY HEX USED");
-            hex_resync = 1;
-            return;
-        }
-        dsu_from_factory(k, kit);
-        dsu.k[k].rsv[0] = 1;
-        TDRUM->p[P_E0] = (int16_t)(DRUM_SYN + k);
-        kit = DRUM_SYN + k;
-        m[7] = (char)('1' + k);
-        m[8] = 0;
-        ui_message(m);
-    }
-    dst = &dsu.k[kit - DRUM_SYN].s[lane];
-    for (i = 0; i < 22u; i++)
-        ((uint8_t *)dst)[i] = (uint8_t)song.g[G_HXMODEL + i];
-    dsu_fix_sound(dst);                                 /* (a value the model has no use for: back in its range) */
-    dsu.k[kit - DRUM_SYN].rsv[0] = 1;
-    dsu_dirty = 1;
-    for (i = 0; i < 22u; i++)
-        song.g[G_HXMODEL + i] = was[i] = i == 3u ? (int16_t)(int8_t)((const uint8_t *)dst)[i] : ((const uint8_t *)dst)[i];
-    was_sel = (uint16_t)(kit << 4 | lane);
-    hex_gen++;
-}
 static void pads_tick(void)                             /* once a frame: the hits since the last one */
 {
     uint32_t i, hits, n[NPART][4], k, w;
@@ -381,7 +321,6 @@ static void pads_tick(void)                             /* once a frame: the hit
             note_hits[i][w] = 0;
         }
     fm1_irq_on();
-    hex_ui_sync();
     for (i = 0; i < DRUM_LANES; i++) {
         if ((hits >> i) & 1u) pad_lit[i] = 6;
         else if (pad_lit[i]) pad_lit[i]--;
@@ -413,194 +352,29 @@ static void pads_tick(void)                             /* once a frame: the hit
 
 #include "ui_grid.c"               /* the step GRID on every track (Elektron style) */
 #include "ui_stut.c"               /* (PHEBUS) the GRID's STUTTER lane, after DRUM */
-
-/* the drum GRID (the full view, REVIEW.md 5, 21 Nov 2026; the only one since KARMA's snake view is cut): a row a
- * sound, 16 steps of the page across. The sounds the pattern uses and the one KNOB 1 picks (white), up to 7, the picked one always in
- * view; a hit in its level's colour, the cursor framed white, the step playing underlined, the four page slots */
-static uint32_t dg_rows(uint8_t *row)
-{
-    uint32_t used = 1u << drum_lane, i, l, n = 0, sel = 0, len = trk_len(TDRUM), st;
-    for (i = 0; i < len; i++)
-        used |= dt_mask(i);
-    for (l = 0; l < DRUM_LANES; l++)
-        if ((used >> l) & 1u) {
-            if (l == drum_lane)
-                sel = n;
-            row[n++] = (uint8_t)l;
-        }
-    if (n <= 7u)
-        return n;
-    st = sel > 3u ? sel - 3u : 0u;
-    st = st > n - 7u ? n - 7u : st;
-    for (i = 0; i < 7u; i++)
-        row[i] = row[st + i];
-    return 7;
-}
-/* rows r0..r1-1 of row[] in a band of h at y (16 a row); slots: the page slots under them */
-static void dg_band(uint32_t y, uint32_t h, const uint8_t *row, uint32_t r0, uint32_t r1, uint32_t bank, uint32_t len, int slots)
-{
-    uint32_t r, j, pl = song.playing ? TDRUM->seq_idx % len : 0xFFFFu;
-    cv_begin(240, h, C_BLACK);
-    for (r = r0; r < r1; r++) {
-        int32_t yy = (int32_t)(r - r0) * 16;
-        uint32_t l = row[r];
-        cv_text(2, yy, &FONT_S, LANE_SHORT[l], l == drum_lane ? C_WHITE : TE_G3);
-        for (j = 0; j < 16u; j++) {
-            uint32_t p = bank * 16u + j;
-            int32_t x = 52 + (int32_t)j * 11 + (int32_t)(j / 4u);   /* (room for the 6-letter names, review 21) */
-            if (p >= len)
-                continue;
-            if (dt_has(p, l))
-                cv_rect(x, yy + 1, 10, 13, vel_col(dt_vel(p, l)));
-            else
-                op_box(x, yy + 1, 10, 13, j % 4u ? TE_G2 : TE_G3);
-            if (l == drum_lane && p == drum_cursor)
-                op_box(x - 1, yy, 12, 15, C_WHITE);
-            if (p == pl)
-                cv_rect(x, yy + 14, 10, 2, C_WHITE);
-        }
-    }
-    for (j = 0; j < 4u && slots; j++) {
-        int32_t x = 52 + (int32_t)j * 45;
-        if (j * 16u >= len)
-            op_box(x, 26, 42, 5, TE_G2);
-        else
-            cv_rect(x, 26, 42, 5, j == bank ? TE_DRUM : TE_G2);
-    }
-    cv_blit(0, y);
-}
-
-static void drum_screen_draw(void)
-{
-    static uint32_t head, scene_sig, steps_sig, body_sig, footer, bar;
-    uint32_t i, len = (uint32_t)clamp(TDRUM->p[P_SLEN], 1, 64), kit = drum_kit(), sig, bank, pat = 0, lit = 0;
-    if (song.sel != TRK_DRUM || stl_shown()) {          /* a synth track: its GRID (ui_grid.c); the STUTTER lane */
-        if (song.sel != TRK_DRUM)
-            sg_draw();
-        else
-            stl_draw();
-        head = scene_sig = steps_sig = body_sig = footer = 0;
-        return;
-    }
-    if (drum_cursor >= len) drum_cursor = (uint8_t)(len - 1u);
-    bank = drum_cursor / 16u;
-    {
-        char nm[9];
-        const char *name = DRUM_KIT_NAMES[kit];
-        if (kit >= DRUM_SYN) {                          /* SYN1..4: the name you gave it (editor DRUM SYNTH) */
-            memcpy(nm, dsu_kit(kit - DRUM_SYN)->name, 8);
-            nm[8] = 0;
-            if (nm[0])
-                name = nm;
-        }
-        op_header("DRUM", TE_DRUM, name, &head);
-    }
-    for (i = 0; i < DRUM_LANES; i++) lit = lit * 2u + (pad_lit[i] != 0);
-    for (i = 0; i < len; i++) {
-        uint32_t l;
-        for (l = 0; l < DRUM_LANES; l++)
-            pat = pat * 31u + dpat.vel[i][l];
-    }
-    for (i = 0; i < DT_NX; i++)
-        pat = pat * 31u + dpat.x[i].step + dpat.x[i].lane * 7u + dpat.x[i].cond * 11u + dpat.x[i].prob * 13u +
-              (uint32_t)(dpat.x[i].micro + 64) * 17u + dpat.x[i].rrate * 19u + dpat.x[i].rlen * 23u + (uint32_t)(dpat.x[i].rfade + 128) * 29u;
-    for (i = 0; i < DT_NLK; i++)
-        pat = pat * 31u + dpat.lk[i].step + dpat.lk[i].lane * 7u + dpat.lk[i].param * 11u + dpat.lk[i].val * 13u;
-    sig = pat * 31u + drum_lane * 977u + drum_cursor * 101u + len * 3u + (song.playing ? TDRUM->seq_idx + 1u : 0u) * 71u;
-    if (!drum_page) {                                  /* GRID: every sound in use, a row each */
-        if (sg_held) {                                 /* a step held: its sound's 16 steps at the top, all it holds under them */
-            uint32_t ls = 0;
-            for (i = 0; i < NLOCK; i++)
-                ls = ls * 31u + TDRUM->lock[i].step + TDRUM->lock[i].param * 257u + (uint32_t)TDRUM->lock[i].val * 65537u;
-            ls = ls * 31u + sig + sg_held + sg_alt * 5u + song.g[G_HXMODEL] * 3u;
-            if (ui.force || ls * 131u + 1u != scene_sig) {
-                scene_sig = ls * 131u + 1u;
-                sg_detail_draw(SG_BODY_Y + 36u, SG_SCENE_H, (uint32_t)sg_first(), 1);   /* (the steps above it) */
-            }
-        } else {
-            if (ui.force || sig * 131u + 2u != scene_sig) {
-                uint8_t row[DRUM_LANES];
-                uint32_t n = dg_rows(row);
-                scene_sig = sig * 131u + 2u;
-                dg_band(SG_BODY_Y, SG_SCENE_H, row, 0, n < 6u ? n : 6u, bank, len, 0);
-                dg_band(SG_BODY_Y + SG_SCENE_H, SG_KNOB_Y - SG_BODY_Y - SG_SCENE_H, row, 6, n, bank, len, 1);
-            }
-            steps_sig = sig + 1u;                      /* (the steps strip: drawn again when a step is held) */
-        }
-        if (sg_held && (ui.force || sig + 7u != steps_sig)) {
-            steps_sig = sig + 7u;
-            op_drum_steps(bank, len);
-        }
-        body_sig = 0;
-    } else {                                           /* KIT: 16 pads, lit on each hit */
-        if (ui.force) {
-            lcd_fill(0, 22, 240, 16, C_BLACK);
-            lcd_fill(0, 138, 240, 16, C_BLACK);
-        }
-        for (i = 0; i < DRUM_LANES; i++)
-            lit = lit * 131u + drum_send[i][0] + drum_send[i][1] * 16u;
-        if (ui.force || lit * 31u + drum_lane + 1u != body_sig) {
-            body_sig = lit * 31u + drum_lane + 1u;
-            cv_begin(240, 100, C_BLACK);
-            for (i = 0; i < DRUM_LANES; i++) {             /* under each name its own sends: reverb, delay */
-                int32_t x = 2 + (int32_t)(i % 4u) * 60, y = (int32_t)(i / 4u) * 25;
-                cv_rect(x, y, 56, 23, pad_lit[i] ? TE_DRUM : TE_G1);
-                if (i == drum_lane)
-                    op_box(x, y, 56, 23, C_WHITE);
-                te_text_c(x + 28, y + 2, LANE_SHORT[i], pad_lit[i] ? C_BLACK : i == drum_lane ? C_WHITE : TE_G3);
-                cv_rect(x + 3, y + 19, drum_send[i][0] * 24 / DRUM_SEND_REV, 2, pad_lit[i] ? C_BLACK : TE_COL[3]);
-                cv_rect(x + 30, y + 19, drum_send[i][1] * 24 / DRUM_SEND_DLY, 2, pad_lit[i] ? C_BLACK : TE_COL[3]);
-            }
-            cv_blit(0, 38);
-        }
-        scene_sig = steps_sig = 0;
-    }
-    {
-        static char v[4][12];
-        const char *val[4] = {v[0], v[1], v[2], v[3]};
-        static const char *const LG[4] = {"sound", "step", "hit", "vel"}, *const LK[4] = {"sound", "kit", "reverb", "delay"};
-        int32_t ratio[4];
-        if (!drum_page && (sg_held || sg_lpage < NPAGES)) {
-            sg_knobs_held((uint32_t)(sg_held ? sg_first() : (int32_t)drum_cursor), &footer);
-        } else if (!drum_page) {
-            uint32_t on = (uint32_t)dt_has(drum_cursor, drum_lane), vel = dt_vel(drum_cursor, drum_lane);
-            str_cpy(v[0], LANE_SHORT[drum_lane], 8);
-            fmt_int(v[1], drum_cursor + 1);
-            str_cpy(v[2], on ? "on" : "--", 4);
-            if (on)
-                fmt_int(v[3], (int32_t)vel);
-            else
-                str_cpy(v[3], "--", 8);
-            ratio[0] = (int32_t)drum_lane * 1000 / (DRUM_LANES - 1);
-            ratio[1] = (int32_t)drum_cursor * 1000 / (int32_t)(len > 1u ? len - 1u : 1u);
-            ratio[2] = on ? 1000 : 0;
-            ratio[3] = on ? (int32_t)vel * 1000 / 127 : 0;   /* (PHEBUS wave 2: the trig's velocity, 1..127) */
-            knob_tint_all(TRK_DRUM);
-            op_knobs(LG, val, 0, ratio, 0, 1u, &footer);
-        } else {
-            str_cpy(v[0], LANE_SHORT[drum_lane], 8);   /* KIT: the sound, the kit, the sound's own reverb and delay */
-            str_cpy(v[1], DRUM_KIT_NAMES[kit], sizeof v[1]);   /* (the kit by name, as the header: review 21) */
-            fmt_int(v[2], drum_send[drum_lane][0] * 100 / DRUM_SEND_REV);
-            fmt_int(v[3], drum_send[drum_lane][1] * 100 / DRUM_SEND_DLY);
-            ratio[0] = (int32_t)drum_lane * 1000 / (DRUM_LANES - 1);
-            ratio[1] = (int32_t)kit * 1000 / (int32_t)(DRUM_KITS - 1u);
-            ratio[2] = drum_send[drum_lane][0] * 1000 / DRUM_SEND_REV;
-            ratio[3] = drum_send[drum_lane][1] * 1000 / DRUM_SEND_DLY;
-            knob_tint_all(TRK_DRUM);
-            op_knobs(LK, val, 0, ratio, 0, 2u, &footer);
-        }
-    }
-    op_trackbar(&bar);
-}
+#include "ui_drum.c"               /* (PHEBUS wave 3) the drum screen, the Rytm's way */
 
 static uint32_t lvl_rank(uint32_t lvl) { return lvl == LV_GHOST ? 0u : lvl == LV_SOFT ? 1u : lvl == LV_NORM ? 2u : 3u; }
 
-/* DRUMS: SEQ -> GRID -> KIT -> GRID */
-static void drum_seq_tap(void)
+/* the DRUMS screen (the SC_DRUM page): a synth track's GRID (ui_grid.c), the STUTTER lane (ui_stut.c), the drum screen or
+ * its MUTE mode (ui_drum.c) */
+static void drum_screen_draw(void)
 {
-    drum_page = (uint8_t)!drum_page;
-    ui.msg_t = 0;
-    ui.force = 1;
+    uint32_t len = trk_len(TDRUM);
+    if (song.sel != TRK_DRUM) {
+        sg_draw();
+        return;
+    }
+    if (stl_shown()) {
+        stl_draw();
+        return;
+    }
+    if (drum_cursor >= len)
+        drum_cursor = (uint8_t)(len - 1u);
+    if (drum_keys == DK_MUTE)
+        drum_mute_draw();
+    else
+        drum_main_draw();
 }
 
 static void drum_screen_input(uint32_t pressed, uint32_t home)
@@ -629,58 +403,7 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
         sg_synth_input(pressed);
         return;
     }
-    if (!drum_page && sg_input(pressed))                /* (a step held: its knobs; OCT- / OCT+, ENV, LFO) */
-        return;
-    if ((s = panel_enc(EN_SELECT)) != 0 && drum_page && s < 0) {   /* SELECT: KIT: left back to the GRID; on the
-                                                         * GRID nothing (it was the snake / full view; SEQ: GRID -> KIT) */
-        drum_page = 0;
-        ui.msg_t = 0;
-        ui.force = 1;
-    }
-    if ((s = panel_enc(EN_PRESET))) TDRUM->p[P_E0] = drum_kit_step(TDRUM->p[P_E0], s);
-    if (drum_page)                                      /* KIT: a key played picks its sound (KNOB 3, 4: its sends) */
-        for (k = 0; k < 27u; k++)
-            if ((fm1_in.notes >> k) & 1u) {
-                drum_lane = (uint8_t)lane_of_key(k);
-                break;
-            }
-    for (k = 0; k < 4u; k++) if ((s = panel_enc(EN_K1 + k))) {
-        ui.hot_col = (uint8_t)k;
-        ui.hot_t = 40;
-        if (!drum_page) {
-            if (k == 0) {                              /* the sound: heard */
-                uint8_t l = (uint8_t)clamp(drum_lane + s, 0, DRUM_LANES - 1);
-                if (l != drum_lane) audition_lane(l);
-                drum_lane = l;
-            }
-            if (k == 1) {                              /* the step: what it holds, heard */
-                uint8_t c = (uint8_t)clamp(drum_cursor + s, 0, TDRUM->p[P_SLEN] - 1);
-                if (c != drum_cursor) audition_step(c);
-                drum_cursor = c;
-            }
-            if (k >= 2) {
-                undo_mark(TDRUM, ui.step_sess ? ui.step_sess : (ui.step_sess = (undo_sess += 4u) | 3u));
-                fm1_irq_off();
-                if (k == 2) {
-                    if (s > 0 && !dt_has(drum_cursor, drum_lane)) dt_set(drum_cursor, drum_lane, DT_VEL_DEF);
-                    else if (s < 0) dt_clr(drum_cursor, drum_lane);
-                } else if (dt_has(drum_cursor, drum_lane)) {   /* VEL: the trig's velocity, 1..127 */
-                    dt_set(drum_cursor, drum_lane, (uint32_t)clamp((int32_t)dt_vel(drum_cursor, drum_lane) + accel(EN_K4, s, 126), 1, 127));
-                }
-                fm1_irq_on();
-                sync_reload = 1;
-            }
-        } else {
-            if (k == 0) {                              /* the sound: heard */
-                uint8_t l = (uint8_t)clamp(drum_lane + s, 0, DRUM_LANES - 1);
-                if (l != drum_lane) audition_lane(l);
-                drum_lane = l;
-            }
-            if (k == 1) TDRUM->p[P_E0] = drum_kit_step(TDRUM->p[P_E0], s);
-            if (k == 2) drum_send[drum_lane][0] = (uint8_t)clamp(drum_send[drum_lane][0] + s, 0, DRUM_SEND_REV);
-            if (k == 3) drum_send[drum_lane][1] = (uint8_t)clamp(drum_send[drum_lane][1] + s, 0, DRUM_SEND_DLY);
-        }
-    }
+    drum_grid_input(pressed);                           /* (PHEBUS wave 3: ui_drum.c) */
 }
 
 /* ---------------------------------------------------------------- REC --- */
