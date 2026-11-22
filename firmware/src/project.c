@@ -489,6 +489,42 @@ static uint32_t proj_sum(const proj_core_t *c) { return proj_hash(c, sizeof *c -
  * (ui.c voice_from_engine), as is every older format (they come through format 7 with 0). Format 8 still: a wave 3
  * firmware reads it, without the new values */
 #define PROJ_VOICE_V 1u
+/* (PHEBUS wave 5) 2 = the FX slots and the mod matrix too: the slots' and LFO 2's parameters in the room by id, the matrix, LFO
+ * 2's SYNC and TRIG, Spice and Dice in mod[46] (mx_pack). Below 2: the sound's DIST, INSERT and sends are made slots, its
+ * LFO > SHP and ENV > SHP cells, when it is applied (modmx.c fx_from_legacy, mx_from_legacy) */
+#define PROJ_FX_V 2u
+_Static_assert(8u + 2u * MX_NCELL == 46u, "the matrix fits mod[46]");
+static void mx_pack(uint8_t *b, uint32_t ti)       /* track ti's matrix, LFO 2, Spice and Dice -> mod[46] */
+{
+    const mxt_t *m = &mxt[ti % NPART];
+    uint32_t i;
+    memset(b, 0, 46);
+    b[0] = m->as[0], b[1] = m->as[1];
+    b[2] = (uint8_t)m->l2sync, b[3] = (uint8_t)m->l2trig, b[4] = (uint8_t)m->spice;
+    b[5] = (uint8_t)((uint16_t)m->dice & 255u), b[6] = (uint8_t)((uint16_t)m->dice >> 8);
+    for (i = 0; i < MX_NCELL; i++) {
+        b[8u + 2u * i] = m->c[i].at;
+        b[9u + 2u * i] = (uint8_t)m->c[i].amt;
+    }
+}
+static void mx_unpack(const uint8_t *b, uint32_t ti)   /* .. back, every value inside its range */
+{
+    mxt_t *m = &mxt[ti % NPART];
+    uint32_t i;
+    for (i = 0; i < 2u; i++)
+        m->as[i] = (uint8_t)(b[i] && mx_as_ok(b[i] - 1u) ? b[i] : 0u);
+    m->l2sync = (int16_t)(b[2] < NELEM(N_LSYNC) ? b[2] : 0u);
+    m->l2trig = (int16_t)(b[3] < 3u ? b[3] : 1u);
+    m->spice = (int16_t)(b[4] & 127u);
+    m->dice = (int16_t)clamp((int32_t)(b[5] | (uint32_t)b[6] << 8), 0, 9999);
+    for (i = 0; i < MX_NCELL; i++) {
+        uint32_t at = b[8u + 2u * i];
+        int32_t a = (int8_t)b[9u + 2u * i];
+        int ok = at && at <= MS_N * MD_N && mx_alias((at - 1u) / MD_N, (at - 1u) % MD_N) < 0 && a;
+        m->c[i].at = (uint8_t)(ok ? at : 0u);
+        m->c[i].amt = (int8_t)(ok ? clamp(a, -64, 63) : 0);
+    }
+}
 static int proj_ok(const proj_core_t *c) { return c->magic == PROJ_MAGIC && c->size == sizeof *c && c->sum == proj_sum(c); }
 
 /* a pattern's extras and locks checked: a free entry at the free mark, one for no trig (or out of range) freed, the
@@ -659,7 +695,8 @@ static void proj_capture_core(proj_core_t *c)  /* what is playing now, as a proj
         c->g[i] = song.g[i];
     c->sel = song.sel;
     c->drdly = (uint8_t)song.g[G_DRDLY];
-    c->rsv[0] = PROJ_VOICE_V;                           /* (wave 4: the voice filter's values are in it) */
+    c->rsv[0] = PROJ_FX_V;                              /* (wave 4: the voice filter's values are in it; wave 5: the FX
+                                                         * slots and the matrix) */
     memcpy(c->perf.on, stl.on, sizeof c->perf.on);
     memcpy(c->perf.lc, stl.lc, sizeof c->perf.lc);
     memcpy(c->perf.lx, stl.lx, sizeof c->perf.lx);
@@ -675,6 +712,7 @@ static void proj_capture_core(proj_core_t *c)  /* what is playing now, as a proj
         for (k = 0; k < NSTEP; k++)
             d->mf[k] = (uint8_t)(((uint32_t)trk[i].micro[k] & 63u) | (((uint32_t)trk[i].fill[k / 4u] >> (2u * (k % 4u))) & 3u) << 6);
         memcpy(d->lock, trk[i].lock, sizeof d->lock);
+        mx_pack(d->mod, i);                             /* (wave 5) */
     }
     for (k = 0; k < P_COUNT; k++)
         c->d.p[k] = TDRUM->p[k];
@@ -793,6 +831,17 @@ static void proj_apply(const proj_core_t *p, int all)
         }
         if (!drum && p->rsv[0] < PROJ_VOICE_V)          /* (wave 4) its filter's locks onto the voice filter's */
             voice_locks_from_engine(t, e);
+        if (!drum && p->rsv[0] >= PROJ_FX_V) {          /* (wave 5) its matrix, LFO 2, Spice and Dice */
+            mx_unpack(p->t[k].mod, k);
+        } else if (!drum) {                             /* saved before: its DIST, INSERT and sends as FX slots (their
+                                                         * locks with them), LFO > SHP and ENV > SHP as cells */
+            mx_clear_sound(k);
+            mxt[k].spice = mxt[k].dice = 0;
+            t->p[P_L2RATE] = TP[P_L2RATE].def;
+            t->p[P_L2WAVE] = TP[P_L2WAVE].def;
+            fx_from_legacy(t->p, t->lock);
+            mx_from_legacy(k, t->p, e);
+        }
         if (!drum && !eng_allowed(t, t->eng_req)) {     /* an engine gone, or not this track's: its own, as it
                                                          * starts (not the drum track: it has none, and this put its
                                                          * kit back to HEX BOOM at every load, power-on and section

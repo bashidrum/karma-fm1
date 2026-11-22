@@ -90,6 +90,9 @@ static void host_tracks_init(void)                /* as felucca_init: defaults, 
         }
     }
     song.master_q12 = 4096;
+    memset(mxt, 0, sizeof mxt);                  /* (PHEBUS wave 5: no matrix cell, LFO 2 free, no Spice) */
+    for (k = 0; k < NPART; k++)
+        mx_clear_sound(k);
     memset(eng_arena_own, 0, sizeof eng_arena_own);   /* (the engines' state: as at power-on, not the last test's) */
 }
 
@@ -120,6 +123,13 @@ static void host_preset_req(track_t *t, uint32_t e, uint32_t pi)
     }
     preset_extras(t->p, p);
     voice_from_engine(t->p, e, 0);               /* (PHEBUS wave 4: its filter onto the voice filter, as apply_preset_to) */
+    for (i = P_X1TYPE; i < P_COUNT; i++)         /* (PHEBUS wave 5, as apply_preset_to: its sends and DIST as FX slots, */
+        t->p[i] = TP[i].def;                     /* LFO > SHP and ENV > SHP as grid cells) */
+    if ((uint32_t)(t - trk) < NPART) {
+        mx_clear_sound((uint32_t)(t - trk));
+        fx_from_legacy(t->p, 0);
+        mx_from_legacy((uint32_t)(t - trk), t->p, e);
+    }
 }
 static void host_preset(track_t *t, uint32_t e, uint32_t pi)
 {

@@ -373,7 +373,8 @@ static void op_dials(const char *const lab[4], const char *const val[4], const i
     for (k = 0; k < 4u; k++) {
         int32_t x0 = 2 + 60 * (int32_t)k, vx = x0 + DIAL_VX, vw;
         uint32_t hot = ui.hot_t && ui.hot_col == k, lk = (locked >> k) & 1u;
-        uint16_t c = (dim >> k) & 1u ? TE_G3 : col;
+        uint16_t c = (dim >> k) & 1u ? TE_G3 : (dim >> (4u + k)) & 1u ? TE_G4 : col;   /* (wave 5: dim bits 4..7, a shared
+                                                         * value on a voice's page: white-grey, not the voice's colour) */
         if (!lab[k][0])
             continue;
         if (hot) {

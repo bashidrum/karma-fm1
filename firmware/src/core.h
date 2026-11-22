@@ -35,7 +35,8 @@ enum {
     F_ONOFF, F_OCT, F_STEPS,
     F_SWING,                    /* 0..100: MPC swing, 50 % (straight) .. 75 % */
     F_FILT,                     /* -64..63: the DJ filter, LP <- OFF -> HP */
-    F_SIGN                      /* (wave 4) a signed whole number shown with its + (OCT, TUNE) */
+    F_SIGN,                     /* (wave 4) a signed whole number shown with its + (OCT, TUNE) */
+    F_EQDB                      /* (wave 5) 0..127, 64 flat: an EQ band's gain, -12 .. +12 dB */
 };
 
 typedef struct {
@@ -80,8 +81,24 @@ enum {                          /* per-track parameters */
      * LINK 0 = it follows the amp ENV (as the MiniFreak's filter does), 1 = OWN, the ADSR after it. OCT and TUNE: the
      * oscillator's, on OSC 2/3 */
     P_FCUT, P_FRES, P_FKEY, P_FDRV, P_FLINK, P_FATK, P_FDEC, P_FSUS, P_FREL, P_OCT, P_TUNE,
+    /* PHEBUS wave 5, the MiniFreak voices, part two (Ben, 21 Nov 2026: "FX slots, mod matrix last"). The last of format 8's
+     * room (PROJ_NP 96): three FX slots in series after the oscillator and filter, each a TYPE (fx.c XT_*) and the three
+     * knobs the MiniFreak gives every effect, TIME INTENSITY AMOUNT (what each means: params.c xs_desc); the second LFO's
+     * RATE and WAVE (its SYNC and TRIG, the matrix, Spice and Dice: the track's mod[46] bytes, core.h mxt_t) */
+    P_X1TYPE, P_X1TIME, P_X1INT, P_X1AMT,
+    P_X2TYPE, P_X2TIME, P_X2INT, P_X2AMT,
+    P_X3TYPE, P_X3TIME, P_X3INT, P_X3AMT,
+    P_L2RATE, P_L2WAVE,
     P_COUNT
 };
+#define P_COUNT_V9 (P_TUNE + 1)          /* parameters of wave 4 (before the FX slots: user preset records 2) */
+#define NXSLOT 3u                        /* FX slots a voice */
+#define P_XS(k, f) (P_X1TYPE + 4 * (k) + (f))   /* slot k's TYPE (f 0), TIME (1), INTENSITY (2), AMOUNT (3) */
+/* an FX slot's TYPE (stored: append-only). CHORUS, REVERB and DELAY are the shared effects (GLO's), a slot of theirs the voice's
+ * send to them; the others run in the slot, in series (fx.c xs_run) */
+enum { XT_OFF, XT_CHORUS, XT_PHASER, XT_FLANGER, XT_REVERB, XT_DELAY, XT_DIST, XT_SOFT, XT_HARD, XT_FOLD, XT_FUZZ, XT_CRUSH,
+       XT_EQ, XT_N };
+static inline int xt_send(int32_t ty) { return ty == XT_CHORUS || ty == XT_REVERB || ty == XT_DELAY; }
 #define P_COUNT_V8 (P_E7 + 1)            /* parameters before wave 4 (format 8 as wave 3 wrote it, user preset records v1) */
 enum { VF_LP24, VF_LP12, VF_BP, VF_HP, VF_NTYPE };   /* the voice filter's TYPE (P_FTYPE) */
 
@@ -344,9 +361,7 @@ typedef struct track {
     /* mix runtime */
     int32_t lvl;                 /* the LEVEL gain (Q12) of the last block: a change is ramped (fx.c) */
     int32_t peak;
-    int32_t dist_hp, dist_lp1, dist_lp2;   /* DIST insert state (fx.c) */
     int32_t att;                 /* mute / solo fade: attenuation, Q15 (0 = heard; fx.c mix_part, drums_mix) */
-    uint8_t dist_on;             /* DIST was on in the last block (its states restart when it comes on) */
     uint8_t tail;                /* blocks to mix after the last voice (the DIST / INSERT tail) */
     uint8_t ins_run;             /* 2.6: the INSERT runs (or fades out) (fx.c track_insert) */
     int16_t armp, aholdp;        /* P_AMODE / P_AHOLD as last seen by the ISR */
@@ -373,6 +388,27 @@ typedef struct {
     int32_t batt_raw;            /* smoothed ADC ch3 (battery divider), 0 = not read yet */
 } song_t;
 
+/* ---- (PHEBUS wave 5) the mod matrix, the second LFO, Spice and Dice: a synth track's (Ben, 21 Nov 2026, picker "Mod matrix:
+ * A: grid"; "Cut all but give me the spice & dice from minifreak"). The grid: MS_N sources (rows) against MD_N destinations
+ * (columns), as the MiniFreak's LED matrix; a cell an amount, -64..63, 0 = none. A few cells are the parameters that were
+ * fixed routings (modmx.c mx_alias: LFO > PIT, LFO > CUT, LFO > LVL, FENV > CUT (the FILT page's ENV), PENV > PIT, KEY >
+ * CUT (FILT 2's KEY)); every other cell is one of MX_NCELL entries, used as they are set. Kept in the track's mod[46] of
+ * format 8 (project.c mx_pack) */
+enum { MS_LFO1, MS_LFO2, MS_AENV, MS_FENV, MS_PENV, MS_VEL, MS_KEY, MS_N };
+enum { MD_PIT, MD_M1, MD_M2, MD_M3, MD_CUT, MD_RES, MD_LVL, MD_PAN, MD_FX1, MD_FX2, MD_FX3, MD_AS1, MD_AS2, MD_N };
+#define MX_NCELL 19u                 /* cells of the grid a voice can set besides the fixed ones */
+typedef struct { uint8_t at; int8_t amt; } mxc_t;   /* at: source * MD_N + destination + 1, 0 = a free entry */
+typedef struct {
+    int16_t l2sync, l2trig;          /* LFO 2's SYNC (params.c N_LSYNC) and TRIG (NOTE FREE PATT): the UI edits them */
+    int16_t spice, dice;             /* Spice 0..127 (0: the pattern as written), Dice: the roll (0..9999) */
+    uint8_t as[2];                   /* the assignable columns' parameters: P_* id + 1, 0 = none */
+    mxc_t c[MX_NCELL];
+    /* the audio ISR's own (not stored) */
+    uint32_t l2ph, l2rnd;
+    int32_t l2val;                   /* LFO 2 now, Q15 */
+    int32_t vs[MS_N];                /* the sources of the voice started last (the part-wide destinations: PAN, FX, AS) */
+} mxt_t;
+static mxt_t mxt[NPART];
 static track_t trk[NTRK];        /* the instrument: three parts and the drum track */
 static dpat_t dpat;              /* the drum track's pattern (PHEBUS wave 2) */
 static song_t song;

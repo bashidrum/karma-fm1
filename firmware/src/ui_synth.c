@@ -37,7 +37,7 @@ static void syn_vals(const page_t *pg, int32_t first, const char *lab[4], char v
         ratio[k] = -1;
         if (!d || !vp || !d->label || d->label[0] == '-')
             continue;
-        lab[k] = id == V_TYPE ? "TYPE" : d->label;
+        lab[k] = id == V_TYPE ? "TYPE" : pg->id[k] == V_MAMT ? "AMOUNT" : d->label;   /* (wave 5: a fixed cell too) */
         if (id == V_TYPE) {
             uint32_t ty = vtype_of(t);
             syn_fmt_type(v[k], ty);
@@ -46,11 +46,28 @@ static void syn_vals(const page_t *pg, int32_t first, const char *lab[4], char v
                 *dim |= 1u << k;                        /* (not lockable: the Rytm's machine, grey with a step held) */
             continue;
         }
+        if (pg->id[k] >= V_XA && pg->id[k] <= V_XC && id >= V_XA)   /* (wave 5) a shared effect's own: GLO's, shared */
+            *dim |= 16u << k;
+        if (id == V_MK4) {                              /* (wave 5) TARGET: the parameter's name; CLEAR: the cell */
+            if (mx_col >= MD_AS1) {
+                uint32_t a = mxt[song.sel % NPART].as[mx_col - MD_AS1];
+                str_cpy(v[k], a ? track_desc(t, a - 1u)->label : "--", 8);
+                ratio[k] = a ? (int32_t)a * 1000 / P_COUNT : 0;
+            } else {
+                str_cpy(v[k], mx_get(song.sel % NPART, (uint32_t)mx_row % MS_N, (uint32_t)mx_col % MD_N) ? "CLR" : "--", 6);
+            }
+            dval_fit(v[k]);
+            if (first >= 0)
+                *dim |= 1u << k;
+            continue;
+        }
         x = *vp;
         if (id >= P_FATK && id <= P_FREL && !t->p[P_FLINK]) {   /* LINK: the amp ENV's, dim (the first turn: OWN) */
             x = t->p[P_ATK + (id - P_FATK)];
             *dim |= 1u << k;
         }
+        if (first >= 0 && id >= P_COUNT)                /* (wave 5: a grid cursor, a shared value: no lock) */
+            *dim |= 1u << k;
         if (first >= 0 && id < P_COUNT) {
             int l = lock_find(t, (uint32_t)first, id, 0);
             if (l >= 0) {
@@ -81,9 +98,15 @@ static void syn_trig_vals(int32_t first, uint32_t half, const char *lab[4], char
     }
     if (half) {                                         /* FLAG RATCH NUDGE */
         uint32_t f = (st->flags & SF_ACCENT ? 1u : 0u) | (st->flags & SF_SLIDE ? 2u : 0u);
-        if (first < 0) {
-            for (k = 0; k < 3u; k++)
-                str_cpy(v[k], "--", 4), *dim |= 1u << k;
+        if (first < 0) {                                /* (wave 5) nothing held: Spice and Dice, the MiniFreak's */
+            const mxt_t *m = &mxt[song.sel % NPART];
+            lab[0] = "SPICE", lab[1] = "DICE", lab[2] = lab[3] = "";
+            fmt_int(v[0], (m->spice * 100 + 63) / 127);
+            v[1][0] = '#';
+            fmt_int(v[1] + 1, m->dice);
+            dval_fit(v[1]);
+            ratio[0] = m->spice * 1000 / 127;
+            ratio[1] = m->dice % 100 * 10;
             return;
         }
         str_cpy(v[0], SG_FLAG[f], 4);
@@ -263,6 +286,131 @@ static void syn_slicer(const track_t *t, uint16_t c)
             cv_rect(x, SP_B - 3, 11, 3, C_WHITE);
     }
 }
+/* (PHEBUS wave 5) the FX page (mock-synth-fx-A): the three slots as boxes, the one on the knobs filled, a square lit when the
+ * slot runs; under them what the slot's knobs do and a picture of its effect */
+static void syn_fx_slots(const track_t *t, uint32_t cur, uint16_t c, uint16_t cd)
+{
+    uint32_t k;
+    for (k = 0; k < NXSLOT; k++) {
+        int32_t x = 2 + (int32_t)k * 79, ty = clamp(t->p[P_XS(k, 0)], 0, XT_N - 1);
+        char lb[4] = {'F', 'X', (char)('1' + k), 0};
+        uint16_t fg = ty ? (k == cur ? C_WHITE : c) : TE_G3;
+        if (k == cur)
+            cv_rect(x, 2, 77, 40, cd);
+        op_box(x, 2, 77, 40, k == cur ? C_WHITE : TE_G2);
+        cv_text(x + 4, 3, &FONT_S, lb, k == cur ? C_WHITE : TE_G3);
+        if (ty)
+            cv_rect(x + 64, 7, 7, 7, k == cur ? C_WHITE : c);   /* on */
+        cv_text(x + 4, 21, &FONT_S, N_XBIG[ty], fg);
+    }
+}
+static void syn_fx_pic(const track_t *t, uint32_t k, uint16_t c)
+{
+    int32_t ty = clamp(t->p[P_XS(k, 0)], 0, XT_N - 1), x, i;
+    int32_t tm = t->p[P_XS(k, 1)], in = t->p[P_XS(k, 2)], am = t->p[P_XS(k, 3)];
+    switch (ty) {
+    case XT_DELAY: {                                     /* the taps: the send, then FDBK down each echo */
+        int32_t h = (SP_B - SP_T) * clamp(t->p[P_DLY], 8, 127) / 127, fb = song.g[G_DFDBK], step = 18 + song.g[G_DTIME] * 4;
+        for (x = SP_L + 4, i = 0; x < SP_R && h > 1 && i < 12; x += step, i++) {
+            cv_rect(x, SP_B - h, 7, h, i ? TE_MID[song.sel & 3u] : c);
+            h = h * clamp(fb, 0, 110) / 127;
+        }
+        break;
+    }
+    case XT_REVERB:                                      /* a dense tail, SIZE long, DAMP darker */
+        for (x = SP_L; x < SP_R; x += 2) {
+            int32_t len = 30 + song.g[G_RSIZE] * 150 / 127, e = x - SP_L < len ? (len - (x - SP_L)) : 0;
+            int32_t h = (SP_B - SP_T) * e / len * clamp(t->p[P_REV], 8, 127) / 127 * (int32_t)((rng() >> 24) + 128) / 384;
+            if (h > 0)
+                cv_rect(x, SP_B - h, 1, h, x & 2 ? c : TE_MID[song.sel & 3u]);
+        }
+        break;
+    case XT_CHORUS: case XT_PHASER: case XT_FLANGER: {   /* the sweep: two lines moving apart (chorus), notches (the others) */
+        int32_t py = SP_M, py2 = SP_M, rate = 1 + (ty == XT_CHORUS ? song.g[G_CRATE] : tm) / 16;
+        for (x = SP_L; x <= SP_R; x++) {
+            int32_t ph = (x * 6 + (int32_t)ui.frame * rate) & 255, w = ph < 128 ? ph : 255 - ph;
+            int32_t y = SP_M - (w - 64) * (SP_B - SP_T) / 300, y2;
+            if (ty == XT_CHORUS) {
+                y2 = SP_M + (w - 64) * (SP_B - SP_T) / 300;
+                if (x > SP_L)
+                    cv_line(x - 1, py2, x, y2, TE_MID[song.sel & 3u]);
+                py2 = y2;
+            } else {
+                int32_t n = ty == XT_PHASER ? 2 : 6, q = ((x - SP_L) * n * 256 / (SP_R - SP_L) + (int32_t)ui.frame * rate) & 255;
+                y = SP_T + 4 + (q < 128 ? q : 255 - q) * (SP_B - SP_T - 8) * clamp(in + 30, 0, 127) / 127 / 128;
+            }
+            if (x > SP_L)
+                cv_line(x - 1, py, x, y, c);
+            py = y;
+        }
+        break;
+    }
+    case XT_DIST: case XT_SOFT: case XT_HARD: case XT_FOLD: case XT_FUZZ: case XT_CRUSH: {   /* the curve in -> out */
+        int32_t R = (SP_B - SP_T) / 2 - 2, py = SP_M;
+        gp_dots(SP_M);
+        for (x = 120 - 2 * R; x <= 120 + 2 * R; x++) {
+            int32_t in32 = (x - 120) * 32767 / (2 * R), g = 4096 + in * in * 3, v = (int32_t)(((int64_t)in32 * g) >> 12), o, y;
+            int32_t it = ty == XT_DIST ? IT_SOFT : XT_IT[ty];
+            o = it == IT_CRUSH ? ins_shape(IT_CRUSH, in32, ins_bits_sh(in)) : ins_shape((uint32_t)it, clamp(v, -98000, 98000), 0);
+            o = clamp(o, -32767, 32767);
+            o = in32 + (int32_t)(((int64_t)(o - in32) * am) / 127);
+            y = SP_M - o * R / 32767;
+            if (x > 120 - 2 * R)
+                cv_line(x - 1, py, x, y, c);
+            py = y;
+        }
+        break;
+    }
+    case XT_EQ: {                                        /* LOW MID HIGH as a curve through three points */
+        int32_t y0 = SP_M - (tm - 64) * (SP_B - SP_T) / 140, y1 = SP_M - (in - 64) * (SP_B - SP_T) / 140;
+        int32_t y2 = SP_M - (am - 64) * (SP_B - SP_T) / 140, py = y0;
+        gp_dots(SP_M);
+        for (x = SP_L; x <= SP_R; x++) {
+            int32_t u = (x - SP_L) * 256 / (SP_R - SP_L), y;
+            y = u < 128 ? y0 + (y1 - y0) * u / 128 : y1 + (y2 - y1) * (u - 128) / 128;
+            if (x > SP_L)
+                cv_line(x - 1, py, x, y, c);
+            py = y;
+        }
+        break;
+    }
+    default:
+        gp_dots(SP_M);
+        break;
+    }
+}
+/* (wave 5) the grid (mock-synth-mod-A): the sources down, the destinations across (seven at a time, the cursor's half), a dot
+ * a cell, as large as its amount, a ring when negative, the cursor framed white */
+static void syn_matrix(const track_t *t, uint16_t c)
+{
+    uint32_t ti = (uint32_t)(t - trk) % NPART, r, d, d0 = (uint32_t)clamp(mx_col - 5, 0, (int32_t)MD_N - 6);
+    for (d = d0; d < d0 + 6u; d++)
+        cv_text(38 + (int32_t)(d - d0) * 32 + (32 - text_w(&FONT_S, N_MDST[d])) / 2, 0, &FONT_S, N_MDST[d],
+                d == (uint32_t)mx_col ? C_WHITE : TE_G3);
+    if (d0)                                             /* (more columns either side: the cursor slides the view) */
+        cv_text(31, 0, &FONT_S, "<", TE_G2);
+    if (d0 + 6u < MD_N)
+        cv_text(232, 0, &FONT_S, ">", TE_G2);
+    for (r = 0; r < MS_N; r++) {
+        int32_t y = 16 + (int32_t)r * 13;
+        cv_text(2, y - 2, &FONT_S, N_MSRC[r], r == (uint32_t)mx_row ? C_WHITE : TE_G4);
+        for (d = d0; d < d0 + 6u; d++) {
+            int32_t x = 38 + (int32_t)(d - d0) * 32 + 16, a = mx_get(ti, r, d), cy = y + 5, rad;
+            if ((r == MS_LFO1 && d == MD_LVL) || (r == MS_KEY && d == MD_CUT))
+                a = a / 2;                              /* (the one-way fixed cells: 0..127) */
+            rad = a ? 1 + (a < 0 ? -a : a) * 4 / 64 : 0;
+            if (!a)
+                cv_rect(x, cy, 1, 1, TE_G2);
+            else if (a > 0)
+                cv_rect(x - rad, cy - rad, 2 * rad + 1, 2 * rad + 1, c);
+            else
+                op_box(x - rad, cy - rad, 2 * rad + 1, 2 * rad + 1, c);
+            if (r == (uint32_t)mx_row && d == (uint32_t)mx_col)
+                op_box(x - 13, y - 1, 27, 13, C_WHITE);
+        }
+    }
+}
+
 /* the body of a sound page (240 x 109 at y 22): the subject large, a line, the drawing */
 static void syn_body(track_t *t, const page_t *pg, uint32_t half, uint32_t *cache)
 {
@@ -272,7 +420,17 @@ static void syn_body(track_t *t, const page_t *pg, uint32_t half, uint32_t *cach
     for (i = 0; i < P_COUNT; i++)
         sig = (sig ^ (uint32_t)(uint16_t)t->p[i]) * 16777619u;
     sig ^= (uint32_t)(pg - PAGES) * 7919u + half * 131u + t->eng_req * 31u + v * 104729u;
-    if (pg->graph == GR_LFO || (pg->graph == GR_SLCR && t->p[P_SLCR]))
+    sig ^= (uint32_t)mx_row * 3001u + (uint32_t)mx_col * 70001u + studio_hash(0, "") * 0u;   /* (wave 5: the grid's cursor, */
+    {
+        const mxt_t *m = &mxt[song.sel % NPART];                                         /* its cells, the globals shown) */
+        for (i = 0; i < MX_NCELL; i++)
+            sig = (sig ^ ((uint32_t)m->c[i].at << 8 | (uint8_t)m->c[i].amt)) * 16777619u;
+        sig ^= (uint32_t)m->l2sync * 77u + (uint32_t)m->l2trig * 999u + (uint32_t)m->as[0] * 13u + (uint32_t)m->as[1] * 131u;
+        for (i = G_DTIME; i <= G_CDEPTH; i++)
+            sig = (sig ^ (uint32_t)(uint16_t)song.g[i]) * 16777619u;
+    }
+    if (pg->graph == GR_LFO || pg->graph == GR_LFO2 || (pg->graph == GR_SLCR && t->p[P_SLCR]) ||
+        (pg->graph == GR_XSLOT && t->p[pg->id[0]] && t->p[pg->id[0]] <= XT_REVERB))
         sig ^= (ui.frame / 2u + 1u) * 40503u;           /* (the LFO runs, the SLICER's step) */
     if (pg->graph == GR_INS && t->p[P_ITYPE] >= IT_PHASER)
         sig ^= (ui.frame + 1u) * 40503u;
@@ -344,6 +502,24 @@ static void syn_body(track_t *t, const page_t *pg, uint32_t half, uint32_t *cach
     }
     case 3:                                             /* FX: the page, what it does */
         str_cpy(big, pg->graph == GR_FX ? "SENDS" : pg->title, 16);
+        if (pg->graph == GR_XSLOT) {                    /* (wave 5) the three slots, the one on the knobs, its effect */
+            uint32_t k = pg_slot(pg);
+            int32_t ty = clamp(t->p[P_XS(k, 0)], 0, XT_N - 1);
+            syn_fx_slots(t, k, c, TE_DIM[v]);
+            sp_t = 64, sp_b = 106;
+            syn_fx_pic(t, k, c);
+            if (!ty)
+                str_cpy(sub, "EMPTY: KNOB 1 PICKS A TYPE", 40);
+            else if (xt_send(ty))
+                str_cpy(sub, ty == XT_CHORUS ? "SEND TO THE CHORUS" : ty == XT_REVERB ? "SEND TO THE REVERB" : "SEND TO THE DELAY",
+                        40);
+            else
+                str_cpy(sub, "IN SERIES", 40);
+            cv_text(4, 45, &FONT_S, sub, TE_G4);
+            sp_t = 40, sp_b = 114;
+            cv_blit(0, 22);
+            return;
+        }
         if (pg->graph == GR_INS) {
             str_cpy(sub, N_ITYPE[clamp(t->p[P_ITYPE], 0, IT_N - 1)], 12);
             gp_insert(t, c);
@@ -355,9 +531,42 @@ static void syn_body(track_t *t, const page_t *pg, uint32_t half, uint32_t *cach
             gp_sends(t, c);
         }
         break;
-    default:                                            /* MOD: the LFO, where it and the ENV go */
-        str_cpy(big, pg->graph == GR_LFO ? "LFO" : pg->id[0] == P_ED_PIT ? "ENV" : "LFO", 16);
-        if (pg->graph == GR_LFO) {
+    default:                                            /* MOD: the LFOs, the matrix */
+        if (pg->graph == GR_MATRIX) {                   /* (wave 5) the grid fills the body */
+            syn_matrix(t, c);
+            sp_t = 40, sp_b = 114;
+            cv_blit(0, 22);
+            return;
+        }
+        str_cpy(big, pg->graph == GR_LFO2 ? "LFO 2" : "LFO", 16);
+        if (pg->graph == GR_LFO2) {                     /* (wave 5) the second LFO, running */
+            const mxt_t *m = &mxt[song.sel % NPART];
+            int32_t x, py = SP_M, ny = SP_M, a;
+            const char *u;
+            char b[12];
+            str_cpy(sub, N_LWAVE[clamp(t->p[P_L2WAVE], 0, 4)], 8);
+            str_cpy(sub + str_len(sub), "  ", 3);
+            if (m->l2sync > 0) {
+                str_cpy(sub + str_len(sub), N_LSYNC[clamp(m->l2sync, 0, 10)], 8);
+            } else {
+                param_format(&TP[P_L2RATE], t->p[P_L2RATE], b, &u);
+                str_cpy(sub + str_len(sub), b, 8);
+                str_cpy(sub + str_len(sub), u, 4);
+            }
+            str_cpy(sub + str_len(sub), m->l2trig == 0 ? "  NOTE" : m->l2trig == 2 ? "  PATT" : "  FREE", 8);
+            a = (SP_B - SP_T) / 2 - 2;
+            gp_dots(SP_M);
+            for (x = SP_L; x <= SP_R; x++) {
+                uint32_t ph = m->l2ph + (uint32_t)(x - 160) * (0xFFFFFFFFu / 120u);
+                int32_t y = SP_M - lfo_shape((uint32_t)t->p[P_L2WAVE] % 5u, ph, m->l2rnd) * a / 32768;
+                if (x > SP_L)
+                    cv_line(x - 1, py, x, y, c);
+                if (x == 160)
+                    ny = y;
+                py = y;
+            }
+            cv_rect(157, ny - 3, 7, 7, C_WHITE);
+        } else if (pg->graph == GR_LFO) {
             const char *u;
             char b[12];
             str_cpy(sub, N_LWAVE[clamp(t->p[P_LWAVE], 0, 4)], 8);

@@ -34,11 +34,11 @@ static int32_t lfo_wave(track_t *t, uint32_t ph)
  * 1-bit truncation of 0xFFFFFFFF drifts by less than a millionth of a cycle a cycle). OFF: RATE's table, as before.
  * LSYNC_PULSES: a cycle in 24ths of a beat (4BAR .. 1/32) */
 static const uint16_t LSYNC_PULSES[11] = {0, 384, 192, 96, 48, 24, 12, 8, 6, 4, 3};
-static __attribute__((noinline)) uint32_t lfo_sync_inc(const track_t *t)   /* (not inlined: its divides stay out of
-                                                                           * the audio ISR's loop over the tracks) */
+static __attribute__((noinline)) uint32_t lsync_inc(uint32_t sync)   /* (not inlined: its divides stay out of the audio
+                                                                     * ISR's loop over the tracks; wave 5: LFO 2's too) */
 {
     uint32_t beat = (uint32_t)FS * 60u / (uint32_t)clamp(song.g[G_BPM], 20, 300), cyc, q, r;
-    cyc = beat * LSYNC_PULSES[(uint32_t)t->p[P_LSYNC] % NELEM(LSYNC_PULSES)] / 24u;
+    cyc = beat * LSYNC_PULSES[sync % NELEM(LSYNC_PULSES)] / 24u;
     cyc = cyc ? cyc : 1u;
     q = 0xFFFFFFFFu / cyc;
     r = 0xFFFFFFFFu % cyc;
@@ -48,7 +48,7 @@ static __attribute__((noinline)) uint32_t lfo_sync_inc(const track_t *t)   /* (n
 static void track_lfo_tick(track_t *t)
 {
     uint32_t old = t->lfo_ph;
-    t->lfo_ph += t->p[P_LSYNC] ? lfo_sync_inc(t) : LFO_INC[t->p[P_LRATE] & 127];
+    t->lfo_ph += t->p[P_LSYNC] ? lsync_inc((uint32_t)t->p[P_LSYNC]) : LFO_INC[t->p[P_LRATE] & 127];
     if (t->lfo_ph < old)
         t->lfo_rnd = rng();
     t->lfo_val = lfo_wave(t, t->lfo_ph);
@@ -443,6 +443,8 @@ static void trk_note_on_(track_t *t, uint32_t note, uint32_t vel)
         if (!t->p[P_LTRIG])
             t->lfo_ph = (uint32_t)t->p[P_LPHASE] << 25;
         t->lfo_fade = 0;
+        if ((uint32_t)(t - trk) < NPART && !mxt[t - trk].l2trig)   /* (wave 5) LFO 2, TRIG NOTE */
+            mxt[t - trk].l2ph = 0;
     }
     if (mode == V_POLY) {
         voice_t *v = voice_alloc(t, note);
@@ -800,6 +802,11 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
     int32_t bendq, octq = (int32_t)clamp(p[P_OCT], -3, 3) * 12 * 4096 + p[P_TUNE] * 4096 / 100;   /* (wave 4) OCT, TUNE */
     int16_t pe_new[8];
     int vgen;
+    /* (wave 5) the matrix: the cells acting on each voice (source, destination, amount), the macros' E indexes */
+    uint8_t mxs[MX_NCELL], mxd[MX_NCELL], mxe[3] = {0xFF, 0xFF, 0xFF}, mxsh[3] = {0, 0, 0};
+    int8_t mxa[MX_NCELL];
+    uint32_t mxn = 0, ti, newest = 0;
+    int32_t l2 = 0;
     for (i = 0; i < n; i++)
         out[i] = 0;
     if (fade)                                           /* engine switch: the old engine, its own values */
@@ -808,17 +815,39 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
             t->p[P_E0 + i] = t->pe_old[i];
         }
     track_lfo_tick(t);
+    lfo2_tick(t);                                       /* (wave 5) the second LFO */
     esync_coef(t);                                      /* this block's envelope steps for env_tick (ENV SYNC) */
     t->bend_s = (int16_t)(t->bend_s + ((t->bend - t->bend_s) >> 2) + (t->bend > t->bend_s) - (t->bend < t->bend_s));
     bendq = ((int32_t)t->bend_s * clamp(song.g[G_BEND], 1, 12)) >> 1;   /* MIDI pitch bend (2.6): 1/4096 semitone,
                                                                          * gliding (a quarter of the way a block) */
     if (e->block)                                       /* the engine's per-part work (DRAWBAR: bars, rotor) */
         e->block(t);
-    vgen = !vf_native(t, e) && !is_drum(t) && e != &ENG_GONE;   /* (wave 4) the voice filter, vfilt.c's */
+    vgen = !vf_native(t, e) && !is_drum(t) && e != &ENG_GONE;   /* (wave 5) the voice filter, vfilt.c's */
+    ti = (uint32_t)(t - trk);
+    mxn = 0;
+    if (ti < NPART) {                                   /* (wave 5) the matrix's cells that act on each voice, unpacked */
+        const mxt_t *mx = &mxt[ti];
+        for (i = 0; i < MX_NCELL; i++) {
+            uint32_t at = mx->c[i].at;
+            if (at && at <= MS_N * MD_N && (at - 1u) % MD_N <= MD_LVL && mx->c[i].amt) {
+                mxs[mxn] = (uint8_t)((at - 1u) / MD_N);
+                mxd[mxn] = (uint8_t)((at - 1u) % MD_N);
+                mxa[mxn++] = mx->c[i].amt;
+            }
+        }
+        l2 = mx->l2val;
+        if (mxn)
+            for (i = 0; i < 3u; i++) {                  /* each macro's E index, and whether the engine's "shape" is it */
+                uint32_t k = vtype_macro(t, i);
+                mxe[i] = (uint8_t)k;
+                mxsh[i] = (uint8_t)(k == (e == &ENG_PRISM ? 3u : e == &ENG_JUNO ? 1u : e == &ENG_ELEM ? 6u : 0xFFu));
+            }
+    }
     for (i = 0; i < NVOICE; i++) {
         voice_t *v = &t->v[i];
         vmod_t m;
-        int32_t env, pitch;
+        int32_t env, pitch, mo[MD_LVL + 1] = {0}, vsrc[MS_N];
+        uint32_t j;
         if (!v->active)
             continue;
         int32_t fe;
@@ -845,6 +874,32 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
             m.amp1 = e->ownenv ? env : mulq15(env, v->vel * 258);
             if (p[P_LD_AMP])
                 m.amp1 = mulq15(m.amp1, 32767 - mulq15(p[P_LPOL] ? lfo : (lfo + 32768) >> 1, p[P_LD_AMP] * 258));
+            /* (wave 5) the matrix's sources for this voice (modmx.c), and its cells on PIT M1 M2 M3 CUT RES LVL */
+            vsrc[MS_LFO1] = lfo;
+            vsrc[MS_LFO2] = l2;
+            vsrc[MS_AENV] = m.envq15;
+            vsrc[MS_FENV] = fe;
+            vsrc[MS_PENV] = v->penv;
+            vsrc[MS_VEL] = v->vel * 258;
+            vsrc[MS_KEY] = clamp(((int32_t)v->note - 60) * 512, -32767, 32767);
+            if (ti < NPART && v->age >= newest) {       /* (the part-wide destinations follow the note started last) */
+                newest = v->age;
+                memcpy(mxt[ti].vs, vsrc, sizeof vsrc);
+            }
+            for (j = 0; j < mxn; j++) {
+                int32_t x = vsrc[mxs[j]], a = mxa[j], d = mxd[j];
+                if (d == MD_PIT)
+                    mo[d] += (x * a * 3) >> 7;          /* 1/4096 semitone: +-12 at full */
+                else if (d == MD_CUT)
+                    mo[d] += (x * a) >> (mxs[j] >= MS_AENV && mxs[j] <= MS_PENV ? 6 : 7);   /* (an envelope: +-128) */
+                else if (d == MD_LVL) {                 /* a depth: the level only ever comes down from the voice's own */
+                    int32_t u = mxs[j] == MS_LFO1 || mxs[j] == MS_LFO2 || mxs[j] == MS_KEY ? (x + 32768) >> 1 : x;
+                    mo[d] += a > 0 ? ((32767 - u) * a) >> 6 : (u * -a) >> 6;
+                } else
+                    mo[d] += (x * a) >> 7;              /* M1 M2 M3 RES: 1/256 of a step, +-64 at full */
+            }
+            if (mo[MD_LVL])
+                m.amp1 = mulq15(m.amp1, 32767 - clamp(mo[MD_LVL], 0, 32767));
             if (fade)                                   /* linear to 0 over the fade */
                 m.amp1 = m.amp1 * (int32_t)(t->xf - 1u) / (int32_t)XF_BLOCKS;
             m.amp0 = v->env_out;
@@ -865,7 +920,7 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
             continue;                                   /* held at a silent sustain (SUS 0): nothing to render */
         {   /* the pitch in 1/4096 semitone: glide, LFO, the pitch envelope; the fraction goes into the increment */
             int32_t q = (v->pitch_cur << 8) + v->pitch_frac + ((lfo * p[P_LD_PIT] * 3) >> 7) +
-                        ((v->penv * p[P_ED_PIT] * 3) >> 7) + bendq + octq;
+                        ((v->penv * p[P_ED_PIT] * 3) >> 7) + bendq + octq + mo[MD_PIT];
             pitch = (q >> 8) + tune;
             m.pitch16 = clamp(pitch, 0, 2047);
             m.inc = pitch_inc(m.pitch16);
@@ -882,19 +937,50 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
         if (v->vel > 110)                               /* accent opens the filter with the env */
             m.cutoff += (fe * 24) >> 7;
         m.shape = (64 << 8) + ((lfo * p[P_LD_SHP]) >> 7) + ((m.envq15 * p[P_ED_SHP]) >> 7);
-        if (vgen && n <= CTL) {                         /* the oscillator at full level, the filter, then the amp */
-            int32_t tb[CTL];
-            vmod_t mu = m;
-            uint32_t j;
-            mu.amp0 = mu.amp1 = 32767;
-            for (j = 0; j < n; j++)
-                tb[j] = 0;
-            e->render(t, v, tb, n, &mu);
-            vf_run(v, tb, n, ((int32_t)p[P_FCUT] << 8) + m.cutoff, p[P_FRES], p[P_FDRV], (uint32_t)p[P_FTYPE] % VF_NTYPE);
-            for (j = 0; j < n; j++)
-                out[j] += (int32_t)(((int64_t)tb[j] * amp_at(&m, j)) >> 15);   /* (64-bit: a ringing filter is loud) */
-        } else {
-            e->render(t, v, out, n, &m);
+        m.cutoff += mo[MD_CUT];
+        {
+            int16_t mb[4] = {0, 0, 0, 0}, ms[4] = {0, 0, 0, 0};   /* (wave 5) the macros and RES moved for this voice: */
+            uint32_t mid[4] = {0, 0, 0, 0}, nm = 0;              /* what they were, what they were set to */
+            if (mxn) {
+                for (j = 0; j < 3u; j++) {
+                    int32_t o = mo[MD_M1 + j];
+                    if (!o || mxe[j] >= 8u)
+                        continue;
+                    if (mxsh[j]) {                      /* the engine's "shape": at 1/256 of a step, as LFO > SHP was */
+                        m.shape += o;
+                    } else {
+                        const param_desc_t *d = &e->edit[mxe[j]];
+                        mid[nm] = P_E0 + mxe[j];
+                        mb[nm] = t->p[mid[nm]];
+                        ms[nm] = (int16_t)clamp(mb[nm] + ((o + 128) >> 8), d->min, d->max);
+                        t->p[mid[nm]] = ms[nm];
+                        nm++;
+                    }
+                }
+                if (mo[MD_RES]) {
+                    mid[nm] = P_FRES;
+                    mb[nm] = t->p[P_FRES];
+                    ms[nm] = (int16_t)clamp(mb[nm] + ((mo[MD_RES] + 128) >> 8), 0, 127);
+                    t->p[P_FRES] = ms[nm];
+                    nm++;
+                }
+            }
+            if (vgen && n <= CTL) {                     /* the oscillator at full level, the filter, then the amp */
+                int32_t tb[CTL];
+                vmod_t mu = m;
+                mu.amp0 = mu.amp1 = 32767;
+                for (j = 0; j < n; j++)
+                    tb[j] = 0;
+                e->render(t, v, tb, n, &mu);
+                vf_run(v, tb, n, ((int32_t)p[P_FCUT] << 8) + m.cutoff, p[P_FRES], p[P_FDRV], (uint32_t)p[P_FTYPE] % VF_NTYPE);
+                for (j = 0; j < n; j++)
+                    out[j] += (int32_t)(((int64_t)tb[j] * amp_at(&m, j)) >> 15);   /* (64-bit: a ringing filter is loud) */
+            } else {
+                e->render(t, v, out, n, &m);
+            }
+            while (nm--)                                /* back, unless the UI turned it meanwhile (the other core) */
+                if (t->p[mid[nm]] == ms[nm])
+                    t->p[mid[nm]] = mb[nm];
         }
         nr++;
     }

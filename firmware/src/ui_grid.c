@@ -1015,8 +1015,15 @@ static void sg_synth_input(uint32_t pressed)
                 sg_held_knob(k, s);
             else if (!syn_hcur())
                 sg_free_knob(k, s);
-            else
-                ui_message("HOLD A STEP");
+            else if (k == 0u)                           /* (wave 5) TRIG 2/2, nothing held: SPICE, DICE (the MiniFreak's) */
+                mxt[song.sel % NPART].spice = (int16_t)clamp(mxt[song.sel % NPART].spice + accel(EN_K1, s, 127), 0, 127);
+            else if (k == 1u) {                         /* each detent a roll: right a new one, left back to the last */
+                char b[12];
+                mxt[song.sel % NPART].dice = (int16_t)((mxt[song.sel % NPART].dice + (s > 0 ? 1 : 9999)) % 10000);
+                b[0] = '#';
+                fmt_int(b + 1, mxt[song.sel % NPART].dice);
+                ui_say(mxt[song.sel % NPART].spice ? "DICE " : "DICE (SPICE 0) ", b);
+            }
         } else if (syn_page() < NPAGES) {
             const page_t *pg = &PAGES[syn_page()];
             uint32_t id = pg_id(pg, k);
@@ -1224,16 +1231,35 @@ static void sg_tiles_draw(uint32_t y, uint32_t big)
             continue;
         {                                               /* (synth tracks: the drum grid has its own, ui_op.c) */
             const step_t *st = &t->step[idx];
+            int32_t q;
             if (step_on(st)) {
                 cv_rect(x, ty, w, (int32_t)th, held ? C_WHITE : TE_COL[sel]);
                 if (big) {                              /* the note without its octave, centred; the octave as 1..4
                                                          * ticks over the velocity bar (review 19) */
                     const char *nm = N_NOTE[st->note[0] % 12u];
-                    int32_t o = clamp((int32_t)st->note[0] / 12 - 2, 1, 4), q;
+                    int32_t o = clamp((int32_t)st->note[0] / 12 - 2, 1, 4);
                     uint16_t ink = held || !(st->flags & SF_ACCENT) ? C_BLACK : C_WHITE;   /* an accent: white */
                     cv_text(x + (w - text_w(&FONT_S, nm)) / 2, ty + 4, &FONT_S, nm, ink);
                     for (q = 0; q < o; q++)
                         cv_rect(x + (w - (o * 4 - 2)) / 2 + q * 4, ty + (int32_t)th - 7, 2, 2, ink);
+                }
+                if (big && !is_drum(t) && mxt[song.sel % NPART].spice) {   /* (wave 5) Spice: the roll's variation of the
+                                                         * step, drawn over it: left out dim, an octave an arrow at the
+                                                         * left, a ratchet ticks at the right, the length a line */
+                    spv_t sv;
+                    spice_of(t, idx, &sv);
+                    if (sv.off) {
+                        cv_rect(x, ty, w, (int32_t)th, held ? C_WHITE : TE_DIM[sel]);
+                        cv_line(x, ty + (int32_t)th - 1, x + w - 1, ty, C_BLACK);
+                    }
+                    if (sv.oct > 0)
+                        cv_rect(x + 2, ty + 2, 3, 1, C_WHITE), cv_rect(x + 3, ty + 1, 1, 1, C_WHITE);
+                    else if (sv.oct < 0)
+                        cv_rect(x + 2, ty + 1, 3, 1, C_WHITE), cv_rect(x + 3, ty + 2, 1, 1, C_WHITE);
+                    for (q = 0; q + 1 < (int32_t)sv.hits; q++)
+                        cv_rect(x + w - 2, ty + 6 + q * 4, 2, 2, C_BLACK);
+                    if (!sv.off)
+                        cv_rect(x + 2, ty + (int32_t)th - 1, (w - 4) * clamp((int32_t)sv.glen, 16, 112) / 112, 1, C_WHITE);
                 }
                 if (st->flags & SF_SLIDE)                   /* a slide: a 3 x 3 mark, 2 px in from the top right */
                     cv_rect(x + w - 5, ty + 2, 3, 3, held ? C_BLACK : C_WHITE);
@@ -1363,6 +1389,7 @@ static void sg_draw(void)
           (song.playing ? t->seq_idx + 1u : 0u) * 71u;
     sig = sig * 31u + sr_on * 5u + sr_down * 11u + sr_n * 13u + sr_nt[0] * 17u + sr_nt[1] * 19u + sr_nt[2] * 23u +
           sr_nt[3] * 29u;
+    sig = sig * 31u + (uint32_t)mxt[song.sel % NPART].spice * 101u + (uint32_t)mxt[song.sel % NPART].dice * 7u;   /* (wave 5) */
     if (ui.force || sig != tiles_sig) {
         tiles_sig = sig;
         sg_tiles_draw(SG_BODY_Y, 1);

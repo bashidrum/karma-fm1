@@ -55,14 +55,15 @@ _Static_assert(NELEM(VTYPES) == 2u + PRM_COUNT + EM_COUNT, "a Type a model: ACID
 #undef VT_PL
 #undef VT_EL
 /* the Type a track plays (the engine it asked for, its MODEL), NVTYPE: none (the drum track, an engine gone) */
-static uint32_t vtype_of(const track_t *t)
+static uint32_t vtype_find(uint32_t e, uint32_t md)   /* (wave 5) .. of engine e, MODEL md */
 {
-    uint32_t e = t->eng_req % NENGINES, md = (uint32_t)t->p[P_E0], i;
+    uint32_t i;
     for (i = 0; i < NVTYPE; i++)
         if (VTYPES[i].eng == e && (VTYPES[i].model == 0xFFu || VTYPES[i].model == md))
             return i;
     return NVTYPE;
 }
+static uint32_t vtype_of(const track_t *t) { return vtype_find(t->eng_req % NENGINES, (uint32_t)t->p[P_E0]); }
 /* the E index (0..7) of macro k (0..4) on track t, 0xFF: none */
 static uint32_t vtype_macro(const track_t *t, uint32_t k)
 {

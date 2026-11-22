@@ -80,7 +80,12 @@ static void setup(void)
 {
     uint32_t i;
     host_tracks_init();
-    memset(ins, 0, sizeof ins);
+    for (i = 0; i < 4u; i++) {                          /* (PHEBUS wave 5: the drum track's INSERT states; the voices' slots) */
+        int16_t *ln = ins[i].line;
+        memset(&ins[i], 0, sizeof ins[i]);
+        ins[i].line = ln;
+    }
+    memset(xst, 0, sizeof xst);
     for (i = 0; i < NTRK; i++) {
         trk[i].ins_run = 0;
         trk[i].tail = 0;
@@ -114,15 +119,23 @@ static void t_insert(void)
     trk_note_on(&trk[0], 45, 100);                    /* A2 */
     fork_dry(400);                                    /* the same start (voices, buses, random numbers), TYPE OFF */
     memcpy(dry, shared_dry, 400u * CTL * 4u);
-    trk[0].p[P_ITYPE] = 1, trk[0].p[P_IMIX] = 0;       /* SOFT at MIX 0: nothing runs */
+    /* (PHEBUS wave 5) a voice's INSERT is its FX slots now (Ben, 21 Nov 2026: "FX slots"): the INSERT's types are slot types,
+     * the same code; TIME INTENS AMOUNT as the slot names them. The INSERT itself stays the drum track's (below) */
+    xs_defaults(trk[0].p, 0, XT_SOFT);
+    trk[0].p[P_X1AMT] = 0;                               /* SOFT at MIX 0: nothing runs */
     render(400);
     check(!memcmp(dry, out_l, 400u * CTL * 4u) && !trk[0].ins_run, "INSERT at MIX 0: the part bit for bit as with TYPE OFF");
-    for (ty = 1; ty < IT_N; ty++) {
+    for (ty = 1; ty < IT_N - 1u; ty++) {                 /* (SOFT .. FLANG; the INSERT's mono CHOR is the shared CHORUS now) */
+        static const uint8_t XT[IT_N] = {0, XT_SOFT, XT_HARD, XT_FOLD, XT_FUZZ, XT_CRUSH, XT_PHASER, XT_FLANGER, 0};
         double d = 0, r;
         int32_t mx = 0;
         setup();
-        trk[0].p[P_ITYPE] = (int16_t)ty, trk[0].p[P_IMIX] = 127;
-        trk[0].p[P_IA] = 100, trk[0].p[P_IB] = 96, trk[0].p[P_IC] = 96;
+        xs_defaults(trk[0].p, 0, XT[ty]);
+        trk[0].p[P_X1AMT] = 127;
+        if (ty <= 5u)                                     /* DRIVE (or BITS) 100, TONE (or RATE) 96 */
+            trk[0].p[P_X1INT] = 100, trk[0].p[P_X1TIME] = 96;
+        else                                              /* RATE 100, FDBK 96 */
+            trk[0].p[P_X1TIME] = 100, trk[0].p[P_X1INT] = 96;
         trk_note_on(&trk[0], 45, 100);
         render(400);
         for (i = 0; i < 400u * CTL; i++) {
@@ -132,8 +145,8 @@ static void t_insert(void)
         r = rms(100u * CTL, 400u * CTL);
         printf("  %-5s: rms %.0f, mean |diff| %.0f, peak %d\n", N_ITYPE[ty], r, d / (400.0 * CTL), mx);
         check(d / (400.0 * CTL) > 50.0 && mx < 32767 && r > 200.0 && trk[0].ins_run,
-              ty == 1 ? "each INSERT type (SOFT .. CHOR) changes the part, bounded, heard" : N_ITYPE[ty]);
-        trk[0].p[P_ITYPE] = 0;                        /* OFF: it fades out, then the part is dry again */
+              ty == 1 ? "each INSERT type (SOFT .. FLANG) as an FX slot changes the part, bounded, heard" : N_ITYPE[ty]);
+        xs_type_set(trk[0].p, 0, XT_OFF);              /* OFF: it fades out, then the part is dry again */
         render(4);
         same = !trk[0].ins_run;
         check(same, ty == 1 ? "TYPE OFF: the INSERT stops after its fade" : "  (fade out)");
@@ -159,7 +172,7 @@ static void t_insert(void)
         render(1400);
         b = rms(0, 1400u * CTL);
         printf("  drums: rms dry %.0f, FUZZ %.0f\n", a, b);
-        check(a > 100 && fabs(b - a) > 0.05 * a && TDRUM->ins_run && ins[NPART].type == 4u && ins[NPART + 2u].w,
+        check(a > 100 && fabs(b - a) > 0.05 * a && TDRUM->ins_run && ins[INS_D0].type == 4u && ins[INS_D0 + 2u].w,
               "the drum track's INSERT (FUZZ): the kick changed, left / right / sends through it");
         transport_req = 2;
         render(4);

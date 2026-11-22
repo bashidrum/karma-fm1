@@ -105,7 +105,7 @@ After a layer lets go, the knobs ignore you for a quarter of a second, so a knob
 
 **The tabs.** On a synth voice's sound pages, a row above the dials lists the five stages of the sound chain, OSC FILT ENV FX MOD, the current one inverted in the voice's colour; "1/3" and so on at the right is the page (the "half") within it. On the GRID the row starts with TRIG, as on the drum screen. See [Sound design](#7-sound-design-along-the-chain).
 
-**Pictures.** A synth sound page shows its subject large in the voice's colour (OSC the Type, FILT the filter type, ENV AMP or FILTER, FX and MOD the page), a line under it, and a drawing of what the knobs do: the oscillator's wave, the filter's response with the envelope's sweep, the envelope or envelopes, the sends, the insert's curve, the LFO, and bars for the rest. No character and no scene behind it.
+**Pictures.** A synth sound page shows its subject large in the voice's colour (OSC the Type, FILT the filter type, ENV AMP or FILTER, FX and MOD the page), a line under it, and a drawing of what the knobs do: the oscillator's wave, the filter's response with the envelope's sweep, the envelope or envelopes, the FX slots and their effect, the LFOs, and the mod matrix's grid. No character and no scene behind it.
 
 ### The HOME screen
 
@@ -135,7 +135,7 @@ A new project (and a power-on with nothing saved) starts with plain sounds and *
 | 3 | PLAITS INIT, a plain sawtooth (the VA Type), one note at a time, the filter open, about 6 dB quieter. Good for lead |
 | Drums | the 606 kit |
 
-All the effect sends (DIST, CHORUS, DELAY, REVERB) start at zero. **SAVE > TOOLS > NEW** puts a project back to this starting point.
+Every voice's three FX slots start OFF (no drive, no chorus, delay or reverb send) and the mod matrix empty. **SAVE > TOOLS > NEW** puts a project back to this starting point.
 
 To make a first sound:
 
@@ -244,9 +244,20 @@ On a sound tab the knobs edit the sound, as on the sound pages. On **TRIG 1/2**:
 | **PRESETS** | picks the sound |
 | **SELECT** | the tabs (the tempo: on HOME) |
 
+### Spice and Dice (synth voice)
+
+The MiniFreak's way of varying a pattern without rewriting it. On **TRIG 2/2** with no step held (turn SELECT right on the TRIG tab):
+
+| Control | Does |
+| --- | --- |
+| KNOB 1 **SPICE** | how much of the variation you hear, 0 to 100 %. At 0 the pattern plays exactly as written |
+| KNOB 2 **DICE** | each click to the right rolls a new variation (DICE #n); each click left goes back to the roll before |
+
+A roll gives every step its own random changes: left out (up to about 30 % of the notes at full Spice), an octave up or down (25 %), a ratchet of two or three hits (20 %), a different velocity (up to 48 either way) and a different length (a quarter to 1.75 times). More Spice is the same roll, further: the steps that vary at a little Spice keep varying the same way as you turn it up. The same roll at the same Spice plays the same variation every loop. **The notes you wrote never change**: turn Spice back to 0 and the pattern is as it was. The tiles show the variation while Spice is up: a step left out is drawn dim with a line through it, an octave as a small arrow at its top left, a ratchet as ticks at its right edge, the length as a thin line under it. Spice and Dice belong to the pattern (each A to D section keeps its own) and to the melodic voices only (the Rytm has nothing like it on its drums).
+
 ### Pattern settings
 
-The pattern's DIV, SWING and STEPS are on **hold SEQ** ([section 13](#13-tempo-swing-key-and-scale)). **DIV** values: 1/4, 1/8, 1/16 (the usual), 1/32, 8T, 16T, 1/2, 1BAR, 2BAR. Tapping SEQ on the GRID no longer opens the old PATTERN page (it changes the GRID's tab, as on the drum screen), so its GATE has no page at present.
+The pattern's GATE, DIV, SWING and STEPS are on **hold SEQ** ([section 13](#13-tempo-swing-key-and-scale)): KNOB 1 GATE (how long each note sounds within its step), KNOB 2 DIV, KNOB 3 SWING, KNOB 4 STEPS. **DIV** values: 1/4, 1/8, 1/16 (the usual), 1/32, 8T, 16T, 1/2, 1BAR, 2BAR.
 
 ### Step record (STEP REC)
 
@@ -449,23 +460,22 @@ Each stage's pages are shown as halves, "1/3" at the right of the tabs.
 
 | Page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
 | --- | --- | --- | --- | --- |
-| **OSC 1/3** | **TYPE** (31, one a detent) | macro 1 | macro 2 | macro 3 |
-| **OSC 2/3** | **OCT** (-3 to +3 octaves) | **TUNE** (-99 to +99 cents) | **GLIDE** | **VOICE** (POLY, MONO, LEG, UNI) |
-| **OSC 3/3** | the Type's 4th control | the Type's 5th control | **DTUNE** (unison spread) | **PRIOR** (LAST, LOW, HIGH) |
+| **OSC 1/4** | **TYPE** (31, one a detent) | macro 1 | macro 2 | macro 3 |
+| **OSC 2/4** | **OCT** (-3 to +3 octaves) | **TUNE** (-99 to +99 cents) | **GLIDE** | **VOICE** (POLY, MONO, LEG, UNI) |
+| **OSC 3/4** | the Type's 4th control | the Type's 5th control | **DTUNE** (unison spread) | **PRIOR** (LAST, LOW, HIGH) |
+| **OSC 4/4** | **GLMODE** (RATE: GLIDE is the time an octave takes; TIME: the time any glide takes) | **ALLOC** (ROT: poly notes take the voices in turn; REUSE: the nearest free voice) | | |
 | **FILT 1/2** | **CUTOFF** | **RESO** | **ENV** (how far the filter's envelope moves it, either way) | **TYPE**: LP24, LP12, BP, HP |
 | **FILT 2/2** | **KEY** (the cutoff follows the note) | **DRIVE** | **LINK**: AMP or OWN | |
 | **ENV 1/2** (AMP) | **ATTACK** | **DECAY** | **SUSTN** | **RELEAS** |
 | **ENV 2/2** (FILT) | **ATTACK** | **DECAY** | **SUSTN** | **RELEAS** (the filter's own envelope) |
-| **FX** | **DIST** | **CHORUS** | **DELAY** | **REVERB** (this voice's sends) |
-| **INSERT** | **TYPE** | A | B | C |
-| **INSERT 2** | **MIX** | | | |
+| **FX 1/4**, **2/4**, **3/4** | **TYPE** | TIME | INTENS | AMOUNT (named by the type: see [FX slots](#fx-slots)) |
 | **SLICER** | **SLCR** | **PAT** | **RATE** | **DEPTH** |
 | **LFO** | **RATE** | **WAVE** | **PHASE** | **FADE** |
-| **LFO DEST** | **PIT** | **FLT** (the filter) | **SHP** | **AMP** |
-| **LFO SYNC** | **SYNC** | **TRIG** (NOTE, FREE, PATT) | **POL** | |
-| **ENV DEST** | **PIT** (the amp ENV to pitch) | **SHP** | **ESYNC** | |
+| **LFO SYNC** | **SYNC** | **TRIG** (NOTE, FREE, PATT) | **POL** | **ESYNC** (both envelopes in note values) |
+| **LFO 2** | **RATE** | **WAVE** | **SYNC** | **TRIG** (NOTE, FREE, PATT; FREE to start) |
+| **MATRIX** | **SOURCE** (the row) | **DEST** (the column) | **AMOUNT** | **CLEAR** (on AS1, AS2: **TARGET**) |
 
-FX and MOD are kept as they were (wave 5 rebuilds them as FX slots and the mod matrix); only their look changed.
+Where the LFO and the envelopes go is the matrix's: see [The mod matrix](#the-mod-matrix).
 
 ### The oscillator: Type and macros
 
@@ -479,7 +489,8 @@ One resonant filter on every voice, after the oscillator and before the amp, wha
 - **ENV** moves the cutoff with the filter's envelope, up (+) or down (-); at the ends it sweeps the whole range.
 - **DRIVE** pushes the sound into the filter for grit.
 - **KEY** at 100 % makes the cutoff follow the note exactly.
-- The LFO moves it too (MOD > LFO DEST > FLT), and an accented note opens it a little more.
+- The LFO moves it too (the matrix's LFO1 > CUT), and an accented note opens it a little more.
+- **ENV** and **KEY** are the matrix's FENV > CUT and KEY > CUT cells: turning either here or in the grid changes the same value.
 
 **LINK** chooses the filter's envelope:
 
@@ -490,7 +501,7 @@ One resonant filter on every voice, after the oscillator and before the amp, wha
 
 While it is linked, ENV 2/2 shows the amp ENV's values in grey and says LINKED TO THE AMP ENV. **Turning any of its knobs makes it OWN**, starting from the amp ENV's values (the message says FILTER ENV: OWN). LINK on FILT 2/2 switches back. Both shapes are drawn: the one you are on in the voice's colour, the other faint behind.
 
-**ESYNC** (MOD > ENV DEST) makes ATTACK, DECAY and RELEASE note values of the tempo, for both envelopes. **LFO SYNC**: SYNC locks the LFO to a note value; TRIG chooses what restarts it; POL chooses bipolar or unipolar.
+**ESYNC** (MOD > LFO SYNC, KNOB 4) makes ATTACK, DECAY and RELEASE note values of the tempo, for both envelopes. **LFO SYNC**: SYNC locks the LFO to a note value; TRIG chooses what restarts it; POL chooses bipolar or unipolar.
 
 | TRIG | The LFO restarts (at its PHASE) |
 | --- | --- |
@@ -502,25 +513,62 @@ While it is linked, ENV 2/2 shows the amp ENV's values in grey and says LINKED T
 
 | Page | Drawing |
 | --- | --- |
-| OSC 1/3, 3/3 | the waveform (a schematic for ELEMENTS and some PLAITS models; FOLD, SWARM, WAVETABLE, ADDITIVE and CHORD their own picture) |
-| OSC 2/3 | the pitch on a scale of +-3 octaves, and a note diagram of the voice mode and glide |
+| OSC 1/4, 3/4, 4/4 | the waveform (a schematic for ELEMENTS and some PLAITS models; FOLD, SWARM, WAVETABLE, ADDITIVE and CHORD their own picture) |
+| OSC 2/4 | the pitch on a scale of +-3 octaves, and a note diagram of the voice mode and glide |
 | FILT | the response curve at its TYPE, the resonance peak, a shaded wedge for how far the envelope sweeps it; DRIVE lifts the curve, KEY tilts a line through the cutoff |
 | ENV | the envelope (AMP | FILT selector top right); the other envelope faint behind when the filter is OWN |
-| FX | the sends as drawn boxes |
-| INSERT | the effect's transfer curve, or a swept-notch plot |
+| FX | the three slots as boxes (the one on the knobs filled, a lit square when a slot is on), then the effect: the delay's echoes, the reverb's tail, the chorus or the sweep, a drive's curve, the EQ's three bands |
 | SLICER | its 16-step pattern |
-| LFO | the LFO shape, running |
-| LFO DEST, ENV DEST | bar graphs |
+| LFO, LFO 2 | the LFO shape, running |
+| MATRIX | the grid |
 
-### INSERT types
+### FX slots
 
-| Type | A | B | C |
+Three slots in series on every voice, after the filter and before the voice's level, as on the MiniFreak. **All three are OFF to start**, and every INIT sound starts with none. KNOB 1 picks a slot's **TYPE**; the other three knobs are the MiniFreak's TIME, INTENSITY and AMOUNT, named by the type. Picking a type sets its knobs to that type's start.
+
+| Type | KNOB 2 | KNOB 3 | KNOB 4 |
 | --- | --- | --- | --- |
-| SOFT, HARD, FOLD, FUZZ | DRIVE | TONE | LEVEL |
-| CRUSH | BITS | RATE | LPF |
-| PHASR, FLANG, CHOR | RATE | DEPTH | FDBK |
+| **CHORUS** | RATE (shared) | DEPTH (shared) | SEND |
+| **PHASER** | RATE | FDBK | MIX |
+| **FLANGER** | RATE | FDBK | MIX |
+| **REVERB** | SIZE (shared) | DAMP (shared) | SEND |
+| **DELAY** | TIME (shared) | FDBK (shared) | SEND |
+| **DIST** | TONE | DRIVE | MIX |
+| **SOFT**, **HARD**, **FOLD**, **FUZZ** | TONE | DRIVE | MIX |
+| **CRUSH** | RATE (the held sample's) | BITS | MIX |
+| **EQ** | LOW | MID | HIGH (each -12 to +12 dB) |
 
-TYPE OFF (or MIX at 0) costs nothing. A, B, C and MIX can be locked on a step.
+**The shared effects.** There is one chorus, one reverb and one delay line for the whole FM-1 (the MiniFreak also has only one reverb and one delay). A CHORUS, REVERB or DELAY slot is this voice's **send** to it: KNOB 4 is how much this voice sends. Their KNOB 2 and KNOB 3 are the shared effect's own settings, the same values as GLO > REV/CHO and GLO > DLY, so they change it for every voice; they are drawn in white, not the voice's colour, to say so. A voice sends nothing to a shared effect unless it has a slot of that type. A voice can have one CHORUS, one REVERB, one DELAY and one FLANGER; KNOB 1 skips a type another slot of the voice already has. Turning a send slot to another type puts its send back to 0.
+
+MIX at 0, a send at 0, an EQ with all three bands at 0 dB, or OFF: the slot costs nothing and the voice is exactly as without it. TIME, INTENS and AMOUNT can be locked on a step; TYPE cannot (as the MiniFreak's). The drum voice keeps its own INSERT (TYPE, DRIVE TONE LEVEL / BITS RATE LPF / RATE DEPTH FDBK, and MIX) on its FX pages.
+
+### The mod matrix
+
+MOD's last page is the MiniFreak's matrix as a grid: **sources** down the side, **destinations** across. Each cell is an amount, plus or minus; a filled square is a positive amount, an empty square a negative one, bigger for more; a grey dot is empty. Six columns show at a time: the view slides when the cursor goes past them (a < or > says there are more).
+
+| Sources (rows) | |
+| --- | --- |
+| **LFO1** | the LFO page's LFO |
+| **LFO2** | the second LFO (MOD > LFO 2) |
+| **AENV** | the amp envelope |
+| **FENV** | the filter's envelope (LINK AMP: the amp envelope) |
+| **PENV** | the pitch envelope: a fast fall from each note's start (about 40 ms) |
+| **VEL** | the note's velocity |
+| **KEY** | the note, from C4 |
+
+| Destinations (columns) | |
+| --- | --- |
+| **PIT** | pitch, up to 12 semitones either way |
+| **M1**, **M2**, **M3** | the OSC page's three macros, as the Type names them |
+| **CUT**, **RES** | the filter's cutoff and resonance |
+| **LVL** | the voice's level (it only ever comes down from the voice's own) |
+| **PAN** | the voice's pan |
+| **FX1**, **FX2**, **FX3** | each slot's AMOUNT (its MIX, or a shared effect's send) |
+| **AS1**, **AS2** | any sound parameter you choose with KNOB 4 **TARGET** |
+
+**KNOB 1 SOURCE** and **KNOB 2 DEST** move the white frame; **KNOB 3 AMOUNT** sets that cell; **KNOB 4 CLEAR** sets it back to 0 (on AS1 and AS2, KNOB 4 is **TARGET**, the parameter the column moves). PIT, the macros, CUT, RES and LVL act on each note with its own envelopes; PAN, FX and AS act on the whole voice, following the note played last.
+
+**Six cells are the fixed routings of before**, one value shown in both places: **LFO1 > PIT**, **LFO1 > CUT**, **LFO1 > LVL** (a tremolo depth, one way only), **FENV > CUT** (the FILT page's ENV), **PENV > PIT**, **KEY > CUT** (FILT 2's KEY, one way). Besides those, a voice can set 19 cells; the 20th says MATRIX FULL. A fixed cell's AMOUNT can be locked on a step (hold the step on the GRID's MOD tab); the other cells cannot.
 
 ### Presets and INIT
 
@@ -597,6 +645,7 @@ Tap **GLO**. Tap again, or turn SELECT, for the next page. These pages are share
 - **FILT** is a DJ filter: left low-pass, right high-pass, centre off.
 - **ROLL** is the note-repeat rate of ARP + key.
 - **DLY** TIME values include 1/4, 1/8, 1/16, 1/32, 8T, 16T and dotted values.
+- **DLY** and **REV/CHO** are the shared effects a voice sends to through a CHORUS, REVERB or DELAY FX slot; such a slot shows their TIME and INTENSITY too (in white: the same for every voice).
 
 ---
 
@@ -708,6 +757,7 @@ The keys do nothing. The screen draws the pattern in time with the swing, and th
 
 | Control | Does |
 | --- | --- |
+| KNOB 1 **GATE** | how long each note of the pattern sounds within its step, 1 to 100 % (synth voices; the drums: --) |
 | KNOB 2 **DIV** | 1/4, 1/8, 1/16, 1/32, 8T, 16T, 1/2, 1BAR, 2BAR |
 | KNOB 3 **SWING** | 0 to 100, per voice |
 | KNOB 4 **STEPS** | 1 to 64 |
@@ -791,7 +841,7 @@ On USB the FM-1 shows up as a MIDI device and an audio input. Its USB product na
 | 71 | RES (engines that have one) |
 | 72, 73, 75 | release, attack, decay |
 | 74 | the voice's FILTER (64 is off) |
-| 91, 93, 94 | reverb, chorus and delay sends |
+| 91, 93, 94 | reverb, chorus and delay sends (a synth voice with no slot of that type gets one in its first OFF slot; with none OFF the CC does nothing) |
 | 64 | sustain pedal |
 | 120, 123 | all sound off, all notes off |
 | 121 | reset all controllers |
@@ -814,9 +864,9 @@ The FM-1 is also a class-compliant USB audio input (no driver). **MENU > AUDIO >
 
 ## 17. The oscillator Types
 
-Every synth voice can play every Type. A Type is an engine and, where the engine has several, one of its models. KNOB 1 on OSC picks it; KNOB 2 to 4 are its three macros (OSC 1/3); the 4th and 5th controls, where it has them, are on OSC 3/3.
+Every synth voice can play every Type. A Type is an engine and, where the engine has several, one of its models. KNOB 1 on OSC picks it; KNOB 2 to 4 are its three macros (OSC 1/4); the 4th and 5th controls, where it has them, are on OSC 3/4.
 
-| # | Type | Engine | Macro 1 | Macro 2 | Macro 3 | OSC 3/3 |
+| # | Type | Engine | Macro 1 | Macro 2 | Macro 3 | OSC 3/4 |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | ACID 303 | ACID | WAVE (saw, square) | ACCENT | SLIDE | |
 | 2 | JUNO DCO | JUNO | WAVE (SAW, PLS, S+P) | PW | SUB | NOISE, CHORUS |
@@ -909,10 +959,15 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 | Gesture | Does |
 | --- | --- |
 | tap EDIT | enter OSC; on the chain, the next stage |
-| tap ENV, FX, LFO | that stage's first page; again, its next page (ENV: AMP, then FILT) |
+| tap ENV, FX, LFO | that stage's first page; again, its next page (ENV: AMP, then FILT; FX: FX 1, FX 2, FX 3, SLICER; LFO: LFO, LFO SYNC, LFO 2, MATRIX) |
 | SELECT | the previous or next page of the chain |
 | KNOB 1 to 4 | the four values shown |
 | OSC KNOB 1 | the oscillator Type (31), one a detent |
+| FX 1 to 3, KNOB 1 | the slot's TYPE, one a detent (skips CHORUS, REVERB, DELAY, FLANGER when another slot of the voice has it) |
+| FX 1 to 3, KNOB 2 to 4 | TIME, INTENS, AMOUNT as the type names them (a shared effect's KNOB 2 and 3: GLO's, shown white) |
+| MATRIX, KNOB 1, KNOB 2 | move the cursor: SOURCE (row), DEST (column) |
+| MATRIX, KNOB 3 | the cell's AMOUNT (MATRIX FULL past 19 cells besides the fixed ones) |
+| MATRIX, KNOB 4 | CLEAR the cell; on AS1 or AS2, TARGET (the parameter that column moves) |
 | a FILT ENV knob, LINK AMP | the filter's envelope becomes OWN, from the amp ENV's values, then turns |
 | tap SEQ | the GRID, on this page's tab (the keys become steps) |
 | keys | play notes |
@@ -930,7 +985,9 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 | SELECT | every page of every tab, TRIG first, stopping at both ends |
 | KNOB 1 to 4, nothing held, a sound tab | edit the sound (as on the sound pages) |
 | KNOB 1 to 4, nothing held, TRIG 1/2 | NOTE (pen), STEP, HIT, VEL |
-| hold a step + KNOB 1 to 4, a sound tab | lock that value on the step (drawn inverted; the TYPE and VOICE, PRIOR cannot be locked) |
+| KNOB 1, nothing held, TRIG 2/2 | SPICE (0: the pattern as written) |
+| KNOB 2, nothing held, TRIG 2/2 | DICE: right a new roll, left the roll before |
+| hold a step + KNOB 1 to 4, a sound tab | lock that value on the step (drawn inverted; the TYPE, an FX slot's TYPE, a shared effect's settings, VOICE, PRIOR and the matrix's cursor cannot be locked; on MATRIX a fixed cell's AMOUNT can) |
 | hold a step + KNOB 1 to 4, TRIG | NOTE, LEN, VEL, COND; TRIG 2/2 FLAG, RATCH, NUDGE |
 | hold a step + OCT-, a sound tab | the lock of the knob last turned off; again, every lock of the step |
 | hold a step + OCT-, TRIG | clear the step's locks, nudge and condition |
@@ -1008,7 +1065,7 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 | ARP | KNOB 1 | roll rate (drums: the RETRIG rate, 1/1 to 1/80) |
 | ARP | black key (drums) | the RETRIG rate |
 | ARP | OCT- or OCT+ | ghost or hard hits (drums) |
-| SEQ | KNOB 2 to 4 | DIV, SWING, STEPS |
+| SEQ | KNOB 1 to 4 | GATE (synth voices), DIV, SWING, STEPS |
 | SEL | key | key of the song (drums: pick the sound; in MUTE mode: solo it) |
 | SEL | KNOB 1 to 4 | CHORD, SCALE, KEYS, TRANSP (drums: nothing) |
 | GLO | KNOB 1 to 4 | levels of 1, 2, 3, drums |
