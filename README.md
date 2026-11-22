@@ -1,7 +1,7 @@
 <h1 align="center">PHEBUS</h1>
 
 <p align="center"><b>Ben's custom firmware for the M-VAVE FM-1 groovebox. A fork of KARMA.</b><br>
-Four voices (robot, alien, crocodile and a snake on drums), a 64-step GRID sequencer, a stutter lane, a five-stage sound chain, performance effects on the keys, and four sections.</p>
+Three things and nothing else: melodic voices that work like the Arturia MiniFreak, drums that work like the Elektron Analog Rytm MKII, and effect pads that work like the Akai MPC.</p>
 
 <p align="center">
 <a href="GUIDE.md"><b>Read the guide</b></a> ·
@@ -12,13 +12,28 @@ Four voices (robot, alien, crocodile and a snake on drums), a 64-step GRID seque
 
 ---
 
-> **Status: unreleased, personal firmware.** Nothing in this repository has been run on a real FM-1 yet. Some FM-1 hardware
-> revisions can be bricked by custom firmware, so do not flash PHEBUS without checking your unit first.
+> **Status: unreleased, personal firmware.** Nothing in this repository has been run on a real FM-1 yet. Newer FM-1 units
+> have a changed chip and can be bricked by custom firmware: do not flash PHEBUS until the unit's chip revision is checked.
+
+## What PHEBUS is
+
+- **SYNTH: three melodic voices, the MiniFreak's way.** The same pages on every voice: an oscillator Type (31 on every
+  voice: ACID, JUNO, the Plaits and Elements models) with three macros, one resonant filter with its own envelope or linked
+  to the amp's, the amp envelope, three FX slots, and a mod matrix grid. Step entry on the keys, locks the Rytm's way,
+  step record, Spice and Dice.
+- **DRUM: 16 sounds, the Rytm's way.** Pick a sound, the 16 keys are its steps, hold a step and turn to lock. Every sound
+  has SRC, FLTR, AMP and LFO pages; every kit can be edited (your copy is saved with the project). Per-hit velocity,
+  conditions, chance, nudge and retrig; MUTE, CHROMATIC and FILL.
+- **PERFORM: the MPC's pad effects.** Hold FX and the keys are 22 effect pads on the whole mix: stutters 1/1 to 1/32,
+  reverse, half speed, sweeps, crush, gate, tape stop, pitch drop, echo and reverb throws, kills, with latch. Played while
+  recording, they land in the **STUTTER lane**, a fifth sequencer part that also plays its own stutters.
+- **Patterns A to D**, autosave, MIDI and USB audio to sit next to an MPC Sample, which does the sampling and arranging.
+- **HOME** shows the three pillars as three zones. One colour rule throughout: a voice's colour only on that voice's things.
 
 PHEBUS is based on [KARMA](https://eatyourgreensstudio-dotcom.github.io/karma-fm1/) by Ariel Muchnik, itself a fork of
 [SLOOP](https://github.com/isod89/sloop-fm1) by isod89, based on [Felucca](https://github.com/hugelton/Felucca) by Leo Kuroshita
 (Hügelton Instruments). It is free software under GPL-3.0-only; see [LICENSING.md](LICENSING.md). The full credits are further
-down this page. The guide for playing it is [GUIDE.md](GUIDE.md).
+down this page. The manual for playing it is [GUIDE.md](GUIDE.md); the cheat sheet is `web/emu/cheatsheet.html`.
 
 The text below is KARMA's own README, kept as it was. The website, browser simulator, installer and web editor linked in it
 belong to KARMA and install or run KARMA, not PHEBUS:
