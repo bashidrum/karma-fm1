@@ -918,6 +918,33 @@ int main(int argc, char **argv)
         check(dtest_rat(1, 0) == 1u && dt_x(1, 0) >= 0 && dpat.x[dt_x(1, 0)].micro == 5 && !TDRUM->micro[1],
               "DRUM GRID: step held + KNOB 2 RETRIG 1/32 (x2), KNOB 3 NUDGE 5: the trig's own (not the step's)");
         ui.force = 1; frame(); ppm("grid-drum-held");
+        {   /* (PHEBUS wave 2) SELECT: the trig's CHANCE (the Rytm's steps), its retrig's LENGTH and CURVE; then, on a HEX kit,
+             * ENV with the step held: HEX AEG locks the kick alone on that step (the kit and the knob's value unchanged) */
+            const dtx_t *x = &dpat.x[dt_x(1, 0)];
+            int32_t dec0;
+            int16_t kit0 = TDRUM->p[P_E0];
+            encs[panel.enc[EN_SELECT]] = 1; frame();
+            encs[panel.enc[EN_K1]] = -1; frame();
+            encs[panel.enc[EN_K2]] = 1; frame();
+            encs[panel.enc[EN_K3]] = -1; frame();
+            check(sg_alt && x->prob == 41 && x->rlen == 24 && x->rfade < 0 && x->rrate == 13 && x->micro == 5,
+                  "DRUM GRID: SELECT, a step held: CHANCE 50 -> 41 %, the retrig's LENGTH 1 -> 1.5 steps, CURVE down");
+            ui.force = 1; frame(); ppm("grid-drum-held-2");
+            encs[panel.enc[EN_SELECT]] = -1; frame();
+            TDRUM->p[P_E0] = 0; frames(2);              /* HEX BOOM */
+            dec0 = song.g[G_HXDEC];
+            tap(B_ENV); frames(2);
+            check(sg_lpage < NPAGES && !strcmp(PAGES[sg_lpage].title, "HEX AEG"), "DRUM GRID: a step held + ENV: HEX AEG locks");
+            encs[panel.enc[EN_K2]] = 1; frame();
+            check(dt_lk(1, 0, DSP_DEC) >= 0 && dpat.lk[dt_lk(1, 0, DSP_DEC)].val == dec0 + 1 && song.g[G_HXDEC] == dec0 &&
+                  HEX_KITS[0].s[0].dec == dec0 && TDRUM->p[P_E0] == 0 && dt_lk(1, 2, DSP_DEC) < 0,
+                  "DRUM GRID: KNOB 2 on HEX AEG: the kick's DEC locked on step 2 (+1), the kit and the knob's value unchanged");
+            ui.force = 1; frame(); ppm("grid-drum-lock");
+            edges_btn |= BT(B_OCTDN); fm1_in.buttons |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
+            check(dt_lk(1, 0, DSP_DEC) < 0 && dt_x(1, 0) >= 0, "DRUM GRID: OCT- on the lock page: that page's sound locks go (the extras stay)");
+            sg_lpage = 0xFF;
+            TDRUM->p[P_E0] = kit0; frames(2);
+        }
         fm1_in.notes &= ~(1u << key_of_lane(1)); frame();
         check(dt_has(1, 0), "DRUM GRID: let go after an edit: kept");
         key(key_of_lane(1));

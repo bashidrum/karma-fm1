@@ -950,8 +950,8 @@ static uint32_t sg_lines(const track_t *t, uint32_t idx, char ln[4][31])
             }
             str_cpy(ln[0] + str_len(ln[0]), "RETRIG ", 8);
             str_cpy(ln[0] + str_len(ln[0]), SG_RATE[x ? x->rrate % (NRTRG + 1u) : 0u], 6);
-            if (x && x->rrate) {
-                str_cpy(ln[0] + str_len(ln[0]), " x", 3);
+            if (x && x->rrate) {                        /* (its length, in steps) */
+                str_cpy(ln[0] + str_len(ln[0]), " LEN ", 6);
                 sg_rlen_str(ln[0] + str_len(ln[0]), x->rlen);
             }
             if (x && (x->cond || x->micro)) {           /* the condition, its chance, the nudge */
