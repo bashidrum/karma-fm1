@@ -26,6 +26,7 @@ static void op_box(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)   /* 
 
 /* the header: [tag] title | BPM, play / stop, the four beats, REC (else the unsaved dot), the battery */
 static uint8_t proj_unsaved;                           /* (PHEBUS) the work differs from flash (project.c unsaved_tick) */
+#define OP_BPM_R 154                                   /* the tempo's right edge */
 static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t *cache)
 {
     char b[12];
@@ -45,8 +46,14 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
         op_box(2, 1, w, 18, tc);
         te_text_c(2 + w / 2, 2, tag, tc);
         str_cpy(b, title, 10);
-        while (b[0] && w + 8 + text_w(&FONT_S, b) > 122)
-            b[str_len(b) - 1u] = 0;
+        {   /* (wave 7) the title's room: to 4 px before the tempo (three digits: "PATTERN A" fits; it was cut to "PATTERN") */
+            char t[8];
+            int32_t room;
+            fmt_int(t, song.g[G_BPM]);
+            room = OP_BPM_R - text_w(&FONT_S, t) - 6;
+            while (b[0] && w + 6 + text_w(&FONT_S, b) > room)
+                b[str_len(b) - 1u] = 0;
+        }
         if (fill_now || perf.lat) {                     /* (PHEBUS wave 3) a fill on (held, latched, the bar): FILL inverted,
                                                          * white: it is everyone's (the conditions of every track). (wave 6)
                                                          * PERFORM pads latched: PERF and how many, the same way */
@@ -64,20 +71,21 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
                 cv_text(x + 2, 2, &FONT_S, f, C_BLACK);
             }
         } else {
-            cv_text(w + 8, 2, &FONT_S, b, TE_G3);
+            cv_text(w + 6, 2, &FONT_S, b, TE_G3);
         }
     }
     fmt_int(b, song.g[G_BPM]);
-    cv_text(150 - text_w(&FONT_S, b), 2, &FONT_S, b, ui.bpm_t ? C_WHITE : TE_G4);
+    cv_text(OP_BPM_R - text_w(&FONT_S, b), 2, &FONT_S, b, ui.bpm_t ? C_WHITE : TE_G4);
     if (playing) {
         int32_t i;
         for (i = 0; i < 10; i++)
-            cv_rect(156 + i, 4 + i / 2, 1, 12 - i, C_WHITE);
+            cv_rect(OP_BPM_R + 6 + i, 4 + i / 2, 1, 12 - i, C_WHITE);
     } else {
-        cv_rect(156, 5, 10, 10, TE_G3);
+        cv_rect(OP_BPM_R + 6, 5, 10, 10, TE_G3);
     }
-    for (k = 0; k < 4u; k++)                           /* the four beats of the bar */
-        cv_rect(172 + (int32_t)k * 8, 7, 6, 6, playing && beat % 4u == k ? (k || !song.rec ? C_WHITE : TE_RED) : TE_G2);   /* (red: recording only) */
+    for (k = 0; k < 4u; k++)                           /* the four beats of the bar (wave 7: 7 px apart, 4 px right, so the
+                                                         * title PATTERN A clears the tempo) */
+        cv_rect(OP_BPM_R + 22 + (int32_t)k * 7, 7, 6, 6, playing && beat % 4u == k ? (k || !song.rec ? C_WHITE : TE_RED) : TE_G2);   /* (red: recording only) */
     if (song.rec || sr_on)                              /* (recording, or STEP REC: ui_grid.c) */
         te_disc(209, 10, 4, TE_RED);
     else if (proj_unsaved)                             /* (saved again at the next stop: project.c autosave_tick) */
@@ -1061,7 +1069,7 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
         cv_begin(240, 96, C_BLACK);
         cv_rect(0, 94, 240, 1, TE_G1);
         for (i = 0; i < NTRK; i++) {
-            int32_t cx = 4 + 58 * (int32_t)i + 27, h = 6 + ratio[i] * 70 / 1000, top = 94 - h, y, n = (h - 3) / 4, lit;
+            int32_t cx = 2 + 60 * (int32_t)i + 28, h = 6 + ratio[i] * 70 / 1000, top = 94 - h, y, n = (h - 3) / 4, lit;
             uint32_t mute = trk[i].p[P_MUTE] != 0;
             uint16_t c = mute ? TE_G3 : TE_COL[i];   /* (muted: grey, never darker, review 19) */
             if (mute) {                                 /* a muted podium: dashed */
@@ -1077,10 +1085,8 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
             lit = n * mx[i] / 82;
             for (y = 0; y < n; y++)
                 cv_rect(cx - 13, 91 - y * 4, 26, y < lit ? 2 : 1, y < lit ? TE_COL[i] : TE_G1);
-            if (mute || (song.solo >> i) & 1u) {
-                cv_rect(cx + 14, 2, 12, 14, mute ? TE_MUTE : TE_SOLO);
-                cv_text(cx + 16, 1, &FONT_S, mute ? "M" : "S", C_BLACK);
-            }
+            if (mute || (song.solo >> i) & 1u)          /* (wave 7: the strip's badge, one size everywhere) */
+                op_badge(cx + 16, 2, mute ? 'M' : 'S', mute ? TE_MUTE : TE_SOLO);
         }
         cv_blit(0, OP_BODY_Y);
     }
@@ -1116,8 +1122,11 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
     {
         uint8_t m = ui.msg_t;
         ui.msg_t = 0;
-        knob_tint_voices();                             /* the mixer: one knob per voice */
-        op_knobs(LAB, val, 0, ratio, 0, 4242u, &knobs);
+        static const uint16_t *const TINT = TE_COL;     /* the mixer: one knob per voice, in its colour (wave 7: the pages'
+                                                         * dials, one value size, fixed columns) */
+        dial_tint = TINT;
+        op_dials(LAB, val, ratio, 0, 0, C_WHITE, 4242u, &knobs);
+        dial_tint = 0;
         ui.msg_t = m;
     }
     op_trackbar(&bar);
@@ -1126,139 +1135,235 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
 /* ----------------------------------------------------------------- HOME --- */
 static uint32_t home_band_tick(void);                   /* ui_vis.c */
 static void home_band(int32_t x0, int32_t y0, uint32_t w, uint32_t h);
-/* TRACKS, between the header and the knobs. The deck: the bar in large digits, a strip of the FLOW backdrop moving with
- * the four voices' levels (PHEBUS: it replaced the tape reels; ui_vis.c home_band), the song's sections A..D (the one
- * playing filled). Then the selected track's sound and state, and a lane a track: its head (it hops as
- * the track sounds), the 16 steps in view (a synth: each note at its height; the drums: a bar, taller with more
- * sounds), the step that plays, its level. */
-#define HB_X 74                                         /* the strip: x, y in the deck, its size (2 x 2 blocks) */
-#define HB_Y 6
-#define HB_W 106u
-#define HB_H 32u
+/* HOME (PHEBUS wave 7; Ben's picker "HOME: B: three zones", review/direction/mock-home-B: SYNTH, DRUM and PERFORM panels,
+ * one per pillar). Between the header (PATTERN A..D while one plays, the unsaved dot) and the knobs:
+ *   deck     the bar of the selected track's loop, a strip of the FLOW backdrop moving with the four voices' levels (Ben
+ *            kept it: ui_vis.c home_band), the patterns A..D (the one playing filled, the stored ones outlined bright)
+ *   SYNTH    the three melodic voices side by side: the sound's name in its voice's colour, the selected one inverted;
+ *            M (yellow) muted, S (ice blue) soloed, a red dot recording; under each its 16 steps in view (a note lit in the
+ *            voice's colour, a tie dim, the step that plays white)
+ *   DRUM     the kit (a * when the project's copy plays), M / S for the drum track, how many sounds are muted (M) or
+ *            soloed (S) in MUTE mode, the selected sound's name; the 16 trigs in view: the selected sound's in coral, the
+ *            other sounds' dim coral, only muted sounds' grey, the playhead white. Inverted DRUM: the drums are selected
+ *   PERFORM  the STUTTER lane ON / OFF and the PERFORM pads latched (their names, or how many), white and grey (everyone's);
+ *            the lane's 16 steps in view as spans (lit steps in a row with one length: one loop, one bar), the playhead
+ * The colour rule: a voice's colour only on that voice's things; the deck, PERFORM and the zone names white and grey. */
+#define HB_X 64                                         /* the FLOW strip: x, y in the deck, its size (2 x 2 blocks) */
+#define HB_Y 2
+#define HB_W 116u
+#define HB_H 14u
+#define HZ_DECK 18                                      /* the deck's height, then three zones of HZ_H rows */
+#define HZ_H 38
+static uint32_t home_zone_sig[4];                       /* (the host tests read what each zone last drew) */
+static uint8_t home_inv_zone;                           /* the zone whose name or voice is inverted: 0..2 a voice, 3 DRUM */
+static void hz_label(int32_t x, int32_t y, const char *s, uint16_t c, int inv)   /* a zone's or voice's name; inverted: selected */
+{
+    if (inv) {
+        cv_rect(x - 2, y, text_w(&FONT_S, s) + 3, 16, c);
+        cv_text(x, y, &FONT_S, s, C_BLACK);
+    } else {
+        cv_text(x, y, &FONT_S, s, c);
+    }
+}
+static int32_t hz_badge(int32_t x, int32_t y, uint32_t muted, uint32_t solo, uint32_t rec)   /* M, S or a red dot; the x after */
+{
+    if (rec) {
+        te_disc(x + 4, y + 7, 3, TE_RED);
+        return x + 10;
+    }
+    if (muted || solo) {
+        op_badge(x, y + 1, muted ? 'M' : 'S', muted ? TE_MUTE : TE_SOLO);
+        return x + 12;
+    }
+    return x;
+}
+static void home_kit_name(char *nm)                     /* (12) the kit's name, a * when the project's copy plays */
+{
+    uint32_t kit = drum_kit();
+    str_cpy(nm, DRUM_KIT_NAMES[kit], 10);
+    if (kit >= DRUM_SYN) {
+        memcpy(nm, dsu_kit(kit - DRUM_SYN)->name, 8);
+        nm[8] = 0;
+    }
+    if (pkit_on())
+        str_cpy(nm + str_len(nm), "*", 2);
+}
 static void op_home_body(void)
 {
-    static uint32_t top_sig, name_sig, lane_sig[NTRK];
+    static uint32_t top_sig, zsig[3];
     track_t *ts = TSEL;
     uint32_t i, j, playing = song.playing, slen = trk_len(ts), spos = ts->seq_idx % slen, sig, moving;
     uint32_t ready = arrangement_ready();
     op_band_tick();
     moving = home_band_tick();                          /* (the voices' levels into the strip; 1: it flows) */
+    home_inv_zone = (uint8_t)(song.sel & 3u);
     sig = playing * 3u + (playing ? spos / 16u * 31u : 0u) + ready * 5u + (uint32_t)(live_sec + 1) * 77u + slen * 13u +
-          (moving ? ui.frame / 2u * 7919u + 1u : 0u);
+          (uint32_t)(live_req + 1) * 7u + (moving ? ui.frame / 2u * 7919u + 1u : 0u);
     if (ui.force || sig != top_sig) {                   /* the deck */
+        char b[8] = "BAR ";
         uint32_t bar = playing ? spos / 16u + 1u : 1u;
         top_sig = sig;
-        cv_begin(240, 44, C_BLACK);
-        te_digit(4, 7, 12, 28, 2, bar / 10u, playing ? C_WHITE : TE_G3);
-        te_digit(20, 7, 12, 28, 2, bar % 10u, playing ? C_WHITE : TE_G3);
-        cv_text(38, 20, &FONT_S, "BAR", TE_G3);
+        cv_begin(240, HZ_DECK, C_BLACK);
+        cv_text(4, 1, &FONT_S, "BAR", TE_G3);
+        b[0] = (char)('0' + bar / 10u % 10u), b[1] = (char)('0' + bar % 10u), b[2] = 0;
+        cv_text(4 + text_w(&FONT_S, "BAR") + 4, 1, &FONT_S, b, playing ? C_WHITE : TE_G3);
         home_band(HB_X, HB_Y, HB_W, HB_H);
-        for (i = 0; i < 4u; i++) {                      /* the sections */
+        for (i = 0; i < 4u; i++) {                      /* the patterns */
             char ch[2] = {(char)('A' + i), 0};
             int32_t x = 188 + (int32_t)i * 12;
-            int on = live_sec == (int8_t)i, used = (ready >> i) & 1u;
+            int on = live_sec == (int8_t)i, used = (ready >> i) & 1u, next = live_req == (int8_t)i && !on;
             if (on)
-                cv_rect(x, 12, 11, 18, C_WHITE);
+                cv_rect(x, 1, 11, 16, C_WHITE);
             else
-                op_box(x, 12, 11, 18, used ? OP_PUR : OP_PUR_D);
-            cv_text(x + 2, 13, &FONT_S, ch, on ? C_BLACK : used ? OP_PUR : OP_PUR_D);
+                op_box(x, 1, 11, 16, next ? C_WHITE : used ? TE_G3 : TE_G1);
+            cv_text(x + 2, 1, &FONT_S, ch, on ? C_BLACK : used || next ? TE_G4 : TE_G2);
         }
         cv_blit(0, OP_BODY_Y);
     }
-    {   /* the selected track: its sound, its engine; REC / SOLO / MUTE */
-        char b[24], e[12];
-        uint32_t rec = (song.rec >> song.sel) & 1u, solo = (song.solo >> song.sel) & 1u, silent = trk_silent(ts) != 0;
-        if (song.sel == TRK_DRUM) {
-            str_cpy(b, DRUM_KIT_NAMES[drum_kit()], sizeof b);
-            str_cpy(e, "DRUM", sizeof e);
-        } else {
-            uint32_t k, n;
-            trk_short_name(song.sel, b);
-            str_cpy(e, ENGINES[ts->eng_req % NENGINES]->name, sizeof e);
-            for (k = 0, n = str_len(e); b[k]; k++)       /* the engine's name already in the sound's: once (review 21) */
-                if (!memcmp(b + k, e, n)) {
-                    e[0] = 0;
-                    break;
-                }
-        }
-        b[13] = 0;
-        sig = studio_hash(studio_hash(song.sel + rec * 8u + solo * 16u + silent * 32u, b), e);
-        if (ui.force || sig != name_sig) {
-            int32_t x;
-            name_sig = sig;
-            cv_begin(240, 16, C_BLACK);
-            x = cv_text(4, 0, &FONT_S, b, C_WHITE);
-            if (e[0] && x + 8 + text_w(&FONT_S, e) < 196)
-                cv_text(x + 8, 0, &FONT_S, e, TE_COL[song.sel & 3u]);
-            if (rec)
-                cv_text(236 - text_w(&FONT_S, "REC"), 0, &FONT_S, "REC", TE_RED);
-            else if (solo)
-                cv_text(236 - text_w(&FONT_S, "SOLO"), 0, &FONT_S, "SOLO", TE_SOLO);
-            else if (silent)
-                cv_text(236 - text_w(&FONT_S, "MUTE"), 0, &FONT_S, "MUTE", TE_MUTE);
-            cv_blit(0, OP_BODY_Y + 44);
-        }
+    /* SYNTH: the three voices */
+    sig = song.sel * 7u + playing * 3u;
+    for (i = 0; i < NPART; i++) {
+        const track_t *t = &trk[i];
+        uint32_t len = trk_len(t), pos = t->seq_idx % len;
+        char b[16];
+        trk_short_name(i, b);
+        sig = studio_hash(sig * 31u + (t->p[P_MUTE] != 0) * 3u + ((song.solo >> i) & 1u) * 5u + ((song.rec >> i) & 1u) * 11u +
+                          len * 13u + (playing ? pos + 1u : 0u) * 977u, b);
+        for (j = 0; j < len; j++)
+            sig = sig * 3u + (step_on(&t->step[j]) ? 1u : t->step[j].time == ST_TIE ? 2u : 0u);
     }
-    for (i = 0; i < NTRK; i++) {                        /* the lanes */
-        track_t *t = &trk[i];
-        uint32_t sel = song.sel == i, len = trk_len(t), pos = t->seq_idx % len, bank = playing ? pos / 16u : 0u;
-        uint32_t level = i == TRK_DRUM ? (uint32_t)song.g[G_DRLVL] : (uint32_t)t->p[P_LEVEL], silent = trk_silent(t) || !level;
-        uint32_t rec = (song.rec >> i) & 1u;
-        int32_t lo = 127, hi = 0, air = op_hop[i] > 2u ? 2 : 0;
-        uint16_t col = silent ? TE_G3 : sel ? TE_COL[i] : TE_MID[i];   /* (muted: grey, never darker, review 19) */
-        sig = sel + level * 7u + silent * 997u + rec * 1999u + len * 37u + playing * 3u + (playing ? pos * 71u : 0u) + bank * 13u +
-              (uint32_t)air * 5003u + ((song.solo >> i) & 1u) * 4999u;
-        for (j = 0; j < len; j++) {
-            if (i == TRK_DRUM) {
-                sig = sig * 31u + dt_mask(j);
-            } else {
-                const step_t *st = &t->step[j];
-                sig = sig * 31u + (step_on(st) ? st->note[0] + 1u : 0u);
-                if (step_on(st) && st->note[0] < lo)
-                    lo = st->note[0];
-                if (step_on(st) && st->note[0] > hi)
-                    hi = st->note[0];
+    home_zone_sig[0] = sig;
+    if (ui.force || sig != zsig[0]) {
+        zsig[0] = sig;
+        cv_begin(240, HZ_H, C_BLACK);
+        cv_rect(0, 0, 240, 1, TE_G1);
+        cv_text(4, 1, &FONT_S, "SYNTH", TE_G3);
+        for (i = 0; i < NPART; i++) {
+            const track_t *t = &trk[i];
+            uint32_t len = trk_len(t), pos = t->seq_idx % len, bank = playing ? pos / 16u : 0u, muted = t->p[P_MUTE] != 0;
+            uint32_t sel = song.sel == i, solo = (song.solo >> i) & 1u, rec = (song.rec >> i) & 1u, n;
+            int32_t x0 = 4 + (int32_t)i * 79, room = 70;
+            uint16_t col = muted ? TE_G3 : TE_COL[i];
+            char b[16];
+            trk_short_name(i, b);
+            if (muted || solo || rec)
+                room -= 12;
+            for (n = str_len(b); n && text_w(&FONT_S, b) > room; n--)   /* (cut to its room: never into the next voice) */
+                b[n - 1u] = 0;
+            hz_label(x0, 17, b, col, (int)sel);
+            hz_badge(x0 + 2 + text_w(&FONT_S, b), 16, muted, solo, rec);
+            for (j = 0; j < 16u; j++) {                 /* its steps in view: 4 px a step */
+                uint32_t p = bank * 16u + j;
+                int32_t x = x0 + (int32_t)j * 4 + (int32_t)(j / 4u);
+                uint16_t c;
+                if (p >= len)
+                    continue;
+                c = playing && p == pos ? C_WHITE : step_on(&t->step[p]) ? col
+                  : t->step[p].time == ST_TIE ? (muted ? TE_G2 : TE_DIM[i]) : TE_G1;
+                cv_rect(x, 34, 3, 3, c);
             }
         }
-        if (!ui.force && sig == lane_sig[i])
-            continue;
-        lane_sig[i] = sig;
-        if (hi - lo < 4)
-            hi = lo + 4;
-        cv_begin(240, 18, C_BLACK);
-        if (sel)
-            op_box(24, 0, 214, 18, TE_COL[i]);
-        op_lane_head(i, 12, 17 - air, silent, silent ? TE_G3 : TE_COL[i]);   /* the track's head */
-        for (j = 0; j < 16u; j++) {
-            uint32_t p = bank * 16u + j;
-            int32_t x = 28 + (int32_t)j * 11;
-            if (p >= len)
-                continue;
-            if (i == TRK_DRUM) {                        /* a bar: 3 px a sound, up to 4 */
-                uint32_t m = dt_mask(p), n = 0;
+        cv_blit(0, OP_BODY_Y + HZ_DECK);
+    }
+    /* DRUM */
+    {
+        uint32_t len = trk_len(TDRUM), pos = TDRUM->seq_idx % len, bank = playing ? pos / 16u : 0u, l = drum_lane & 15u;
+        uint32_t muted = TDRUM->p[P_MUTE] != 0, solo = (song.solo >> TRK_DRUM) & 1u, rec = (song.rec >> TRK_DRUM) & 1u;
+        uint32_t dm = drum_mute, ds = drum_solo;
+        char nm[12];
+        home_kit_name(nm);
+        sig = studio_hash(l * 7u + muted * 3u + solo * 5u + rec * 11u + dm * 13u + ds * 17u + len * 19u + (song.sel == TRK_DRUM) * 23u +
+                          (playing ? pos + 1u : 0u) * 977u + bank, nm);
+        for (j = 0; j < 16u; j++)
+            sig = sig * 31u + (bank * 16u + j < len ? dt_mask(bank * 16u + j) : 0u);
+        home_zone_sig[1] = sig;
+        if (ui.force || sig != zsig[1]) {
+            int32_t x;
+            uint32_t audible = 0xFFFFu & ~dm;
+            zsig[1] = sig;
+            if (ds)
+                audible = ds;
+            cv_begin(240, HZ_H, C_BLACK);
+            cv_rect(0, 0, 240, 1, TE_G1);
+            hz_label(4, 1, "DRUM", muted ? TE_G3 : TE_DRUM, song.sel == TRK_DRUM);
+            x = hz_badge(4 + text_w(&FONT_S, "DRUM") + 3, 0, muted, solo, rec);
+            x = cv_text(x + 4, 1, &FONT_S, nm, TE_G3) + 4;
+            if (dm || ds) {                             /* the sounds muted or soloed in MUTE mode, how many */
+                uint32_t m = ds ? ds : dm, n = 0;
+                char c[4];
                 for (; m; m &= m - 1u)
                     n++;
-                if (n)
-                    cv_rect(x + 2, 14 - (int32_t)(n > 4u ? 4u : n) * 3, 5, (int32_t)(n > 4u ? 4u : n) * 3, col);
-                else
-                    cv_rect(x + 3, 12, 2, 2, TE_G3);    /* (an empty step: a 2 x 2 dot, grey, review 19) */
-            } else if (step_on(&t->step[p])) {          /* a note at its height (the first of a chord) */
-                cv_rect(x, 13 - (t->step[p].note[0] - lo) * 9 / (hi - lo), 9, 2, col);
-                if (t->step[p].n > 1)
-                    cv_rect(x, 9 - (t->step[p].note[0] - lo) * 9 / (hi - lo), 9, 1, col);
-            } else if (t->step[p].time == ST_TIE) {
-                cv_rect(x, 13, 9, 1, TE_G3);
-            } else {
-                cv_rect(x + 3, 12, 2, 2, TE_G3);
+                op_badge(x, 2, ds ? 'S' : 'M', ds ? TE_SOLO : TE_MUTE);
+                fmt_int(c, (int32_t)n);
+                cv_text(x + 12, 1, &FONT_S, c, ds ? TE_SOLO : TE_MUTE);
             }
-            if (playing && p == pos)
-                cv_rect(x, 15, 9, 2, C_WHITE);
+            cv_text(236 - text_w(&FONT_S, LANE_SHORT[l]), 1, &FONT_S, LANE_SHORT[l], muted || !((audible >> l) & 1u) ? TE_G3 : TE_DRUM);
+            for (j = 0; j < 16u; j++) {                 /* the trigs in view */
+                uint32_t p = bank * 16u + j, m;
+                int32_t xx = 4 + (int32_t)j * 14 + (int32_t)(j / 4u) * 2;
+                if (p >= len)
+                    continue;
+                m = dt_mask(p);
+                if (m) {
+                    uint16_t c = muted || !(m & audible) ? TE_G3 : (m >> l) & 1u ? TE_DRUM : TE_DIM[3];
+                    cv_rect(xx, 19, 12, 13, c);
+                } else {
+                    op_box(xx, 19, 12, 13, j % 4u ? TE_G1 : TE_G2);
+                }
+                if (playing && p == pos)
+                    cv_rect(xx, 34, 12, 2, C_WHITE);
+            }
+            cv_blit(0, OP_BODY_Y + HZ_DECK + HZ_H);
         }
-        cv_rect(207, 8, 28, 3, TE_G1);                  /* the level; REC: a red dot */
-        cv_rect(207, 8, (int32_t)level * 28 / 127, 3, col);   /* (muted: its real level, grey) */
-        if (rec)
-            te_disc(232, 4, 2, TE_RED);
-        cv_blit(0, OP_BODY_Y + 60 + i * 18);
+    }
+    /* PERFORM: the STUTTER lane and the latched pads */
+    {
+        uint32_t L = stl.len ? stl.len : 16u, pg = playing ? stl_pos / 16u : 0u, lat = perf.lat;
+        sig = stl.act * 3u + lat * 7u + L * 13u + (playing ? stl_pos + 1u : 0u) * 977u + pg;
+        for (j = 0; j < sizeof stl.on; j++)
+            sig = sig * 31u + stl.on[j];
+        for (j = 0; j < sizeof stl.lc; j++)
+            sig = sig * 31u + stl.lc[j];
+        home_zone_sig[2] = sig;
+        if (ui.force || sig != zsig[2]) {
+            char t[32];
+            int32_t x;
+            zsig[2] = sig;
+            cv_begin(240, HZ_H, C_BLACK);
+            cv_rect(0, 0, 240, 1, TE_G1);
+            x = cv_text(4, 1, &FONT_S, "PERFORM", TE_G3) + 6;
+            cv_text(x, 1, &FONT_S, stl.act ? "LANE ON" : "LANE OFF", stl.act ? TE_G4 : TE_G3);
+            t[0] = 0;
+            if (lat) {                                  /* the latched pads by name, else how many */
+                uint32_t p;
+                for (p = 0; p < PF_NPAD; p++)
+                    if ((lat >> p) & 1u && str_len(t) + str_len(PFD[p].pad) + 1u < sizeof t) {
+                        if (t[0])
+                            str_cpy(t + str_len(t), " ", 2);
+                        str_cpy(t + str_len(t), PFD[p].pad, 8);
+                    }
+                if (236 - text_w(&FONT_S, t) < 150) {
+                    fmt_int(t, (int32_t)pf_count(lat));
+                    str_cpy(t + str_len(t), " LATCHED", 10);
+                }
+                cv_text(236 - text_w(&FONT_S, t), 1, &FONT_S, t, C_WHITE);
+            }
+            for (j = 0; j < 16u; j++) {                 /* the lane's steps in view: a run of lit steps of one length, one span */
+                uint32_t s = pg * 16u + j;
+                int32_t xx = 4 + (int32_t)j * 14 + (int32_t)(j / 4u) * 2;
+                if (s >= L)
+                    continue;
+                if (stl_lit(s)) {
+                    int join = j < 15u && s + 1u < L && stl_lit(s + 1u) && stl_code(s + 1u) == stl_code(s);
+                    cv_rect(xx, 19, join ? (j % 4u == 3u ? 16 : 14) : 12, 13, stl.act ? TE_G4 : TE_G2);
+                } else {
+                    op_box(xx, 19, 12, 13, j % 4u ? TE_G1 : TE_G2);
+                }
+                if (playing && s == stl_pos)
+                    cv_rect(xx, 34, 12, 2, C_WHITE);
+            }
+            cv_blit(0, OP_BODY_Y + HZ_DECK + 2 * HZ_H);
+        }
     }
 }
 

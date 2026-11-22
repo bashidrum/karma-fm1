@@ -13,6 +13,10 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
 static void op_knobs(const char *const lab[4], const char *const val[4], const char *const *unit, const int32_t ratio[4],
                      uint32_t dim, uint32_t sig, uint32_t *cache);
 static void op_trackbar(uint32_t *cache);
+static void op_dials(const char *const lab[4], const char *const val[4], const int32_t ratio[4], uint32_t locked,
+                     uint32_t dim, uint16_t col, uint32_t sig, uint32_t *cache);   /* (ui_drum.c) */
+static const uint16_t *dial_tint;                       /* (ui_drum.c) */
+static void dval_fit(char *b);                          /* (ui_drum.c) */
 static void op_drum_steps(uint32_t bank, uint32_t len);   /* (ui_op.c) */
 static void op_home_body(void);
 static void op_box(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c);
@@ -90,6 +94,13 @@ static void te_lower(char *d, const char *s, uint32_t n)
     uint32_t i;
     for (i = 0; i + 1u < n && s[i]; i++)
         d[i] = s[i] >= 'A' && s[i] <= 'Z' ? (char)(s[i] + 32) : s[i];
+    d[i] = 0;
+}
+static void te_upper(char *d, const char *s, uint32_t n)   /* (d may be s) */
+{
+    uint32_t i;
+    for (i = 0; i + 1u < n && s[i]; i++)
+        d[i] = s[i] >= 'a' && s[i] <= 'z' ? (char)(s[i] - 32) : s[i];
     d[i] = 0;
 }
 static void te_text_c(int32_t cx, int32_t y, const char *s, uint16_t c)   /* centred on cx */
@@ -260,14 +271,17 @@ static void studio_tracks_draw(void)
         op_header("HOME", TE_G3, live_sec >= 0 && live_sec <= 3 ? ti : "PHEBUS", &head);
     }
     op_home_body();                                    /* the deck, the selected track, the four lanes (ui_op.c) */
-    {   /* KNOB 1 cutoff, 2 decay of the selected voice, 3 the STUTTER lane on / off (everyone's), 4 the voice's level */
+    {   /* KNOB 1 cutoff, 2 decay of the selected voice, 3 the STUTTER lane on / off (everyone's), 4 the voice's level. (wave 7)
+         * the pages' dials: one tall face in fixed 40 px columns, no units (as the ENV page shows a decay), so all four
+         * values are one size; the voice's in its colour, STUT white-grey */
         track_t *t = TSEL;
-        static char v[4][8];
-        static const char *const lab[4] = {"cutoff", "decay", "stut", "level"};
+        static char v[4][12];
+        static const char *const lab[4] = {"CUTOFF", "DECAY", "STUT", "LEVEL"};
+        static uint16_t tint[4];
         const char *val[4] = {v[0], v[1], v[2], v[3]}, *u;
         int32_t ratio[4];
-        uint32_t lvl = is_drum(t) ? song.g[G_DRLVL] : t->p[P_LEVEL], k, dim = t->p[P_MUTE] ? 8u : 0u;
-        const char *unit[4] = {"", "", "", t->p[P_MUTE] ? "MUTE" : ""};   /* muted: its real level, dim, "MUTE" (review 19) */
+        uint32_t lvl = is_drum(t) ? song.g[G_DRLVL] : t->p[P_LEVEL], k, dim = t->p[P_MUTE] ? 8u : 0u;   /* (muted: its real level,
+                                                         * grey, review 19) */
         for (k = 0; k < 2u; k++) {
             const param_desc_t *d;
             int16_t *vp = home_knob(k, &d);
@@ -278,17 +292,18 @@ static void studio_tracks_draw(void)
                 continue;
             }
             param_format(d, *vp, v[k], &u);
-            if (d->fmt != F_PCT)                        /* (a time: its unit; a % as LEVEL: the number alone) */
-                unit[k] = u;
+            dval_fit(v[k]);
             ratio[k] = (*vp - d->min) * 1000 / (d->max > d->min ? d->max - d->min : 1);
         }
         str_cpy(v[2], stl.act ? "ON" : "OFF", 8);
         ratio[2] = stl.act ? 1000 : 0;
         fmt_int(v[3], (int32_t)lvl * 100 / 127);
         ratio[3] = (int32_t)lvl * 1000 / 127;
-        knob_tint_all(song.sel);                        /* HOME: the voice's knobs in its colour, the stutter everyone's */
-        knob_tint[2] = TINT_NEUTRAL;
-        op_knobs(lab, val, unit, ratio, dim, song.sel, &footer);
+        tint[0] = tint[1] = tint[3] = TE_COL[song.sel & 3u];
+        tint[2] = TE_G4;                                /* (the stutter: everyone's) */
+        dial_tint = tint;
+        op_dials(lab, val, ratio, 0, dim, TE_COL[song.sel & 3u], song.sel * 31u + 0x40E5u, &footer);
+        dial_tint = 0;
     }
     op_trackbar(&bar);
 }
@@ -471,7 +486,9 @@ static void rec_rows(uint32_t rt, uint32_t y0, uint32_t *cache)
  * view; the REC LED blinks while armed */
 static void rec_screen_draw(void)
 {
-    static uint32_t head, body, rows, dials;
+    static uint32_t head, body, rows, dials, bar;
+    static char lu[4][8], vu[4][8];
+    const char *lab2[4];
     uint32_t sig, rt = song.sel;
     uint32_t blink = (fm1_ms / 250u) & 1u, count = ci_on;
     if (!rec_shown) {
@@ -479,7 +496,7 @@ static void rec_screen_draw(void)
         ui.force = 1;
     }
     rec_shown = 1;
-    te_header(count ? "count-in" : "rec ready", TE_RED, &head);
+    op_header("REC", TE_RED, count ? "COUNT-IN" : "READY", &head);   /* (wave 7: the header every screen has) */
     /* armed / counting in: what happens next */
     sig = 2000003u + rec_count * 13u + count * 17u + ci_beat * 19u + blink * 31u;
     if (ui.force || sig != body) {
@@ -488,22 +505,22 @@ static void rec_screen_draw(void)
         static const char *const L3[2] = {"play: go  rec: cancel", "rec: cancel"};
         uint32_t m = rec_count ? 1u : 0u;
         body = sig;
-        cv_begin(240, 64, C_BLACK);
+        cv_begin(240, 56, C_BLACK);
         if (count) {                                    /* the count-in: 4, 3, 2, 1 */
-            te_digit(96, 4, 30, 54, 6, 4u - (ci_beat > 3u ? 3u : ci_beat), C_WHITE);
-            te_disc(60, 31, 12, TE_RED);
-            cv_text(144, 14, &FONT_S, "count-in", TE_G4);
-            cv_text(144, 34, &FONT_S, "rec: cancel", TE_G3);
+            te_digit(96, 3, 26, 48, 6, 4u - (ci_beat > 3u ? 3u : ci_beat), C_WHITE);
+            te_disc(60, 27, 12, TE_RED);
+            cv_text(144, 10, &FONT_S, "count-in", TE_G4);
+            cv_text(144, 30, &FONT_S, "rec: cancel", TE_G3);
         } else {
-            te_disc(28, 30, 18, blink ? TE_RED : TE_G2);
-            te_disc(28, 30, 7, C_BLACK);
-            cv_text(60, 6, &FONT_S, L1[m], C_WHITE);
-            cv_text(60, 24, &FONT_S, L2[m], TE_G4);
-            cv_text(60, 42, &FONT_S, L3[m], TE_G3);
+            te_disc(28, 27, 18, blink ? TE_RED : TE_G2);
+            te_disc(28, 27, 7, C_BLACK);
+            cv_text(60, 2, &FONT_S, L1[m], C_WHITE);
+            cv_text(60, 20, &FONT_S, L2[m], TE_G4);
+            cv_text(60, 38, &FONT_S, L3[m], TE_G3);
         }
-        cv_blit(0, 42);
+        cv_blit(0, 22);                                 /* (under the header: OP_BODY_Y, ui_op.c) */
     }
-    rec_rows(rt, 106u, &rows);
+    rec_rows(rt, 22u + 56u, &rows);
     {   /* the dials: how it records */
         static char v[3][10];
         static const char *const LAB_N[4] = {"", "steps", "start", ""};   /* (STEPS: the pattern's length, review 21) */
@@ -514,10 +531,9 @@ static void rec_screen_draw(void)
         v[0][0] = 0;
         if (len % 16u == 0u) {
             fmt_int(v[1], (int32_t)(len / 16u));
-            str_cpy(v[1] + str_len(v[1]), len == 16u ? " bar" : " bars", 6);
+            str_cpy(v[1] + str_len(v[1]), len == 16u ? "BAR" : "BARS", 6);   /* (wave 7: five letters: 1BAR 4BARS) */
         } else {
             fmt_int(v[1], (int32_t)len);
-            str_cpy(v[1] + str_len(v[1]), " st", 4);
         }
         str_cpy(v[2], rec_count ? "count" : "note", sizeof v[2]);
         ratio[1] = (int32_t)(len - 1u) * 1000 / 63;
@@ -528,8 +544,15 @@ static void rec_screen_draw(void)
             for (k = 0; k < 4u; k++)
                 if (!lab[k][0])
                     val[k] = "";                        /* (a dial not shown: no value either) */
-            knob_tint_all(song.sel);
-            te_dials(184, lab, val, ratio, rt * 7u + count * 3u, &dials);
+            for (k = 0; k < 4u; k++) {                  /* (wave 7: the pages' dials, five letters, upper case) */
+                te_upper(lu[k], lab[k], sizeof lu[k]);
+                te_upper(vu[k], val[k], sizeof vu[k]);
+                dval_fit(vu[k]);
+                lab2[k] = lu[k];
+                val[k] = vu[k];
+            }
+            op_dials(lab2, val, ratio, 0, 0, TE_COL[song.sel & 3u], rt * 7u + count * 3u, &dials);
         }
     }
+    op_trackbar(&bar);
 }

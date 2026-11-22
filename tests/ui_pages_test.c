@@ -283,10 +283,10 @@ int main(int argc, char **argv)
         uint32_t c = 0, b = clk_beat, pl = song.playing, rc = song.rec;
         clk_beat = 4u; song.playing = 1; song.rec = 0; ui.force = 1;
         op_header("HOME", TE_G3, "loop", &c);
-        check(swap16(screen[9 * 240 + 174]) == C_WHITE, "header: the downbeat white while playing");
+        check(swap16(screen[9 * 240 + 178]) == C_WHITE, "header: the downbeat white while playing");
         song.rec = 1; ui.force = 1;
         op_header("HOME", TE_G3, "loop", &c);
-        check(swap16(screen[9 * 240 + 174]) == TE_RED, "header: the downbeat red while recording");
+        check(swap16(screen[9 * 240 + 178]) == TE_RED, "header: the downbeat red while recording");
         clk_beat = b; song.playing = pl; song.rec = rc;
         go_home(); ui.force = 1; frame();
     }
@@ -761,7 +761,7 @@ int main(int argc, char **argv)
     key(key_of_white(0)); check(live_req == 0, "playing: A asked for the next bar");
     key(key_of_white(1)); check(live_req == 1, "B tapped in the same hold: B asked for instead (no chain)");
     ui.force = 1; frame(); ppm("layer-song");
-    check(px_count(0, 112, 240, 72, TE_G1) == 0u && px_count(0, 76, 240, 36, TE_G1) > 100u,
+    check(px_count(0, 96, 240, 56, TE_G1) == 0u && px_count(0, 68, 240, 28, TE_G1) > 100u,   /* (wave 7: 28 px rows from y 40) */
           "SAVE layer: keys 9..16 do nothing: their two rows left out (no empty outlines); SAVE A..D drawn");
     {   /* (PHEBUS wave 1: song mode, SONG REC and the SONG screen are cut) keys 13, 14, 16 do nothing */
         uint32_t st0 = sec_stores, ld0 = sec_loads, pg0 = ui.page;
@@ -2279,7 +2279,7 @@ int main(int argc, char **argv)
         song.playing = 1; transport_req = 1; frames(3);
         ui.force = 1; frame(); ppm("perform-latched");
         check(perf.lane == 1u << PF_GATE, "PERFORM: a pad the lane plays (recorded) shows as playing");
-        check(px_count(2 + 49, 32 + 31 + 46 + 3, 4, 4, C_WHITE) == 16u, "LATCH: the latched LP pad shows its dot");
+        check(px_count(2 + 49, 40 + 27 + 44 + 3, 4, 4, C_WHITE) == 16u,   /* (wave 7: the frame every screen has) */ "LATCH: the latched LP pad shows its dot");
         /* the knobs: the last pad's */
         kn = perf.par[PF_LP][0];
         encs[panel.enc[EN_K1]] = -4; frame();

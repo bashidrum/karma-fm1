@@ -333,6 +333,7 @@ static uint32_t drum_trig_sig(uint32_t l, uint32_t bank)
 #define DIAL_VW 40                                      /* its room */
 static uint32_t dial_over;                              /* values drawn past their column (0, always) */
 static uint32_t dials_y = SG_KNOB_Y;                    /* where the dials go (PHEBUS wave 6: PERFORM's lower) */
+static const uint16_t *dial_tint;                       /* (wave 7) a colour a knob (HOME, the mixer); 0: col for all four */
 static int32_t dial_adv(const char *s) { return str_len(s) >= 5u ? 7 : 8; }
 static int32_t dial_w(const char *s) { return (int32_t)str_len(s) * dial_adv(s); }
 static int32_t cv_text_tall_n(int32_t x, int32_t y, const char *s, uint16_t c, int32_t adv)   /* FONT_S x2 tall, adv a letter */
@@ -355,6 +356,8 @@ static void op_dials(const char *const lab[4], const char *const val[4], const i
                      uint32_t dim, uint16_t col, uint32_t sig, uint32_t *cache)
 {
     uint32_t k;
+    if (dial_tint)
+        col = (uint16_t)(dial_tint[0] ^ dial_tint[1] * 3u ^ dial_tint[2] * 5u ^ dial_tint[3] * 7u);
     sig = studio_hash(sig + locked * 97u + dim * 7u + col * 131u, ui.msg_t ? ui.msg : "");
     for (k = 0; k < 4u; k++) {
         sig = studio_hash(sig * 7u + (uint32_t)ratio[k] + (ui.hot_t && ui.hot_col == k) * 5003u, lab[k]);
@@ -374,7 +377,7 @@ static void op_dials(const char *const lab[4], const char *const val[4], const i
     for (k = 0; k < 4u; k++) {
         int32_t x0 = 2 + 60 * (int32_t)k, vx = x0 + DIAL_VX, vw;
         uint32_t hot = ui.hot_t && ui.hot_col == k, lk = (locked >> k) & 1u;
-        uint16_t c = (dim >> k) & 1u ? TE_G3 : (dim >> (4u + k)) & 1u ? TE_G4 : col;   /* (wave 5: dim bits 4..7, a shared
+        uint16_t c = (dim >> k) & 1u ? TE_G3 : (dim >> (4u + k)) & 1u ? TE_G4 : dial_tint ? dial_tint[k] : col;   /* (wave 5: dim bits 4..7, a shared
                                                          * value on a voice's page: white-grey, not the voice's colour) */
         if (!lab[k][0])
             continue;

@@ -47,7 +47,7 @@ static int shared_page(const page_t *pg)
 }
 static int drums_page(const page_t *pg) { return !ui.home && pg->fam == FAM_GLO && pg->id[1] == G_DRLVL; }   /* GLO > DRUMS */
 
-/* the header (ui_op.c): the track's tag, the page's title; a message shows in the knob band. A shared page: "ALL" in
+/* the header (ui_op.c): the track's tag, the page's title; a message shows in the knob band. A shared page: "GLO" in
  * neutral grey; GLO > DRUMS: the drum track's */
 static void draw_head(void)
 {
@@ -57,7 +57,7 @@ static void draw_head(void)
     if (mlu.on)                                       /* MIDI LEARN on (2.6, GLO + F#3) */
         title = "LEARN";
     if (shared_page(pg))
-        op_header("ALL", TE_G4, title, &ui.head_sig);
+        op_header("GLO", TE_G4, title, &ui.head_sig);   /* (wave 7: GLO, the button that opens them; was ALL) */
     else if (drums_page(pg))
         op_header("DRUM", TE_COL[TRK_DRUM], title, &ui.head_sig);
     else
