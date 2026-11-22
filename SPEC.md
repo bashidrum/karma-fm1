@@ -172,3 +172,9 @@ Ask me before starting any long test run."
 ### 22 Nov 2026, 00:49
 
 Asked whether to pause after wave 4, Ben said: "Noo build the thing we dreamed of. If you're confident". All seven waves are to be built.
+
+### 22 Nov 2026, 00:50
+
+On the real-device CPU caveat, Ben said: "Let's worry about that once it's built. Make the perfect version. Then we'll compromise".
+
+How this is applied: no feature is trimmed or staged in advance out of worry about CPU headroom. That includes the big multi-model oscillator list on every track, which was to wait for a device check and is now built in wave 4. Anything that turns out not to fit is reported to Ben as a compromise to choose, never dropped quietly.
