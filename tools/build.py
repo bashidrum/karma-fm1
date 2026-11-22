@@ -37,6 +37,13 @@ LOADER_LOAD = 0x01C0A800
 LOADER_NAME = b"usb_hid_ota.bin"    # the file name the SPL looks for
 DOCKER_IMAGE = os.environ.get("JIELI_DOCKER_IMAGE", "debian:bookworm-slim")
 CFLAGS = ["-Os", "-ffunction-sections", "-fno-builtin", "-Wall", "-Wno-unused-function"]
+# (PHEBUS wave 4) the device's one limit on "every Type on every track": tracks 1 and 2's engine arenas (firmware/src/
+# engines.c PHEBUS_ARENA_T12), so the pool keeps its 8 KiB spare. At 9152 B every engine fits whole there, but four of
+# Plaits' models (6-OP A / B / C, STRING, SPEECH, PARTICLE: 11 to 16.6 KB, one voice) only on track 3, whose arena is
+# full size (the OSC page says NOT ON THIS TRACK). The host tests and the simulator have no limit. PHEBUS_ARENA_T12=0:
+# full size here too (the pool then lacks 14.8 KB: tools/build.py refuses it). Ben's choice, see DECISIONS.md, wave 4
+_arena_t12 = os.environ.get("PHEBUS_ARENA_T12", "9152")
+ARENA_FLAGS = ["-DPHEBUS_ARENA_T12=%s" % _arena_t12] if _arena_t12 != "0" else []   # (the app's build only: build_app)
 for _k in ("KARMA_CPU1_HEX", "KARMA_CPU1_FX", "KARMA_T5_RAM", "KARMA_FX_WAIT", "KARMA_BAL_MEAS"):              # (3.1.3 test builds: 0 = that work on CPU0, as 3.1.2)
     if os.environ.get(_k):
         CFLAGS.append("-D%s=%s" % (_k, os.environ[_k]))
@@ -231,7 +238,7 @@ def build_plx():
 # ---- app
 
 def build_app():
-    flags = [*CFLAGS, *FPU, "-Ifirmware/hal", "-Ifirmware/src", "-Ibuild/gen"]
+    flags = [*CFLAGS, *FPU, *ARENA_FLAGS, "-Ifirmware/hal", "-Ifirmware/src", "-Ibuild/gen"]
     for flag in ("FELUCCA_FLASH", "FELUCCA_OTA", "FELUCCA_OTA_DRYRUN", "FELUCCA_CDC", "FELUCCA_UART",
                  "FELUCCA_ICONS", "FELUCCA_SLICE", "FM1_AUDIO_RX_CLOCK", "KARMA_DUAL_CORE", "KARMA_PCOST"):
         v = os.environ.get(flag)    # unset: the default in firmware/src/felucca.c
