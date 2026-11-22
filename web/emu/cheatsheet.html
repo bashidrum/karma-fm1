@@ -171,7 +171,7 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
     <tr><td>PRESETS</td><td>The voice's sounds (drums: the kit)</td></tr>
     <tr><td>SELECT</td><td>Next / previous page; the tempo where there are no pages</td></tr>
     <tr><td>OCT- / OCT+</td><td>Octave -3 to +3 (both: 0). Held with a drum key: ghost / hard</td></tr>
-    <tr><td>tap SEQ</td><td>The GRID (steps on the 16 white keys). On the GRID: the SEQ pages</td></tr>
+    <tr><td>tap SEQ</td><td>The GRID (steps on the 16 white keys). From a sound page: the GRID on that page. On the GRID: TRIG / back</td></tr>
     <tr><td>tap HOME</td><td>HOME. Again on HOME: a screensaver (SELECT changes it)</td></tr>
     <tr><td>hold HOME</td><td>The menu (0.7 s)</td></tr>
     <tr><td>tap SAVE</td><td>HOME or GRID: the SONG screen. Elsewhere: SAVE pages</td></tr>
@@ -197,15 +197,13 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
   <h2>The GRID <small>tap SEQ, any voice</small></h2>
   <div class="roles">
     <div class="ca"><b>PLACE</b><span>Tap an empty step: set with the pen (last note or chord played, or K1), velocity 100. Tap a set step: cleared when the key comes up (unless a knob was turned).</span></div>
-    <div class="ca"><b>HOLD A STEP</b><span>K1 NOTE, K2 LEN (ties), K3 VEL, K4 COND (- FILL NOFL CHNC). SELECT right: FLAG (- ACC SLD A+S), RATCH x1-x4, NUDGE. Several steps edit together. Drums: LEVEL RATCH NUDGE COND.</span></div>
+    <div class="ca"><b>HOLD A STEP</b><span>Turn any knob: it locks what that knob shows on the step (shown inverted). On TRIG: K1 NOTE, K2 LEN (ties), K3 VEL, K4 COND; TRIG 2/2: FLAG, RATCH, NUDGE. Several steps edit together.</span></div>
     <div class="ca"><b>PAGES</b><span>Black keys 1-4: steps 1-16, 17-32, 33-48, 49-64. The next empty slot adds a page. OCT-/OCT+: page (OCT+ on the last adds one). Max 64. The view follows the playhead.</span></div>
   </div>
   <table>
-    <tr><td>step + EDIT / ENV / LFO / FX</td><td><b>Parameter lock</b>: that page goes on the knobs ("LOCK ..."); turn a knob to lock it on the held step(s). Tap again for the next page. Full colour = locked, dim = the voice's own. 24 locks a voice. EDIT walks OSC, FILT, ENV</td></tr>
-    <tr><td>step + PRESETS / ALGORITHM</td><td>Lock on or off / choose the lock parameter</td></tr>
-    <tr><td>step + OCT- / OCT+</td><td>Clear locks (on the GRID also nudge and condition) / next condition</td></tr>
-    <tr><td>nothing held (synth)</td><td>K1 NOTE (pen), K2 STEP (cursor), K3 HIT (right sets, left clears), K4 VEL. PRESETS the sound, SELECT the tempo</td></tr>
-    <tr><td>tap SEQ (synth)</td><td>PATTERN (STEPS DIV SWING GATE), PLAY, ACID GEN, GEN, HARMONY. Tap SEQ again: back to the GRID</td></tr>
+    <tr><td>tabs</td><td>TRIG OSC FILT ENV FX MOD, as the drum screen's. EDIT: OSC, again the next stage. ENV, FX, LFO: their tab (again: its next half). SEQ: TRIG (again: back). SELECT: every half. With a step held too</td></tr>
+    <tr><td>nothing held</td><td>A sound tab: the knobs edit the sound. TRIG: K1 NOTE (pen), K2 STEP (cursor), K3 HIT (right sets, left clears), K4 VEL. PRESETS the sound</td></tr>
+    <tr><td>step + OCT- / OCT+</td><td>OCT-: the lock of the knob last turned off; again: every lock (on TRIG: locks, nudge, condition). OCT+: next condition. 24 locks a voice</td></tr>
   </table>
 </section>
 
@@ -238,24 +236,23 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
   <h2>Sound chain <small>OSC > FILT > ENV > FX > MOD</small></h2>
   <table>
     <tr><td>EDIT</td><td>Enters at OSC. Again: next stage, MOD wraps to OSC</td></tr>
-    <tr><td>ENV / FX / LFO</td><td>That stage's first page. Again: its next page</td></tr>
+    <tr><td>ENV / FX / LFO</td><td>That stage's first page. Again: its next page (ENV: AMP, then FILT, the filter's own)</td></tr>
     <tr><td>SELECT</td><td>Walks every page of the chain</td></tr>
   </table>
-  <div class="pages" aria-label="Pages in order"><span>OSC</span><span>OSC 2</span><span>VOICE</span><span>VOICE 2</span><span class="on">FILTER</span><span>FILTER 2</span><span class="on">ENV</span><span>ENV DEST</span><span class="on">FX</span><span>CHORUS</span><span>INSERT</span><span>INSERT 2</span><span>SLICER</span><span class="on">LFO</span><span>LFO DEST</span><span>LFO SYNC</span></div>
-  <div class="knobs"><div class="c1">ATK</div><div class="c2">DEC</div><div class="c3">SUS</div><div class="c4">REL</div></div>
-  <div class="knobs"><div class="c1">DIST</div><div class="c2">CHORUS</div><div class="c3">DELAY</div><div class="c4">REVERB<span>the voice's sends (start at 0)</span></div></div>
-  <p class="note">The strip above the knobs shows the five stages and the page. Presets: PRESETS, INIT at the end of JUNO and PLAITS lists. SAVE > TOOLS: CLRSQ, INIT, NEW.</p>
+  <div class="pages" aria-label="Pages in order"><span class="on">OSC</span><span>OSC 2</span><span>OSC 3</span><span class="on">FILT</span><span>FILT 2</span><span class="on">ENV</span><span>FILT ENV</span><span class="on">FX</span><span>INSERT</span><span>INSERT 2</span><span>SLICER</span><span class="on">LFO</span><span>LFO DEST</span><span>LFO SYNC</span><span>ENV DEST</span></div>
+  <div class="knobs"><div class="c1">TYPE</div><div class="c2">MACRO</div><div class="c3">MACRO</div><div class="c4">MACRO<span>OSC: names change with the Type</span></div></div>
+  <div class="knobs"><div class="c1">CUTOFF</div><div class="c2">RESO</div><div class="c3">ENV</div><div class="c4">TYPE<span>FILT: LP24 LP12 BP HP. FILT 2: KEY DRIVE LINK</span></div></div>
+  <p class="note">The same pages on every voice. OSC 2: OCT TUNE GLIDE VOICE. OSC 3: the Type's other controls, DTUNE, PRIOR. LINK AMP: the filter follows the amp ENV; turn a FILT ENV knob and it has its OWN. The tabs show the stage and its half (1/3).</p>
 </section>
 
 <section class="sl">
-  <h2>Engines <small>OSC page, KNOB 1-4</small></h2>
+  <h2>Oscillator Types <small>OSC, KNOB 1: 31 on every voice</small></h2>
   <table>
-    <tr><td class="c1">ACID</td><td>WAVE ACC SLIDE DRV (FILTER: CUT RES ENV DEC)</td></tr>
-    <tr><td class="c1">JUNO</td><td>WAVE PW SUB NOISE (FILTER: CUT RES ENV FILT)</td></tr>
-    <tr><td class="c2">ELEMENTS</td><td>MODEL STRC BRIT DAMP; OSC 2: POS ACC BOW EXC</td></tr>
-    <tr><td class="c3">PLAITS</td><td>MODEL HARM TIMB MRPH; OSC 2: ENV SUB</td></tr>
+    <tr><td>ACID, JUNO</td><td>The 303 (WAVE ACCENT SLIDE), the Juno DCO (WAVE PW SUB)</td></tr>
+    <tr><td>Plaits</td><td>VA, VCF, FOLD, PHASE D, 2-OP FM, 6-OP A B C, WAVETABLE, TERRAIN, ADDITIVE, CHORD, STR MACH, SWARM, FORMANT, CHIPTUNE, STRING, MODAL, NOISE, SPEECH, PARTICLE, KICK, SNARE, HI-HAT</td></tr>
+    <tr><td>Elements</td><td>BOUNCE, PLUCKED, BOWED, BLOWN, OMINOUS (STRC BRIT DAMP)</td></tr>
   </table>
-  <p class="note">Plain starts, no effects: 1 JUNO INIT mono, octave down. 2 JUNO INIT poly. 3 PLAITS INIT (saw), mono. Drums: 606.</p>
+  <p class="note">Plain starts, no effects: 1 ACID INIT bass, mono, octave down. 2 JUNO INIT chords, poly. 3 PLAITS VA saw lead, mono. Drums: 606.</p>
 </section>
 
 <section class="sl wide">

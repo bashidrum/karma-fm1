@@ -2279,6 +2279,7 @@ int main(int argc, char **argv)
         static const char *const VN[5] = {"acid", "juno", "elem", "plaits", "drum"};
         uint32_t v, j, n, st, last, seen, want, empty;
         char nm[40];
+        mlu.on = 0;                                     /* (wave 4: the shots without LEARN in the header) */
         for (v = 0; v < 5u; v++) {
             go_home(); song.playing = 0; ly_lock = LY_PLAY; frames(2);
             track_select(v < 2u ? 0u : v - 1u); frames(2);
@@ -2346,6 +2347,7 @@ int main(int argc, char **argv)
         uint32_t c, k, ok_all = 1, chr = 1;
         char nm[40], what[120];
         song.playing = 0;
+        mlu.on = 0;                                     /* (wave 4: the shots without LEARN in the header) */
         for (c = 0; c < sizeof SP / sizeof SP[0]; c++) {
             track_t *t = &trk[SP[c].trk];
             const page_t *pg;

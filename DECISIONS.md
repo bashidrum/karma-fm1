@@ -220,3 +220,52 @@ Found on the way
 - A crash in PLAITS: turning FOLD wiped a Plaits model's memory that was still marked ready; the next Plaits model read a null pointer. The host UI fuzz hit it (wave 2's tree too, with another seed). Fixed in eng_prism.c.
 Not checked
 - No device build (no toolchain here). The LFO's and the copy's cost on the FM-1 is unmeasured (a few operations a voice a block); the long tests (soak, stress, regress, web) were not run.
+
+## Rebuild wave 4, the MiniFreak voices, part one (22 Nov): calls made that Ben did not specify
+Where the spec left a choice open, the most MiniFreak-like option was taken; each is open to change.
+
+The oscillator (Ben: "A: Type + three macros"; 22 Nov: "Make the perfect version", every Type on every track)
+- 31 Types on every voice, in one list: ACID, JUNO, the 24 Plaits models and the 5 Elements models, each its own Type. Order: the plain ones first (ACID, JUNO, VA, VCF, FOLD ..), the struck and drum models last.
+- OSC has three halves: 1/3 TYPE and three macros; 2/3 OCT, TUNE, GLIDE, VOICE ("tune/octave on a second half"); 3/3 the Type's 4th and 5th controls, DTUNE, PRIOR. GLMODE and ALLOC have no page any more (they keep their values); PAN and MUTE are the mixer's only (VOICE and VOICE 2 are gone: one layout).
+- Macro names per Type follow the Plaits manual's description of each model (e.g. VA DETUNE SQUARE SAW; MODAL MATERL BRIGHT DECAY). Elements: STRC BRIT DAMP on every exciter, then its exciter's own control and POS. Left without a knob (they keep the sound's value): ELEMENTS ACC and EXC/TONE, OMINOUS DTUNE and BRIT.
+- Turning TYPE keeps the rest of the sound (the MiniFreak does). Another engine's Type starts its macros at their defaults with JUNO's chorus off and PLAITS' T.ENV at 0, so it stays plain; within PLAITS or ELEMENTS the macros stay where they are. BOWED and BLOWN get TONE 80 if it was under 60 (a strike's EXC 0 left them near silent).
+- The header shows the engine's INIT sound name after a Type change (each engine's INIT is its last preset; ELEMENTS got an INIT, a plain plucked bar).
+- JUNO's chorus moved from the FX stage to OSC 3/3 (it is part of the Juno voice; a JUNO-only FX page broke "the same layout").
+- TYPE cannot be locked (the Rytm's machine cannot); VOICE and PRIOR cannot either.
+
+The filter (Ben: "it doesn't growl or move" like a 101 or 303)
+- One four-pole ladder (zero-delay feedback, a soft saturator in the loop) after every oscillator and before the amp, so a self-oscillating filter dies with the note. TYPE: LP24, LP12, BP, HP (12 dB, as the MiniFreak's; LP24 for the 101 and 303 growl).
+- ACID's and JUNO's own ladders are kept as their LP24 (the 303 diode ladder, the IR3109), driven by the same CUTOFF RESO DRIVE and the same modulation; the line under the filter's name says which ladder plays. Any other TYPE opens their ladder and uses the shared one.
+- The 303 keeps its own small built-in envelope movement and its accent sweep; its ENVMOD knob is replaced by the ENV amount and its DECAY by the filter envelope's DECAY.
+- ENV amount: +-64 sweeps the whole range (127 steps, ten octaves) either way; KEY 100 % tracks exactly; DRIVE up to x8 into the saturator, with some level given back.
+- FILT 2/2: KEY, DRIVE, LINK (one knob left empty). Velocity to the filter: as before (an accent opens it with the envelope).
+- LINK is the default (the MiniFreak's filter follows the amp ENV). The first turn of a filter envelope knob while linked makes it OWN, starting from the amp ENV's values (as measured and proposed with the f-play report). ESYNC applies to both envelopes. ENV page: 1/2 AMP, 2/2 FILT, the AMP | FILT selector of mock-synth-env-A; ENV DEST (PIT SHP ESYNC) moved to the end of MOD.
+- HOME KNOB 1 CUTOFF is the voice filter's on every voice; KNOB 2 DECAY is the filter envelope's while it is OWN (ACID INIT), else the amp ENV's.
+- The old track FILT (DJ LP / HP) is no longer on a synth page: an older project's or user preset's FILT is moved onto the voice filter (LP: CUTOFF down; HP: TYPE HP). The drum track keeps its FILTER.
+
+Older sounds and projects (Ben: "Save format: Accept"; format 8 kept)
+- No new format: the new parameters are appended after P_E7 in format 8's room; rsv[0] of a project's core marks the wave 4 layout. A wave 2 or 3 project, every older format and user preset record 1 are mapped when loaded: ACID's CUT RES DRV onto CUTOFF RESO DRIVE, its ENVMOD onto the ENV amount (the sweep the 303 made), its DECAY onto an OWN filter envelope with the 303's decay time; JUNO's CUT RES ENVMOD and its half key tracking (KEY 35 %); their filter locks become the voice filter's locks.
+- What cannot map exactly: PLAITS' and ELEMENTS' old ENV > FLT and LFO > FLT moved their timbre or brightness; now they move the filter. ENV > FLT on PLAITS is added to T.ENV (positive amounts only); LFO > FLT now sweeps the filter (from fully open, so only its lower half is heard). PLAITS factory sounds with LFO > FLT (FOLD DRONE, TABLE SWEEP, SPECTRAL PD, DREAM 69, FORMANT VOX, TERRAIN PAD, NOISE SWEEP, VCF SWEEP) now wobble the filter, not the timbre.
+- User presets: record 2 keeps the 192-byte layout and puts the new parameters where the never-loaded 16-step pattern was. A firmware before wave 4 shows a record 2 slot as empty.
+- MIDI LEARN: the new parameters are learnable (their id + 1, codes 72 .. 82).
+
+The GRID (Ben: "Locks: Rytm way")
+- The synth GRID has the drum screen's tabs: TRIG OSC FILT ENV FX MOD. Page buttons change the tab with a step held or not; nothing held, the knobs edit the sound; held, they lock. SEQ on the GRID: TRIG, again back (as the drums). SEQ from a sound page: the GRID on that page's tab; from anywhere else: on TRIG (note entry).
+- SELECT on the synth GRID walks the tabs; the tempo is on HOME and the pages (it was on the GRID with nothing held).
+- OCT- with a step held on a sound tab: the last-turned knob's lock, then every lock (as the drums); on TRIG: locks, nudge and condition (as before).
+- The old PATTERN page is no longer reached from the GRID (as on the drum screen since wave 3). DIV, SWING and STEPS are on hold SEQ; GATE has no page now. OPEN: Ben to say where GATE goes, if anywhere.
+- A step with locks: a small square in its tile (the drum screen's mark); a nudge keeps the dot at the top.
+- The GRID's header shows the sound's name (the drum screen shows its kit); STEP REC and LIVE REC still show there.
+
+The screens
+- Synth header tag: the voice's number (1 2 3), as mock-synth-osc-A, on every synth page; the title is the sound's name.
+- Every page's dial row is the drum screen's (four dials, the tall face in fixed columns, units dropped). On the shared list pages the list names the knobs with a bar where each sits, and the values are in the dials only (they showed twice).
+- Five-letter values take a 7 px step instead of 8 so they never touch the next ring (the drum LFO page's PITCH); longer ones are cut to five, as before.
+- The FILT tag "AMP ENV" of mock-synth-filt-A is the line under the filter's name instead ("ENV: AMP" / "ENV: OWN"): drawn over the curve it hid it.
+
+Memory and the device (Ben, 22 Nov: "Make the perfect version. Then we'll compromise")
+- Every part's engine arena is sized for the biggest engine (16.6 KB: Plaits' PARTICLE). On the host and in the simulator: no limit. The device build would need 14.8 KB more pool than the 8 KiB rule leaves; one named limit keeps it building: tools/build.py PHEBUS_ARENA_T12=9152 (tracks 1 and 2's arenas). With it, 6-OP A/B/C, STRING, SPEECH and PARTICLE play on track 3 only on the device ("NOT ON THIS TRACK" on 1 and 2); everything else everywhere. OPEN: Ben to choose (see the wave 4 report).
+- ELEMENTS' Ominous Voice now starts from a cleared arena (a PHYS layout's slots were left in it); the arena test now runs on all three tracks.
+
+Not checked
+- No device build (no toolchain here); the voice filter's cost on the FM-1 is estimated from the host (about 0.45 of a JUNO voice per voice). The long tests (soak, stress, regress, web) were not run; the 26 golden renders will differ more (every voice now runs through the filter).
