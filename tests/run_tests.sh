@@ -63,6 +63,9 @@ run "sequencer 2.0: no drift, ratchets, roll, erase / undo, ghost / hard, chords
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/drumtrig_test" tests/drumtrig_test.c $PLX -lm
 run "drum trigs (PHEBUS wave 2): a sound's lock is its own, velocity, chance per trig, conditions, retrig, nudge per trig" "$OUT/drumtrig_test"
 
+$CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/drumrytm_test" tests/drumrytm_test.c $PLX -lm
+run "the Rytm drums (PHEBUS wave 3): every kit editable (copy-on-write), a 606 lock, LFO, mute, fill, live retrig, chromatic" "$OUT/drumrytm_test"
+
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/drumkit_test" tests/drumkit_test.c $PLX -lm
 run "synthesised drum kits: every kit x sound bounded, audible, finite, levels, cost" "$OUT/drumkit_test" "$OUT/drum-kits.wav" "$OUT/drum-kits.txt"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/font_test" tests/font_test.c
