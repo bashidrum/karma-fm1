@@ -269,3 +269,47 @@ Memory and the device (Ben, 22 Nov: "Make the perfect version. Then we'll compro
 
 Not checked
 - No device build (no toolchain here); the voice filter's cost on the FM-1 is estimated from the host (about 0.45 of a JUNO voice per voice). The long tests (soak, stress, regress, web) were not run; the 26 golden renders will differ more (every voice now runs through the filter).
+
+## Rebuild wave 5, the MiniFreak voices, part two (22 Nov): calls made that Ben did not specify
+Where the spec left a choice open, the most MiniFreak-like option was taken; each is open to change.
+
+FX slots (mock-synth-fx-A; Ben: "FX slots", "I don't like having fx on by default")
+- Three slots in series on every voice, after the filter, before the SLICER and the voice's level. Each: TYPE on KNOB 1, then the MiniFreak's TIME, INTENSITY, AMOUNT on KNOBS 2 to 4, named by the type. SELECT and the FX button walk FX 1, FX 2, FX 3, then SLICER; the page draws the three slots as boxes (the one on the knobs filled, a lit square when on) and the effect below.
+- Types: CHORUS, PHASER, FLANGER, REVERB, DELAY, DIST, SOFT, HARD, FOLD, FUZZ, CRUSH, EQ. PHASER, FLANGER, SOFT to FUZZ and CRUSH are the old INSERT's code; DIST the old per-voice DIST; EQ is new (three bands, -12 to +12 dB). Each type's knobs: CHORUS RATE DEPTH SEND, PHASER and FLANGER RATE FDBK MIX, REVERB SIZE DAMP SEND, DELAY TIME FDBK SEND, DIST and the drives TONE DRIVE MIX, CRUSH RATE BITS MIX, EQ LOW MID HIGH. The INSERT's fourth value each type had (the drives' LEVEL, CRUSH's LPF, the sweeps' DEPTH) stays at its old default: the MiniFreak gives every effect three knobs.
+- The shared effects: there is one delay line, one reverb and one chorus (the MiniFreak also has one reverb and one delay). A CHORUS, REVERB or DELAY slot is the voice's send to it (KNOB 4: P_CHOR, P_REV, P_DLY, the same parameters as before, taken after the level and pan as always, so the slot's position does not change the sound); its KNOB 2 and 3 are GLO's settings (REV/CHO, DLY), shared by every voice and drawn white-grey, not in the voice's colour. A voice sends nothing to a shared effect without a slot of that type. One CHORUS, one REVERB, one DELAY and one FLANGER a voice (the flanger needs a delay line; one a voice keeps the RAM as it was): KNOB 1 skips a type another slot has.
+- Picking a type sets its knobs to that type's start; a send type starts its send at the old preset default (chorus 24, delay 28, reverb 36) if it was 0; turning a send type away puts its send to 0. TYPE cannot be locked (as the Rytm's machine and the oscillator TYPE); TIME, INTENS, AMOUNT can.
+- The voice's old INSERT pages are gone from the synth voices; the drum voice keeps its INSERT (TYPE, A B C, MIX) and SLICER on FX.
+- MIDI CC 91, 93, 94 (sends) on a synth voice with no slot of that type put one in the first OFF slot (none OFF: nothing).
+- Old projects, user presets (records 1 and 2) and every factory preset: DIST, the INSERT and the sends become slots in that order (DIST, INSERT, then the sends largest first), their locks moved with them. Exact, except: past three effects the smallest sends go (no factory sound has more than three; a project with DIST, INSERT and three sends loses its smallest sends); an INSERT's fourth value at a non-default (the drives' LEVEL goes into the sound's trim, exact at MIX 100 %; CRUSH LPF, PHASER/FLANGER DEPTH stay at default); the INSERT's mono CHOR becomes the shared CHORUS.
+
+The mod matrix (Ben: "A: grid"; mock-synth-mod-A)
+- Rows (sources): LFO1, LFO2, AENV (amp envelope), FENV (the filter's envelope: LINK AMP, the amp envelope), PENV (the old ENV > PIT's fast pitch fall), VEL, KEY. PENV is a row because ENV DEST's PIT always used that fall, not the amp envelope; as a row it can now go anywhere.
+- Columns (destinations): PIT, M1 M2 M3 (the OSC page's macros, as the Type names them), CUT, RES, LVL, PAN, FX1 FX2 FX3 (each slot's AMOUNT: its mix or its send), AS1 AS2 (assignable: any lockable sound parameter, chosen with KNOB 4 TARGET). 7 x 13, the MiniFreak's own size.
+- Navigation: KNOB 1 SOURCE (row), KNOB 2 DEST (column), KNOB 3 AMOUNT (-64 to +63), KNOB 4 CLEAR (on AS1 and AS2: TARGET). The grid shows six columns at a time and slides with the cursor. Positive cells a filled square, negative an empty one, size by amount.
+- One source of truth: six cells ARE the old fixed routings' parameters: LFO1 > PIT (P_LD_PIT), LFO1 > CUT (P_LD_FLT), LFO1 > LVL (P_LD_AMP, the old one-way tremolo depth), FENV > CUT (the FILT page's ENV), PENV > PIT (P_ED_PIT), KEY > CUT (FILT 2's KEY). Turning either place changes the same value; these six lock on a step as before. The old LFO > SHP and ENV > SHP moved the engine's "shape" macro: they become LFO1 and AENV cells of that macro's column when an old sound loads (PLAITS M3, JUNO M2 (PW); ELEMENTS' shape is its 4th control, so an assignable column at half the amount, approximate; ACID had none, they did nothing there).
+- Besides the six, 19 cells a voice (the 46 bytes format 8 kept: 19 cells, the two targets, LFO 2's SYNC and TRIG, Spice and Dice). The 20th says MATRIX FULL: 19 CELLS.
+- PIT, M1-M3, CUT, RES and LVL act on each note with its own envelopes. PAN, FX and AS act on the whole voice part: the LFOs as they run, the envelopes, velocity and key of the note started last (a voice's notes are mixed in mono before the pan and the slots).
+- LVL only ever brings the level down from the voice's own (a depth, as the old tremolo): no clipping from the matrix.
+- LFO 2: RATE, WAVE, SYNC, TRIG (NOTE, FREE, PATT); FREE to start (the MiniFreak's runs free unless asked); its sample-and-hold uses its own random numbers.
+- The MOD pages: LFO (RATE WAVE PHASE FADE), LFO SYNC (SYNC TRIG POL and ESYNC, which was on ENV DEST), LFO 2, MATRIX. LFO DEST and ENV DEST are gone (their values are grid cells).
+
+Spice and Dice (Ben: "Cut all but give me the spice & dice from minifreak")
+- On the synth GRID, TRIG 2/2 with no step held (that half said HOLD A STEP before): KNOB 1 SPICE (0 to 100 %), KNOB 2 DICE (each click right a new roll, numbered; left the roll before, so a roll you liked can be found again). A gesture on a button was considered: every free button on the GRID already has a job.
+- A roll gives each step random numbers for: left out (up to 30 % of the notes at full Spice), an octave up or down (25 %), a ratchet of 2 or 3 (20 %), velocity (+-48) and length (x0.25 to x1.75). Spice scales them all; more Spice is the same roll, further (nested). The notes in the pattern are never touched; Spice 0 is the pattern exactly as written. The same roll and Spice repeat every loop.
+- Kept with the pattern (each section A to D its own). Melodic voices only (the Rytm has no such thing; the drum trigs have CHANCE and conditions).
+- The GRID's tiles show the variation while Spice is up: left-out steps dim with a line, octave arrows, ratchet ticks, the length as a line.
+
+GATE (wave 4 left it without a page). CALL FOR BEN TO CONFIRM
+- Hold SEQ: KNOB 1 GATE, next to DIV, SWING and STEPS (KNOB 1 was empty). Synth voices; the drum voice shows -- (its hits are one-shot).
+
+GLMODE and ALLOC (wave 4 left them without a page)
+- Both still matter (glide by rate or time; poly voice allocation), so they got OSC 4/4 (KNOBS 1 and 2), the voicing settings, the MiniFreak keeping them in its Sound settings. PAN and MUTE stay on the mixer only.
+
+User presets
+- Record 3 keeps the slots and LFO 2 (in the record's spare bytes) and each record's matrix in its bank after the 16 records (the bank's flash object had 760 bytes free). A bank stored before loads, its records' FX and routings mapped as above. A firmware before wave 5 shows a bank stored by wave 5 as empty (its length changed). Device compile switch PHEBUS_UP_MX=0 drops the matrices from user presets (saves 1,472 B of RAM) if the device needs it; not set.
+
+Memory (Ben: "Make the perfect version. Then we'll compromise")
+- No new pool use (the effects reuse the old INSERT's states and lines: four lines for the drums' INSERT, one a voice). Measured on an rv32 -Os stand-in build against the wave 4 merge (not the JieLi toolchain): pool +0 B; .data+.bss +2,570 B (about 96,240 of 98,304 on the device if the stand-in's difference holds); code and constants +22.4 KB (about 521,500 of 581,564). Everything fits; no new named limit; PHEBUS_ARENA_T12 stays as wave 4 set it.
+
+Not checked
+- No device build here (no toolchain); the sizes above are the stand-in's differences. The long tests (soak, stress, regress, web) were not run; the golden renders will differ where presets carry sends (they now go through slots: same arithmetic) and LFO > SHP (now cells). browse_test reports 2 presets differing after browsing, as on the wave 4 merge.
