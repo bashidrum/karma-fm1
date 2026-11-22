@@ -437,8 +437,8 @@ typedef struct {
 
 static const page_t PAGES[] = {
     /* ---- the sound chain (fam_stage): OSC > FILTER > ENV > FX > MOD. The pages a voice does not have are skipped
-     * (page_shown); the drum track's are its selected HEX sound's (GR_HEX) and the track's own FILTER, INSERT,
-     * SLICER and the global FX. An engine's E0..E7 keep their meaning: only where they are shown moved */
+     * (page_shown); the drum track's are its own FILTER, INSERT and SLICER (its sounds' pages are the drum screen's,
+     * SRC FLTR AMP LFO: PHEBUS wave 3, ui_drum.c). An engine's E0..E7 keep their meaning: only where they are shown moved */
     /* OSC: the engine's source, then the voice (mono / poly, glide, unison) */
     {"OSC", FAM_OSC, SC_TRACK, GR_NONE, {P_E0, P_E5, P_E7, P_E6}, PG_ENG(ENGI_ACID)},   /* WAVE ACC SLIDE DRV */
     {"OSC", FAM_OSC, SC_TRACK, GR_NONE, {P_E0, P_E1, P_E2, P_E3}, PG_ENG(ENGI_JUNO)},   /* WAVE PW SUB NOISE (DCO) */
@@ -450,10 +450,6 @@ static const page_t PAGES[] = {
     {"OSC 2", FAM_OSC, SC_TRACK, GR_NONE, {P_E4, P_E5, P_E6, P_E7}, PG_OTHER},
     {"VOICE", FAM_OSC, SC_TRACK, GR_NONE, {P_VOICE, P_GLIDE, P_GLMODE, P_PRIO}},
     {"VOICE 2", FAM_OSC, SC_TRACK, GR_NONE, {P_ALLOC, P_DETUNE, P_PAN, P_MUTE}},
-    {"HEX OSC", FAM_OSC, SC_GLOBAL, GR_HEX, {G_HXMODEL, G_HXWAVE, G_HXTUNE, G_HXFINE}},   /* the drum track: the */
-    {"HEX MOD", FAM_OSC, SC_GLOBAL, GR_HEX, {G_HXPAMT, G_HXPDEC, G_HXRATIO, G_HXFM}},      /* selected sound of its */
-    {"HEX CLICK", FAM_OSC, SC_GLOBAL, GR_HEX, {G_HXCLICK, G_HXCLVL, G_HXCTONE, G_HXCRUSH}}, /* HEX kit (page_shown: */
-    {"HEX MORE", FAM_OSC, SC_GLOBAL, GR_HEX, {G_HXAUX1, G_HXAUX2, 0xFF, 0xFF}},             /* the drum track only) */
     /* FILTER: the engine's filter (cutoff, resonance, envelope amount first), then FILT, the track's own LP / HP
      * filter (every voice, the drum track too; FX + KNOB 4) */
     {"FILTER", FAM_FLT, SC_TRACK, GR_NONE, {P_E1, P_E2, P_E3, P_E4}, PG_ENG(ENGI_ACID)},   /* CUT RES ENV DEC */
@@ -461,13 +457,11 @@ static const page_t PAGES[] = {
     {"FILTER", FAM_FLT, SC_TRACK, GR_NONE, {P_E4, P_E5, P_E6, P_TFLT}, PG_ENG(ENGI_JUNO)},   /* CUT RES ENV, FILT */
     {"FILTER", FAM_FLT, SC_TRACK, GR_NONE, {P_FTYPE, P_E4, P_E5, P_E7}, PG_OTHER},   /* ANALOG only (2.6, Felucca 1.5):
                                                                           * TYPE CUT RES KTR (page_shown) */
-    {"HEX FILT", FAM_FLT, SC_GLOBAL, GR_HEX, {G_HXFTYPE, G_HXCUT, G_HXRES, G_HXDRIVE}},
     {"FILTER", FAM_FLT, SC_TRACK, GR_NONE, {P_TFLT, 0xFF, 0xFF, 0xFF}},   /* (not ACID's, JUNO's: page_shown) */
     /* ENV: the amp envelope, then where it goes (FLT: the filter envelope amount) and its sync */
     {"ENV", FAM_ENV, SC_TRACK, GR_ADSR, {P_ATK, P_DEC, P_SUS, P_REL}},
     {"ENV DEST", FAM_ENV, SC_TRACK, GR_NONE, {P_ED_FLT, P_ED_PIT, P_ED_SHP, P_ESYNC}},   /* (P_ED_FX: the level trim, no
                                                                        * page); 2.6: ESYNC, ENV's times as note values */
-    {"HEX AEG", FAM_ENV, SC_GLOBAL, GR_HEX, {G_HXATK, G_HXDEC, G_HXSLOPE, G_HXLVL}},
     /* FX: the track's drive and sends, its own effects in signal order (PHEBUS, 21 Nov 2026, Ben: "Merge and move": the
      * shared effects, DLY and REV/CHO, are GLO's pages now, not in each voice's chain) */
     {"FX", FAM_FX, SC_TRACK, GR_FX, {P_DIST, P_CHOR, P_DLY, P_REV}},
@@ -537,32 +531,14 @@ static int page_eng_ok(const page_t *pg)
  * has (its HEX sound, FILTER, INSERT, SLICER, the global FX); ANALOG's FILTER (TYPE) on ANALOG only */
 static int page_shown(const page_t *pg)
 {
-    if (pg->graph == GR_HEX)                         /* the HEX sound pages: the drum track's, and only its */
-        return is_drum(TSEL);
+    if (pg->graph == GR_HEX)                         /* (the HEX sound pages: cut, PHEBUS wave 3: the drum screen's pages) */
+        return 0;
     if (fam_stage(pg->fam) >= 0)
         return is_drum(TSEL) ? page_for_drum(pg) : page_eng_ok(pg) &&
                                    (pg->id[0] != P_FTYPE || TSEL->eng_req % NENGINES == 0u);
     return 1;
 }
 
-/* a HEX sound's byte as its model reads it (hex_drums.c): what differs from GP's (the DRUM model's) */
-static const param_desc_t *hex_desc(uint32_t id)
-{
-    static const param_desc_t SN[] = {PD("PSLOPE", F_INT, -64, 62, 0), PD("P.AMT", F_INT, 0, 127, 0),
-                                      PD("P.DEC", F_INT, 0, 127, 30), PD("N.FRQ", F_INT, 0, 127, 120),
-                                      PD("MIX", F_INT, 0, 127, 90), PD("REPT", F_INT, 0, 127, 0)};
-    static const param_desc_t CY[] = {PD("FINE", F_INT, -64, 62, 0), PD("MOD2", F_INT, 0, 127, 60),
-                                      PD("PIT2", F_INT, 0, 127, 120), PD("PIT1", F_INT, 0, 127, 90),
-                                      PD("MOD1", F_INT, 0, 127, 60), PE("WAVES", N_HXWAV2, 22)};
-    static const param_desc_t AUX_DRUM = PE("MOD", N_HXMODW, 0);
-    static const uint8_t AT[22] = {9, 9, 9, 0, 9, 9, 9, 9, 1, 2, 3, 4, 9, 9, 9, 9, 9, 9, 9, 5, 9, 9};
-    uint32_t m = (uint32_t)song.g[G_HXMODEL], i = id - G_HXMODEL, a = i < 22u ? AT[i] : 9u;
-    if (a == 9u)
-        return &GP[id];
-    if (m == HM_DRUM)
-        return a == 5u ? &AUX_DRUM : &GP[id];
-    return m <= HM_CLAP ? &SN[a] : &CY[a];
-}
 static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **valp)
 {
     uint32_t id = pg->id[slot];
@@ -576,8 +552,10 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
     }
     if (pg->scope == SC_GLOBAL) {
         *valp = &song.g[id];
-        return pg->graph == GR_HEX ? hex_desc(id) : &GP[id];
+        return &GP[id];
     }
     *valp = &TSEL->p[id];
     return track_desc(TSEL, id);
 }
+
+#include "drum_par.c"           /* (PHEBUS wave 3) the drum sounds' pages: their parameters, ranges, names */

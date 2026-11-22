@@ -82,6 +82,8 @@ typedef struct {
     int32_t gain, lg;            /* velocity Q15, the sound's level Q10 */
     int32_t held, holdn;         /* crush: sample-and-hold */
     uint8_t crush, bursts, fmode;
+    int16_t lp16, lcut, lres;    /* (PHEBUS wave 3) the sound's LFO now: pitch (1/16 semitone), cutoff (CUTOFF_HZ steps
+                                  * << 8 / 16), resonance (0..31 steps); drums.c drum_lfo sets them once a block */
 } dsv_t;
 
 /* per-sample DECAY_K (Q16) -> per-block (CTL = 32 samples) by squaring five times */
@@ -104,7 +106,7 @@ static uint16_t ds_blocks(uint32_t units2ms) { return (uint16_t)(units2ms * 2u *
 static void ds_filter(dsv_t *s)
 {
     const dsnd_t *d = s->d;
-    int32_t cut = s->cut + ((s->pe * (int32_t)d->fenv) >> 7), i, g, den;   /* (pe Q15 x steps << 8) */
+    int32_t cut = s->cut + ((s->pe * (int32_t)d->fenv) >> 7) + s->lcut * 16, i, g, den;   /* (pe Q15 x steps << 8) */
     cut = clamp(cut, 0, 127 << 8);
     i = cut >> 8;
     g = SVF_G[i];
@@ -119,11 +121,14 @@ static void ds_filter(dsv_t *s)
 /* the 808 cymbal oscillators (205.3 304.4 369.6 522.7 540 800 Hz) as 1/16 semitones above the first */
 static const int16_t DS_METAL[6] = {0, 109, 163, 259, 268, 377};
 
-static void ds_on(dsv_t *s, const dsnd_t *snd, uint32_t crush, uint32_t note, uint32_t vel)
+/* a hit of sound d (a kit's, the project's, or drums.c's locked copy): note its GM note (its pitch offset), xs semitones
+ * more (a pitch lock, chromatic mode) */
+static void ds_on_snd(dsv_t *s, const dsnd_t *d, uint32_t crush, uint32_t note, uint32_t vel, int32_t xs)
 {
     int32_t semi;
-    uint32_t lane = ds_lane(note, &semi), i;
-    const dsnd_t *d = &snd[lane];
+    uint32_t i;
+    (void)ds_lane(note, &semi);
+    semi += xs;
     memset(s, 0, sizeof *s);
     s->d = d;
     s->crush = (uint8_t)crush;
@@ -163,6 +168,11 @@ static void ds_on(dsv_t *s, const dsnd_t *snd, uint32_t crush, uint32_t note, ui
     for (i = 0; i < 6u; i++)
         s->minc[i] = ds_inc(s->base16 + DS_METAL[i]);
 }
+static void ds_on(dsv_t *s, const dsnd_t *snd, uint32_t crush, uint32_t note, uint32_t vel)
+{
+    int32_t semi;
+    ds_on_snd(s, &snd[ds_lane(note, &semi)], crush, note, vel, 0);
+}
 
 /* one CTL block of control: the envelopes' targets at its end */
 static void ds_control(dsv_t *s)
@@ -189,8 +199,10 @@ static void ds_control(dsv_t *s)
         s->nz_to = (int32_t)(((uint32_t)s->nz * s->kn) >> 16);
     s->ck_to = (s->ck * 3) >> 3;                        /* ~1 ms: gone in a few blocks */
     s->pe = (int32_t)(((uint32_t)s->pe * s->kpe) >> 16);
-    s->inc_to = ds_inc(s->base16 + ((s->pe * (int32_t)d->bend * 16) >> 15));
-    if ((s->fmode & 3u) && d->fenv)
+    s->inc_to = ds_inc(s->base16 + s->lp16 + ((s->pe * (int32_t)d->bend * 16) >> 15));
+    if (s->lres)                                        /* (the LFO on the resonance: the damping again) */
+        s->fk = 8192 - clamp((int32_t)(d->flt >> 3) + s->lres, 0, 31) * 245;
+    if ((s->fmode & 3u) && (d->fenv || s->lcut || s->lres))
         ds_filter(s);
 }
 

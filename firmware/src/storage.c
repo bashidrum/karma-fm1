@@ -207,12 +207,17 @@ static int st_save(uint32_t obj, const void *src, uint32_t len) { return st_save
  * as it programs; nothing is copied), then zt zero bytes (a reserved part, kept in no RAM), up to ST_BIG_MAX in all. The
  * same A/B commit as the others: both sectors of the copy that is not the current one erased, the payload programmed,
  * the header last, then everything read back */
-static int st_save_big(uint32_t obj, const void *src, uint32_t len, uint32_t zt)
+/* (PHEBUS wave 3) len bytes of src, then tlen of tail (0: none), then zt zeros: one object */
+static int st_save_big2(uint32_t obj, const void *src, uint32_t len, const void *tail, uint32_t tlen, uint32_t zt)
 {
-    uint32_t seq, base, off, c, crc, all = len + zt;
+    uint32_t seq, base, off, c, crc, all, head = len;
     uint8_t z[256];
     int cur, rc;
     st_hdr_t h;
+    if (!tail)
+        tlen = 0;
+    len += tlen;                                      /* (len: the bytes that are not zeros, from src and tail) */
+    all = len + zt;
     if (!st_big(obj) || len > ST_BIG_MAX || zt > ST_BIG_MAX - len)
         return -1;
     cur = st_current(obj, &h);
@@ -223,12 +228,13 @@ static int st_save_big(uint32_t obj, const void *src, uint32_t len, uint32_t zt)
         return rc;
     crc = 0xFFFFFFFFu;
     for (off = 0; off < all; off += 256u) {
-        uint32_t n = all - off > 256u ? 256u : all - off;
+        uint32_t n = all - off > 256u ? 256u : all - off, k;
         const uint8_t *pg = (const uint8_t *)src + off;
-        if (off + n > len) {                          /* (a page with the zeros in it: made up here) */
-            uint32_t k = off < len ? len - off : 0u;
-            memset(z, 0, sizeof z);
-            memcpy(z, (const uint8_t *)src + off, k);
+        if (off + n > head) {                         /* (a page with the tail or the zeros in it: made up here) */
+            for (k = 0; k < n; k++) {
+                uint32_t o = off + k;
+                z[k] = o < head ? ((const uint8_t *)src)[o] : o < len ? ((const uint8_t *)tail)[o - head] : 0u;
+            }
             pg = z;
         }
         crc = st_crc32_up(crc, pg, n);
@@ -252,3 +258,4 @@ static int st_save_big(uint32_t obj, const void *src, uint32_t len, uint32_t zt)
     }
     return 0;
 }
+static int st_save_big(uint32_t obj, const void *src, uint32_t len, uint32_t zt) { return st_save_big2(obj, src, len, 0, 0, zt); }
