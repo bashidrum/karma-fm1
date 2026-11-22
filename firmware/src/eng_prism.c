@@ -114,7 +114,9 @@ static void prism_slot_init(track_t *t, voice_t *v)      /* the slot set for the
                                                           * section ran the instance this slot had written over: a crash at
                                                           * the second pass) Plaits' instances in this arena start over */
         memset(plx_ready[p], 0, sizeof plx_ready[p]);
-    if (sl)
+    if (sl && model != PRM_FOLD)                         /* (PHEBUS wave 3: FOLD has no slot, prism_render; wiping one here
+                                                          * zeroed a Plaits instance still marked ready above, and the next
+                                                          * Plaits model's render read a null pointer: the host UI fuzz's crash) */
         memset(sl, 0, sizeof *sl);                       /* (as on a fresh FM-1: what another model left is not this one's) */
     if (sl && model == PRM_SWARM)
         pr_swarm_init(&sl->swarm);
