@@ -310,10 +310,9 @@ static void project_new(void)
     ui.force = 1;
 }
 
-static void edit_param(uint32_t slot, int32_t steps)
+static void edit_param_pg(const page_t *pg, uint32_t slot, int32_t steps)   /* (wave 4: any page; the GRID's tabs) */
 {
     int16_t *vp;
-    const page_t *pg = cur_page();
     const param_desc_t *d;
     uint32_t id = pg_id(pg, slot);
     int32_t v;
@@ -446,6 +445,8 @@ static void edit_param(uint32_t slot, int32_t steps)
     }
 }
 
+static void edit_param(uint32_t slot, int32_t steps) { edit_param_pg(cur_page(), slot, steps); }
+
 /* SLOOP 2.6: the MIDI keyboard's notes as the UI sees them (seq.c step_in_q), every frame: recording, armed or in a free
  * take, a note for another track than the one recording says which one it plays (once a take). The notes themselves
  * sound, and set the GRID's pen, in seq.c (the old STEP page's entry is gone: REVIEW.md 2, 21 Nov 2026) */
@@ -508,8 +509,10 @@ static void layer_tap(uint32_t layer)
     int drum = is_drum(TSEL);
     switch (layer) {
     case LY_FX:
-        if (on_drum_page() && sg_held)                    /* the GRID, a step held: the FX pages lock (ui_grid.c; the drum
-                                                          * screen: the drum voice's own pages, its bus) */
+        if (on_drum_page() && !drum && !stl_shown())      /* (wave 4) the synth GRID: its FX tab, a step held or not */
+            syn_open(FAM_FX);
+        else if (on_drum_page() && sg_held)               /* the drum screen, a trig held: the drum voice's own pages lock
+                                                          * (its bus, ui_grid.c) */
             sg_lock_open(FAM_FX);
         else
             open_family(FAM_FX);
@@ -522,10 +525,12 @@ static void layer_tap(uint32_t layer)
             drum_open(FAM_EDIT);
             break;
         }
-        if (on_drum_page() && sg_held && !drum) {         /* the synth GRID, a step held: EDIT walks the pages that lock
-                                                          * (OSC > FILT > ENV, ui_grid.c); SEQ nothing */
+        if (on_drum_page() && !drum && !stl_shown()) {    /* (wave 4) the synth GRID, the Rytm's way: EDIT its OSC tab (again:
+                                                          * the next stage), SEQ its TRIG tab (again: back); a step held too */
             if (layer == LY_ERASE)
-                sg_lock_open(FAM_EDIT);
+                syn_open(FAM_EDIT);
+            else if (!sr_on)
+                syn_seq_tap();
             break;
         }
         if (layer == LY_ERASE) {
@@ -547,6 +552,10 @@ static void layer_tap(uint32_t layer)
         }
         if (drum && drum_keys != DK_PLAY)
             drum_keys = DK_PLAY;
+        if (!drum && on_chain())                          /* (wave 4) from a synth's sound page: its GRID on that page; */
+            syn_grid_from_page();
+        else if (!drum)                                   /* from anywhere else: on TRIG (the notes: the pen, the steps) */
+            syn_go(0, 0);
         studio_open(SC_DRUM);
         break;
     case LY_ROLL:

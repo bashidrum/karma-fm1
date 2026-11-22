@@ -985,6 +985,12 @@ static void ui_draw(void)
         return;
     }
     cursor_fix();
+    if (on_chain() && !is_drum(TSEL)) {                 /* (wave 4) a synth's sound page, the MiniFreak's way (ui_synth.c) */
+        syn_page_draw();
+        ui_timers();
+        ui.force = 0;
+        return;
+    }
     if (ui.force)
         draw_frame();
     felucca_dbg.stage = 3;

@@ -220,9 +220,9 @@ static void swing_str(char *b, int32_t v)            /* 0 straight .. 100 the mo
 
 /* (PHEBUS, Ben 21 Nov 2026: "having easy access to decay, filter, fx, makes for fun play on the fly"; picker "Cutoff,
  * decay, FX, level", and of the FX knob: "Would be cool if it actually just turned on and off the stutter") HOME's KNOB 1
- * and 2, for the selected voice: CUTOFF, the engine's own filter cutoff (its CUT: ACID, JUNO), else the voice's FILTER
- * (P_TFLT: PLAITS, ELEMENTS, and the drums' track filter); DECAY, the decay of the envelope that moves the sound: the
- * engine's own envelope where it has one (ACID's DECAY), else the shared ENV's DEC (JUNO, PLAITS, ELEMENTS); on the
+ * and 2, for the selected voice: CUTOFF, the voice filter's (wave 4: every synth voice; the drums: their track filter,
+ * P_TFLT); DECAY, the decay of the envelope that moves the sound: the filter's own while it is OWN (ACID's 303 decay),
+ * else the amp ENV's DEC; on the
  * drums the selected sound's decay on every kit (PHEBUS wave 3: its AMP page's DEC / DECAY; a built-in kit's first turn
  * makes the project's copy, ui_drum.c). (KNOB 3 the STUTTER lane on /
  * off, KNOB 4 LEVEL: ui_input.c tracks_edit) */
@@ -243,13 +243,12 @@ static int16_t *home_knob(uint32_t k, const param_desc_t **d)
         dec = (int16_t)dsp_get(drum_model(), lane_snd(drum_lane), lane_lfo(drum_lane), drum_lane, drum_dec_id());
         return &dec;
     }
-    for (i = 0; i < 8u; i++)
-        if (str_eq(ENGINES[t->eng_req % NENGINES]->edit[i].label, k ? "DECAY" : "CUT")) {
-            *d = track_desc(t, P_E0 + i);
-            return &t->p[P_E0 + i];
-        }
-    *d = &TP[k ? P_DEC : P_TFLT];
-    return &t->p[k ? P_DEC : P_TFLT];
+    /* (PHEBUS wave 4) every synth voice the same: CUTOFF the voice filter's; DECAY the filter's own envelope's while it is
+     * OWN (what moves the sound: ACID's 303 decay), else the amp ENV's */
+    (void)i;
+    i = k ? (t->p[P_FLINK] ? P_FDEC : P_DEC) : P_FCUT;
+    *d = &TP[i];
+    return &t->p[i];
 }
 static void studio_tracks_draw(void)
 {
