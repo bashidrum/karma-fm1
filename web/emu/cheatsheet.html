@@ -183,7 +183,7 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
 <section class="sl">
   <h2>Hold a button <small>its layer</small></h2>
   <table>
-    <tr><td>FX</td><td><b>PUNCH</b>: effects on the keys, while held</td></tr>
+    <tr><td>FX</td><td><b>PERFORM</b>: the keys are effect pads on the whole mix (below). Held 0.7 s untouched and let go: stays open</td></tr>
     <tr><td>EDIT</td><td><b>ERASE</b>: key erases that note or sound. K1 SHIFT, K2 STEPS x2 / half, K3 TRANSP</td></tr>
     <tr><td>ARP</td><td><b>ROLL</b>: hold a key to repeat. K1 rate</td></tr>
     <tr><td>SEQ</td><td><b>STEPS</b>: K1 GATE, K2 DIV, K3 SWING, K4 STEPS (keys do nothing)</td></tr>
@@ -225,11 +225,12 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
 <section class="sl">
   <h2>STUTTER lane <small>ALGORITHM past DRUM</small></h2>
   <ul>
-    <li>Tap an unlit step: it lights (length 1/8). Tap a lit step: it goes out on release.</li>
-    <li>Hold a step + K1: its length 1/4, 1/8, 1/16, 1/32.</li>
-    <li>K2: lane ON / OFF (steps kept). K4: lane length 1-64.</li>
+    <li>Tap an unlit step: it lights (new steps 1/4). Tap a lit step: it goes out on release.</li>
+    <li>Hold a step + K1: its length 1/1, 1/2, 1/4, 1/8, 1/16, 1/32. Hold a step + OCT-: erase the recorded pads over it.</li>
+    <li>K1: length for new steps. K2: lane ON / OFF (steps and recorded pads kept; HOME K3 the same). K3 FX: how many pads are recorded; turn twice within 1.5 s to clear them. K4: lane length 1-64.</li>
     <li>Black keys 1-4, OCT-/OCT+: page. EDIT + OCT-: undo.</li>
-    <li>A lit step repeats the span just before it, the whole mix. Same-length steps in a row are one loop.</li>
+    <li>A lit step repeats the span just before it, the whole mix (1/2 and 1/1 replay the steps). Same-length steps in a row are one loop.</li>
+    <li>PERFORM pads played while recording land here as named bars and play back with the pattern (31 at most).</li>
   </ul>
 </section>
 
@@ -260,17 +261,19 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
 </section>
 
 <section class="sl wide">
-  <h2>Hold FX: PUNCH <small>keys, while held</small></h2>
+  <h2>Hold FX: PERFORM <small>the keys as pads, on the whole mix</small></h2>
   <table>
-    <tr><td>white, row 1</td><td><b>LOOP 4</b> (quarter note) · <b>LOOP 8</b> (eighth) · <b>LOOP 16</b> · <b>LOOP 32</b></td></tr>
-    <tr><td>white, row 2</td><td><b>STUTTER</b> · <b>REVERSE</b> · <b>STOP</b> · <b>HALF</b></td></tr>
-    <tr><td>white, row 3</td><td><b>LOW</b> · <b>HIGH</b> · <b>PHONE</b> · <b>CRUSH</b></td></tr>
-    <tr><td>white, row 4</td><td><b>ALIAS</b> · <b>GATE</b> · <b>ECHO</b> · <b>WOBBLE</b></td></tr>
-    <tr><td>black keys</td><td>F#3 KILL LOW · G#3 KILL MID · A#3 KILL HIGH · C#4 REWIND · D#4 OCT UP · F#4 FLANGER · G#4 AUTO-PAN · A#4 FREEZE · C#5 LOOP 8T · D#5 MONO · F#5 FADE OUT</td></tr>
-    <tr><td>knobs</td><td>K1 master FILTER (left LP, right HP) · K2 DUST · K3 DUCK · K4 TRK FILT (selected voice)</td></tr>
-    <tr><td>OCT- / OCT+</td><td>REV THROW / ECHO THROW (both: both)</td></tr>
+    <tr><td>white, row 1</td><td><b>1/1</b> · <b>1/2</b> (replay the bar / half bar) · <b>1/4</b> · <b>1/8</b> (repeat)</td></tr>
+    <tr><td>white, row 2</td><td><b>1/16</b> · <b>1/32</b> · <b>REVRS</b> · <b>HALF</b></td></tr>
+    <tr><td>white, row 3</td><td><b>LP</b> sweep down · <b>HP</b> sweep up · <b>CRUSH</b> · <b>GATE</b></td></tr>
+    <tr><td>white, row 4</td><td><b>STOP</b> tape stop · <b>DROP</b> pitch drop · <b>ECHO</b> throw · <b>VERB</b> throw</td></tr>
+    <tr><td>black keys</td><td>F#3 <b>-DRM</b> kill drums · G#3 <b>-BAS</b> kill bass · A#3 <b>LCUT</b> low cut · C#4 <b>FLNG</b> flanger · C#5 <b>8T</b> · D#5 <b>16T</b> (the rest: none)</td></tr>
+    <tr><td>knobs</td><td>The last pad pressed: K4 AMOUNT. Stutters: PITCH · DECAY · GATE. LP / HP: CUTOFF · RESO · SPEED. CRUSH: BITS · RATE. GATE: RATE · WIDTH. STOP: TIME. DROP: DEPTH · TIME. ECHO: TIME (shared) · FDBK. VERB: SIZE · DAMP (shared). REVRS / HALF: LENGTH. LCUT: FREQ. FLNG: RATE · FDBK. -BAS: VOICE</td></tr>
+    <tr><td>OCT+</td><td>Latch: hold it and press a pad, or press it with pads held. A latched pad pressed again: off</td></tr>
+    <tr><td>OCT-</td><td>Every latch off (STOP too). Latched pads play on outside PERFORM: the header says PERF 2</td></tr>
+    <tr><td>in / out</td><td>Hold FX: while held. Held 0.7 s untouched, let go: stays (LOCK); FX again or any page button: out</td></tr>
   </table>
-  <p class="note">The loops replay what you just heard, on the grid. FX keys never play or record.</p>
+  <p class="note">One time effect at a time (the last pressed), with any colour effects, throws and kills on top. REC while playing records the pads into the STUTTER lane. Pad keys never play notes.</p>
 </section>
 
 <section class="sl">
@@ -352,7 +355,8 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
 <section class="sl">
   <h2>Simulator</h2>
   <table>
-    <tr><td>Double-click</td><td>Hold a button down (blue outline); click again to let go. Shift-click does the same.</td></tr>
+    <tr><td>Double-click</td><td>Hold a button or a key down (blue outline); click again to let go. Shift-click does the same.</td></tr>
+    <tr><td>PERFORM</td><td>Hold <kbd>1</kbd> (FX) and press pads on Z X C V B N M , . / (white 1-10), Q W R Y U O (white 11-16), S D F H (-DRM -BAS LCUT FLNG), E T (8T 16T). Hold <kbd>]</kbd> to latch, <kbd>[</kbd> unlatches all</td></tr>
     <tr><td>1 2 3 4 5 6</td><td>FX · SEL · ENV · LFO · EDIT · GLO</td></tr>
     <tr><td>7 8 9 0 - =</td><td>HOME · SAVE · ARP · SEQ · PLAY · REC</td></tr>
     <tr><td>Z ... ' · Q ... O</td><td>The keyboard's notes</td></tr>
