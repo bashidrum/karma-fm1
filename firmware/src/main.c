@@ -118,6 +118,7 @@ static void fm1_fault(const fm1_crash_t *c)
 static void felucca_init(void)
 {
     uint32_t i;
+    undo_init();                              /* (PHEBUS wave 2: in .noinit, garbage after a power-off; seq.c) */
     for (i = 0; i < G_COUNT; i++)
         song.g[i] = GP[i].def;
     for (i = 0; i < NTRK; i++) {

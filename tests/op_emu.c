@@ -40,12 +40,12 @@ static void emu_demo(void)                          /* something to hear and to 
     static const uint8_t LEAD[16] = {0, 0, 72, 0, 75, 0, 0, 79, 0, 77, 0, 0, 75, 0, 72, 0};
     uint32_t j;
     for (j = 0; j < 16u; j++) {
-        memset(&TDRUM->dstep[j], 0, sizeof(dstep_t));
-        if (BEAT[j] & 1u) dstep_set(&TDRUM->dstep[j], 0, LV_HARD, 0);
-        if (BEAT[j] & 4u) dstep_set(&TDRUM->dstep[j], 2, LV_NORM, 0);
-        if (BEAT[j] & 8u) dstep_set(&TDRUM->dstep[j], 3, LV_GHOST, 0);
-        if (BEAT[j] & 0x10u) dstep_set(&TDRUM->dstep[j], 4, j % 4u ? LV_SOFT : LV_NORM, j == 14u ? 2u : 0u);
-        if (BEAT[j] & 0x20u) dstep_set(&TDRUM->dstep[j], 5, LV_NORM, 0);
+        dtest_clear(j);
+        if (BEAT[j] & 1u) dtest_set(j, 0, LV_HARD, 0);
+        if (BEAT[j] & 4u) dtest_set(j, 2, LV_NORM, 0);
+        if (BEAT[j] & 8u) dtest_set(j, 3, LV_GHOST, 0);
+        if (BEAT[j] & 0x10u) dtest_set(j, 4, j % 4u ? LV_SOFT : LV_NORM, j == 14u ? 2u : 0u);
+        if (BEAT[j] & 0x20u) dtest_set(j, 5, LV_NORM, 0);
         if (BASS[j]) { trk[0].step[j].n = 1; trk[0].step[j].note[0] = BASS[j]; trk[0].step[j].time = ST_NOTE; }
         if (LEAD[j]) { trk[2].step[j].n = 1; trk[2].step[j].note[0] = LEAD[j]; trk[2].step[j].time = ST_NOTE; }
     }

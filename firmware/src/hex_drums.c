@@ -118,16 +118,22 @@ static void hex_par(const hex_snd_t *d, lx_par_t *p)
     }
 }
 
-static void hex_on(hex_v_t *v, const hex_snd_t *kit, uint32_t note, uint32_t vel)
+/* a voice on sound d (the kit's, or drums.c's locked copy); note: the GM note (its pitch offset) */
+static void hex_on_snd(hex_v_t *v, const hex_snd_t *d, uint32_t note, uint32_t vel)
 {
     int32_t semi;
-    uint32_t lane = ds_lane(note, &semi);
     lx_par_t p;
+    (void)ds_lane(note, &semi);
     memset(v, 0, sizeof *v);
-    v->d = &kit[lane % HEX_LANES];
+    v->d = d;
     v->note = (uint8_t)(60 + semi);
     hex_par(v->d, &p);
     lx_trigger(&v->lx, &p, v->note, vel ? vel : 1u);
+}
+static void hex_on(hex_v_t *v, const hex_snd_t *kit, uint32_t note, uint32_t vel)
+{
+    int32_t semi;
+    hex_on_snd(v, &kit[ds_lane(note, &semi) % HEX_LANES], note, vel);
 }
 
 /* n samples of a voice into out[] (the drums' scale: +-32767 at full); 0 when it has rung out */

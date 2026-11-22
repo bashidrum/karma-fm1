@@ -12,12 +12,15 @@ static uint32_t into_s(const track_t *t)          /* samples into the step the c
 int main(int argc,char **argv)
 {
     uint32_t i,j,k,v,total=0; uint64_t energy[DRUM_KITS]={0};
-    int32_t out[CTL*2]; dstep_t step={{0}};
+    int32_t out[CTL*2];
     host_tracks_init();
-    for(i=0;i<DRUM_LANES;i++)dstep_set(&step,i,i&3u,(i>>2)&3u);   /* SLOOP 2.0: all 16 lanes in one step */
-    assert(dstep_mask(&step)==0xFFFFu);
-    for(i=0;i<DRUM_LANES;i++)assert(dstep_has(&step,i) && dstep_lvl(&step,i)==(i&3u) && dstep_rat(&step,i)==((i>>2)&3u));
-    dstep_clr(&step,5);assert(!dstep_has(&step,5) && dstep_has(&step,4) && dstep_has(&step,6) && dstep_lvl(&step,6)==2u);
+    dpat_clear(&dpat);
+    for(i=0;i<DRUM_LANES;i++)dt_set(3,i,1u+i*8u);                 /* (PHEBUS wave 2) all 16 sounds' trigs on one step */
+    assert(dt_mask(3)==0xFFFFu && dt_mask(2)==0u);
+    for(i=0;i<DRUM_LANES;i++)assert(dt_has(3,i) && dt_vel(3,i)==1u+i*8u);
+    dt_clr(3,5);assert(!dt_has(3,5) && dt_has(3,4) && dt_has(3,6) && dt_vel(3,6)==49u);
+    dt_set(3,7,0);assert(dt_vel(3,7)==1u);dt_set(3,7,200);assert(dt_vel(3,7)==127u);   /* (a trig: 1..127) */
+    dpat_clear(&dpat);
     for(i=0;i<27u;i++)assert(lane_of_key(i)<DRUM_LANES);
     assert(lane_of_key(0)==0 && lane_of_key(1)==0 && lane_of_key(26)==15 && key_of_lane(15)==26);
     for(i=35;i<=81;i++)assert(lane_of_note(i)<DRUM_LANES);
@@ -66,7 +69,7 @@ int main(int argc,char **argv)
         host_tracks_init();song.g[G_BPM]=120;song.g[G_CLOCK]=0;song.sel=0;song.playing=0;
         for(c=0;c<NTRK;c++){memset(trk[c].step,0,sizeof trk[c].step);for(j=0;j<NSTEP;j++)trk[c].step[j].time=ST_REST;}
         for(c=0;c<NTRK;c++)steps_clear(&trk[c]);
-        dstep_set(&TDRUM->dstep[3],0,LV_NORM,0);
+        dtest_set(3, 0,LV_NORM,0);
         rec_wait=1;
         for(b=0;b<10;b++)mix_block(out,CTL);            /* nothing happens while it waits */
         assert(!song.playing && !song.rec && rec_wait==1);

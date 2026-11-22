@@ -146,24 +146,154 @@ static uint32_t key_of_lane(uint32_t l)
     return (l / 7u) * 12u + K[l % 7u];
 }
 
-/* drum steps: a lane's bit, level, ratchet */
+/* ---- the drum pattern's trigs (PHEBUS wave 2, core.h dpat_t): step i's trig of sound l, its extras, its sound's locks.
+ * Every writer runs with the audio IRQ off (the sequencer reads them in the ISR) */
+static uint32_t dt_vel(uint32_t i, uint32_t l) { return dpat.vel[i % NSTEP][l & 15u]; }
+static int dt_has(uint32_t i, uint32_t l) { return dt_vel(i, l) != 0u; }
+static uint32_t dt_mask(uint32_t i)                    /* the sounds with a trig on step i, a bit each */
+{
+    const uint8_t *v = dpat.vel[i % NSTEP];
+    uint32_t l, m = 0;
+    for (l = 0; l < DRUM_LANES; l++)
+        m |= (v[l] != 0u) << l;
+    return m;
+}
+static int dt_x(uint32_t i, uint32_t l)                /* the trig's extras: their entry, -1 = none */
+{
+    uint32_t k;
+    for (k = 0; k < DT_NX; k++)
+        if (dpat.x[k].step == i && dpat.x[k].lane == l)
+            return (int)k;
+    return -1;
+}
+static dtx_t *dt_x_make(uint32_t i, uint32_t l)        /* .. made (at the defaults) if it has none; 0: the pool is full */
+{
+    int k = dt_x(i, l);
+    uint32_t f;
+    if (k >= 0)
+        return &dpat.x[k];
+    for (f = 0; f < DT_NX && dpat.x[f].step != DT_FREE; f++)
+        ;
+    if (f == DT_NX)
+        return 0;
+    memset(&dpat.x[f], 0, sizeof dpat.x[f]);
+    dpat.x[f].step = (uint8_t)i;
+    dpat.x[f].lane = (uint8_t)l;
+    dpat.x[f].prob = DT_PROB_DEF;
+    dpat.x[f].rlen = DT_RLEN_DEF;
+    return &dpat.x[f];
+}
+static int dt_x_plain(const dtx_t *x)                  /* all at the defaults: the entry is not needed */
+{
+    return x->cond == FC_NORM && !x->micro && !x->rrate && x->prob == DT_PROB_DEF && x->rlen == DT_RLEN_DEF && !x->rfade;
+}
+static void dt_x_tidy(void)                            /* entries with nothing in them (or for no trig) freed */
+{
+    uint32_t k;
+    for (k = 0; k < DT_NX; k++)
+        if (dpat.x[k].step != DT_FREE && (dpat.x[k].step >= NSTEP || dpat.x[k].lane >= DRUM_LANES ||
+                                          !dt_has(dpat.x[k].step, dpat.x[k].lane) || dt_x_plain(&dpat.x[k])))
+            dpat.x[k].step = DT_FREE;
+}
+static int dt_lk(uint32_t i, uint32_t l, uint32_t p)   /* a lock of sound l's parameter p on step i: its entry, -1 = none */
+{
+    uint32_t k;
+    for (k = 0; k < DT_NLK; k++)
+        if (dpat.lk[k].step == i && dpat.lk[k].lane == l && dpat.lk[k].param == p)
+            return (int)k;
+    return -1;
+}
+static int dt_lk_set(uint32_t i, uint32_t l, uint32_t p, uint32_t v)   /* set (or made); 0: the pool is full */
+{
+    int k = dt_lk(i, l, p);
+    uint32_t f;
+    if (k < 0) {
+        for (f = 0; f < DT_NLK && dpat.lk[f].step != DT_FREE; f++)
+            ;
+        if (f == DT_NLK)
+            return 0;
+        k = (int)f;
+    }
+    dpat.lk[k].step = (uint8_t)i;
+    dpat.lk[k].lane = (uint8_t)l;
+    dpat.lk[k].param = (uint8_t)p;
+    dpat.lk[k].val = (uint8_t)v;
+    return 1;
+}
+static uint32_t dt_lk_del(uint32_t i, uint32_t l, uint32_t p)   /* p DSP_COUNT: every lock of the trig; how many went */
+{
+    uint32_t k, n = 0;
+    for (k = 0; k < DT_NLK; k++)
+        if (dpat.lk[k].step == i && dpat.lk[k].lane == l && (p >= DSP_COUNT || dpat.lk[k].param == p)) {
+            dpat.lk[k].step = DT_FREE;
+            n++;
+        }
+    return n;
+}
+static uint32_t dt_lk_n(uint32_t i, uint32_t l)        /* the trig's locks */
+{
+    uint32_t k, n = 0;
+    for (k = 0; k < DT_NLK; k++)
+        n += dpat.lk[k].step == i && dpat.lk[k].lane == l;
+    return n;
+}
+static uint32_t dt_free_x(void) { uint32_t k, n = 0; for (k = 0; k < DT_NX; k++) n += dpat.x[k].step == DT_FREE; return n; }
+static uint32_t dt_free_lk(void) { uint32_t k, n = 0; for (k = 0; k < DT_NLK; k++) n += dpat.lk[k].step == DT_FREE; return n; }
+static void dt_set(uint32_t i, uint32_t l, uint32_t vel)   /* a trig (or its velocity), 1..127 */
+{
+    dpat.vel[i % NSTEP][l & 15u] = (uint8_t)(vel < 1u ? 1u : vel > 127u ? 127u : vel);
+}
+static void dt_clr(uint32_t i, uint32_t l)             /* a trig gone, its extras and its sound's locks with it */
+{
+    int k = dt_x(i, l);
+    dpat.vel[i % NSTEP][l & 15u] = 0;
+    if (k >= 0)
+        dpat.x[k].step = DT_FREE;
+    dt_lk_del(i, l, DSP_COUNT);
+}
+static void dpat_clear(dpat_t *d)                      /* no trig, no extra, no lock */
+{
+    uint32_t k;
+    memset(d, 0, sizeof *d);
+    for (k = 0; k < DT_NX; k++)
+        d->x[k].step = DT_FREE;
+    for (k = 0; k < DT_NLK; k++)
+        d->lk[k].step = DT_FREE;
+}
+/* step src's trigs (with their extras and locks) onto step dst, whatever dst held; 0: a pool was full (some extras or
+ * locks did not go) */
+static int dt_copy_step(uint32_t src, uint32_t dst)
+{
+    uint32_t l, k, ok = 1;
+    for (l = 0; l < DRUM_LANES; l++)
+        dt_clr(dst, l);
+    memcpy(dpat.vel[dst % NSTEP], dpat.vel[src % NSTEP], DRUM_LANES);
+    for (k = 0; k < DT_NX; k++)
+        if (dpat.x[k].step == src) {
+            dtx_t c = dpat.x[k], *x = dt_x_make(dst, c.lane);
+            if (x) {
+                c.step = (uint8_t)dst;
+                *x = c;
+            } else {
+                ok = 0;
+            }
+        }
+    for (k = 0; k < DT_NLK; k++)
+        if (dpat.lk[k].step == src && !dt_lk_set(dst, dpat.lk[k].lane, dpat.lk[k].param, dpat.lk[k].val))
+            ok = 0;
+    return (int)ok;
+}
+
+/* (the drum steps of the project formats before PHEBUS wave 2, project.c: a lane's bit, level, ratchet) */
 static int dstep_has(const dstep_t *s, uint32_t l) { return (s->on[(l >> 3) & 1u] >> (l & 7u)) & 1u; }
 static uint32_t dstep_lvl(const dstep_t *s, uint32_t l) { return (s->lvl[(l >> 2) & 3u] >> ((l & 3u) * 2u)) & 3u; }
 static uint32_t dstep_rat(const dstep_t *s, uint32_t l) { return (s->rat[(l >> 2) & 3u] >> ((l & 3u) * 2u)) & 3u; }
-static uint32_t dstep_mask(const dstep_t *s) { return (uint32_t)s->on[0] | (uint32_t)s->on[1] << 8; }
 static void dstep_set(dstep_t *s, uint32_t l, uint32_t lvl, uint32_t rat)   /* lane on, with its level and ratchet */
 {
     uint32_t sh = (l & 3u) * 2u, b = (l >> 2) & 3u;
     s->on[(l >> 3) & 1u] |= (uint8_t)(1u << (l & 7u));
     s->lvl[b] = (uint8_t)((s->lvl[b] & ~(3u << sh)) | (lvl & 3u) << sh);
     s->rat[b] = (uint8_t)((s->rat[b] & ~(3u << sh)) | (rat & 3u) << sh);
-}
-static void dstep_clr(dstep_t *s, uint32_t l)                                /* lane off */
-{
-    uint32_t sh = (l & 3u) * 2u, b = (l >> 2) & 3u;
-    s->on[(l >> 3) & 1u] &= (uint8_t)~(1u << (l & 7u));
-    s->lvl[b] &= (uint8_t)~(3u << sh);
-    s->rat[b] &= (uint8_t)~(3u << sh);
 }
 
 /* the velocity of a level: as played (LV_NORM: vel), ghost, soft, hard */
@@ -286,6 +416,13 @@ static voice_t *drum_pick(uint32_t note)
     return &drums.v[0];
 }
 
+/* (PHEBUS wave 2) the locks of the hit about to start (seq.c dhit sets them just before trk_note_on, and clears them
+ * after): a HEX sound plays from its voice's own copy of the kit's sound with these bytes in it, so the lock changes that
+ * hit only, for as long as it rings. A hit without locks plays the kit's sound itself (a knob turned is heard on it at once,
+ * as before). The synthesised kits (606 ..) have no editable sound yet: they play their sound as it is */
+static uint8_t drum_lk_n, drum_lk_p[DSP_COUNT], drum_lk_v[DSP_COUNT];
+static hex_snd_t drum_own[NDRUM];
+static void dsu_fix_sound(hex_snd_t *d);
 /* a synthesised voice: note on the 16 sounds snd (a factory kit, SYN1..4), the oldest voice stolen */
 static void __attribute__((noinline)) drum_synth_on(uint32_t note, uint32_t vel, uint32_t kit, const dsnd_t *snd, uint32_t crush,
                                                     const hex_snd_t *hex)   /* (a HEX kit: hex, snd unused) */
@@ -310,7 +447,15 @@ static void __attribute__((noinline)) drum_synth_on(uint32_t note, uint32_t vel,
     drums.synth[i] = hex ? 2 : 1;
     drums.lane[i] = (uint8_t)(note < 128u ? lane_of_note(note) : 0u);
     drums.kit[i] = (uint8_t)kit;
-    if (hex)
+    if (hex && drum_lk_n) {                         /* locked: the voice's own copy */
+        int32_t semi;
+        uint32_t k;
+        drum_own[i] = hex[ds_lane(note, &semi) % HEX_LANES];
+        for (k = 0; k < drum_lk_n && k < DSP_COUNT; k++)
+            ((uint8_t *)&drum_own[i])[drum_lk_p[k] % DSP_COUNT] = drum_lk_v[k];
+        dsu_fix_sound(&drum_own[i]);                /* (a value the model has no use for: back in its range) */
+        hex_on_snd(&drums.hx[i], &drum_own[i], note, vel);
+    } else if (hex)
         hex_on(&drums.hx[i], hex, note, vel);
     else
         ds_on(&drums.ds[i], snd, crush, note, vel);

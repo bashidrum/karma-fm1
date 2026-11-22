@@ -218,7 +218,7 @@ static uint32_t step_vel_shown(const step_t *st)
 /* step i of track t has something to play (synth: notes, drums: a lane) */
 static int trk_step_on(const track_t *t, uint32_t i)
 {
-    return is_drum(t) ? dstep_mask(&t->dstep[i % NSTEP]) != 0u : step_on(&t->step[i % NSTEP]);
+    return is_drum(t) ? dt_mask(i % NSTEP) != 0u : step_on(&t->step[i % NSTEP]);
 }
 
 static void step_clear(step_t *st)
@@ -247,7 +247,15 @@ static int undo_swap(int redo)
     }
     t = &trk[undo.trk % NTRK];
     fm1_irq_off();
-    {
+    if (is_drum(t)) {                                 /* (PHEBUS wave 2) the drum pattern, whole */
+        uint8_t *a = (uint8_t *)&dpat, *b = (uint8_t *)&undo.dp;
+        uint32_t i;
+        for (i = 0; i < sizeof dpat; i++) {          /* (swapped in place: no 2 KB of RAM for it) */
+            uint8_t c = a[i];
+            a[i] = b[i];
+            b[i] = c;
+        }
+    } else {
         uint32_t i;
         for (i = 0; i < NSTEP; i++) {
             step_t x = t->step[i];
@@ -257,15 +265,18 @@ static int undo_swap(int redo)
             t->micro[i] = undo.micro[i];
             undo.micro[i] = m;
         }
-        for (i = 0; i < NLOCK; i++) {                   /* (the locks in force follow at the next step: seq.c lock_step) */
-            plock_t l = t->lock[i];
-            t->lock[i] = undo.lock[i];
-            undo.lock[i] = l;
-        }
         for (i = 0; i < NSTEP / 4u; i++) {
             uint8_t f = t->fill[i];
             t->fill[i] = undo.fill[i];
             undo.fill[i] = f;
+        }
+    }
+    {
+        uint32_t i;
+        for (i = 0; i < NLOCK; i++) {                   /* (the locks in force follow at the next step: seq.c lock_step) */
+            plock_t l = t->lock[i];
+            t->lock[i] = undo.lock[i];
+            undo.lock[i] = l;
         }
     }
     len = t->p[P_SLEN];

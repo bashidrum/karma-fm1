@@ -54,6 +54,29 @@ static void pattern_rotate(track_t *t, int32_t d)       /* every step one later 
     step_t keep;
     layer_undo_mark(t);
     fm1_irq_off();
+    if (is_drum(t)) {                                   /* (PHEBUS wave 2) the drum trigs, their extras and locks with them */
+        uint8_t kv[DRUM_LANES];
+        uint32_t k, sh = d > 0 ? 1u : len - 1u;
+        if (d > 0) {
+            memcpy(kv, dpat.vel[len - 1u], sizeof kv);
+            for (i = len - 1u; i > 0; i--)
+                memcpy(dpat.vel[i], dpat.vel[i - 1u], sizeof kv);
+            memcpy(dpat.vel[0], kv, sizeof kv);
+        } else {
+            memcpy(kv, dpat.vel[0], sizeof kv);
+            for (i = 0; i + 1u < len; i++)
+                memcpy(dpat.vel[i], dpat.vel[i + 1u], sizeof kv);
+            memcpy(dpat.vel[len - 1u], kv, sizeof kv);
+        }
+        for (k = 0; k < DT_NX; k++)
+            if (dpat.x[k].step < len)
+                dpat.x[k].step = (uint8_t)((dpat.x[k].step + sh) % len);
+        for (k = 0; k < DT_NLK; k++)
+            if (dpat.lk[k].step < len)
+                dpat.lk[k].step = (uint8_t)((dpat.lk[k].step + sh) % len);
+        fm1_irq_on();
+        return;
+    }
     if (d > 0) {
         keep = t->step[len - 1u];
         for (i = len - 1u; i > 0; i--)
@@ -73,8 +96,11 @@ static void pattern_length(track_t *t, int32_t d)       /* x2 (the pattern again
     layer_undo_mark(t);
     fm1_irq_off();
     if (d > 0 && len * 2u <= NSTEP) {
-        for (i = 0; i < len; i++)
+        for (i = 0; i < len; i++) {
             t->step[len + i] = t->step[i];
+            if (is_drum(t))                             /* (the drum trigs, with their extras and locks) */
+                (void)dt_copy_step(i, len + i);
+        }
         t->p[P_SLEN] = (int16_t)(len * 2u);
     } else if (d < 0 && len >= 2u) {
         t->p[P_SLEN] = (int16_t)(len / 2u);
@@ -375,7 +401,7 @@ static void seq_time_draw(const track_t *t, uint16_t col, uint32_t *cache)
         per *= 2u;
     rows = (bars + per - 1u) / per;
     for (i = 0; i < len; i++)
-        sig = sig * 3u + (is_drum(t) ? dstep_mask(&t->dstep[i]) != 0 : step_on(&t->step[i]) ? 1u : t->step[i].time == ST_TIE ? 2u : 0u);
+        sig = sig * 3u + (is_drum(t) ? dt_mask(i) != 0 : step_on(&t->step[i]) ? 1u : t->step[i].time == ST_TIE ? 2u : 0u);
     sig += (uint32_t)(play + 1) * 7919u + col;
     if (!ui.force && sig == *cache)
         return;
@@ -391,7 +417,7 @@ static void seq_time_draw(const track_t *t, uint16_t col, uint32_t *cache)
         for (i = 0; i < len; i++) {                     /* the steps: from where they start (the odd ones swung), three
                                                          * fifths of a step long, so the swing shows as pairs */
             uint64_t a = (uint64_t)i * u + (i & 1u ? sw : 0u), e = a + (u * 3u + 4u) / 5u;
-            uint32_t on = is_drum(t) ? dstep_mask(&t->dstep[i]) != 0
+            uint32_t on = is_drum(t) ? dt_mask(i) != 0
                         : step_on(&t->step[i]) ? 1u : t->step[i].time == ST_TIE ? 2u : 0u;
             uint16_t c = (int32_t)i == play ? C_WHITE : on == 1u ? col : on ? TE_DIM[song.sel & 3u] : TE_G2;
             if (t->step[i].time == ST_TIE && !is_drum(t))
@@ -487,7 +513,7 @@ static void layer_screen_draw(void)
             if (is_drum(t)) {
                 str_cpy(tl[i].lab, LANE_SHORT[i], 8);
                 for (j = 0; j < trk_len(t); j++)
-                    present |= dstep_has(&t->dstep[j], i);
+                    present |= (uint32_t)dt_has(j, i);
             } else {
                 uint32_t n = kb_map(t, k);
                 if (n == KB_SILENT) {

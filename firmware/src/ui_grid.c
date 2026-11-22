@@ -8,11 +8,14 @@
  *                    drums: the sound KNOB 1 picks), a set one is cleared when its key comes up (unless a knob
  *                    changed it meanwhile). A synth note is heard whenever it changes (the pen, a step's NOTE)
  *   hold a step      KNOB 1..4 edit it (synth: NOTE in the scale, LEN, VEL, COND; SELECT: FLAG, RATCH, NUDGE;
- *                    drums: LEVEL, RATCH, NUDGE, COND); ENV / LFO / FX / EDIT tapped: that button's page on the
- *                    knobs, and each knob turned LOCKS its parameter on the step (again: the next page); PRESETS
+ *                    drums, the picked sound's trig (PHEBUS wave 2): VEL, RETRIG, NUDGE, COND; SELECT: CHANCE, LENGTH,
+ *                    CURVE, the last two the retrig's); ENV / LFO / FX / EDIT tapped: that button's page on the
+ *                    knobs, and each knob turned LOCKS its parameter on the step (again: the next page; the drum track:
+ *                    on its sound's EDIT pages, HEX OSC .. HEX AEG, the lock is the picked sound's alone; on its own
+ *                    pages, FILTER, FX, INSERT, SLICER, the whole drum track's); PRESETS
  *                    and ALGORITHM do nothing (KARMA's hidden lock of the last knob touched is cut); OCT- the step's
- *                    locks go (on a lock page: that page's only; on the grid: locks, nudge and condition), OCT+ its
- *                    condition
+ *                    locks go (on a lock page: that page's only; on the grid: locks, nudge and condition, a drum trig's
+ *                    retrig too), OCT+ its condition
  *   black keys 1..4  the page of steps (1-16 .. 49-64); OCT- / OCT+ (no step held) the page before / after
  * The screen shows the steps in the track's colour, the playhead, the page, and what the step held (or under the
  * cursor) holds: its notes, length, velocity, flags, condition, nudge and every lock. */
@@ -54,7 +57,7 @@ static int32_t sg_first(void)
 }
 static int sg_on(const track_t *t, uint32_t idx)
 {
-    return is_drum(t) ? dstep_has(&t->dstep[idx], drum_lane) : step_on(&t->step[idx]);
+    return is_drum(t) ? dt_has(idx, drum_lane) : step_on(&t->step[idx]);
 }
 static uint32_t sg_sess;                                /* the undo session of the steps held (one hold: one undo) */
 static void sg_undo(track_t *t)
@@ -96,7 +99,7 @@ static void sg_set(track_t *t, uint32_t idx)            /* an empty step set: th
     sg_undo(t);
     fm1_irq_off();
     if (is_drum(t)) {
-        dstep_set(&t->dstep[idx], drum_lane, LV_NORM, 0);
+        dt_set(idx, drum_lane, DT_VEL_DEF);
     } else {
         step_t *s = &t->step[idx];
         uint32_t i, n = pen_n ? pen_n : 1u, tie = s->time == ST_TIE;
@@ -123,12 +126,12 @@ static void sg_clear(track_t *t, uint32_t idx)          /* a set step cleared (d
     sg_undo(t);
     fm1_irq_off();
     if (is_drum(t)) {
-        dstep_clr(&t->dstep[idx], drum_lane);
+        dt_clr(idx, drum_lane);                         /* (the trig's extras and locks with it) */
     } else {
         note_set_len(t, idx, 1);                        /* (its TIEs go with it) */
         step_clear(&t->step[idx]);
     }
-    if (!is_drum(t) || !dstep_mask(&t->dstep[idx])) {   /* an empty step keeps no lock, no nudge, no condition */
+    if (!is_drum(t) || !dt_mask(idx)) {                 /* an empty step keeps no lock, no nudge, no condition */
         lock_del(t, idx, P_COUNT);
         t->micro[idx] = 0;
         step_fill_set(t, idx, FC_NORM);
@@ -160,15 +163,20 @@ static void sg_page_add(track_t *t)
         memset(&t->step[i], 0, sizeof t->step[i]);
         if (!is_drum(t))
             t->step[i].time = ST_REST;
+        else
+            for (k = 0; k < DRUM_LANES; k++)
+                dt_clr(i, k);
         lock_del(t, i, P_COUNT);
         t->micro[i] = 0;
         step_fill_set(t, i, FC_NORM);
     }
     for (i = 0; i < 16u; i++) {
-        t->step[dst + i] = t->step[src + i];            /* (a drum step is the same 10 bytes: the union) */
+        t->step[dst + i] = t->step[src + i];
         t->micro[dst + i] = t->micro[src + i];
         step_fill_set(t, dst + i, step_fill(t, src + i));
         lock_del(t, dst + i, P_COUNT);
+        if (is_drum(t))                                 /* (the drum trigs, their extras and sounds' locks) */
+            lost += !dt_copy_step(src + i, dst + i);
     }
     for (k = 0; k < NLOCK; k++)
         if (t->lock[k].step >= src && t->lock[k].step < src + 16u)
@@ -255,10 +263,24 @@ static void grid_key(uint32_t k, uint32_t down)
 }
 
 /* ------------------------------------------------------------ locks --- */
+/* (PHEBUS wave 2) the drum track's sound locks: on its sound's EDIT pages (GR_HEX, G_HXMODEL .., core.h DSP_*), the
+ * picked sound's lock of that parameter on the step, its own alone (the kit a HEX one: the synthesised kits have no
+ * editable sound yet). Not MODEL (as on the Rytm, the machine is not lockable) */
+static int sg_hex_kit(void) { uint32_t k = drum_kit(); return k < DRUM_SAMPLED || k >= DRUM_SYN; }
+static int sg_dsp(uint32_t id)                          /* a G_ id a drum trig's sound lock can hold: its DSP_*, else -1 */
+{
+    return is_drum(TSEL) && id > G_HXMODEL && id <= G_HXCRUSH && sg_hex_kit() ? (int)(id - G_HXMODEL) : -1;
+}
 /* a page whose knobs can lock on the selected track: shown, a track's page, with a lockable parameter */
 static int sg_lock_page_ok(const page_t *pg)
 {
     uint32_t s;
+    if (page_shown(pg) && pg->graph == GR_HEX && is_drum(TSEL) && sg_hex_kit()) {
+        for (s = 0; s < 4u; s++)
+            if (pg->id[s] != 0xFFu && sg_dsp(pg->id[s]) >= 0)
+                return 1;
+        return 0;
+    }
     if (!page_shown(pg) || (pg->scope != SC_TRACK && pg->scope != SC_ENGINE) || (is_drum(TSEL) && !page_for_drum(pg)))
         return 0;
     for (s = 0; s < 4u; s++) {
@@ -312,12 +334,48 @@ static int locks_fit(const track_t *t, uint32_t pg, uint32_t held, uint32_t id)
     ui_message(fr ? "LOCKS FULL: HOLD FEWER STEPS" : "LOCKS FULL: 24 A TRACK");
     return 0;
 }
+/* a drum trig's sound lock of DSP p shown as its parameter: the value (signed for DSP_FINE) */
+static int32_t sg_dsp_val(uint32_t p, uint32_t v) { return p == DSP_FINE ? (int32_t)(int8_t)v : (int32_t)v; }
+/* the steps held, the picked sound's trigs: a sound lock of G_ id moved s (made at the sound's value first) */
+static void sg_dsp_turn(uint32_t id, int32_t s, uint32_t role)
+{
+    const param_desc_t *d = hex_desc(id);
+    uint32_t w, len = trk_len(TSEL), p = (uint32_t)sg_dsp(id), need = 0;
+    int32_t sk = accel(role, s, d->max - d->min);
+    for (w = 0; w < 16u; w++) {
+        uint32_t idx = sg_page() * 16u + w;
+        need += ((sg_held >> w) & 1u) && idx < len && dt_has(idx, drum_lane) && dt_lk(idx, drum_lane, p) < 0;
+    }
+    if (need > dt_free_lk()) {                          /* (all or none, as the track's locks) */
+        ui_message("SOUND LOCKS FULL: 128");
+        return;
+    }
+    sg_undo(TSEL);
+    fm1_irq_off();
+    for (w = 0; w < 16u; w++) {
+        uint32_t idx = sg_page() * 16u + w;
+        int k;
+        int32_t v;
+        if (!((sg_held >> w) & 1u) || idx >= len || !dt_has(idx, drum_lane))
+            continue;
+        k = dt_lk(idx, drum_lane, p);
+        v = clamp((k >= 0 ? sg_dsp_val(p, dpat.lk[k].val) : song.g[id]) + sk, d->min, d->max);
+        (void)dt_lk_set(idx, drum_lane, p, (uint32_t)(uint8_t)v);
+    }
+    fm1_irq_on();
+    sg_pend &= (uint16_t)~sg_held;                      /* (edited: kept when let go) */
+    sync_reload = 1;
+}
 /* the steps held: a lock of id moved s (made at the track's value first) */
 static void sg_lock_turn(uint32_t id, int32_t s, uint32_t role)
 {
     track_t *t = TSEL;
     uint32_t w, len = trk_len(t);
     int32_t sk;
+    if (sg_dsp(id) >= 0) {
+        sg_dsp_turn(id, s, role);
+        return;
+    }
     if (id >= P_COUNT || !p_lockable(id) || (is_drum(t) && id > P_E0 && id <= P_E7)) {
         ui_message("NOT LOCKABLE");
         return;
@@ -345,6 +403,87 @@ static void sg_lock_turn(uint32_t id, int32_t s, uint32_t role)
 }
 
 /* ------------------------------------------------------------ knobs --- */
+/* (PHEBUS wave 2) a drum trig's own values, the picked sound's on step idx (none there: nothing): sl 0 VEL (1..127), 1 RETRIG
+ * (OFF, 1/1 .. 1/80), 2 NUDGE, 3 COND (- FILL NOFL CHNC), 4 CHANCE (CHNC's, the Rytm's steps 1 .. 99 %), 5 LENGTH (the
+ * retrig's, 1/8 step .. 16 steps, INF), 6 CURVE (the retrig's velocity, -128 fade out .. 127 fade in). The extras are made
+ * when a value leaves its default and freed when all are back (core.h dtx_t); the pool full: said, nothing changed */
+static const uint8_t SG_PROB[] = {1, 2, 4, 6, 9, 13, 19, 25, 33, 41, 50, 59, 67, 75, 81, 87, 91, 94, 96, 98, 99};
+static const uint8_t SG_RLEN[] = {2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 255, 0};   /* (1/16 step; 0 INF) */
+static const char *const SG_RATE[] = {"OFF", "1/1", "1/2", "1/3", "1/4", "1/5", "1/6", "1/8", "1/10", "1/12", "1/16",
+                                      "1/20", "1/24", "1/32", "1/40", "1/48", "1/64", "1/80"};
+static uint32_t sg_near(const uint8_t *tab, uint32_t n, uint32_t v)   /* the index of the entry nearest v */
+{
+    uint32_t i, b = 0, bd = 0xFFFFu;
+    for (i = 0; i < n; i++) {
+        uint32_t d = tab[i] > v ? tab[i] - v : v - tab[i];
+        if (d < bd)
+            bd = d, b = i;
+    }
+    return b;
+}
+static void sg_rlen_str(char *b, uint32_t v)            /* a retrig's length in steps: "1/8", "0.19", "1", "16", "INF" */
+{
+    if (!v) {
+        str_cpy(b, "INF", 4);
+    } else if (v % 16u == 0u) {
+        fmt_int(b, (int32_t)(v / 16u));
+    } else if (16u % v == 0u) {
+        str_cpy(b, "1/", 3);
+        fmt_int(b + 2, (int32_t)(16u / v));
+    } else {
+        uint32_t c = (v % 16u) * 100u / 16u;
+        fmt_int(b, (int32_t)(v / 16u));
+        b[str_len(b) + 3u] = 0;
+        b[str_len(b) + 2u] = (char)('0' + c % 10u);
+        b[str_len(b) + 1u] = (char)('0' + c / 10u);
+        b[str_len(b)] = '.';
+    }
+}
+static void sg_drum_knob(uint32_t idx, uint32_t sl, int32_t s)
+{
+    uint32_t l = drum_lane;
+    int xi;
+    dtx_t *x, c;
+    if (!dt_has(idx, l) || sl == 7u)
+        return;
+    if (sl == 0u) {
+        dt_set(idx, l, (uint32_t)clamp((int32_t)dt_vel(idx, l) + accel(EN_K1, s, 126), 1, 127));
+        return;
+    }
+    xi = dt_x(idx, l);
+    if (xi >= 0) {
+        c = dpat.x[xi];
+    } else {                                            /* (the defaults: as dt_x_make makes them) */
+        memset(&c, 0, sizeof c);
+        c.prob = DT_PROB_DEF;
+        c.rlen = DT_RLEN_DEF;
+    }
+    if (sl == 1u) {
+        c.rrate = (uint8_t)clamp((int32_t)c.rrate + (s > 0 ? 1 : -1), 0, (int32_t)NRTRG);
+    } else if (sl == 2u) {
+        c.micro = (int8_t)clamp(c.micro + s, MICRO_MIN, MICRO_MAX);
+    } else if (sl == 3u) {
+        c.cond = (uint8_t)clamp((int32_t)c.cond + (s > 0 ? 1 : -1), 0, 3);
+    } else if (sl == 4u) {
+        c.prob = SG_PROB[clamp((int32_t)sg_near(SG_PROB, sizeof SG_PROB, c.prob) + (s > 0 ? 1 : -1), 0, (int32_t)sizeof SG_PROB - 1)];
+    } else if (sl == 5u) {                              /* (INF: the last) */
+        int32_t i = c.rlen ? (int32_t)sg_near(SG_RLEN, sizeof SG_RLEN - 1u, c.rlen) : (int32_t)sizeof SG_RLEN - 1;
+        c.rlen = SG_RLEN[clamp(i + (s > 0 ? 1 : -1), 0, (int32_t)sizeof SG_RLEN - 1)];
+    } else if (sl == 6u) {
+        c.rfade = (int8_t)clamp(c.rfade + accel(EN_K3, s, 255), -128, 127);
+    }
+    if (xi < 0 && dt_x_plain(&c))
+        return;                                         /* (still all defaults: no entry needed) */
+    if (!(x = xi >= 0 ? &dpat.x[xi] : dt_x_make(idx, l))) {
+        ui_message("TRIG EXTRAS FULL: 64");
+        return;
+    }
+    c.step = (uint8_t)idx;
+    c.lane = (uint8_t)l;
+    *x = c;
+    if (dt_x_plain(x))
+        x->step = DT_FREE;                              /* (all back at the defaults: freed) */
+}
 /* KNOB k with steps held: the lock page's parameter, else the step's own values */
 static void sg_held_knob(uint32_t k, int32_t s)
 {
@@ -362,20 +501,8 @@ static void sg_held_knob(uint32_t k, int32_t s)
         uint32_t idx = sg_page() * 16u + w, i;
         if (!((sg_held >> w) & 1u) || idx >= len)
             continue;
-        if (is_drum(t)) {                               /* LEVEL, RATCH, NUDGE, COND */
-            dstep_t *d = &t->dstep[idx];
-            uint32_t lv = dstep_lvl(d, drum_lane), rt = dstep_rat(d, drum_lane);
-            if (k == 2u) {
-                t->micro[idx] = (int8_t)clamp(t->micro[idx] + s, MICRO_MIN, MICRO_MAX);
-            } else if (k == 3u) {
-                step_fill_set(t, idx, (uint32_t)clamp((int32_t)step_fill(t, idx) + (s > 0 ? 1 : -1), 0, 3));
-            } else if (dstep_has(d, drum_lane)) {
-                if (k == 0u)
-                    lv = LV_UP[clamp((int32_t)lvl_rank(lv) + (s > 0 ? 1 : -1), 0, 3)];
-                else
-                    rt = (uint32_t)clamp((int32_t)rt + (s > 0 ? 1 : -1), 0, 3);
-                dstep_set(d, drum_lane, lv, rt);
-            }
+        if (is_drum(t)) {                               /* the picked sound's trig: VEL RETRIG NUDGE COND, CHANCE LENGTH CURVE */
+            sg_drum_knob(idx, sg_alt ? 4u + k : k, s);
             continue;
         }
         {
@@ -476,6 +603,40 @@ static void sg_held_oct(uint32_t up)
         uint32_t idx = sg_page() * 16u + w, s;
         if (!((sg_held >> w) & 1u) || idx >= len)
             continue;
+        if (is_drum(t)) {                               /* (PHEBUS wave 2) the picked sound's trig */
+            int xi = dt_x(idx, drum_lane);
+            if (!dt_has(idx, drum_lane))
+                continue;
+            if (up) {
+                dtx_t *x;
+                if (first)
+                    v = ((xi >= 0 ? dpat.x[xi].cond : 0u) + 1u) % 4u;
+                first = 0;
+                if (v == FC_NORM && xi >= 0) {
+                    dpat.x[xi].cond = FC_NORM;
+                    if (dt_x_plain(&dpat.x[xi]))
+                        dpat.x[xi].step = DT_FREE;
+                } else if (v != FC_NORM && (x = dt_x_make(idx, drum_lane)) != 0) {
+                    x->cond = (uint8_t)v;
+                }
+            } else if (sg_lpage < NPAGES) {
+                for (s = 0; s < 4u; s++) {
+                    uint32_t id = PAGES[sg_lpage].id[s];
+                    if (id != 0xFFu && sg_dsp(id) >= 0)
+                        n += dt_lk_del(idx, drum_lane, (uint32_t)sg_dsp(id));
+                    else if (id < P_COUNT && lock_find(t, idx, id, 0) >= 0) {
+                        lock_del(t, idx, id);
+                        n++;
+                    }
+                }
+            } else {
+                n += dt_lk_del(idx, drum_lane, DSP_COUNT) + (xi >= 0) + step_locked(t, idx);
+                if (xi >= 0)
+                    dpat.x[xi].step = DT_FREE;          /* (its condition, chance, nudge, retrig) */
+                lock_del(t, idx, P_COUNT);              /* (and the drum track's own locks on the step) */
+            }
+            continue;
+        }
         if (up) {
             if (first)
                 v = (step_fill(t, idx) + 1u) % 4u;
@@ -501,6 +662,8 @@ static void sg_held_oct(uint32_t up)
         ui_message(MSG[v % 4u]);
     } else if (sg_lpage < NPAGES) {
         ui_message(n ? "PAGE LOCKS CLEARED" : "NO LOCK ON THIS PAGE");
+    } else if (is_drum(t)) {
+        ui_message(n ? "LOCKS, NUDGE, COND, RETRIG CLEARED" : "NOTHING TO CLEAR");
     } else {
         ui_message(n ? "LOCKS, NUDGE, COND CLEARED" : "NO LOCK, NUDGE OR COND");
     }
@@ -535,8 +698,9 @@ static int sg_input(uint32_t pressed)
     /* PRESETS, ALGORITHM: nothing while a step is held (KARMA's hidden lock of the last knob touched is cut) */
     (void)panel_enc(EN_PRESET);
     (void)panel_enc(EN_ALGO);
-    if ((s = panel_enc(EN_SELECT)) != 0 && !is_drum(TSEL)) {
-        sg_alt = (uint8_t)(s > 0);                      /* NOTE LEN VEL COND <-> FLAG RATCH NUDGE */
+    if ((s = panel_enc(EN_SELECT)) != 0) {
+        sg_alt = (uint8_t)(s > 0);                      /* NOTE LEN VEL COND <-> FLAG RATCH NUDGE; drums: VEL RETRIG NUDGE
+                                                         * COND <-> CHANCE LENGTH CURVE */
         ui.force = 1;
     }
     for (k = 0; k < 4u; k++)
@@ -774,20 +938,66 @@ static uint32_t sg_lines(const track_t *t, uint32_t idx, char ln[4][31])
     char v[12];
     const char *u;
     ln[0][0] = ln[1][0] = ln[2][0] = ln[3][0] = 0;
-    if (is_drum(t)) {
-        const dstep_t *d = &t->dstep[idx];
-        if (dstep_has(d, drum_lane)) {
+    if (is_drum(t)) {                                   /* (PHEBUS wave 2) the picked sound's trig */
+        int xi = dt_x(idx, drum_lane);
+        const dtx_t *x = xi >= 0 ? &dpat.x[xi] : 0;
+        if (dt_has(idx, drum_lane)) {
             ln[0][0] = 0;
             if (!held) {
-                str_cpy(ln[0], "LEVEL ", 31);
-                str_cpy(ln[0] + 6, LV_NAME[dstep_lvl(d, drum_lane)], 8);
+                str_cpy(ln[0], "VEL ", 31);
+                fmt_int(ln[0] + 4, (int32_t)dt_vel(idx, drum_lane));
                 str_cpy(ln[0] + str_len(ln[0]), "  ", 3);
             }
-            str_cpy(ln[0] + str_len(ln[0]), "RATCH X", 8);
-            fmt_int(ln[0] + str_len(ln[0]), (int32_t)dstep_rat(d, drum_lane) + 1);
+            str_cpy(ln[0] + str_len(ln[0]), "RETRIG ", 8);
+            str_cpy(ln[0] + str_len(ln[0]), SG_RATE[x ? x->rrate % (NRTRG + 1u) : 0u], 6);
+            if (x && x->rrate) {
+                str_cpy(ln[0] + str_len(ln[0]), " x", 3);
+                sg_rlen_str(ln[0] + str_len(ln[0]), x->rlen);
+            }
+            if (x && (x->cond || x->micro)) {           /* the condition, its chance, the nudge */
+                str_cpy(ln[1], SG_COND_L[x->cond & 3u], 31);
+                if (x->cond == FC_CHANCE) {
+                    str_cpy(ln[1] + str_len(ln[1]), " ", 2);
+                    fmt_int(ln[1] + str_len(ln[1]), x->prob);
+                    str_cpy(ln[1] + str_len(ln[1]), "%", 2);
+                }
+                if (x->micro) {
+                    str_cpy(ln[1] + str_len(ln[1]), x->cond ? "  NUDGE " : "NUDGE ", 9);
+                    fmt_int(ln[1] + str_len(ln[1]), x->micro);
+                }
+                n = 2;
+            } else {
+                n = 1;
+            }
+            for (k = 0; k < DT_NLK && n < 4u; k++) {    /* the sound's locks */
+                const dlk_t *q = &dpat.lk[k];
+                char e[18];
+                uint32_t el;
+                if (q->step != idx || q->lane != drum_lane || q->param >= DSP_COUNT)
+                    continue;
+                e[0] = ' ';
+                str_cpy(e + 1, hex_desc(G_HXMODEL + q->param)->label, 7);
+                el = str_len(e);
+                e[el++] = ' ';
+                param_format(hex_desc(G_HXMODEL + q->param), sg_dsp_val(q->param, q->val), v, &u);
+                str_cpy(e + el, v, 8);
+                if (!nl)
+                    str_cpy(ln[n], "LOCK", 31);
+                else if (str_len(ln[n]) + str_len(e) > 30u || text_w(&FONT_S, ln[n]) + text_w(&FONT_S, e) > 228) {
+                    if (++n >= 4u) {
+                        str_cpy(ln[3] + (str_len(ln[3]) > 28u ? 28u : str_len(ln[3])), " +", 3);
+                        break;
+                    }
+                    str_cpy(ln[n], "    ", 31);
+                }
+                str_cpy(ln[n] + str_len(ln[n]), e, 31u - str_len(ln[n]));
+                nl++;
+            }
         } else {
-            str_cpy(ln[0], "NO HIT", 31);
+            str_cpy(ln[0], "NO TRIG", 31);
+            n = 1;
         }
+        f = 0;                                          /* (a drum step has no condition or nudge of its own) */
     } else {
         const step_t *st = &t->step[idx];
         if (step_on(st)) {
@@ -805,8 +1015,9 @@ static uint32_t sg_lines(const track_t *t, uint32_t idx, char ln[4][31])
             str_cpy(ln[0], st->time == ST_TIE ? "TIE" : "EMPTY", 31);
         }
     }
-    n = 1;
-    if (f || t->micro[idx]) {                           /* the condition and the nudge */
+    if (!is_drum(t))
+        n = 1;
+    if (!is_drum(t) && (f || t->micro[idx])) {          /* the condition and the nudge */
         str_cpy(ln[1], SG_COND_L[f], 31);
         if (t->micro[idx]) {
             str_cpy(ln[1] + str_len(ln[1]), f ? "  NUDGE " : "NUDGE ", 9);
@@ -827,7 +1038,7 @@ static uint32_t sg_lines(const track_t *t, uint32_t idx, char ln[4][31])
         param_format(lock_desc(t, l->param), l->val, v, &u);
         str_cpy(e + el, v, 8);
         if (!nl)
-            str_cpy(ln[n], "LOCK", 31);
+            str_cpy(ln[n], is_drum(t) ? "DRUMS" : "LOCK", 31);   /* (the drum track's own: not the sound's) */
         else if (str_len(ln[n]) + str_len(e) > 30u || text_w(&FONT_S, ln[n]) + text_w(&FONT_S, e) > 228) {
             if (++n >= 4u) {                            /* (no room left: "+" says there are more) */
                 str_cpy(ln[3] + (str_len(ln[3]) > 28u ? 28u : str_len(ln[3])), " +", 3);
@@ -1001,7 +1212,16 @@ static void sg_knobs_held(uint32_t idx, uint32_t *footer)
             uint32_t id = pg->id[k];
             lab[k] = lb[k];
             lb[k][0] = v[k][0] = 0;
-            if (id < P_COUNT && p_lockable(id) && !(is_drum(t) && id > P_E0 && id <= P_E7) &&
+            if (id != 0xFFu && sg_dsp(id) >= 0) {       /* (PHEBUS wave 2) the picked sound's lock, or its value */
+                const param_desc_t *d = hex_desc(id);
+                int l = dt_lk(idx, drum_lane, (uint32_t)sg_dsp(id));
+                int32_t x = l >= 0 ? sg_dsp_val((uint32_t)sg_dsp(id), dpat.lk[l].val) : song.g[id];
+                te_lower(lb[k], d->label, 8);
+                param_format(d, x, v[k], &u);
+                ratio[k] = (x - d->min) * 1000 / (d->max > d->min ? d->max - d->min : 1);
+                if (l < 0)
+                    dim |= 1u << k;
+            } else if (id < P_COUNT && p_lockable(id) && !(is_drum(t) && id > P_E0 && id <= P_E7) &&
                 lock_desc(t, id)->max > lock_desc(t, id)->min) {
                 const param_desc_t *d = lock_desc(t, id);
                 int l = lock_find(t, idx, id, 0);
@@ -1013,19 +1233,45 @@ static void sg_knobs_held(uint32_t idx, uint32_t *footer)
                     dim |= 1u << k;
             }
         }
-    } else if (is_drum(t)) {
-        static const char *const LD[4] = {"level", "ratch", "nudge", "cond"};
-        const dstep_t *d = &t->dstep[idx];
+    } else if (is_drum(t)) {                           /* (PHEBUS wave 2) the picked sound's trig */
+        static const char *const LD[4] = {"vel", "retrig", "nudge", "cond"}, *const LE[4] = {"chance", "length", "curve", ""};
+        int xi = dt_x(idx, drum_lane), on = dt_has(idx, drum_lane);
+        dtx_t x;
+        if (xi >= 0) {
+            x = dpat.x[xi];
+        } else {
+            memset(&x, 0, sizeof x);
+            x.prob = DT_PROB_DEF;
+            x.rlen = DT_RLEN_DEF;
+        }
         for (k = 0; k < 4u; k++)
-            lab[k] = LD[k];
-        str_cpy(v[0], dstep_has(d, drum_lane) ? LV_NAME[dstep_lvl(d, drum_lane)] : "--", 8);
-        v[1][0] = 'x', fmt_int(v[1] + 1, (int32_t)dstep_rat(d, drum_lane) + 1);
-        fmt_int(v[2], t->micro[idx]);
-        str_cpy(v[3], SG_COND[step_fill(t, idx)], 8);
-        ratio[0] = dstep_has(d, drum_lane) ? (int32_t)lvl_rank(dstep_lvl(d, drum_lane)) * 333 : 0;
-        ratio[1] = (int32_t)dstep_rat(d, drum_lane) * 333;
-        ratio[2] = (t->micro[idx] - MICRO_MIN) * 1000 / (MICRO_MAX - MICRO_MIN);
-        ratio[3] = (int32_t)step_fill(t, idx) * 333;
+            lab[k] = sg_alt ? LE[k] : LD[k];
+        v[3][0] = 0;
+        if (!on) {
+            for (k = 0; k < 3u + !sg_alt; k++)
+                str_cpy(v[k], "--", 4);
+        } else if (!sg_alt) {
+            fmt_int(v[0], (int32_t)dt_vel(idx, drum_lane));
+            str_cpy(v[1], SG_RATE[x.rrate % (NRTRG + 1u)], 8);
+            fmt_int(v[2], x.micro);
+            str_cpy(v[3], SG_COND[x.cond & 3u], 8);
+            ratio[0] = (int32_t)dt_vel(idx, drum_lane) * 1000 / 127;
+            ratio[1] = (int32_t)x.rrate * 1000 / (int32_t)NRTRG;
+            ratio[2] = (x.micro - MICRO_MIN) * 1000 / (MICRO_MAX - MICRO_MIN);
+            ratio[3] = (int32_t)(x.cond & 3u) * 333;
+        } else {
+            fmt_int(v[0], x.prob);
+            str_cpy(v[0] + str_len(v[0]), "%", 2);
+            sg_rlen_str(v[1], x.rlen);
+            fmt_int(v[2], x.rfade);
+            ratio[0] = (int32_t)x.prob * 10;
+            ratio[1] = x.rlen ? (int32_t)x.rlen * 1000 / 256 : 1000;
+            ratio[2] = (x.rfade + 128) * 1000 / 255;
+            if (x.cond != FC_CHANCE)
+                dim |= 1u;                              /* (the chance counts only on CHNC; the length and curve only */
+            if (!x.rrate)                               /* with a retrig: shown dim until then) */
+                dim |= 6u;
+        }
     } else {
         static const char *const LA[4] = {"note", "len", "vel", "cond"}, *const LB[4] = {"flag", "ratch", "nudge", ""};
         const step_t *st = &t->step[idx];

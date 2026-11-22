@@ -48,7 +48,7 @@ int main(int argc, char **argv)
             case 19: trk[rnd(NTRK)].p[P_MUTE] = (int16_t)(rnd(4) == 0); song.solo = (uint8_t)(rnd(5) ? 0u : 1u << rnd(NTRK)); break;
             case 20: {                                                             /* levels, ratchets on steps */
                 uint32_t t = rnd(NTRK), i2 = rnd(NSTEP);
-                if (t == TRK_DRUM) dstep_set(&trk[t].dstep[i2], rnd(DRUM_LANES), rnd(4), rnd(4));
+                if (t == TRK_DRUM) dtest_set(i2, rnd(DRUM_LANES), rnd(4), rnd(4));
                 else if (trk[t].step[i2].n) { trk[t].step[i2].lvl = (uint8_t)rnd(256); trk[t].step[i2].rat = (uint8_t)rnd(256); }
                 break;
             }
