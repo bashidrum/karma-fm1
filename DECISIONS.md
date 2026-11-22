@@ -313,3 +313,49 @@ Memory (Ben: "Make the perfect version. Then we'll compromise")
 
 Not checked
 - No device build here (no toolchain); the sizes above are the stand-in's differences. The long tests (soak, stress, regress, web) were not run; the golden renders will differ where presets carry sends (they now go through slots: same arithmetic) and LFO > SHP (now cells). browse_test reports 2 presets differing after browsing, as on the wave 4 merge.
+
+## Rebuild wave 6, the MPC performance (22 Nov): calls made that Ben did not specify
+Where the spec left a choice open, the most MPC-like option was taken; each is open to change.
+
+The pads (Ben: "A: pad map, trimmed set", about 18)
+- 20 pads plus two triplets (22 keys of 27): the 16 white keys as mock-perf-A's 4 x 4, the black keys as its chips. Row 1 1/1 1/2 1/4 1/8, row 2 1/16 1/32 REVRS HALF (the stutters together, longest first as in the mock; 1/4 and 1/8 on keys 3 and 4, the mock's own places), row 3 LP HP CRUSH GATE, row 4 STOP DROP ECHO VERB. Black keys: F#3 -DRM (kill drums), G#3 -BAS (kill bass), A#3 LCUT (low cut), C#4 FLNG (flanger sweep), C#5 8T, D#5 16T (the triplets on the far right, never in a prime place); D#4 F#4 G#4 A#4 F#5 have none.
+- Changed from the mock: ECHO moved to row 4 beside VERB (the throws together, the tape effects STOP and DROP together); the mock's DUST and WOW are not pads (DUST stays on GLO > MASTER; WOW was the old wobble).
+- Gone from the old 27 (Ben's trimmed set): STUTTER (beat / 6: now the 16T pad), PHONE, ALIAS (now CRUSH's RATE knob), WOBBLE, KILL MID, KILL HIGH, REWIND, OCT UP (its two-tap code is now DROP's), AUTO-PAN, FREEZE (and its reverb hold), MONO, FADE OUT. KILL LOW is LCUT with a FREQ knob.
+- -BAS kills voice 1 (the bass to start); its KNOB 1 picks the voice. The kills fade the part as a mute does but keep its notes playing unheard, so it comes back exactly in place (a MUTE stops new notes; a kill that did that came back with the bass's oscillators elsewhere, measured -5 dB of difference for as long as the song ran).
+- 1/1 and 1/2 replay the sequencer, as the STUTTER lane's (the 0.74 s buffer cannot hold them); with the transport stopped they do nothing.
+- Several at once: one TIME effect (stutters, REVRS, HALF, STOP, DROP, FLNG: the last pressed plays; let it go and an earlier one still held comes back, as the MPC's beat repeat) with every COLOUR effect (LP, HP, LCUT, CRUSH, GATE), both throws and both kills. No limit of four (the MPC's): see CPU below.
+- ECHO and VERB are the old REV / ECHO THROW (the shared delay and reverb, ringing out after release); FX + OCT- / OCT+ no longer throw (OCT is the latch now).
+
+In and out (the spec: "one obvious gesture ... must not steal note playing")
+- Hold FX: PERFORM while held. Held 0.7 s untouched and let go: it stays open (LOCK), exactly as GLO keeps the mixer; FX again, HOME or any page button leaves. FX + HOME still locks it, as every layer. A double tap of FX was not used: its first tap opens the voice's FX pages.
+
+Latch (Ben: latch)
+- Hold OCT+ and press a pad, or press OCT+ while holding pads (the MPC latches with a button). A latched pad pressed again: off (the MPC's). OCT-: every latch off. A double tap of a pad was not used: stutters are tapped in rhythm and would latch by accident.
+- Latched pads keep playing after PERFORM is left (hands free for notes); every screen's header shows PERF and how many, white, beside FILL. STOP ends every latch. A pattern change keeps the latches.
+- The header says PERF, not FX: "FX 2" would read as a voice's FX slot 2.
+
+The knobs (Ben: "knobs tweak the last effect pressed")
+- The drum and synth pages' dials (op_dials), white-grey. KNOB 4 is AMOUNT (the wet level) wherever a pad has one. Per pad: stutters PITCH DECAY GATE; REVRS and HALF LENGTH; LP and HP CUTOFF RESO SPEED; CRUSH BITS RATE; GATE RATE WIDTH; STOP TIME; DROP DEPTH TIME; ECHO TIME FDBK; VERB SIZE DAMP; -BAS VOICE; LCUT FREQ; FLNG RATE FDBK; 1/1, 1/2 and -DRM none.
+- ECHO's TIME and VERB's SIZE and DAMP are GLO's own (shared, as an FX slot shows them since wave 5); the rest belong to the pad.
+- The start values sound as the old effects did where there was one (1/4 a beat, HALF a beat, STOP to a stop in a beat, the gate 1/16 half open, CRUSH 7 bits, LCUT 251 Hz, ECHO's feedback floor 70 %, FLNG a bar a sweep, AMOUNT 100 %). LP now closes over its SPEED (1/2 to start: about 1 s at 120 BPM, as the old code's comment said; it measured 0.18 s) down to 161 Hz; HP rises to 610 Hz, as before.
+- Knob settings are performance state, as mutes: kept until power-off, not saved. The STUTTER lane's own lit steps always play at the start settings (so they sound exactly as before).
+
+Recording into the STUTTER lane (Ben: "Keep, and record played FX into it")
+- While any voice records and the transport runs. Each pad played is a span on the lane's own steps: its pad, its first step and length (press and release to the nearest 1/16), and the knob last turned while it played with its value (4 bytes; format 8's 124 bytes hold 31). A latched pad records from latch to unlatch (or the end of the take).
+- A pad recorded over its own earlier span replaces what it overlaps; other pads overdub. The 32nd says FX LANE FULL: 31.
+- The lane's ON / OFF (its KNOB 2, HOME's KNOB 3) gates the recorded pads too. A pad played live comes before the same pad recorded, and any pad before the lit steps.
+- Undo: EDIT + OCT- takes back what a take recorded into the lane (the one undo there is: a later edit of a voice replaces it).
+- A pattern change drops a span still open; the new pattern plays its own spans.
+
+The STUTTER lane's screen
+- The steps' tiles are 22 px high (were 26) to make room for three rows of recorded pads, named bars across their steps. The big ON / OFF and the big length are now in the dials only (they were shown twice). KNOB 3 (empty before) is FX: how many; turned twice within 1.5 s it clears them. Hold a step + OCT- erases the pads over it; a step lit by that very press goes out again.
+
+Memory (Ben: "Make the perfect version. Then we'll compromise")
+- No new buffer: the TIME effects use the punch ring, the colour effects the old effect's filter states. Freed: the reverb's own return buffers kept for FREEZE (256 B), the kills' block buffers (256 B, the low cut now runs a sample at a time), FREEZE's state, the old layer's 27 tiles (16 now: 154 B).
+- Measured on an rv32 -Os stand-in build against the wave 5 merge (not the JieLi toolchain): .data + .bss 176 B smaller, pool +0, code and constants +7.3 KB. On the device that would be about 96,070 of 98,304 B and an image of about 518 KB of 581,564. Everything fits; no new limit.
+
+CPU (not measured on a device)
+- Host: the idle path costs what it did (4.4 ns a sample); one pad 11 to 20 ns (a stutter 11, LCUT 20); five colour pads at once about 40, with DROP on top about 55, against about 75 for the whole default mix. Stacking is the only new cost; if the FM-1 runs short, a limit of four at once (the MPC's) is the compromise to offer.
+
+Not checked
+- No device build here (no toolchain). The long tests (soak, stress, regress, web) were not run.
