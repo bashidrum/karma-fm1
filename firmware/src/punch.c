@@ -393,6 +393,15 @@ static void punch_loop_knobs(void)
     punch.gl = pf_val(p, 2) >= 100 ? punch.len : punch.len * (uint32_t)pf_val(p, 2) / 100u;
 }
 
+/* (wave 7) where a loop's read starts: (k * pspd) mod (len << 16), in 32 bits (the device has no 64-bit divide or modulo:
+ * __umoddi3). len <= PUNCH_N - 1024 (< 2^15), k < len, pspd < 2^18 (PITCH +12: 2^17). pspd = ph 2^16 + pl: the ph part
+ * is ((k ph) mod len) 2^16, exact; k pl < 2^31; their sum < 2^32. Equal to the 64-bit form over every k, len, pspd
+ * (tests/punch_test.c punch_pq0 against it) */
+static uint32_t punch_pq0(uint32_t k, uint32_t pspd, uint32_t len)
+{
+    uint32_t m = len << 16, hi = ((k * (pspd >> 16)) % len) << 16, lo = k * (pspd & 0xFFFFu);
+    return (hi + lo) % m;
+}
 static void punch_start(int32_t fx)
 {
     uint32_t beat = beat_samples(), len, ph = clk_samples();
@@ -422,7 +431,7 @@ static void punch_start(int32_t fx)
     punch.ds = 0;
     punch.rg = 32767;
     punch_loop_knobs();
-    punch.pq = (uint32_t)(((uint64_t)punch.k * punch.pspd) % ((uint64_t)len << 16));
+    punch.pq = punch_pq0(punch.k, punch.pspd, len);
     if (fx == PX_FLANGE)                                /* FLANGER: the sweep starts at its shortest delay */
         punch.lfo = 0xC0000000u;
 }

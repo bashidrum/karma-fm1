@@ -214,10 +214,41 @@ static void punch_pads_say(void)
     printf("pads: LOW CUT, LP, HP, PITCH DROP, GATE, CRUSH, TAPE STOP, 1/8T, the stutters' PITCH, DECAY, GATE, AMOUNT do what they say PASS\n");
 }
 
+/* (wave 7) the loops' start in 32 bits (the device has no __umoddi3) equals the 64-bit form over every real value:
+ * every len 64 .. PUNCH_N - 1024, every k < len (sampled densely, all at the ends), every PITCH -12 .. +12 */
+static void t_pq0(void)
+{
+    uint32_t len, n = 0;
+    int32_t semi;
+    for (semi = -12; semi <= 12; semi++) {
+        uint32_t sp = (uint32_t)pr_ratio(semi << 8);
+        for (len = 64u; len <= PUNCH_N - 1024u; len += len < 2048u ? 1u : 37u) {
+            uint32_t k, st = len < 4096u ? 1u : 13u;
+            for (k = 0; k < len; k += (k < 64u || k + 64u > len) ? 1u : st) {
+                uint32_t want = (uint32_t)(((uint64_t)k * sp) % ((uint64_t)len << 16));
+                assert(punch_pq0(k, sp, len) == want);
+                n++;
+            }
+        }
+        {   /* the largest len, every k */
+            uint32_t k, L = PUNCH_N - 1024u;
+            for (k = 0; k < L; k++)
+                assert(punch_pq0(k, sp, L) == (uint32_t)(((uint64_t)k * sp) % ((uint64_t)L << 16)));
+        }
+    }
+    for (len = 64u; len <= PUNCH_N - 1024u; len += 97u)   /* and any speed up to 2^18 */
+        for (n = 0; n < 4096u; n++) {
+            uint32_t k = (n * 2654435761u) % len, sp = (n * 40503u) & 0x3FFFFu;
+            assert(punch_pq0(k, sp, len) == (uint32_t)(((uint64_t)k * sp) % ((uint64_t)len << 16)));
+        }
+    printf("loops' read start in 32 bits = the 64-bit modulo, every len, k, PITCH PASS\n");
+}
+
 int main(int argc, char **argv)
 {
     setvbuf(stdout, 0, _IONBF, 0);
     perf_init();
+    t_pq0();
     uint32_t fx, i, b, on = FS / CTL, off = on + FS / 2u / CTL;   /* held from 1 s to 1.5 s */
     FILE *f = argc > 1 ? fopen(argv[1], "wb") : 0;
     for (fx = 0; fx < PF_NPAD; fx++) {

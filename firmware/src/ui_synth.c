@@ -353,7 +353,7 @@ static void syn_fx_pic(const track_t *t, uint32_t k, uint16_t c)
             int32_t it = ty == XT_DIST ? IT_SOFT : XT_IT[ty];
             o = it == IT_CRUSH ? ins_shape(IT_CRUSH, in32, ins_bits_sh(in)) : ins_shape((uint32_t)it, clamp(v, -98000, 98000), 0);
             o = clamp(o, -32767, 32767);
-            o = in32 + (int32_t)(((int64_t)(o - in32) * am) / 127);
+            o = in32 + (o - in32) * am / 127;              /* (wave 7: 32 bits; |o - in32| <= 65534, am <= 127) */
             y = SP_M - o * R / 32767;
             if (x > 120 - 2 * R)
                 cv_line(x - 1, py, x, y, c);

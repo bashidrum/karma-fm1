@@ -1233,15 +1233,17 @@ static uint32_t rt_units(uint32_t r);
 static uint32_t roll_unit(uint32_t ti) { return ti == TRK_DRUM ? rt_units(drt_live) : BEAT_U / roll_den(); }
 static uint32_t roll_grid(uint32_t ti, uint32_t *into, uint32_t *len)
 {
-    uint64_t a;
-    uint32_t u;
+    uint32_t u, rem;
     if (ti != TRK_DRUM)
         return grid_den(roll_den(), 0, into, len);
     u = roll_unit(ti);
-    a = (uint64_t)clk_beat * BEAT_U + clk_pos;
-    *into = (uint32_t)(a % u);
+    /* (wave 7: 32 bits, the device has no 64-bit divide) every rate divides a bar exactly (RT_DEN: 1/1 .. 1/80 of
+     * BEAT_U 4 = 2^6 3^3 5^3 7^2), so a bar is BEAT_U 4 / u units of it: the same as (clk_beat BEAT_U + clk_pos) / u and % u
+     * in 64 bits (tests/seq2_test.c) */
+    rem = (clk_beat % 4u) * BEAT_U + clk_pos;
+    *into = rem % u;
     *len = u;
-    return (uint32_t)(a / u);
+    return clk_beat / 4u * (BEAT_U * 4u / u) + rem / u;
 }
 /* the lanes / notes a roll plays live on track t: the pattern does not play them meanwhile (no flam
  * with what was recorded, nor with what this roll is recording) */
@@ -2005,12 +2007,27 @@ static void dhit(track_t *t, uint32_t i, uint32_t l, uint32_t vel)
     seq_out_on(t, LANE_NOTE[l], vel < 1u ? 1u : vel);
 }
 /* a retrig's velocity at the hit units after its start (len: its length): the curve, fade out (< 0) to fade in (> 0) */
+/* (wave 7) x 1024 / len rounded down, x <= len < 2^31, in 32 bits (the device has no 64-bit divide): long division,
+ * a bit at a time; the same as ((uint64_t)x * 1024) / len (tests/seq2_test.c) */
+static uint32_t rt_frac1024(uint32_t x, uint32_t len)
+{
+    uint32_t q = 0, i;
+    if (x >= len)
+        return 1024u;
+    for (i = 0; i < 10u; i++) {
+        x <<= 1;
+        q <<= 1;
+        if (x >= len)
+            x -= len, q |= 1u;
+    }
+    return q;
+}
 static uint32_t rt_vel(uint32_t vel, int32_t fade, uint32_t at, uint32_t len)
 {
     int32_t p, v;
     if (!fade || len == RT_INF || !len)
         return vel;
-    p = (int32_t)((uint64_t)(at < len ? at : len) * 1024u / len);   /* 0..1024 */
+    p = (int32_t)rt_frac1024(at < len ? at : len, len);  /* 0..1024 */
     v = fade < 0 ? (int32_t)vel * (131072 + fade * p) / 131072
                  : (int32_t)vel * (131072 - fade * (1024 - p)) / 131072;
     return (uint32_t)(v < 1 ? 1 : v > 127 ? 127 : v);

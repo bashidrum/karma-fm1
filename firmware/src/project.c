@@ -951,7 +951,7 @@ static void project_erase(uint32_t slot)
     if (song.playing || transport_req) { ui_message("STOP BEFORE ERASE"); return; }
 #endif
     if (!proj_ok(PSLOT(slot))) {
-        ui_message("EMPTY SECTION");
+        ui_message("EMPTY PATTERN");
         return;
     }
 #if FELUCCA_FLASH
@@ -1001,7 +1001,7 @@ static void project_load(uint32_t slot)
         proj_fetch(slot);
 #endif
     if (!proj_ok(p)) {
-        ui_message("EMPTY SECTION");
+        ui_message("EMPTY PATTERN");
         return;
     }
     project_apply(p);

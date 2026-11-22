@@ -16,7 +16,7 @@
  * GLO keys come to the UI through seq.c lk_q. HOLD: REC held clears the track, SAVE held saves the
  * project (a ring fills; let go before and nothing happens). */
 static const uint8_t LAYER_BTN[LY_COUNT] = {NB, B_FX, B_EDIT, B_ARP, B_SEQ, B_SCL, B_GLO, B_SAVE};
-static const char *const LAYER_NAME[LY_COUNT] = {"", "perform", "erase", "roll", "steps", "key", "mix", "section"};
+static const char *const LAYER_NAME[LY_COUNT] = {"", "perform", "erase", "roll", "steps", "key", "mix", "pattern"};   /* (wave 7: A to D are patterns, Ben's word) */
 static const char *layer_name(uint32_t l)               /* (PHEBUS wave 3: on the drum track SEL picks a sound, ARP retrigs) */
 {
     if (is_drum(TSEL) && l == LY_SCALE)
@@ -322,6 +322,9 @@ typedef struct {
     uint16_t bg, fg, top;        /* fill, text, the 3-pixel top band (0 = none) */
 } tile_t;
 
+#define LY_SUB_Y 22                                     /* (wave 7) under the header: what the layer does now, or a message */
+#define LY_TILES_Y 40                                   /* the 16 tiles, 4 rows */
+#define LY_TILE_H 28
 static void tiles_draw(const tile_t *tl, uint32_t *cache)
 {
     uint32_t r, c, sig = 7u;
@@ -330,46 +333,52 @@ static void tiles_draw(const tile_t *tl, uint32_t *cache)
     if (!ui.force && sig == *cache)
         return;
     *cache = sig;
-    for (r = 0; r < 4u; r++) {
-        cv_begin(240, 36, C_BLACK);
+    for (r = 0; r < 4u; r++) {                          /* (wave 7: 28 px rows between the sub line and the dials, so every
+                                                         * layer has the pages' dials and the strip) */
+        cv_begin(240, LY_TILE_H, C_BLACK);
         for (c = 0; c < 4u; c++) {
             const tile_t *t = &tl[r * 4u + c];
             int32_t x = 2 + (int32_t)c * 60;
             if (!t->lab[0] && t->bg == TE_G1)           /* a key that does nothing here: an outline (review 19) */
-                op_box(x, 2, 56, 32, TE_G1);
+                op_box(x, 1, 56, LY_TILE_H - 2, TE_G1);
             else
-                cv_rect(x, 2, 56, 32, t->bg);
+                cv_rect(x, 1, 56, LY_TILE_H - 2, t->bg);
             if (t->top)
-                cv_rect(x, 2, 56, 3, t->top);
-            te_text_c(x + 28, 9, t->lab, t->fg);
+                cv_rect(x, 1, 56, 3, t->top);
+            te_text_c(x + 28, 6, t->lab, t->fg);
         }
-        cv_blit(0, 40 + r * 36);
+        cv_blit(0, LY_TILES_Y + (int32_t)r * LY_TILE_H);
     }
 }
 
+/* (wave 7) a layer's top: the header every screen has (the button's name as the tag, in the layer's colour; the layer's
+ * name as the title; the tempo, the transport, the unsaved dot), then a line: what it does now in grey, a message in a
+ * white bar, LOCK at the right while it stays open */
+static const char *const LAYER_TAG[LY_COUNT] = {"", "FX", "EDIT", "ARP", "SEQ", "SEL", "GLO", "SAVE"};
 static void layer_title(const char *name, const char *sub, uint16_t col, uint32_t *cache)
 {
+    static uint32_t hc;
     uint32_t locked = ly_lock != LY_PLAY;
     uint32_t sig = studio_hash(studio_hash(col, name), sub) + (ui.msg_t ? studio_hash(3u, ui.msg) : 0u) + locked * 7919u;
+    char ti[12];
+    te_upper(ti, name, sizeof ti);
+    op_header(LAYER_TAG[ui.layer % LY_COUNT], col, ti, &hc);
     if (!ui.force && sig == *cache)
         return;
     *cache = sig;
-    cv_begin(240, 40, C_BLACK);
-    {   /* (a sub line or message too long for the line with the button's name: the name alone, as before) */
-        const char *btn = LAYER_BTN_NAME[ui.layer % LY_COUNT], *s2 = ui.msg_t ? ui.msg : sub;
-        int32_t x = 4;
-        if (text_w(&FONT_S, btn) + 2 + text_w(&FONT_L, name) + 8 + text_w(&FONT_S, s2) <= 232)
-            x = cv_text(4, 14, &FONT_S, btn, TE_G4) + 2;   /* (on the name's baseline) */
-        x = cv_text(x, 2, &FONT_L, name, col);
-        cv_text(x + 8, 18, &FONT_S, s2, ui.msg_t ? C_WHITE : TE_G3);
+    cv_begin(240, LY_TILES_Y - LY_SUB_Y, C_BLACK);
+    if (ui.msg_t) {
+        cv_rect(0, 0, 240, 17, C_WHITE);
+        te_text_c(120, 0, ui.msg, C_BLACK);
+    } else {
+        cv_text(4, 0, &FONT_S, sub, TE_G3);
+        if (locked) {                                   /* locked open (HOME): any button lets it go */
+            int32_t w = (int32_t)text_w(&FONT_S, "LOCK") + 6;
+            cv_rect(236 - w, 0, w, 16, C_WHITE);
+            cv_text(239 - w, 0, &FONT_S, "LOCK", C_BLACK);
+        }
     }
-    if (locked) {                                         /* locked open (HOME): any button lets it go */
-        int32_t w = (int32_t)text_w(&FONT_S, "LOCK") + 8;
-        cv_rect(236 - w, 4, w, 15, C_WHITE);
-        cv_text(240 - w, 4, &FONT_S, "LOCK", C_BLACK);
-    }
-    cv_rect(0, 38, 240, 1, TE_G1);
-    cv_blit(0, 0);
+    cv_blit(0, LY_SUB_Y);
 }
 
 /* the SEQ layer (PHEBUS): the pattern's steps in time, a bar a row (more bars a row when it is longer than four): each
@@ -377,6 +386,12 @@ static void layer_title(const char *name, const char *sub, uint16_t col, uint32_
  * that plays filled in the voice's colour, an empty one outlined; the playing one white. What the three knobs do,
  * seen as they turn */
 #define BAR_U (4u * BEAT_U)
+/* (wave 7) r 231 / (BAR_U per) rounded down, r <= BAR_U per, in 32 bits: BAR_U is a multiple of 64, so r 231 / 64 first
+ * (exact as an integer part and a remainder part), then / (BAR_U / 64 per): the same as the 64-bit form */
+static uint32_t row_px(uint32_t r, uint32_t per)
+{
+    return ((r >> 6) * 231u + ((r & 63u) * 231u >> 6)) / (BAR_U / 64u * per);
+}
 static void seq_time_draw(const track_t *t, uint16_t col, uint32_t *cache)
 {
     uint32_t len = trk_len(t), div = trk_div(t), u = div_units(div), i, k;
@@ -392,9 +407,9 @@ static void seq_time_draw(const track_t *t, uint16_t col, uint32_t *cache)
     if (!ui.force && sig == *cache)
         return;
     *cache = sig;
-    cv_begin(240, 124, C_BLACK);
+    cv_begin(240, LY_TILE_H * 4, C_BLACK);
     {
-        int32_t pitch = rows <= 2u ? 46 : 31, top = (124 - (int32_t)rows * pitch + 3) / 2, h = pitch - 11;
+        int32_t pitch = rows <= 2u ? 46 : 28, top = (LY_TILE_H * 4 - (int32_t)rows * pitch + 3) / 2, h = pitch - 11;
         for (k = 0; k < rows; k++) {                    /* the rows: a line at each beat, brighter at each bar */
             int32_t y = top + (int32_t)k * pitch, b;
             for (b = 0; b <= (int32_t)per * 4; b++)
@@ -402,16 +417,17 @@ static void seq_time_draw(const track_t *t, uint16_t col, uint32_t *cache)
         }
         for (i = 0; i < len; i++) {                     /* the steps: from where they start (the odd ones swung), three
                                                          * fifths of a step long, so the swing shows as pairs */
-            uint64_t a = (uint64_t)i * u + (i & 1u ? sw : 0u), e = a + (u * 3u + 4u) / 5u;
+            uint32_t a = i * u + (i & 1u ? sw : 0u), e = a + (u * 3u + 4u) / 5u;   /* (wave 7: 32 bits, the device has no
+                                                         * 64-bit divide; 64 steps of 2BAR: 1.4e9 units) */
             uint32_t on = is_drum(t) ? dt_mask(i) != 0
                         : step_on(&t->step[i]) ? 1u : t->step[i].time == ST_TIE ? 2u : 0u;
             uint16_t c = (int32_t)i == play ? C_WHITE : on == 1u ? col : on ? TE_DIM[song.sel & 3u] : TE_G2;
             if (t->step[i].time == ST_TIE && !is_drum(t))
                 e = a + u;                              /* (a tie runs on to the next step) */
             while (a < e) {                             /* (a step longer than a row: on into the next) */
-                uint64_t row = a / (BAR_U * per), re = (row + 1u) * BAR_U * per, b2 = e < re ? e : re;
-                int32_t x0 = 4 + (int32_t)((a - row * BAR_U * per) * 231u / (BAR_U * per)) + 1;
-                int32_t x1 = 4 + (int32_t)((b2 - row * BAR_U * per) * 231u / (BAR_U * per)) - 1, y = top + 4 + (int32_t)row * pitch;
+                uint32_t row = a / (BAR_U * per), re = (row + 1u) * BAR_U * per, b2 = e < re ? e : re;
+                int32_t x0 = 4 + (int32_t)row_px(a - row * BAR_U * per, per) + 1;
+                int32_t x1 = 4 + (int32_t)row_px(b2 - row * BAR_U * per, per) - 1, y = top + 4 + (int32_t)row * pitch;
                 if (row >= 4u)
                     break;
                 if (x1 < x0)
@@ -424,7 +440,7 @@ static void seq_time_draw(const track_t *t, uint16_t col, uint32_t *cache)
             }
         }
     }
-    cv_blit(0, 46);
+    cv_blit(0, LY_TILES_Y);
 }
 
 #include "ui_perf.c"                                    /* (wave 6) PERFORM, the FX layer */
@@ -432,9 +448,9 @@ static uint8_t layer_shown;                              /* the screen holds a l
 static const char *layer_sub_shown = "";                 /* the sub line last drawn (the host tests read it) */
 static void layer_screen_draw(void)
 {
-    static uint32_t head, tiles, foot;
+    static uint32_t head, tiles, foot, bar;
     static tile_t tl[16];
-    static char v[4][10], sub[24];
+    static char v[4][10], sub[24], lu[4][8];
     const char *lab[4] = {"", "", "", ""}, *val[4] = {v[0], v[1], v[2], v[3]};
     int32_t ratio[4] = {-1, -1, -1, -1};
     uint32_t i, layer = ui.layer, sel = song.sel;
@@ -689,14 +705,18 @@ static void layer_screen_draw(void)
     {   /* (a message shows in the title: the dials stay) */
         uint8_t m = ui.msg_t;
         ui.msg_t = 0;
-        if (layer == LY_MIX)                            /* GLO layer: the levels of tracks 1..4 */
-            knob_tint_voices();
-        else
-            knob_tint_all(layer == LY_SCALE || layer == LY_SONG ? TINT_NEUTRAL : song.sel);   /* the key, the song:
-                                                         * everyone's */
-        te_dials(184, lab, val, ratio, layer * 7919u, &foot);
+        for (i = 0; i < 4u; i++) {                      /* (the pages' dials: five letters at most, upper case) */
+            te_upper(v[i], v[i], sizeof v[i]);
+            dval_fit(v[i]);
+            te_upper(lu[i], lab[i], sizeof lu[i]);
+            lab[i] = lu[i];
+        }
+        op_dials(lab, val, ratio, 0, 0, layer == LY_SCALE && !is_drum(t) ? TE_G4 : layer == LY_SONG ? TE_G4 :
+                 layer == LY_ERASE ? TE_COL[sel & 3u] : col, layer * 7919u + sel, &foot);   /* (the key, the patterns:
+                                                         * everyone's, white-grey; ERASE's knobs edit the voice: its colour) */
         ui.msg_t = m;
     }
+    op_trackbar(&bar);
 }
 
 /* HOLD to confirm: a ring fills while REC (clear the track) or SAVE (save the project) is held */
@@ -737,7 +757,7 @@ static void hold_screen_draw(void)
         if (ui.hold_trk == TRK_DRUM)
             str_cpy(b, "drum track", sizeof b);
     } else {
-        str_cpy(b, "into section A", sizeof b);
+        str_cpy(b, "into pattern A", sizeof b);
         b[13] = (char)('A' - 1 + clamp(song.g[G_SLOT], 1, 4));
     }
     te_text_c(120, 4, b, TE_G4);

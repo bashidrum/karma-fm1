@@ -359,3 +359,87 @@ CPU (not measured on a device)
 
 Not checked
 - No device build here (no toolchain). The long tests (soak, stress, regress, web) were not run.
+
+## Rebuild wave 7, HOME and the guide (22 Nov): calls made that Ben did not specify
+HOME (Ben: "HOME: B: three zones", keeping CUTOFF, DECAY, STUT, LEVEL, the FLOW band, heads in the strip only)
+- Layout: a deck (BAR and the bar number, the FLOW strip 116 x 14 px, the patterns A to D) then three zones of 38 px: SYNTH, DRUM, PERFORM. The mock's "VOICE 1" line is left out: the selected voice is shown by its name inverted in its colour (and the strip's underline), which the mock did not have room for with the band.
+- SYNTH shows each voice's sound name (not the Type), M / S / a red dot, and its 16 steps in view. DRUM shows the kit, the drum voice's M / S, how many sounds MUTE mode mutes or solos, the selected sound, and every sound's hits in the 16 steps (the selected sound's bright, the others dim, only-muted grey). PERFORM shows LANE ON / OFF, the latched pads by name (or "n LATCHED"), and the lane's steps as spans.
+- The pattern asked for next (playing) is outlined white on the deck.
+- HOME's knobs use the pages' dials (one tall face, fixed 40 px columns, no units): DECAY reads "2.52", as the ENV page shows a time.
+The frame on every screen
+- The layers (EDIT, ARP, SEQ, SEL, GLO's tiles, SAVE), PERFORM, the REC screen and the STUTTER lane now have the header every screen has (tag: the button held, or REC / STUT), a line under it (what the layer does, LOCK, or a message as a white bar), the body, the pages' dials and the strip. The big "FX: PERFORM" style titles are gone; the tiles are 28 px rows (PERFORM's pads 20 px, chips 12 px).
+- The header's title may run to 6 px before the tempo (PATTERN A was cut to PATTERN); the tempo, play symbol and beat lights moved 4 px right, the beat lights 7 px apart.
+- The mixer's dials are the pages' dials in each voice's colour; its podiums sit over the dial columns; its M / S badges are the strip's.
+- Messages: on pages over the dials as before; on layers and PERFORM in the line under the header, so the dials stay.
+- Not restyled (kept by the Hybrid decision or as modal screens): the menu, the hold-to-clear ring, the boot and the screensavers. The GLO list pages keep their page dots (a tab row would need the list moved).
+Words (a glossary is in GUIDE.md)
+- A key is a STEP: the drum screen says STEP n HELD and HOLD A STEP (was TRIG). RETRIG everywhere (was RTRG on the drum line; when a retrig and lock names do not fit, the locks are counted: LOCKS n). The lane's recorded pads are PADS (its KNOB 3, PADS ERASED, AGAIN: CLEAR PADS, LANE FULL: 31 PADS; was FX). A to D are PATTERNS (the SAVE layer's title, EMPTY PATTERN, "into pattern A"). Shared pages' tag GLO (was ALL).
+Stutter lengths as spans (taken as read in REVIEW.md)
+- Lit steps in a row with the same length are drawn as one bar across their tiles, the length named once ("1/4"); a single lit step keeps its short number.
+Found and fixed
+- The graphs' tints were left from the last screen that set them: voice 1's ACID picture and voice 3's drew in coral after a drum or shared screen. They now reset to the selected voice every frame.
+- 64-bit divides the device toolchain lacks (__udivdi3 / __umoddi3), all now 32-bit with tests proving them equal to the 64-bit form: the loops' read start (punch.c, every len, k and PITCH), the drum RETRIG grid (seq.c roll_grid; every rate divides a bar exactly) and curve (rt_vel), the SEQ layer's time view (pre-wave 2 code, exact by the floor identity), an FX picture's curve.
+- gp_bars read d in the same expression that assigned it (the warning); the same pattern in ui_pages_test.
+Memory: on an rv32 -Os stand-in build against the wave 6 merge (not the JieLi toolchain): pool +0 B, .data+.bss +160 B (about 96,300 of 98,304 on the device), code and constants -2.0 KB (about 514.6 KB of 581,564).
+
+## For Ben to confirm
+Every call waves 2 to 7 made that the spec did not cover, and every device-only limit or lossy conversion, one line each. The detail is in each wave's section above.
+
+Device-only limits
+- PHEBUS_ARENA_T12 = 9152: on the FM-1, 6-OP A, B, C, STRING, SPEECH and PARTICLE play on track 3 only (NOT ON THIS TRACK on 1 and 2); the simulator and host have no limit.
+- CPU on the FM-1 is unmeasured: stacking PERFORM pads is the only new cost of wave 6; the compromise to offer is a limit of four at once (the MPC's).
+- RAM: .data+.bss about 96.3 of 98.3 KB and the pool about 200 B above the 8 KiB rule; the extras and lock pools (128 B a copy, 7 copies) and PHEBUS_UP_MX=0 (1,472 B) are the reserves if needed.
+- The STUTTER lane and PERFORM's time effects are mono, 0.74 s, 16-bit with 12 dB of headroom; below about 84 BPM a quarter loop is cut to 0.72 s.
+- The voice filter's cost on the FM-1 is estimated from the host (about 0.45 of a JUNO voice a voice).
+- Section D lives in main RAM and C too (not .noinit): after a crash, a pattern stored while playing and not yet written is lost.
+Lossy conversions of older projects and presets
+- Format 7 drum levels become velocities 42 / 72 / 100 / 127; ratchets become one-step retrigs at the nearest rate (on 1/32 steps x3 and x4 become 1/80).
+- Past 64 trigs with extras when converting, the rest play with no condition or nudge.
+- PLAITS / ELEMENTS: old ENV > FLT and LFO > FLT moved the timbre; now they move the filter (ENV > FLT on PLAITS goes to T.ENV, positive only). Eight PLAITS factory sounds now wobble the filter, not the timbre.
+- Old LFO > SHP and ENV > SHP become matrix cells; on ELEMENTS an assignable column at half the amount (approximate).
+- Old DIST, INSERT and sends become FX slots: past three effects the smallest sends go; an INSERT's fourth value (LEVEL into the trim, exact at MIX 100 %; CRUSH LPF and PHASER / FLANGER DEPTH reset to default).
+- The old track FILT (DJ LP / HP) on a synth voice is moved onto the voice filter when loaded.
+- A record 2 user preset slot shows as empty on firmware before wave 4; a wave 5 bank as empty on firmware before wave 5; stock KARMA cannot read PHEBUS projects.
+Drums (waves 2 and 3)
+- A new trig plays at velocity 100; TRIG's KNOB 1 with nothing held sets it (not saved).
+- 64 trigs with extras and 128 sound locks a pattern (refused with a message when full).
+- CHANCE counts only with COND CHNC; a CHNC trig starts at 50 %; synth steps keep a fixed 50 % CHNC.
+- RETRIG: rate 1/1 to 1/80 of a bar, length 1/8 step to 16 steps or INF, curve -128 to 127; the next trig ends it.
+- Synthesised kits keep their own model (not converted to the HEX machine); every sound gets an LFO (SPEED DEPTH DEST WAVE, SYNC FADE PHASE MODE).
+- One edited kit a project; another kit asks AGAIN: REPLACE and replaces on a second turn within 1.5 s. A way to store your copy into MY HEX is not built.
+- PEDAL gets its own sound in your copy (the built-in kits share the closed hat's).
+- MODEL and TYPE cannot be locked (as the Rytm's machine).
+- Sound pick: hold SEL + key; MUTE mode: tap SEL; CHROMATIC: tap ARP; live RETRIG: hold ARP + key, the black keys the rate; FILL: F#5 held, twice to latch.
+- Hold a step + OCT-: the last-turned lock, then every lock; on TRIG everything the trig holds.
+- The KIT page is gone (sound: SEL + key; kit: PRESETS; sends: AMP 2/2).
+Melodic voices (waves 4 and 5)
+- 31 Types in one list, plain ones first; OSC has four halves (Type + macros; OCT TUNE GLIDE VOICE; the Type's 4th and 5th, DTUNE PRIOR; GLMODE ALLOC).
+- Macro names per Type from the Plaits manual; some ELEMENTS / OMINOUS controls have no knob and keep the sound's value.
+- Turning TYPE keeps the rest of the sound; another engine's macros start at plain defaults; JUNO's chorus moved to OSC 3/4.
+- One ladder filter on every voice (LP24, LP12, BP, HP); ACID's and JUNO's own ladders are their LP24.
+- LINK is the default; the first turn of a filter envelope knob makes it OWN from the amp's values; ESYNC applies to both.
+- The synth GRID has the drum screen's tabs; SELECT walks the tabs (the tempo is on HOME and the pages).
+- FX slot types and their knobs; one shared chorus, reverb and delay (a slot is the voice's send); one of each send type and one FLANGER a voice.
+- Matrix: 7 sources x 13 destinations, 19 cells besides the six fixed ones; LVL only reduces; PAN, FX and AS follow the last note.
+- LFO 2 starts FREE; its sample-and-hold uses its own random numbers.
+- Spice and Dice on TRIG 2/2 with nothing held; a roll's ranges (30 % left out, 25 % octave, 20 % ratchet, velocity +-48, length x0.25 to x1.75).
+- GATE on hold SEQ, KNOB 1 (wave 5: a call for Ben).
+- MIDI CC 91 / 93 / 94 on a voice with no slot of that type put one in its first OFF slot.
+- MIDI CC 74 still sets the track's DJ filter, which has no page on a synth voice since wave 4; mapping it to the voice filter's CUTOFF would be the plain fix (not changed: MIDI behaviour).
+PERFORM and the STUTTER lane (wave 6)
+- The pad map changed from mock-perf-A: ECHO moved to row 4 beside VERB; DUST and WOW are not pads; -DRM -BAS LCUT FLNG on black keys 1 to 4, 8T and 16T on C#5 and D#5.
+- Gone from the old 27: STUTTER (now 16T), PHONE, ALIAS, WOBBLE, KILL MID / HIGH, REWIND, OCT UP, AUTO-PAN, FREEZE, MONO, FADE OUT.
+- -BAS kills voice 1 (KNOB 1 picks); kills keep the notes playing unheard.
+- One time effect at a time with every colour effect, throw and kill on top; no limit of four.
+- In and out: hold FX; held 0.7 s untouched and let go, it stays (as GLO's mixer). Latch: OCT+ with a pad (a double tap was not used). OCT- unlatches all; STOP ends latches; latches play on outside PERFORM.
+- The header says PERF and how many (not FX).
+- Each pad's knobs and start values; knob settings are not saved; the lane's own lit steps always play at the start settings.
+- Recording: spans to the nearest 1/16 with the last knob turned; a pad over its own span replaces it, others overdub; 31 at most.
+- EDIT + OCT- undoes a take's pads; a pattern change drops an open span.
+- The lane's KNOB 3 PADS clears on a second turn within 1.5 s; hold a step + OCT- erases its pads.
+HOME, the screens and the words (wave 7)
+- HOME's three zones and their contents as listed in wave 7 above; the selected voice shown inverted instead of a "VOICE 1" line.
+- The layers', PERFORM's and the REC screen's frame (header tag the button held, a line under it, the pages' dials, the strip).
+- The words: STEP (a key), trig (what is on it), RETRIG, PADS (the lane's), PATTERN (A to D), GLO (the shared tag).
+- Stutter lengths as spans: runs of one length drawn as one bar, named once.
+- Gesture exceptions kept as they were decided: SELECT is the tempo on HOME, the mixer and the REC screen and the cursor in STEP REC; OCT+ on the lane's last page goes round (no page added); the FILL latches with a double press, PERFORM pads with OCT+; only GLO and FX stay open by a long untouched hold; SEL and ARP do other jobs on the drum voice.

@@ -893,7 +893,7 @@ static void ui_input(void)
     midi_entry();                                       /* (the MIDI notes' queue: read every frame, 2.6) */
     if (perf.full) {                                    /* (wave 6) a pad recorded found the STUTTER lane full */
         perf.full = 0;
-        ui_message("FX LANE FULL: 31");
+        ui_message("LANE FULL: 31 PADS");
     }
     if (home == BT_HOLD) {                              /* HOME held: open the menu, or leave it */
         if (ui.menu) {

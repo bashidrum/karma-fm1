@@ -333,6 +333,7 @@ static uint32_t drum_trig_sig(uint32_t l, uint32_t bank)
 #define DIAL_VW 40                                      /* its room */
 static uint32_t dial_over;                              /* values drawn past their column (0, always) */
 static uint32_t dials_y = SG_KNOB_Y;                    /* where the dials go (PHEBUS wave 6: PERFORM's lower) */
+static const uint16_t *dial_tint;                       /* (wave 7) a colour a knob (HOME, the mixer); 0: col for all four */
 static int32_t dial_adv(const char *s) { return str_len(s) >= 5u ? 7 : 8; }
 static int32_t dial_w(const char *s) { return (int32_t)str_len(s) * dial_adv(s); }
 static int32_t cv_text_tall_n(int32_t x, int32_t y, const char *s, uint16_t c, int32_t adv)   /* FONT_S x2 tall, adv a letter */
@@ -355,6 +356,8 @@ static void op_dials(const char *const lab[4], const char *const val[4], const i
                      uint32_t dim, uint16_t col, uint32_t sig, uint32_t *cache)
 {
     uint32_t k;
+    if (dial_tint)
+        col = (uint16_t)(dial_tint[0] ^ dial_tint[1] * 3u ^ dial_tint[2] * 5u ^ dial_tint[3] * 7u);
     sig = studio_hash(sig + locked * 97u + dim * 7u + col * 131u, ui.msg_t ? ui.msg : "");
     for (k = 0; k < 4u; k++) {
         sig = studio_hash(sig * 7u + (uint32_t)ratio[k] + (ui.hot_t && ui.hot_col == k) * 5003u, lab[k]);
@@ -374,7 +377,7 @@ static void op_dials(const char *const lab[4], const char *const val[4], const i
     for (k = 0; k < 4u; k++) {
         int32_t x0 = 2 + 60 * (int32_t)k, vx = x0 + DIAL_VX, vw;
         uint32_t hot = ui.hot_t && ui.hot_col == k, lk = (locked >> k) & 1u;
-        uint16_t c = (dim >> k) & 1u ? TE_G3 : (dim >> (4u + k)) & 1u ? TE_G4 : col;   /* (wave 5: dim bits 4..7, a shared
+        uint16_t c = (dim >> k) & 1u ? TE_G3 : (dim >> (4u + k)) & 1u ? TE_G4 : dial_tint ? dial_tint[k] : col;   /* (wave 5: dim bits 4..7, a shared
                                                          * value on a voice's page: white-grey, not the voice's colour) */
         if (!lab[k][0])
             continue;
@@ -435,7 +438,7 @@ static void drum_main_draw(void)
         uint32_t n = 0, w;
         for (w = 0; w < 16u; w++)
             n += (sg_held >> w) & 1u;
-        str_cpy(sub, "TRIG ", 6);
+        str_cpy(sub, "STEP ", 6);                       /* (wave 7: a key is a step, as the synth GRID and the lane say) */
         fmt_int(sub + 5, first + 1);
         str_cpy(sub + str_len(sub), n > 1u ? " +" : " HELD", 6);
         if (n > 1u) {
@@ -477,8 +480,8 @@ static void drum_main_draw(void)
         int xi = dt_x((uint32_t)first, l);
         uint32_t k, n = 0;
         if (xi >= 0 && dpat.x[xi].rrate) {
-            str_cpy(info, "RTRG ", 6);
-            str_cpy(info + 5, SG_RATE[dpat.x[xi].rrate % 18u], 6);
+            str_cpy(info, "RETRIG ", 8);               /* (wave 7: the word every screen uses; was RTRG) */
+            str_cpy(info + 7, SG_RATE[dpat.x[xi].rrate % 18u], 6);
             str_cpy(info + str_len(info), "  ", 3);
         }
         for (k = 0; k < DT_NLK; k++)
@@ -496,6 +499,13 @@ static void drum_main_draw(void)
         if (n > 2u) {
             str_cpy(info + str_len(info), "+", 2);
             fmt_int(info + str_len(info), (int32_t)n - 2);
+        }
+        if (n && text_w(&FONT_S, info) > 180) {         /* (wave 7: never into the page slots: the locks counted instead) */
+            char *lp = info;
+            while (*lp && memcmp(lp, "LOCK ", 5))
+                lp++;
+            str_cpy(lp, "LOCKS ", 7);
+            fmt_int(lp + 6, (int32_t)n);
         }
     } else if (chrom) {
         str_cpy(info, "KEYS PLAY ", sizeof info);
@@ -814,7 +824,7 @@ static void drum_grid_input(uint32_t pressed)
             else if (!k)
                 drum_newvel = (uint8_t)clamp(drum_newvel + accel(EN_K1, s, 126), 1, 127);
             else
-                ui_message("HOLD A TRIG");
+                ui_message("HOLD A STEP");             /* (wave 7: a key is a step) */
         } else if ((id = dpg_id(k)) != 0xFFu) {
             if (sg_held)
                 drum_lock_turn(id, s, EN_K1 + k);
