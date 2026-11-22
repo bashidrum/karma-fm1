@@ -1951,14 +1951,14 @@ static void drum_step(track_t *t, uint32_t idx, uint32_t nabs, uint32_t slen, ui
     dq_ahead = nabs + 1u;
 }
 
-/* ratchets: the further hits of the playing step's notes / lanes, each at its share of the step */
+/* ratchets: the further hits of the playing synth step's notes, each at its share of the step */
 static void seq_ratchets(track_t *t, uint32_t into, uint32_t slen)
 {
     uint32_t i;
     if (t->seq_skip)
         return;                                     /* (its condition failed: no hit at all) */
     if (is_drum(t))
-        return;                                     /* (the drum trigs' retrigs: drum_block) */
+        return;                                     /* (the drum trigs' retrigs: drum_retrigs) */
     {
         const step_t *s = &t->step[t->seq_idx % NSTEP];
         if (s->time != ST_NOTE || !s->rat)
