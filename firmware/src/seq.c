@@ -1778,7 +1778,8 @@ static uint32_t dq_ahead = SEQ_NONE;            /* the grid step whose early tri
 static uint16_t dq_early;
 #define RT_INF 0xFFFFFFFFu
 /* a retrig as it runs: units since its trig (at the block's start), when its next hit is due, its rate and length */
-static struct { uint32_t el, nx, per, len; uint8_t on, step, vel; int8_t fade; } drt[DRUM_LANES];
+static struct { uint32_t el, nx, per, len; uint8_t on, step, vel, now; int8_t fade; } drt[DRUM_LANES];   /* (now: it started
+                                                                  * in this block: its hits from the next) */
 static void drum_rt_clear(void)                 /* nothing waits, nothing retrigs (STOP, PLAY, a section, a load) */
 {
     uint32_t l;
@@ -1851,6 +1852,7 @@ static void dtrig(track_t *t, uint32_t i, uint32_t l, uint32_t slen, uint32_t la
         drt[l].fade = e->rfade;
         drt[l].step = (uint8_t)i;
         drt[l].on = 1;
+        drt[l].now = 1;
         vel = rt_vel(vel, e->rfade, 0, drt[l].len);
     }
     dhit(t, i, l, vel);
@@ -1867,8 +1869,7 @@ static void dq_push(track_t *t, int32_t left, uint32_t i, uint32_t l, uint32_t s
         dq_n++;
     }
 }
-/* once a block while playing (adv units since the last block's start), before a step fires: the nudged hits due, the
- * retrigs' hits */
+/* once a block while playing (adv units since the last block's start), before a step fires: the nudged hits due */
 static void drum_block(track_t *t, uint32_t adv, uint32_t slen)
 {
     uint32_t k, l;
@@ -1882,9 +1883,16 @@ static void drum_block(track_t *t, uint32_t adv, uint32_t slen)
         dtrig(t, dq[k].step, l, slen, (uint32_t)-dq[k].left);
         dq[k] = dq[--dq_n];
     }
+}
+/* .. and after it: the retrigs' hits (after: a sound's next trig in this block ends its retrig first, no double hit) */
+static void drum_retrigs(track_t *t, uint32_t adv)
+{
+    uint32_t l;
     for (l = 0; l < DRUM_LANES; l++) {
-        if (!drt[l].on)
+        if (!drt[l].on || drt[l].now) {
+            drt[l].now = 0;
             continue;
+        }
         drt[l].el += adv;
         if (drt[l].el < drt[l].nx)
             continue;
@@ -2100,6 +2108,8 @@ static void seq_tick(track_t *t, uint32_t adv)
         rel = (int32_t)into;
     if (t->seq_abs != SEQ_NONE)
         seq_ratchets(t, rel < 0 ? 0u : (uint32_t)rel, slen);
+    if (is_drum(t))
+        drum_retrigs(t, adv);
 }
 
 /* MIDI in: the track that has channel ch (0..15) as its own: the drum track's GLO > DRUMS > CH, synth track i's
