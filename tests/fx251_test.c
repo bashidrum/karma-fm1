@@ -471,20 +471,20 @@ static void t_throw(void)
     int16_t fb0 = song.g[G_DFDBK];
     setup();
     song.g[G_DFDBK] = 0;
-    thr_req = 0, thr_rev = thr_dly = 0;
+    perf.held = 0, thr_rev = thr_dly = 0;
     trk_note_on(&trk[0], 45, 100), render(60), trk_note_off(&trk[0], 45), render(400);
     dry = rms(300u * CTL, 400u * CTL);                 /* (the release is 0: what rings after it is the sends') */
     setup();
     song.g[G_DFDBK] = 0;
-    thr_req = 1;
+    perf.held = 1u << PF_VERB;                         /* (wave 6: PERFORM's VERB pad) */
     trk_note_on(&trk[0], 45, 100), render(60), trk_note_off(&trk[0], 45), render(400);
     rv = rms(300u * CTL, 400u * CTL);
     setup();
     song.g[G_DFDBK] = 0;
-    thr_req = 2;
+    perf.held = 1u << PF_ECHO;                         /* (wave 6: the ECHO pad) */
     trk_note_on(&trk[0], 45, 100), render(60), trk_note_off(&trk[0], 45), render(400);
     ec = rms(300u * CTL, 400u * CTL);
-    thr_req = 0;
+    perf.held = 0;
     render(100);
     printf("  THROW: tail rms dry %.0f, REV THROW %.0f, ECHO THROW %.0f; the glide back %d %d\n", dry, rv, ec, thr_rev, thr_dly);
     check(rv > 5 * dry + 50 && ec > 5 * dry + 50 && !thr_rev && !thr_dly && trk[0].p[P_REV] == 0 && trk[0].p[P_DLY] == 0 &&
