@@ -167,3 +167,4 @@ Ask me before starting any long test run."
 - Held build (step-record, HOME knobs, ACID bass, stutter lengths, LFO PATT, HOME band): "Merge it".
 - Order: "Drums first", after a first wave of cuts and the new save format.
 - "Start building".
+- After wave 1 (Ben, by picker): web tests "Run it now"; stutter headroom "Keep 12 dB"; scene backgrounds left behind sound-page graphs "Cut them". Asked how to pace the rebuild, he wrote: "What even are the waves that you're building?"
