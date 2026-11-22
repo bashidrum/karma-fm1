@@ -158,8 +158,8 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
     <span class="chips" aria-label="The four voices and their colours"><span class="chip c1">1 ROBOT</span><span class="chip c2">2 ALIEN</span><span class="chip c3">3 CROCODILE</span><span class="chip c4">DRUMS SNAKE</span></span>
   </div>
   <h1>PHEBUS <span>cheat sheet</span></h1>
-  <p>Ben's FM-1 firmware, a fork of KARMA. Tap a button to open its pages (tap again, or turn SELECT, for the next). Hold a button for its layer on the keys and knobs. Unreleased: not yet run on a real FM-1.</p>
-  <div class="legend"><span>Colour = the voice it acts on:</span><b class="c1">1 purple</b><b class="c2">2 blue</b><b class="c3">3 teal</b><b class="c4">drums coral</b><span>shared (tag ALL): white / grey. Yellow M = mute, ice-blue S = solo, red = record / erase only</span></div>
+  <p>Ben's FM-1 firmware, a fork of KARMA: MiniFreak-style synth voices, Rytm-style drums, MPC-style performance pads. Tap a button to open its pages (tap again, or turn SELECT, for the next). Hold a button for its layer on the keys and knobs. Unreleased: not yet run on a real FM-1. Do not flash until the unit's chip revision is checked.</p>
+  <div class="legend"><span>Colour = the voice it acts on:</span><b class="c1">1 purple</b><b class="c2">2 blue</b><b class="c3">3 teal</b><b class="c4">drums coral</b><span>shared (tag GLO, STUT, PERFORM): white / grey. Yellow M = mute, ice-blue S = solo, red = record / erase only</span></div>
 </header>
 
 <div class="grid">
@@ -174,10 +174,21 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
     <tr><td>tap SEQ</td><td>The GRID (steps on the 16 white keys). From a sound page: the GRID on that page. On the GRID: TRIG / back</td></tr>
     <tr><td>tap HOME</td><td>HOME. Again on HOME: a screensaver (SELECT changes it)</td></tr>
     <tr><td>hold HOME</td><td>The menu (0.7 s)</td></tr>
-    <tr><td>tap SAVE</td><td>HOME or GRID: the SONG screen. Elsewhere: SAVE pages</td></tr>
+    <tr><td>tap SAVE</td><td>The SAVE pages: PRESETS, USER, TOOLS (every screen)</td></tr>
     <tr><td>EDIT + OCT-</td><td>Undo. EDIT + OCT+: redo</td></tr>
     <tr><td>layer + HOME</td><td>Hold a layer button, tap HOME: it stays open. Any other button lets go</td></tr>
   </table>
+</section>
+
+<section class="sl wide">
+  <h2>HOME <small>three zones: SYNTH, DRUM, PERFORM</small></h2>
+  <div class="roles">
+    <div class="ca"><b>SYNTH</b><span>The three voices' sounds in their colours, the selected one inverted; M (yellow), S (ice blue), a red dot recording; each voice's 16 steps in view.</span></div>
+    <div class="c4"><b>DRUM</b><span>The kit (* when your copy plays), the sounds muted or soloed in MUTE mode, the selected sound, the 16 steps: its hits coral, other sounds' dim.</span></div>
+    <div class="ca"><b>PERFORM</b><span>STUTTER lane ON / OFF, the latched pads by name, the lane's steps as spans.</span></div>
+  </div>
+  <div class="knobs"><div class="c1">CUTOFF<span>K1: the voice filter</span></div><div class="c1">DECAY<span>K2: the moving envelope</span></div><div class="ca">STUT<span>K3: lane on / off</span></div><div class="c1">LEVEL<span>K4: the voice</span></div></div>
+  <p class="note">Above the zones: the bar, the FLOW strip (Ben kept it), patterns A B C D (playing filled, next outlined). The header says PATTERN A to D while one plays; a white dot: unsaved. SELECT: tempo. HOME on HOME: a screensaver.</p>
 </section>
 
 <section class="sl">
@@ -189,7 +200,7 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
     <tr><td>SEQ</td><td><b>STEPS</b>: K1 GATE, K2 DIV, K3 SWING, K4 STEPS (keys do nothing)</td></tr>
     <tr><td>SEL</td><td><b>KEY</b>: a key sets the song key. K1 CHORD, K2 SCALE, K3 KEYS, K4 TRANSP</td></tr>
     <tr><td>GLO</td><td><b>MIX</b>: mixer (below)</td></tr>
-    <tr><td>SAVE</td><td><b>SONG</b>: sections A to D (below)</td></tr>
+    <tr><td>SAVE</td><td><b>PATTERN</b>: patterns A to D (below)</td></tr>
   </table>
 </section>
 
@@ -215,7 +226,7 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
   <ul>
     <li>Pages: EDIT = SRC, again FLTR, AMP, LFO. ENV = AMP, LFO = LFO (again: the page's next half). SEQ = TRIG (again: back). SELECT walks every half.</li>
     <li>Nothing held: a knob edits the selected sound. The first turn on a built-in kit makes your own copy (kit name gets a *).</li>
-    <li>Hold a step + turn: a lock on that trig (shown inverted). OCT-: that lock off; again: every lock. On TRIG: VEL RETRIG NUDGE COND / CHANCE LENGTH CURVE NOTE.</li>
+    <li>Hold a step + turn: a lock on that sound's hit (shown inverted). OCT-: that lock off; again: every lock. On TRIG: VEL RETRIG NUDGE COND / CHANCE LENGTH CURVE NOTE.</li>
     <li>SEL held + key: pick the sound. SEL tapped: MUTE mode (keys mute, SEL + key solos). ARP tapped: CHROMATIC (keys play the sound at pitches, OCT-/OCT+ octave). ARP held + key: RETRIG (black keys pick the rate).</li>
     <li>F#5 on the drum screen: FILL while held, twice quickly: latched. PRESETS picks the kit (power-on: 606). FX: the drum voice's own INSERT, SLICER, FILTER.</li>
     <li>Keys 1-16: KICK, KICK 2, SNARE, CLAP, HAT, OPEN HAT, PEDAL, RIM, SNARE 2, LOW TOM, HI TOM, CRASH, RIDE, SHAKER, CONGA, COWBELL.</li>
@@ -227,9 +238,9 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
   <ul>
     <li>Tap an unlit step: it lights (new steps 1/4). Tap a lit step: it goes out on release.</li>
     <li>Hold a step + K1: its length 1/1, 1/2, 1/4, 1/8, 1/16, 1/32. Hold a step + OCT-: erase the recorded pads over it.</li>
-    <li>K1: length for new steps. K2: lane ON / OFF (steps and recorded pads kept; HOME K3 the same). K3 FX: how many pads are recorded; turn twice within 1.5 s to clear them. K4: lane length 1-64.</li>
+    <li>K1: length for new steps. K2: lane ON / OFF (steps and recorded pads kept; HOME K3 the same). K3 PADS: how many pads are recorded; turn twice within 1.5 s to clear them. K4: lane length 1-64.</li>
     <li>Black keys 1-4, OCT-/OCT+: page. EDIT + OCT-: undo.</li>
-    <li>A lit step repeats the span just before it, the whole mix (1/2 and 1/1 replay the steps). Same-length steps in a row are one loop.</li>
+    <li>A lit step repeats the span just before it, the whole mix (1/2 and 1/1 replay the steps). Same-length steps in a row are one loop, drawn as one span.</li>
     <li>PERFORM pads played while recording land here as named bars and play back with the pattern (31 at most).</li>
   </ul>
 </section>
@@ -287,27 +298,24 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
     <tr><td>Key 16</td><td>Tap tempo</td></tr>
     <tr><td>F#3</td><td>MIDI LEARN on / off</td></tr>
   </table>
-  <p class="note">Hold GLO 0.7 s untouched and let go: the mixer stays. Tap GLO: GLOBAL, MASTER, DLY, REV/CHO, CLOUD, SYSTEM, DRUMS, MIDI, TEXTURE.</p>
+  <p class="note">Key 11: the knobs set the pans (again: levels). Hold GLO 0.7 s untouched and let go: the mixer stays. Tap GLO: GLOBAL, MASTER, DLY, REV/CHO, SYSTEM, DRUMS, MIDI, MIDI 2, MIDI 3 (tag GLO).</p>
 </section>
 
 <section class="sl">
-  <h2>Sections and songs <small>hold SAVE</small></h2>
+  <h2>Patterns A to D <small>hold SAVE</small></h2>
   <table>
-    <tr><td>Keys 1-4</td><td>Play A to D (next bar). Stopped: load as the loop. Several taps: a chain</td></tr>
-    <tr><td>Keys 5-8</td><td>Store the loop in A to D (a used one: again within 3 s)</td></tr>
-    <tr><td>Key 13</td><td>Loop / song mode</td></tr>
-    <tr><td>Key 14</td><td>SONG REC</td></tr>
-    <tr><td>Key 16</td><td>The SONG screen</td></tr>
+    <tr><td>Keys 1-4</td><td>Play A to D (playing: on the next bar; again in the same hold: that one instead). Stopped: load</td></tr>
+    <tr><td>Keys 5-8</td><td>Store into A to D (a used one: again within 3 s)</td></tr>
   </table>
-  <div class="how">SONG screen: K1 entry, K2 section, K3 bars (0 = LOOP), K4 entries. Hold an entry's key + OCT+ inserts, + OCT- deletes. SAVE: SONGS 1-3 (K2 ERASE, K3 LOAD, K4 SAVE, two clicks)</div>
+  <p class="note">A pattern holds all four voices' sounds and steps, the kit and the STUTTER lane.</p>
 </section>
 
 <section class="sl">
   <h2>Record <small>REC</small></h2>
   <table>
-    <tr><td>tap REC</td><td>Playing: records now. Stopped: arms. Empty project: a free take. Again: cancel</td></tr>
+    <tr><td>tap REC</td><td>Playing: records now (PERFORM pads go into the lane). Stopped: arms (on a synth GRID: STEP REC). Again: stop / cancel</td></tr>
     <tr><td>hold REC</td><td>Clears the selected voice (a ring fills; let go early and nothing happens)</td></tr>
-    <tr><td>REC screen</td><td>K1 MODE, K2 length 1/2/4 bars, K3 START</td></tr>
+    <tr><td>REC screen</td><td>K2 STEPS (1BAR, 2BARS, 4BARS), K3 START (NOTE or COUNT)</td></tr>
     <tr><td>EDIT + OCT-</td><td>Undo: brings a cleared track back</td></tr>
   </table>
 </section>
@@ -316,7 +324,7 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
   <h2>Key, scale, tempo</h2>
   <table>
     <tr><td>Tempo</td><td>SELECT on HOME · GLO + key 16 · GLO > GLOBAL > BPM</td></tr>
-    <tr><td>Swing</td><td>HOME K1 (all) · hold SEQ + K3 (voice)</td></tr>
+    <tr><td>Swing</td><td>GLO > GLOBAL > SWING (all) · hold SEQ + K3 (voice)</td></tr>
     <tr><td>Gate</td><td>hold SEQ + K1 (a synth voice's note length)</td></tr>
     <tr><td>Key / scale</td><td>Hold SEL + a key / K2</td></tr>
     <tr><td>Chord</td><td>Hold SEL + K1 (OFF TRIAD 7TH 9TH SUS4 POWER)</td></tr>
@@ -328,7 +336,7 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
   <ul>
     <li>White dot in the header: unsaved changes.</li>
     <li>The working project saves itself after you stop, and comes back at power-on.</li>
-    <li>Sections, song order and SONGS 1-3: saved when you say so.</li>
+    <li>Patterns A to D: saved when you store them (hold SAVE + key 5-8).</li>
     <li>User presets: SAVE > USER.</li>
   </ul>
 </section>
@@ -350,6 +358,19 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
     <tr><td>OCT- + OCT+ 5 s</td><td>Stopped: update mode (UBOOT). Let go to cancel</td></tr>
   </table>
   <p class="note">Some FM-1 hardware revisions can be bricked by custom firmware. Check your unit before flashing.</p>
+</section>
+
+<section class="sl">
+  <h2>Words</h2>
+  <table>
+    <tr><td>step</td><td>A place in a pattern; a white key on the GRID. "STEP 5 HELD"</td></tr>
+    <tr><td>trig</td><td>What is on a step: a note or a hit. TRIG: the tab with the held step's values</td></tr>
+    <tr><td>lock</td><td>A value on one step: hold the step, turn. Drawn inverted</td></tr>
+    <tr><td>RETRIG</td><td>A drum hit repeated at a rate</td></tr>
+    <tr><td>PERFORM</td><td>The pads layer (hold FX). FX alone means a voice's FX slots</td></tr>
+    <tr><td>SEND</td><td>A slot's share of the shared chorus, reverb or delay</td></tr>
+    <tr><td>pattern</td><td>A to D: all four voices, the kit and the lane</td></tr>
+  </table>
 </section>
 
 <section class="sl">
