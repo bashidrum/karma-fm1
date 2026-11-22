@@ -139,9 +139,13 @@ static int plain_defaults(void)
         for (k = 0; k < 8u; k++)
             ok &= t->p[P_E0 + k] == (i == 0u ? AC[k] : i == 1u ? JU[k] : VA[k]);
         ok &= !t->p[P_DIST] && !t->p[P_CHOR] && !t->p[P_DLY] && !t->p[P_REV] && !t->p[P_ITYPE] && !t->p[P_GLIDE] &&
-              !t->p[P_LD_PIT] && !t->p[P_LD_FLT] && !t->p[P_LD_SHP] && !t->p[P_LD_AMP] && !t->p[P_ED_FLT] &&
+              !t->p[P_LD_PIT] && !t->p[P_LD_FLT] && !t->p[P_LD_SHP] && !t->p[P_LD_AMP] &&
               !t->p[P_ED_PIT] && !t->p[P_ED_SHP] && t->p[P_SUS] == 127 && t->p[P_ATK] <= 10 && t->p[P_REL] <= 20 &&
-              !t->p[P_SLCR] && !t->p[P_TFLT] && !t->p[P_AMODE];
+              !t->p[P_SLCR] && !t->p[P_TFLT] && !t->p[P_AMODE] && t->p[P_FTYPE] == VF_LP24 && !t->p[P_OCT] && !t->p[P_TUNE];
+        /* (wave 4) the voice filter: ACID's 303 speaks (its envelope, OWN, a decay, a little ENV amount: the ENVMOD 55 it
+         * had), JUNO and PLAITS open, no envelope on it */
+        ok &= i == 0u ? t->p[P_ED_FLT] > 0 && t->p[P_FLINK] == 1 && t->p[P_FCUT] == 45 && t->p[P_FRES] == 45 && !t->p[P_FSUS]
+                      : !t->p[P_ED_FLT] && t->p[P_FCUT] == 127 && !t->p[P_FRES] && !t->p[P_FLINK];
     }
     return ok;
 }
@@ -198,8 +202,8 @@ int main(int argc, char **argv)
                     seen[e] |= 1u << t;
                 }
             }
-        check(ok && seen[ENGI_ACID] == 1u && seen[ENGI_JUNO] == 3u && seen[ENGI_ELEM] == 2u && seen[ENGI_PRISM] == 4u,
-              "PRESETS: track 1 lists ACID and JUNO, track 2 JUNO and ELEMENTS, track 3 PLAITS, nothing else");
+        check(ok && seen[ENGI_ACID] == 7u && seen[ENGI_JUNO] == 7u && seen[ENGI_ELEM] == 7u && seen[ENGI_PRISM] == 7u,
+              "PRESETS: every track lists every engine's sounds (wave 4: every Type on every track)");
     }
     panel = PANEL_DEFAULT;
     layers_init();
@@ -304,16 +308,17 @@ int main(int argc, char **argv)
         uint32_t act = stl.act, k, ok;
         memcpy(keep, trk, sizeof keep); keep_dp = dpat;
         set_engine_of(&trk[0], ENGI_ACID); song.sel = 0; frame();
-        check(home_knob(0, &d) == &trk[0].p[P_E1] && home_knob(1, &d) == &trk[0].p[P_E4] && str_eq(d->label, "DECAY"),
-              "HOME knobs, ACID: CUTOFF its CUT, DECAY its own DECAY (the 303's envelope)");
+        /* (wave 4) every voice the same: CUTOFF the voice filter's, DECAY its own envelope's while OWN, else the amp ENV's */
+        check(home_knob(0, &d) == &trk[0].p[P_FCUT] && home_knob(1, &d) == &trk[0].p[P_FDEC] && str_eq(d->label, "DECAY"),
+              "HOME knobs, ACID: CUTOFF the voice filter's (its 303 ladder), DECAY its OWN envelope's (the 303's decay)");
         set_engine_of(&trk[0], ENGI_JUNO); frame();
-        check(home_knob(0, &d) == &trk[0].p[P_E4] && str_eq(d->label, "CUT") && home_knob(1, &d) == &trk[0].p[P_DEC],
-              "HOME knobs, JUNO: CUTOFF its VCF CUT, DECAY the ENV's DEC");
+        check(home_knob(0, &d) == &trk[0].p[P_FCUT] && str_eq(d->label, "CUTOFF") && home_knob(1, &d) == &trk[0].p[P_DEC],
+              "HOME knobs, JUNO: CUTOFF the voice filter's, DECAY the amp ENV's (LINK)");
         song.sel = 2; frame();
-        check(trk[2].eng_req == ENGI_PRISM && home_knob(0, &d) == &trk[2].p[P_TFLT] && home_knob(1, &d) == &trk[2].p[P_DEC],
-              "HOME knobs, PLAITS: CUTOFF the voice's FILTER, DECAY the ENV's DEC");
+        check(trk[2].eng_req == ENGI_PRISM && home_knob(0, &d) == &trk[2].p[P_FCUT] && home_knob(1, &d) == &trk[2].p[P_DEC],
+              "HOME knobs, PLAITS: CUTOFF the voice filter's, DECAY the ENV's DEC");
         set_engine_of(&trk[1], ENGI_ELEM); song.sel = 1; frame();
-        check(home_knob(0, &d) == &trk[1].p[P_TFLT] && home_knob(1, &d) == &trk[1].p[P_DEC], "HOME knobs, ELEMENTS: FILTER, DEC");
+        check(home_knob(0, &d) == &trk[1].p[P_FCUT] && home_knob(1, &d) == &trk[1].p[P_DEC], "HOME knobs, ELEMENTS: CUTOFF, DEC");
         song.sel = TRK_DRUM; TDRUM->p[P_E0] = 0; drum_lane = 2; frame();
         check(home_knob(0, &d) == &TDRUM->p[P_TFLT] && (vp = home_knob(1, &d)) && str_eq(d->label, "DEC") &&
               *vp == HEX_KITS[0].s[1].dec,
@@ -333,9 +338,9 @@ int main(int argc, char **argv)
         }
         go_home(); ui.force = 1; frame(); ppm("home-knobs-drum");
         song.sel = 2; go_home(); frames(16);
-        trk[2].p[P_TFLT] = 0;
+        trk[2].p[P_TFLT] = 0; trk[2].p[P_FCUT] = 127;
         encs[panel.enc[EN_K1]] = -5; frame();
-        check(trk[2].p[P_TFLT] < 0, "HOME KNOB 1 on PLAITS: the FILTER goes low-pass");
+        check(trk[2].p[P_FCUT] < 127 && !trk[2].p[P_TFLT], "HOME KNOB 1 on PLAITS: the voice filter's CUTOFF down (wave 4)");
         lv = trk[2].p[P_DEC]; encs[panel.enc[EN_K2]] = 3; frame();
         check(trk[2].p[P_DEC] > lv, "HOME KNOB 2: DECAY (the ENV's DEC) up");
         stl.act = 1; encs[panel.enc[EN_K3]] = -1; frame();
@@ -357,9 +362,10 @@ int main(int argc, char **argv)
         ui.force = 1; frame(); ppm("layer-mix-pan");
         release(B_GLO); frames(2);
         check(!mix_pan, "pan: GLO let go: the mixer's knobs are the levels again");
-        for (ok = 0, k = 0; k < NPAGES; k++)
-            ok |= !strcmp(PAGES[k].title, "VOICE 2") && PAGES[k].id[2] == P_PAN;
-        check(ok, "pan: still on VOICE 2 (KNOB 3) too");
+        for (ok = 1, k = 0; k < NPAGES; k++)
+            ok &= !(fam_stage(PAGES[k].fam) >= 0 && (PAGES[k].id[0] == P_PAN || PAGES[k].id[1] == P_PAN ||
+                                                       PAGES[k].id[2] == P_PAN || PAGES[k].id[3] == P_PAN));
+        check(ok, "pan: the mixer's (wave 4: no voice page holds it: one layout, VOICE 2 is gone)");
         memcpy(trk, keep, sizeof keep); dpat = keep_dp; trk[2].p[P_TFLT] = tf; TDRUM->p[P_E0] = kit; stl.act = (uint8_t)act; sync_reload = 1;
         song.sel = 0; go_home(); frames(16);
     }
@@ -491,7 +497,8 @@ int main(int argc, char **argv)
     /* (Ben's SPEC.md, 20 Nov 2026: step keys on every track. SEQ tapped on HOME is the track's GRID, as on the drum
      *  track; SEQ tapped again: the SEQ pages. Before: straight to the SEQ pages) */
     tap(B_SEQ); check(on_drum_page(), "SEQ tapped on HOME: the track's GRID");
-    tap(B_SEQ); check(cur_fam() == FAM_SEQ, "SEQ tapped again: the SEQ pages");
+    tap(B_SEQ); check(on_drum_page() && syn_tab != 0u, "SEQ tapped again: the GRID's sound tab (wave 4: TRIG / back, as the drums)");
+    tap(B_SEQ); check(on_drum_page() && syn_tab == 0u, "SEQ again: TRIG");
     go_home(); frame();
     tap(B_FX); check(cur_fam() == FAM_FX, "FX tapped: the FX pages");
     go_home(); frame();
@@ -973,38 +980,41 @@ int main(int argc, char **argv)
         check(step_fill(t, 4) == FC_FILL, "GRID: step held + KNOB 4: COND fill only");
         ui.force = 1; frame(); ppm("grid-synth-held");
         a0 = (uint32_t)t->p[P_ATK];
-        tap(B_ENV); frame();
-        check(sg_lpage < NPAGES && PAGES[sg_lpage].fam == FAM_ENV && on_drum_page(),
-              "GRID: step held + ENV: the ENV page locks, the GRID stays");
+        tap(B_ENV); frame();                            /* (wave 4, the Rytm's way: the page buttons change the GRID's tab) */
+        check(syn_tab == 3u && syn_page() < NPAGES && PAGES[syn_page()].fam == FAM_ENV && on_drum_page(),
+              "GRID: step held + ENV: the ENV tab on the knobs, the GRID stays");
         encs[panel.enc[EN_K1]] = 3; frame();
         {
             int l = lock_find(t, 4, P_ATK, 0);
             check(l >= 0 && t->lock[l].val == (int32_t)a0 + 3 && t->p[P_ATK] == (int16_t)a0,
                   "GRID: step held + ENV + KNOB 1: an ATK lock on step 5, the track's ATK unchanged");
         }
+        ui.force = 1; frame();
+        check(px_count(2 + 60 * 0 + DIAL_VX - 3, SG_KNOB_Y + 21, 30, 34, TE_COL[0]) > 300u,
+              "GRID: the locked value drawn inverted (a box in the voice's colour)");
         tap(B_FX); frame();
-        check(sg_lpage < NPAGES && PAGES[sg_lpage].fam == FAM_FX, "GRID: step held + FX tapped: the FX page locks");
-        a1 = (uint32_t)PAGES[sg_lpage].id[0];
+        check(syn_tab == 4u && PAGES[syn_page()].fam == FAM_FX, "GRID: step held + FX tapped: the FX tab");
+        a1 = pg_id(&PAGES[syn_page()], 0);
         encs[panel.enc[EN_K1]] = 2; frame();
         check(lock_find(t, 4, a1, 0) >= 0, "GRID: FX + KNOB 1: its lock on step 5");
         ui.force = 1; frame(); ppm("grid-synth-lock");
         press(B_OCTDN); release(B_OCTDN); frame();
-        check(lock_find(t, 4, a1, 0) < 0 && lock_find(t, 4, P_ATK, 0) >= 0, "GRID: OCT- on the FX lock page: its locks go, ATK's stays");
-        {   /* REVIEW 3: EDIT with a step held walks OSC > FILT > ENV (the filter locks), the page named whole */
-            uint32_t seen = 0, j, cut = 0;
-            for (j = 0; j < 10u; j++) {
+        check(lock_find(t, 4, a1, 0) < 0 && lock_find(t, 4, P_ATK, 0) >= 0,
+              "GRID: OCT-: the lock of the knob last turned goes (FX's), ATK's stays (as the drum screen)");
+        {   /* EDIT with a step held walks the tabs OSC > FILT > ENV > FX > MOD (the filter locks from the GRID) */
+            uint32_t j, seen = 0, cut = 0;
+            for (j = 0; j < 6u; j++) {
                 tap(B_EDIT); frame();
-                if (sg_lpage >= NPAGES) break;
-                seen |= 1u << (PAGES[sg_lpage].fam == FAM_OSC ? 0 : PAGES[sg_lpage].fam == FAM_FLT ? 1 : PAGES[sg_lpage].fam == FAM_ENV ? 2 : 3);
-                if (!cut && !strcmp(sg_lock_title(), "FILTER")) {
+                seen |= 1u << syn_tab;
+                if (!cut && syn_tab == 2u) {
                     cut = 1;
-                    encs[panel.enc[EN_K1]] = 5; frame();
+                    encs[panel.enc[EN_K1]] = -5; frame();
                     ui.force = 1; frame(); ppm("grid-synth-lock-filter");
                 }
             }
-            check(seen == 7u, "GRID: step held + EDIT, again and again: OSC, FILTER and ENV pages (nothing else)");
-            check(cut && lock_find(t, 4, P_E1, 0) >= 0 && t->lock[lock_find(t, 4, P_E1, 0)].val != t->p[P_E1],
-                  "GRID: on FILTER, KNOB 1: a CUT lock on the step (the filter locks from the GRID)");
+            check(seen == 0x3Eu, "GRID: step held + EDIT, again and again: OSC, FILT, ENV, FX, MOD (round)");
+            check(cut && lock_find(t, 4, P_FCUT, 0) >= 0 && t->lock[lock_find(t, 4, P_FCUT, 0)].val != t->p[P_FCUT],
+                  "GRID: on FILT, KNOB 1: a CUTOFF lock on the step (the voice filter locks from the GRID)");
             {
                 uint32_t j2;
                 for (j2 = 0, j = 1; j2 < NPAGES; j2++)
@@ -1038,14 +1048,16 @@ int main(int argc, char **argv)
         ui.cursor = 4; ui.force = 1; frame(); ppm("grid-synth");
         transport_req = 1; frames(20); ui.force = 1; frame(); ppm("grid-synth-play");
         transport_req = 2; frames(2);
+        syn_go(0, 0);                                   /* (TRIG: the step's own values) */
         fm1_in.notes |= 1u << k5; frame(); encs[panel.enc[EN_SELECT]] = 1; frame();
-        check(sg_alt == 1u, "GRID: step held + SELECT: FLAG RATCH NUDGE on the knobs");
+        check(sg_alt == 1u && syn_tab == 0u && syn_hcur() == 1u, "GRID: step held + SELECT: TRIG 2/2, FLAG RATCH NUDGE on the knobs");
         encs[panel.enc[EN_K1]] = 1; frame(); encs[panel.enc[EN_K3]] = -4; frame();
         check((t->step[4].flags & SF_ACCENT) && t->micro[4] == -4, "GRID: FLAG ACC, NUDGE -4");
         ui.force = 1; frame(); ppm("grid-synth-flag");
         press(B_OCTDN); release(B_OCTDN);
         check(!step_locked(t, 4) && !step_fill(t, 4), "GRID: step held + OCT-: its locks, nudge and condition go");
         fm1_in.notes &= ~(1u << k5); frame(); ui.msg_t = 0;
+        encs[panel.enc[EN_SELECT]] = -1; frame();       /* (TRIG 1/2: NOTE STEP HIT VEL) */
         key(3);                                           /* the second black key: steps 17-32 */
         check(ui.cursor / 16u == 1u, "GRID: black key 2: the page of steps 17-32");
         ui.force = 1; frame(); ppm("grid-synth-p2");
@@ -1071,8 +1083,10 @@ int main(int argc, char **argv)
         check(step_on(&t->step[1]) && t->step[1].note[0] == 48, "GRID: KNOB 3 right: the pen on the cursor's step");
         encs[panel.enc[EN_K3]] = -1; frame();
         check(!step_on(&t->step[1]), "GRID: KNOB 3 left: cleared");
+        tap(B_SEQ); frames(2);                          /* (wave 4: as the drum screen's SEQ) */
+        check(on_drum_page() && syn_tab == syn_tab_last && syn_tab >= 1u, "GRID, SEQ: the sound tab it was on (TRIG again: SEQ)");
         tap(B_SEQ); frames(2);
-        check(!on_drum_page() && !strcmp(PAGES[ui.page].title, "PATTERN"), "GRID, SEQ: the SEQ pages (PATTERN; the STEP page is gone)");
+        check(on_drum_page() && syn_tab == 0u, "GRID, SEQ again: TRIG");
         open_family(FAM_ENV); frames(2);
         tap(B_SEQ); frames(2);
         check(on_drum_page() && kb_grid && song.sel == 0u, "REVIEW 2: SEQ on a sound page (ENV): back to the GRID");
@@ -1187,7 +1201,7 @@ int main(int argc, char **argv)
             press(B_EDIT); frames((SHOW_MS + 40u) / 16u); release(B_EDIT); frames(2);
             check(on_drum_page() && ui.page == pg, "bug (d): EDIT held until shown, let go: no EDIT page");
             tap(B_FX); frames(2);
-            check(!on_drum_page() && cur_page()->fam == FAM_FX, "bug (d): FX tapped quickly: still its page");
+            check(on_drum_page() && syn_tab == 4u, "bug (d): FX tapped quickly: still its tab (wave 4: the GRID's FX tab)");
             go_home(); frames(2);
         }
         /* ENG-9: two steps held, one free lock slot: no lock made on either, and the screen says so */
@@ -1581,12 +1595,11 @@ int main(int argc, char **argv)
         #define SEL(n) do { encs[panel.enc[EN_SELECT]] = (n); frame(); } while (0)
         {   /* PHEBUS, 21 Nov 2026 (Ben: "Merge and move"): each voice's chain without the shared effects, LFO 2 named
              * LFO SYNC; DLY, REV/CHO under GLO, neutral; every parameter still on a page (CLOUD, TEXTURE: cut, wave 1) */
-            static const char *const WANT[5] = {
-                "OSC|VOICE|VOICE 2|FILTER|FILTER 2|ENV|ENV DEST|FX|INSERT|INSERT 2|SLICER|LFO|LFO DEST|LFO SYNC",
-                "OSC|VOICE|VOICE 2|FILTER|ENV|ENV DEST|FX|CHORUS|INSERT|INSERT 2|SLICER|LFO|LFO DEST|LFO SYNC",
-                "OSC|OSC 2|VOICE|VOICE 2|FILTER|ENV|ENV DEST|FX|INSERT|INSERT 2|SLICER|LFO|LFO DEST|LFO SYNC",
-                "OSC|OSC 2|VOICE|VOICE 2|FILTER|ENV|ENV DEST|FX|INSERT|INSERT 2|SLICER|LFO|LFO DEST|LFO SYNC",
+            /* (PHEBUS wave 4, Ben: "The same layout on every voice") the same chain on every synth engine */
+#define SYN_CHAIN "OSC|OSC 2|OSC 3|FILT|FILT 2|ENV|FILT ENV|FX|INSERT|INSERT 2|SLICER|LFO|LFO DEST|LFO SYNC|ENV DEST"
+            static const char *const WANT[5] = {SYN_CHAIN, SYN_CHAIN, SYN_CHAIN, SYN_CHAIN,
                 "FILTER|INSERT|INSERT 2|SLICER"};   /* (PHEBUS wave 3: the drum sounds' pages are the drum screen's) */
+#undef SYN_CHAIN
             static const char *const NM[5] = {"ACID", "JUNO", "ELEMENTS", "PLAITS", "drums (their own bus)"};
             static const uint8_t SEL_OF[5] = {0, 0, 1, 2, 3};
             uint8_t e0 = trk[0].eng_req, pre0 = trk[0].preset, idx[40], seen[G_COUNT] = {0};
@@ -1640,8 +1653,10 @@ int main(int argc, char **argv)
         check(!strcmp(PT(), "LFO SYNC") && song.g[G_BPM] == bpm, "SELECT: then LFO SYNC (2.6's LFO 2, named for what it is)");
         ui.force = 1; frame(); ppm("page-lfo2");
         SEL(1);
-        check(!strcmp(PT(), "LFO SYNC") && song.g[G_BPM] == bpm, "SELECT: stops at the end of the chain (MOD's last page)");
-        SEL(-1);
+        check(!strcmp(PT(), "ENV DEST") && song.g[G_BPM] == bpm, "SELECT: then ENV DEST (wave 4: where the ENV goes, in MOD)");
+        SEL(1);
+        check(!strcmp(PT(), "ENV DEST") && song.g[G_BPM] == bpm, "SELECT: stops at the end of the chain (MOD's last page)");
+        SEL(-2);
         check(!strcmp(PT(), "LFO DEST"), "SELECT left: the page before");
         SEL(-1);
         check(!strcmp(PT(), "LFO"), "SELECT left: LFO");
@@ -1650,27 +1665,22 @@ int main(int argc, char **argv)
         tap(B_FX); SEL(1);
         check(!strcmp(PT(), "INSERT"), "SELECT on FX: next page, INSERT");
         go_home(); tap(B_EDIT); tap(B_EDIT); SEL(1);
-        check(!strcmp(PT(), "FILTER 2"), "EDIT, EDIT: FILTER; SELECT: FILTER 2 (ACID: the track FILTER)");
-        TSEL->p[P_TFLT] = -32; ui.force = 1; frames(2); ppm("page-filter");
-        {   /* Ben, 21 Nov ("Keep, name the pages"): the strip's FILT stage holds the page's name, its place at the right */
-            uint32_t box = px_count(0, OP_CHAIN_Y + OP_CHAIN_H - 1, 240, 1, TE_COL[0]);
-            check(box == text_w(&FONT_S, "FILTER 2") + 4u && px_count(200, OP_CHAIN_Y, 40, OP_CHAIN_H, TE_MID[0]) > 10u,
-                  "strip: the stage shown holds the page's name (FILTER 2), 2/2 at the right");
+        check(!strcmp(PT(), "FILT 2"), "EDIT, EDIT: FILT; SELECT: FILT 2 (KEY DRIVE LINK)");
+        ui.force = 1; frames(2); ppm("page-filter");
+        {   /* (wave 4) the tabs as the drum screen's: FILT inverted in the voice's colour, 2/2 at the right */
+            check(px_count(40, 131 + 4, 50, 17, TE_COL[0]) > 200u && px_count(200, 131, 40, 23, TE_G3) > 10u,
+                  "tabs: FILT shown inverted, 2/2 at the right");
             SEL(-1); ui.force = 1; frames(2);
-            check(px_count(0, OP_CHAIN_Y + OP_CHAIN_H - 1, 240, 1, TE_COL[0]) == text_w(&FONT_S, "FILTER") + 4u,
-                  "strip: back a page, FILTER (the name follows the page)");
+            check(!strcmp(PT(), "FILT") && px_count(4, 24, 120, 32, TE_COL[0]) > 150u,
+                  "FILT: its type large in the voice's colour (LP 24)");
             SEL(1); frames(2);
         }
-        check(!strcmp(ui.big_l[0], "FILT") && !strcmp(ui.big_v[0], "LP50") && !ui.big_l[1][0],
-              "FILTER page: its one value drawn large (LP50 %)");
-        {   /* the value large in the knob band (ui_op.c): pixels lit under KNOB 1's label */
-            uint32_t x, y, lit = 0;
-            for (y = OP_KNOB_Y + 24; y < OP_KNOB_Y + 56; y++)
-                for (x = 4; x < 60; x++)
-                    lit += screen[y * 240u + x] != 0;
-            check(lit > 100u, "FILTER page: the knob band shows it");
+        {   /* the dials: four values, one tall face, in the voice's colour */
+            uint32_t lit;
+            ui.msg_t = 0; ui.force = 1; frame();
+            lit = px_count(2, OP_KNOB_Y + 4, 58, 52, TE_COL[0]);
+            check(lit > 30u, "FILT 2: the dials show KEY, in the voice's colour");
         }
-        TSEL->p[P_TFLT] = 0;
         tap(B_FX); SEL(3);
         check(!strcmp(PT(), "SLICER"), "SELECT on FX: on to its last page, SLICER (the shared effects are GLO's)");
         SEL(1);
@@ -1678,9 +1688,9 @@ int main(int argc, char **argv)
         go_home(); tap(B_EDIT); SEL(-9);
         check(!strcmp(PT(), "OSC"), "EDIT: the chain's start, OSC; SELECT left stops there");
         SEL(2);
-        check(!strcmp(PT(), "VOICE 2"), "SELECT on OSC: up to VOICE 2 (ACID: OSC, VOICE, VOICE 2)");
+        check(!strcmp(PT(), "OSC 3"), "SELECT on OSC: up to OSC 3 (TYPE + macros, pitch and voice, the Type's other controls)");
         tap(B_EDIT);
-        check(!strcmp(PT(), "FILTER"), "EDIT on the chain: the next stage, FILTER");
+        check(!strcmp(PT(), "FILT"), "EDIT on the chain: the next stage, FILT");
         tap(B_EDIT);
         check(!strcmp(PT(), "ENV"), "EDIT: then ENV");
         tap(B_EDIT);
@@ -1690,16 +1700,17 @@ int main(int argc, char **argv)
         tap(B_EDIT);
         check(!strcmp(PT(), "OSC"), "EDIT on MOD: round to OSC");
         tap(B_SEQ); frames(2);
-        check(on_drum_page() && kb_grid, "SEQ on a sound page (OSC): the GRID");
-        tap(B_SEQ); SEL(9);
-        check(!strcmp(PT(), "PATTERN"), "SEQ again: SEQ > PATTERN; SELECT: PATTERN is the SEQ family's one page (the generators and PLAY are cut)");
+        check(on_drum_page() && kb_grid && syn_tab == 1u, "SEQ on a sound page (OSC): the GRID, on its OSC tab");
+        tap(B_SEQ); frames(2);
+        check(on_drum_page() && syn_tab == 0u, "SEQ again: the GRID's TRIG (the PATTERN page: SEQ held, as the drums)");
+        go_home(); frames(2);
         tap(B_ENV);
         check(!strcmp(PT(), "ENV"), "the button still opens its family");
         tap(B_ENV);
-        check(!strcmp(PT(), "ENV DEST"), "... and a second tap still steps the page");
+        check(!strcmp(PT(), "FILT ENV"), "... and a second tap steps the page (the filter's own envelope)");
         press(B_GLO); frames(3);
         SEL(1);
-        check(!strcmp(PT(), "ENV DEST") && song.g[G_BPM] > bpm, "SELECT with a layer held (GLO): the tempo");
+        check(!strcmp(PT(), "FILT ENV") && song.g[G_BPM] > bpm, "SELECT with a layer held (GLO): the tempo");
         release(B_GLO); frames(2);
         song.g[G_BPM] = bpm;
         go_home(); frame(); SEL(-1);
@@ -1997,10 +2008,8 @@ int main(int argc, char **argv)
         song.sel = 0; steps_clear(&trk[0]); trk[0].p[P_SLEN] = 16; go_home(); frames(16);
         trk[0].step[4].n = 1; trk[0].step[4].note[0] = 60; trk[0].step[4].time = ST_NOTE; trk[0].step[4].vel = 100;   /* step 5
                                                          * (held SEQ set it before PHEBUS took the step keys off) */
-        tap(B_SEQ); frames(2); tap(B_SEQ); frames(2);
-        check(!strcmp(PAGES[ui.page].title, "PATTERN"), "SEQ pages: PATTERN first (the old STEP page is gone: the GRID edits steps)");
-        tap(B_SEQ); frames(2);                            /* (REVIEW 2: SEQ from a SEQ page: back to the GRID) */
-        check(on_drum_page() && kb_grid, "SEQ on SEQ > PATTERN: back to the GRID");
+        tap(B_SEQ); frames(2);                          /* (wave 4: the GRID at TRIG, as the drum screen's SEQ) */
+        check(on_drum_page() && kb_grid && syn_tab == 0u, "SEQ from HOME: the GRID, on TRIG (the step's own values)");
         fm1_in.notes = 1u << key_of_lane(4); frame();     /* LEN on the GRID (a step held, KNOB 2), as STEP's KNOB 3 was */
         K(EN_K2, 1); K(EN_K2, 1);
         check(note_len(&trk[0], 4) == 3u && trk[0].step[5].time == ST_TIE && trk[0].step[6].time == ST_TIE &&
@@ -2112,24 +2121,19 @@ int main(int argc, char **argv)
         check(ins_d, "the drum track: the INSERT page in FX");
         go_home(); frames(16);
 
-        song.sel = 0; set_engine_of(&trk[0], 0); trk[0].engine = trk[0].eng_req; go_home(); frame();
-        for (j = 0; j < NPAGES; j++) flt_a |= PAGES[j].id[0] == P_FTYPE && PAGES[j].fam == FAM_FLT && page_shown(&PAGES[j]);
-        open_family(FAM_EDIT); frame();
-        for (j = 0; j < 30u && strcmp(PAGES[ui.page].title, "FILTER"); j++) { encs[panel.enc[EN_SELECT]] = 1; frame(); }
-        ui.force = 1; frame(); ppm("page-filter");
-        {   /* on EDIT > FILTER, ALGORITHM to a track that is not ANALOG: not left on a page it does not have */
-            int16_t bpm0 = song.g[G_BPM];
-            encs[panel.enc[EN_ALGO]] = 1; frames(2);
-            check(song.sel == 1u && trk[1].eng_req != 0u && PAGES[ui.page].fam == FAM_FLT &&
-                  PAGES[ui.page].id[0] == P_TFLT && page_shown(cur_page()),
-                  "FILTER (ANALOG's TYPE), then a track that is not ANALOG: its own FILTER page (FILT), not TYPE");
-            encs[panel.enc[EN_SELECT]] = 1; frame();
-            check(song.g[G_BPM] == bpm0, "  and SELECT turns pages there, not the tempo");
-            song.sel = 0; go_home(); frame();
+        {   /* (wave 4) the voice filter's TYPE on every engine's FILT page (ANALOG's TYPE page is gone with ANALOG) */
+            static const uint8_t EE[4] = {ENGI_ACID, ENGI_JUNO, ENGI_ELEM, ENGI_PRISM};
+            uint32_t e;
+            song.sel = 0;
+            for (flt_a = 1, e = 0; e < 4u; e++) {
+                set_engine_of(&trk[0], EE[e]); trk[0].engine = trk[0].eng_req;
+                for (flt_o = 0, j = 0; j < NPAGES; j++)
+                    flt_o |= PAGES[j].id[3] == P_FTYPE && PAGES[j].fam == FAM_FLT && page_shown(&PAGES[j]);
+                flt_a &= flt_o;
+            }
+            check(flt_a, "FILT: CUTOFF RESO ENV TYPE on every engine (one voice filter)");
+            go_home(); frame();
         }
-        set_engine_of(&trk[0], 1); trk[0].engine = trk[0].eng_req; go_home(); frame();
-        for (j = 0; j < NPAGES; j++) flt_o |= PAGES[j].id[0] == P_FTYPE && page_shown(&PAGES[j]);
-        check(flt_a && !flt_o, "FILTER: the TYPE page with ANALOG only");
         set_engine_of(&trk[0], TRK_DEF[0][0]); apply_preset_to(&trk[0], TRK_DEF[0][1]); trk[0].engine = trk[0].eng_req;
         go_home(); frames(16);
 
@@ -2275,6 +2279,7 @@ int main(int argc, char **argv)
         static const char *const VN[5] = {"acid", "juno", "elem", "plaits", "drum"};
         uint32_t v, j, n, st, last, seen, want, empty;
         char nm[40];
+        mlu.on = 0;                                     /* (wave 4: the shots without LEARN in the header) */
         for (v = 0; v < 5u; v++) {
             go_home(); song.playing = 0; ly_lock = LY_PLAY; frames(2);
             track_select(v < 2u ? 0u : v - 1u); frames(2);
@@ -2328,20 +2333,21 @@ int main(int argc, char **argv)
     }
     {   /* PHEBUS (review 8, Ben 21 Nov: "Sound big, character small"): each sound page draws what its knobs do, big, and
          * every knob moves the picture; no character (cut: heads in the strip only); each page shot at three settings */
-        static const struct { uint8_t trk, eng, pre, fam; const char *title, *shot; } SP[] = {
-            {0, ENGI_JUNO, 11, FAM_OSC, "OSC", "osc-juno"}, {0, ENGI_JUNO, 11, FAM_FLT, "FILTER", "filter-juno"},
-            {0, ENGI_JUNO, 11, FAM_OSC, "VOICE", "voice"}, {0, ENGI_JUNO, 11, FAM_OSC, "VOICE 2", "voice2"},
-            {0, ENGI_JUNO, 11, FAM_ENV, "ENV DEST", "envdest"}, {0, ENGI_JUNO, 11, FAM_FX, "FX", "fx-sends"},
-            {0, ENGI_JUNO, 11, FAM_FX, "CHORUS", "chorus"}, {0, ENGI_JUNO, 11, FAM_FX, "INSERT", "insert"},
-            {0, ENGI_JUNO, 11, FAM_FX, "INSERT 2", "insert2"}, {0, ENGI_JUNO, 11, FAM_MOD, "LFO DEST", "lfodest"},
-            {0, ENGI_ACID, 0, FAM_OSC, "OSC", "osc-acid"}, {0, ENGI_ACID, 0, FAM_FLT, "FILTER", "filter-acid"},
-            {0, ENGI_ACID, 0, FAM_FLT, "FILTER 2", "filter-trk"}, {2, ENGI_PRISM, 58, FAM_OSC, "OSC", "osc-va"},
-            {2, ENGI_PRISM, 0, FAM_OSC, "OSC", "osc-fold"}, {2, ENGI_PRISM, 58, FAM_OSC, "OSC 2", "osc2-plaits"},
-            {1, ENGI_ELEM, 3, FAM_OSC, "OSC", "osc-elem"}, {3, 0, 0, FAM_FLT, "FILTER", "filter-drum"},
-            {3, 0, 0, FAM_FX, "INSERT", "insert-drum"}};
+        static const struct { uint8_t trk, eng, pre, fam; const char *title, *shot; uint8_t mask; } SP[] = {
+            {0, ENGI_JUNO, 11, FAM_OSC, "OSC", "osc-juno", 15}, {0, ENGI_JUNO, 11, FAM_OSC, "OSC 2", "osc2", 15},
+            {0, ENGI_JUNO, 11, FAM_OSC, "OSC 3", "osc3-juno", 1}, {0, ENGI_JUNO, 11, FAM_FLT, "FILT", "filt-juno", 15},
+            {0, ENGI_JUNO, 11, FAM_FLT, "FILT 2", "filt2", 15}, {0, ENGI_JUNO, 11, FAM_ENV, "ENV", "env", 15},
+            {0, ENGI_JUNO, 11, FAM_ENV, "FILT ENV", "fenv", 15}, {0, ENGI_JUNO, 11, FAM_MOD, "ENV DEST", "envdest", 3},
+            {0, ENGI_JUNO, 11, FAM_FX, "FX", "fx-sends", 15}, {0, ENGI_JUNO, 11, FAM_FX, "INSERT", "insert", 15},
+            {0, ENGI_JUNO, 11, FAM_FX, "INSERT 2", "insert2", 15}, {0, ENGI_JUNO, 11, FAM_MOD, "LFO DEST", "lfodest", 15},
+            {0, ENGI_ACID, 0, FAM_OSC, "OSC", "osc-acid", 15}, {0, ENGI_ACID, 0, FAM_FLT, "FILT", "filt-acid", 15},
+            {2, ENGI_PRISM, 58, FAM_OSC, "OSC", "osc-va", 15}, {2, ENGI_PRISM, 0, FAM_OSC, "OSC", "osc-fold", 15},
+            {1, ENGI_ELEM, 3, FAM_OSC, "OSC", "osc-elem", 15}, {3, 0, 0, FAM_FLT, "FILTER", "filter-drum", 15},
+            {3, 0, 0, FAM_FX, "INSERT", "insert-drum", 15}};
         uint32_t c, k, ok_all = 1, chr = 1;
         char nm[40], what[120];
         song.playing = 0;
+        mlu.on = 0;                                     /* (wave 4: the shots without LEARN in the header) */
         for (c = 0; c < sizeof SP / sizeof SP[0]; c++) {
             track_t *t = &trk[SP[c].trk];
             const page_t *pg;
@@ -2352,6 +2358,7 @@ int main(int argc, char **argv)
             if (SP[c].eng == ENGI_JUNO) t->p[P_E0] = 2;              /* (S+P: PW at work) */
             if (SP[c].eng == ENGI_ACID) t->p[P_E3] = 60;             /* (ENV: DEC at work) */
             t->p[P_VOICE] = V_MONO; t->p[P_GLIDE] = 60;              /* (PRIO, GLMODE at work) */
+            t->p[P_FLINK] = 1;                                       /* (wave 4: the filter's own envelope drawn) */
             if (!is_drum(t)) t->p[P_TFLT] = 0;
             frames(16);
             if (!chain_goto(SP[c].fam, SP[c].title)) {
@@ -2359,19 +2366,21 @@ int main(int argc, char **argv)
             }
             pg = cur_page();
             ui.force = 1; frames(2);
-            chr &= px_count(196, 22, 44, 38, TE_COL[SP[c].trk & 3u]) < 8u;
+            chr &= SP[c].fam == FAM_ENV || px_count(196, 22, 44, 38, TE_COL[SP[c].trk & 3u]) < 8u;   /* (ENV: the AMP | FILT
+                                                         * selector there, mock-synth-env-A) */
             for (k = 0; k < 4u; k++) {                  /* every knob: the picture moves */
                 const param_desc_t *d;
                 int16_t v0;
                 uint32_t h0, h1;
                 int32_t st;
-                if (pg->id[k] >= P_COUNT || (d = track_desc(t, pg->id[k]))->max <= d->min) continue;
-                v0 = t->p[pg->id[k]];
+                uint32_t id = pg_id(pg, k);
+                if (id >= P_COUNT || (d = track_desc(t, id))->max <= d->min || !((SP[c].mask >> k) & 1u)) continue;
+                v0 = t->p[id];
                 st = (d->max - d->min) / 3 > 1 ? (d->max - d->min) / 3 : 1;
                 ui.force = 1; frames(2); h0 = plot_hash();
-                t->p[pg->id[k]] = (int16_t)(v0 + st <= d->max ? v0 + st : v0 - st);
+                t->p[id] = (int16_t)(v0 + st <= d->max ? v0 + st : v0 - st);
                 ui.force = 1; frames(2); h1 = plot_hash();
-                t->p[pg->id[k]] = v0;
+                t->p[id] = v0;
                 if (h0 == h1) { printf("ui:   %s: knob %u (%s) moves nothing\n", SP[c].shot, (unsigned)k + 1, d->label); ok = 0; }
             }
             snprintf(what, sizeof what, "sound page %s: each knob moves its picture", SP[c].shot);
@@ -2380,9 +2389,10 @@ int main(int argc, char **argv)
             for (set = 0; set < 3u; set++) {            /* three settings: as it is, a third and five sixths of each */
                 for (k = 0; set && k < 4u; k++) {
                     const param_desc_t *d;
-                    if (pg->id[k] >= P_COUNT || pg->id[k] == P_E0 && SP[c].eng == ENGI_PRISM) continue;
-                    d = track_desc(t, pg->id[k]);
-                    t->p[pg->id[k]] = (int16_t)(d->min + (d->max - d->min) * (set == 1u ? 2 : 5) / 6);
+                    uint32_t id = pg_id(pg, k);
+                    if (id >= P_COUNT || (id == P_E0 && (SP[c].eng == ENGI_PRISM || SP[c].eng == ENGI_ELEM))) continue;
+                    d = track_desc(t, id);
+                    t->p[id] = (int16_t)(d->min + (d->max - d->min) * (set == 1u ? 2 : 5) / 6);
                 }
                 ui.force = 1; frames(2);
                 snprintf(nm, sizeof nm, "snd-%s-%c", SP[c].shot, 'a' + (int)set);
@@ -2392,6 +2402,98 @@ int main(int argc, char **argv)
         check(chr, "sound pages: no character at the top right (the characters are heads in the strip only)");
         go_home(); track_select(0); host_preset(&trk[0], ENGI_ACID, 0); frames(2);
         trk[0].p[P_VOICE] = V_LEGATO; trk[0].p[P_GLIDE] = 0; trk[0].p[P_ITYPE] = 0;
+    }
+    {   /* PHEBUS wave 4, the MiniFreak voices (Ben, 21 Nov 2026: "Oscillator type plus a few macro knobs ... The same layout
+         * on every voice"; 22 Nov: every Type on every track). On each synth track, OSC's KNOB 1 walks every Type, one a
+         * detent, and the three macros take the Type's names; the same knob layout on every track and Type */
+        uint32_t tr, ty, ok = 1, lay = 1;
+        char what[120];
+        for (tr = 0; tr < NPART; tr++) {
+            go_home(); track_select(tr); frames(2);
+            chain_goto(FAM_OSC, "OSC"); frames(16);
+            for (ty = 0; ty < NVTYPE + 2u; ty++) { encs[panel.enc[EN_K1]] = -1; frame(); }
+            for (ty = 0; ty < NVTYPE; ty++) {
+                uint32_t k;
+                int16_t *vp;
+                ok &= vtype_of(TSEL) == ty && TSEL->eng_req == VTYPES[ty].eng;
+                for (k = 1; k < 4u; k++) {                /* M1 .. M3: the Type's names (or the engine's own) */
+                    const param_desc_t *d = page_desc(&PAGES[ui.page], k, &vp);
+                    const char *want = VTYPES[ty].lab[k - 1u];
+                    if (!d || (want && !str_eq(d->label, want))) {
+                        printf("ui:   track %u %s: macro %u is %s\n", tr + 1u, VTYPES[ty].name, k, d ? d->label : "-");
+                        ok = 0;
+                    }
+                }
+                lay &= PAGES[ui.page].id[0] == V_TYPE && PAGES[ui.page].id[1] == V_M1 && PAGES[ui.page].id[3] == V_M3;
+                if (tr == 2u && (ty == 0u || ty == 1u || ty == 2u || ty == 18u || ty == 22u)) {
+                    snprintf(what, sizeof what, "osc-type-%s", VTYPES[ty].name);
+                    for (k = 0; what[k]; k++) if (what[k] == ' ') what[k] = '-';
+                    ui.force = 1; frame(); ppm(what);
+                }
+                encs[panel.enc[EN_K1]] = 1; frame(); frames(2);
+            }
+        }
+        check(ok, "OSC KNOB 1 (TYPE) on every synth track: every Type in turn (31), its three macros named as the Type means them");
+        check(lay, "OSC: TYPE and the three macros in the same places on every track and Type");
+        track_select(0); host_preset(&trk[0], ENGI_ACID, 0); trk[0].engine = trk[0].eng_req; go_home(); frames(2);
+    }
+    {   /* "ADSR + link" (Ben, 21 Nov): FILT ENV while LINKed shows the amp ENV's values dim; the first turn makes it OWN,
+         * starting where the amp ENV is */
+        track_t *t = &trk[1];
+        int16_t a0;
+        go_home(); track_select(1); frames(2);
+        t->p[P_FLINK] = 0; t->p[P_ATK] = 20; t->p[P_DEC] = 40; t->p[P_SUS] = 70; t->p[P_REL] = 30; t->p[P_FDEC] = 5;
+        chain_goto(FAM_ENV, "FILT ENV"); frames(16);
+        ui.force = 1; frame(); ppm("page-fenv-link");
+        a0 = t->p[P_DEC];
+        encs[panel.enc[EN_K2]] = 2; frame();
+        check(t->p[P_FLINK] == 1 && t->p[P_FATK] == 20 && t->p[P_FDEC] == a0 + 2 && t->p[P_FSUS] == 70 && t->p[P_FREL] == 30 &&
+              t->p[P_DEC] == a0, "FILT ENV, LINKed: the first turn makes it OWN from the amp ENV's values, then turns DECAY");
+        ui.msg_t = 0; ui.force = 1; frame(); ppm("page-fenv-own");
+        chain_goto(FAM_FLT, "FILT 2"); frames(16);
+        encs[panel.enc[EN_K3]] = -1; frame();
+        check(t->p[P_FLINK] == 0, "FILT 2: KNOB 3 LINK back to AMP");
+        go_home(); track_select(0); frames(2);
+    }
+    {   /* item 9: one value size in fixed 40 px columns on every page: no value drawn past its column (the drum LFO page's
+         * "PITCH" against the next ring, wave 3), on every synth page of every Type, the GRID's tabs, the drum screen */
+        uint32_t tr, ty, i, n = 0, over0;
+        dial_over = 0;
+        for (tr = 0; tr < NPART; tr++) {
+            go_home(); track_select(tr); frames(2);
+            for (ty = 0; ty < NVTYPE; ty += 3u) {
+                uint8_t idx[40];
+                uint32_t np;
+                vtype_switch(TSEL, ty); TSEL->engine = TSEL->eng_req; frames(2);
+                np = chain_list(idx, sizeof idx);
+                for (i = 0; i < np; i++) {
+                    uint32_t k, x;
+                    page_go(idx[i]);
+                    for (x = 0; x < 3u; x++) {             /* each knob at its least, its middle, its most */
+                        for (k = 0; k < 4u; k++) {
+                            int16_t *vp;
+                            const param_desc_t *d = page_desc(&PAGES[idx[i]], k, &vp);
+                            if (d && vp && pg_id(&PAGES[idx[i]], k) != V_TYPE)
+                                *vp = (int16_t)(x == 0u ? d->min : x == 1u ? (d->min + d->max) / 2 : d->max);
+                        }
+                        ui.force = 1; frame(); n++;
+                    }
+                }
+            }
+            host_preset(TSEL, tr == 0u ? ENGI_ACID : tr == 1u ? ENGI_JUNO : ENGI_PRISM, 0); TSEL->engine = TSEL->eng_req;
+        }
+        over0 = dial_over;
+        song.sel = 0; studio_open(SC_DRUM); frames(2);
+        for (i = 0; i < 6u; i++) for (ty = 0; ty < 3u; ty++) { syn_go(i, ty % syn_halves(i)); ui.force = 1; frame(); n++; }
+        song.sel = TRK_DRUM; studio_open(SC_DRUM); frames(2);
+        for (i = 0; i < 5u; i++) for (ty = 0; ty < 3u; ty++) { dpg_go(i, ty % dpg_halves(i)); ui.force = 1; frame(); n++; }
+        dpg_go(4, 0); ui.force = 1; frame();
+        {
+            char b[80];
+            snprintf(b, sizeof b, "no value drawn past its 40 px column (%u screens; the drum LFO page too)", n);
+            check(dial_over == 0u && over0 == 0u, b);
+        }
+        go_home(); track_select(0); frames(2);
     }
     {   /* PHEBUS (21 Nov 2026): TOOLS > NEW: every send and effect off, the STUTTER lane empty */
         uint32_t ok = 1, l;

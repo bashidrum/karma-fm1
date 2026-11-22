@@ -324,13 +324,37 @@ static uint32_t drum_trig_sig(uint32_t l, uint32_t bank)
     }
     return s + sg_held * 3u + (song.playing ? TDRUM->seq_idx % len + 1u : 0u) * 65537u;
 }
-/* the dials: label over each knob, a ring, the value in one tall face (a locked one inverted); the touched knob's label
- * inverted and its value underlined */
-static void drum_dials(const char *const lab[4], const char *const val[4], const int32_t ratio[4], uint32_t locked,
-                       uint32_t dim, uint32_t sig, uint32_t *cache)
+/* the dials (PHEBUS wave 3; wave 4: every voice's, in its colour): label over each knob, a ring, the value in one tall face
+ * (a locked one inverted); the touched knob's label inverted and its value underlined. Each knob a 60 px column: the ring
+ * at its left, the value in the 40 px after it (DIAL_VX .. + DIAL_VW). Five letters there take a narrower step (7 px, the
+ * others 8), so no value reaches the next column's ring (wave 3 had "PITCH" against it, Ben's drum LFO page); longer
+ * ones are cut to five (dval_fit). dial_over counts any drawn past its column (tests/ui_pages_test.c) */
+#define DIAL_VX 17                                      /* the value's start in its column */
+#define DIAL_VW 40                                      /* its room */
+static uint32_t dial_over;                              /* values drawn past their column (0, always) */
+static int32_t dial_adv(const char *s) { return str_len(s) >= 5u ? 7 : 8; }
+static int32_t dial_w(const char *s) { return (int32_t)str_len(s) * dial_adv(s); }
+static int32_t cv_text_tall_n(int32_t x, int32_t y, const char *s, uint16_t c, int32_t adv)   /* FONT_S x2 tall, adv a letter */
+{
+    const felucca_font_t *f = &FONT_S;
+    for (; *s; s++) {
+        uint32_t gi = glyph(f, (uint8_t)*s), gx, gy, w = f->bw[gi];
+        const uint8_t *gd = f->data + f->off[gi];
+        for (gy = 0; gy < f->h * 2u; gy++)
+            for (gx = 0; gx < w; gx++) {
+                uint32_t i = (gy >> 1) * w + gx;
+                if ((gd[i >> 3] >> (7u - (i & 7u))) & 1u)
+                    cv_pset(x - f->pad + (int32_t)gx, y + (int32_t)gy, c);
+            }
+        x += adv;
+    }
+    return x;
+}
+static void op_dials(const char *const lab[4], const char *const val[4], const int32_t ratio[4], uint32_t locked,
+                     uint32_t dim, uint16_t col, uint32_t sig, uint32_t *cache)
 {
     uint32_t k;
-    sig = studio_hash(sig + locked * 97u + dim * 7u, ui.msg_t ? ui.msg : "");
+    sig = studio_hash(sig + locked * 97u + dim * 7u + col * 131u, ui.msg_t ? ui.msg : "");
     for (k = 0; k < 4u; k++) {
         sig = studio_hash(sig * 7u + (uint32_t)ratio[k] + (ui.hot_t && ui.hot_col == k) * 5003u, lab[k]);
         sig = studio_hash(sig, val[k]);
@@ -347,9 +371,9 @@ static void drum_dials(const char *const lab[4], const char *const val[4], const
         return;
     }
     for (k = 0; k < 4u; k++) {
-        int32_t x0 = 2 + 60 * (int32_t)k, vx = x0 + 18, vw;
+        int32_t x0 = 2 + 60 * (int32_t)k, vx = x0 + DIAL_VX, vw;
         uint32_t hot = ui.hot_t && ui.hot_col == k, lk = (locked >> k) & 1u;
-        uint16_t c = (dim >> k) & 1u ? TE_G3 : TE_DRUM;
+        uint16_t c = (dim >> k) & 1u ? TE_G3 : col;
         if (!lab[k][0])
             continue;
         if (hot) {
@@ -358,20 +382,26 @@ static void drum_dials(const char *const lab[4], const char *const val[4], const
         } else {
             cv_text(x0 + 1, 4, &FONT_S, lab[k], c);
         }
-        te_dial(x0 + 7, 38, 7, ratio[k], c, TE_G2);
-        vw = text_w_tall(val[k]);
+        te_dial(x0 + 7, 38, 6, ratio[k], c, TE_G2);
+        vw = dial_w(val[k]);
+        dial_over += vw > DIAL_VW - 3;                  /* (its ink and a clear gap: wave 3's 40 px "PITCH" touched the next ring) */
         if (lk) {                                       /* locked on the trig held: inverted (the Rytm's way) */
             cv_rect(vx - 3, 21, vw + 5, 34, c);
-            cv_text_tall(vx, 22, val[k], C_BLACK);
+            cv_text_tall_n(vx, 22, val[k], C_BLACK, dial_adv(val[k]));
         } else {
-            cv_text_tall(vx, 22, val[k], c);
+            cv_text_tall_n(vx, 22, val[k], c, dial_adv(val[k]));
         }
         if (hot)
             cv_rect(vx - 1, 56, vw + 1, 2, c);
     }
     cv_blit(0, SG_KNOB_Y);
 }
-/* a value made to fit its column (40 px: five letters of the tall face) */
+static void drum_dials(const char *const lab[4], const char *const val[4], const int32_t ratio[4], uint32_t locked,
+                       uint32_t dim, uint32_t sig, uint32_t *cache)
+{
+    op_dials(lab, val, ratio, locked, dim, TE_DRUM, sig, cache);
+}
+/* a value made to fit its column (40 px: five letters of the tall face, narrower) */
 static void dval_fit(char *b)
 {
     while (str_len(b) > 5u)

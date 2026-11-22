@@ -45,7 +45,7 @@ The FM-1 has these controls: the buttons PLAY, REC, SAVE, HOME, ENV, LFO, FX, SE
 14. [Screensavers](#14-screensavers)
 15. [Settings and menus](#15-settings-and-menus)
 16. [MIDI and USB](#16-midi-and-usb)
-17. [The engines and the sound list](#17-the-engines-and-the-sound-list)
+17. [The oscillator Types](#17-the-oscillator-types)
 18. [Kits and the backup page](#18-kits-and-the-backup-page)
 19. [Every button gesture, screen by screen](#19-every-button-gesture-screen-by-screen)
 20. [Troubleshooting and recovery](#20-troubleshooting-and-recovery)
@@ -61,10 +61,12 @@ Each voice has its own colour, and a small head in the bottom strip and on HOME:
 
 | Voice | Head | Colour | Plays |
 | --- | --- | --- | --- |
-| **1** | robot | purple | ACID (a 303 voice) or JUNO (a Juno-106 style synth) |
-| **2** | alien | blue | JUNO or ELEMENTS (physical modelling) |
-| **3** | crocodile | teal | PLAITS (24 synthesis models) |
+| **1** | robot | purple | any of the 31 oscillator Types (starts as ACID, a 303 bass) |
+| **2** | alien | blue | any of the 31 oscillator Types (starts as JUNO, polyphonic chords) |
+| **3** | crocodile | teal | any of the 31 oscillator Types (starts as PLAITS VA, a lead) |
 | **Drums** | snake | coral | the drum synth, with 16 sounds on the keys |
+
+The three synth voices work the way the Arturia MiniFreak does: the same pages on every voice, an oscillator **Type** with three macro knobs, one resonant **filter** with its own envelope, the amp **envelope**, then FX and modulation. See [Sound design](#7-sound-design-along-the-chain).
 
 **Colour has a meaning.** A voice's colour always means "this acts on that voice". White and grey mean shared: the screen acts on everything, and its header tag says ALL. Yellow is for **M** (mute). Ice blue is for **S** (solo). Red is only for recording and erasing.
 
@@ -90,8 +92,8 @@ After a layer lets go, the knobs ignore you for a quarter of a second, so a knob
 
 **The header** runs along the top:
 
-- a boxed **tag** showing what the screen acts on: the engine name (ACID, JUNO, ELEM, PLTS), DRUM, HOME, STUT (the stutter lane) or ALL (shared pages, in grey);
-- the **page name** (while a fill is on: **FILL** in white, see [Fill](#fill));
+- a boxed **tag** showing what the screen acts on: the synth voice's number (**1**, **2**, **3**), DRUM, HOME, STUT (the stutter lane) or ALL (shared pages, in grey);
+- the **sound's name** on a synth voice's sound pages and GRID (the kit on the drum screen; elsewhere the page name; while a fill is on: **FILL** in white, see [Fill](#fill));
 - the **tempo** (BPM) and a play or stop symbol;
 - four **beat lights**. While you record, only the light on beat 1 turns red;
 - a red **record disc** while recording, or a small white **unsaved dot** when the project in memory differs from what is saved (see [Saving](#12-saving));
@@ -99,11 +101,11 @@ After a layer lets go, the knobs ignore you for a quarter of a second, so a knob
 
 **The bottom strip** shows the four voices' heads, numbered 1 2 3 DR. The selected voice is underlined and its number is in its colour. A yellow **M** on a head means muted, an ice-blue **S** means soloed, a red dot means it is recording. On the STUTTER lane no voice is underlined.
 
-**The knob band** at the bottom of a page shows what KNOB 1 to KNOB 4 do. Values are drawn in one bold face. The knob you are touching has an inverted label and an underlined value. A dim grey value means it does nothing in the current setting. A short message appears as a white bar over the band.
+**The dials** at the bottom of a page show what KNOB 1 to KNOB 4 do: four dials, each over its knob, with its name above and its value beside it in one tall face, in a fixed column (a value never runs into the next one). The knob you are touching has an inverted label and an underlined value. A dim grey value means it does nothing in the current setting (or cannot be locked while a step is held). A **locked** value is drawn **inverted**, in a box of the voice's colour. A short message appears as a white bar over the dials. On the shared list pages (GLO, SAVE > TOOLS) the list names the four knobs with a bar for where each one sits; the values are in the dials only.
 
-**The chain strip.** On sound pages, a strip above the knobs lists the five stages of the sound chain, OSC, FILT, ENV, FX and MOD. The current stage is lit and carries the page name. If the stage has more than one page, "2/3" and so on appears at the right. See [Sound design](#7-sound-design-along-the-chain).
+**The tabs.** On a synth voice's sound pages, a row above the dials lists the five stages of the sound chain, OSC FILT ENV FX MOD, the current one inverted in the voice's colour; "1/3" and so on at the right is the page (the "half") within it. On the GRID the row starts with TRIG, as on the drum screen. See [Sound design](#7-sound-design-along-the-chain).
 
-**Graphs.** Sound pages draw what their knobs do: the filter's response curve (with the envelope's sweep), the insert effect's curve, the oscillator's waveform, the envelope, the LFO, and bars for the rest. The sound's name is at the top left.
+**Pictures.** A synth sound page shows its subject large in the voice's colour (OSC the Type, FILT the filter type, ENV AMP or FILTER, FX and MOD the page), a line under it, and a drawing of what the knobs do: the oscillator's wave, the filter's response with the envelope's sweep, the envelope or envelopes, the sends, the insert's curve, the LFO, and bars for the rest. No character and no scene behind it.
 
 ### The HOME screen
 
@@ -113,12 +115,12 @@ The four knobs play the selected voice, for quick changes while it plays:
 
 | Knob | Does |
 | --- | --- |
-| **KNOB 1 CUTOFF** | the voice's filter: the engine's own cutoff on ACID and JUNO (CUT); the voice's FILTER on PLAITS and ELEMENTS (left of centre a low-pass, right a high-pass); the drum track's FILTER on the drums |
-| **KNOB 2 DECAY** | the decay of the envelope that shapes the sound: ACID's own DECAY (the 303's envelope, which moves its filter); the ENV page's DEC on JUNO, PLAITS and ELEMENTS; on the drums, the selected sound's decay on every kit (the first turn on a built-in kit makes your copy, see [Drums](#5-drums)) |
+| **KNOB 1 CUTOFF** | the voice filter's CUTOFF, on every synth voice; the drum track's FILTER on the drums |
+| **KNOB 2 DECAY** | the decay of the envelope that moves the sound: the filter's own envelope's DECAY while it is OWN (as ACID starts), else the amp ENV's DECAY; on the drums, the selected sound's decay on every kit (the first turn on a built-in kit makes your copy, see [Drums](#5-drums)) |
 | **KNOB 3 STUT** | the STUTTER lane **ON** (turn right) or **OFF** (turn left). It is drawn in white and grey because it acts on the whole mix. See [The STUTTER lane](#6-the-stutter-lane) |
 | **KNOB 4 LEVEL** | the voice's level. On a muted voice the first turn unmutes it |
 
-Swing and the pattern length are on **hold SEQ**. Pan is on the mixer (**GLO + key 11**) and on VOICE 2.
+Swing and the pattern length are on **hold SEQ**. Pan is on the mixer (**GLO + key 11**).
 
 ---
 
@@ -128,9 +130,9 @@ A new project (and a power-on with nothing saved) starts with plain sounds and *
 
 | Voice | Starts as |
 | --- | --- |
-| 1 | ACID INIT: a plain sawtooth through the 303-style filter, the filter part open with a little resonance and a short envelope sweep so each note speaks. No accent, slide or drive. One note at a time, an octave down. Good for bass |
-| 2 | JUNO INIT, a plain sawtooth, polyphonic. Good for chords |
-| 3 | PLAITS INIT, a plain sawtooth (the VA model), one note at a time, about 6 dB quieter. Good for lead |
+| 1 | ACID INIT: a plain sawtooth through the 303's own filter, part open with a little resonance; the filter has its own envelope (OWN) that sweeps it on each note so it speaks. No accent, slide or drive. One note at a time, an octave down. Good for bass |
+| 2 | JUNO INIT, a plain sawtooth, polyphonic, the filter open. Good for chords |
+| 3 | PLAITS INIT, a plain sawtooth (the VA Type), one note at a time, the filter open, about 6 dB quieter. Good for lead |
 | Drums | the 606 kit |
 
 All the effect sends (DIST, CHORUS, DELAY, REVERB) start at zero. **SAVE > TOOLS > NEW** puts a project back to this starting point.
@@ -140,8 +142,8 @@ To make a first sound:
 1. Press **PLAY**. The beat lights run.
 2. Play the keys. On a synth voice, the white and black keys are notes. On the drum voice, the keys are 16 drum sounds.
 3. Turn **ALGORITHM** to pick a voice: 1, 2, 3 or DRUM.
-4. Turn **PRESETS** to browse that voice's sounds. The ACID, JUNO and PLAITS sounds each have an **INIT** sound: the plain starting point again.
-5. Tap **EDIT** to open the sound's first page, and turn the knobs.
+4. Turn **PRESETS** to browse that voice's sounds (every voice lists every sound). Each engine's sounds start with an **INIT** sound: the plain starting point again.
+5. Tap **EDIT** to open the sound's first page, OSC. **KNOB 1** picks the oscillator **Type**; KNOB 2 to 4 are its three macros. Tap EDIT again for the filter.
 6. Tap **OCT-** or **OCT+** to change the octave of a synth voice, from -3 to +3. Press both together to go back to 0.
 
 **Drum keys:** hold **OCT-** while you hit a drum key for a ghost (soft) hit, or **OCT+** for a hard hit.
@@ -152,7 +154,21 @@ To make a first sound:
 
 The GRID is the step sequencer, and it is the only step editor. **Tap SEQ** (from HOME or from any other page) and the selected voice's GRID opens. This works the same on every voice.
 
-On the GRID the 16 white keys are the **16 steps of the page shown**. They play nothing. The title reads "GRID 1/2" (page 1 of 2, and so on). **ALGORITHM** changes voice and stays on the GRID. **HOME** goes back.
+On the GRID the 16 white keys are the **16 steps of the page shown**. They play nothing. The header shows the sound's name (STEP REC or LIVE REC while recording). Under the tiles: the notes of the step held or under the cursor, the pen, and which steps are shown ("1-16 OF 32"). **ALGORITHM** changes voice and stays on the GRID. **HOME** goes back.
+
+On a synth voice the GRID works like the drum screen, the Elektron way: under the steps a row of tabs, **TRIG OSC FILT ENV FX MOD**, and four dials. The dials show the tab's page:
+
+- **TRIG**: the steps themselves (the pen and the cursor with nothing held; the held step's own values with a step held).
+- **OSC** to **MOD**: the sound's pages, the same as on the sound pages ([section 7](#7-sound-design-along-the-chain)). With nothing held the knobs edit the sound. With a step held they **lock** (below).
+
+| Button on the synth GRID | Tab |
+| --- | --- |
+| **EDIT** | OSC; again: the next stage (FILT, ENV, FX, MOD, round) |
+| **ENV**, **FX**, **LFO** | ENV, FX, MOD; again: that tab's next page |
+| **SEQ** | TRIG; again: back to the tab before |
+| **SELECT** | every page of every tab in turn, TRIG first |
+
+These work the same with a step held. **SEQ** on a sound page opens the GRID on that page's tab; SEQ from HOME or anywhere else opens it on TRIG.
 
 ### The tiles
 
@@ -162,7 +178,7 @@ Each step is a tile in the voice's colour:
 - white text means an accent, a small mark means a slide;
 - a bar along the tile is its velocity;
 - a line joining notes is a chord, and a bar from the note before it is a **tie**;
-- a dot means a parameter lock or a nudge;
+- a small square in the lower right means the step has parameter locks; a dot at the top means a nudge;
 - a notch means a condition;
 - the cursor is framed in white, and the playhead is a white bar.
 
@@ -178,34 +194,31 @@ The **pen** is the note or chord a new step gets: the last note or chord you pla
 
 ### Editing a held step
 
-While you hold a step, the knobs edit it. A step you edited is kept, never cleared when you let go. Hold several steps and they are edited together.
+While you hold a step on the **TRIG** tab, the knobs edit it. A step you edited is kept, never cleared when you let go. Hold several steps and they are edited together.
 
-| Synth voice | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
+| TRIG (synth voice) | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
 | --- | --- | --- | --- | --- |
-| first set | **NOTE**, by degrees of the scale (you hear it) | **LEN**, in steps (the following steps become ties) | **VEL**, 1 to 127 (turning it clears the accent) | **COND**: -, FILL, NOFL, CHNC |
-| after **SELECT** right | **FLAG**: -, ACC, SLD, A+S | **RATCH**: x1 to x4 | **NUDGE** | |
+| **TRIG 1/2** | **NOTE**, by degrees of the scale (you hear it) | **LEN**, in steps (the following steps become ties) | **VEL**, 1 to 127 (turning it clears the accent) | **COND**: -, FILL, NOFL, CHNC |
+| **TRIG 2/2** (SELECT right) | **FLAG**: -, ACC, SLD, A+S | **RATCH**: x1 to x4 | **NUDGE** | |
 
-SELECT left goes back to the first set. On the drum voice each sound has its own trigs: a held trig's own values are on the TRIG page, and the knobs on the other pages lock the sound (see [Drums](#5-drums)).
+On the drum voice each sound has its own trigs: a held trig's own values are on the TRIG page, and the knobs on the other pages lock the sound (see [Drums](#5-drums)).
 
 - **Conditions.** FILL plays only during a fill. NOFL plays except during a fill. CHNC plays about one time in two. A skipped step is silent in full: no note, no MIDI, no ratchet, no lock. Start a fill with **GLO + key 9** (while held) or **GLO + key 10** (the whole next bar; again cancels it), or on the drum screen with **F#5** (held; twice quickly: latched).
 - **Ratchets** repeat the step 1 to 4 times inside its time.
 - **Nudge** moves a step slightly off the grid.
 - Held step + **OCT+** goes round the conditions (the message says NORMAL, FILL ONLY, NO FILL or CHANCE).
-- Held step + **OCT-** clears. On the GRID it clears the step's locks, nudge and condition together. On a lock page (below) it clears only that page's locks.
+- Held step + **OCT-** clears. On TRIG it clears the step's locks, nudge and condition together. On a sound tab it clears the lock of the knob you last turned in this hold; press it again (or with no knob turned) to clear every lock of the step.
 
 ### Parameter locks
 
-A lock gives one sound parameter a different value on one step only.
+A lock gives one sound parameter a different value on one step only. It works the Rytm's way, as on the drum screen, with no extra press:
 
 1. Hold a step.
-2. Tap **EDIT**, **ENV**, **LFO** or **FX**. That button's page goes onto the knobs. The title reads "LOCK ..." in the step band.
-3. Turn a knob. That parameter is locked on the held step (or steps).
+2. Turn any knob on a sound tab (OSC, FILT, ENV, FX or MOD). That parameter is locked on the held step (or steps). Its value is drawn **inverted**; the step's line under the tiles lists its locks, and its tile gets a small square.
 
-Tap the same button again to go to the next page that can be locked. EDIT walks OSC, FILT and ENV only. A value drawn in full colour is a lock. A dim value is the voice's own value.
+The page buttons still change the tab while the step is held, so you can lock the cutoff, then tap ENV and lock the decay, on the same hold. The Type (OSC, KNOB 1) cannot be locked, as the Rytm's machine cannot; nor can VOICE and PRIOR (they are drawn grey while a step is held). Locking a filter envelope value while the filter is LINKed to the amp ENV keeps the lock but has no effect until the filter has its OWN envelope.
 
-There is a limit of **24 locks per voice**. Messages you may see: NOTHING TO LOCK HERE, NOT LOCKABLE, NO LOCK LEFT, LOCKS FULL: HOLD FEWER STEPS, LOCKS FULL: 24 A TRACK.
-
-On the drum voice locks work the Rytm's way, with no extra press: hold a trig and turn whatever is on the knobs (see [Drums](#5-drums)).
+There is a limit of **24 locks per voice**. Messages you may see: NOT LOCKABLE, NO LOCK LEFT, LOCKS FULL: HOLD FEWER STEPS, LOCKS FULL: 24 A TRACK, LOCK OFF: (name), n LOCKS OFF.
 
 ### Pages, length and follow
 
@@ -220,6 +233,8 @@ A pattern is up to 64 steps, in four pages of 16.
 
 ### With no step held (synth voice)
 
+On a sound tab the knobs edit the sound, as on the sound pages. On **TRIG 1/2**:
+
 | Control | Does |
 | --- | --- |
 | KNOB 1 **NOTE** | the pen (you hear it) |
@@ -227,17 +242,11 @@ A pattern is up to 64 steps, in four pages of 16.
 | KNOB 3 **HIT** | right sets the cursor's step, left clears it |
 | KNOB 4 **VEL** | the velocity of the cursor's step |
 | **PRESETS** | picks the sound |
-| **SELECT** | the tempo |
+| **SELECT** | the tabs (the tempo: on HOME) |
 
-### SEQ pages after the GRID
+### Pattern settings
 
-On a synth voice, **tap SEQ on the GRID** to open the PATTERN page. Tap SEQ again to return to the GRID.
-
-| Page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
-| --- | --- | --- | --- | --- |
-| **PATTERN** | STEPS (1 to 64) | DIV | SWING | GATE |
-
-**DIV** values: 1/4, 1/8, 1/16 (the usual), 1/32, 8T, 16T, 1/2, 1BAR, 2BAR.
+The pattern's DIV, SWING and STEPS are on **hold SEQ** ([section 13](#13-tempo-swing-key-and-scale)). **DIV** values: 1/4, 1/8, 1/16 (the usual), 1/32, 8T, 16T, 1/2, 1BAR, 2BAR. Tapping SEQ on the GRID no longer opens the old PATTERN page (it changes the GRID's tab, as on the drum screen), so its GATE has no page at present.
 
 ### Step record (STEP REC)
 
@@ -420,9 +429,11 @@ How it behaves:
 
 ## 7. Sound design along the chain
 
-Every synth sound is one **chain of five stages**, in signal order:
+Every synth sound is one **chain of five stages**, in signal order, the same on every voice whatever its Type (the MiniFreak's layout):
 
 **OSC** > **FILT** > **ENV** > **FX** > **MOD**
+
+The oscillator makes the sound, the filter shapes it (before the amp, so a ringing filter dies with the note), the amp envelope shapes its level.
 
 | Button | What it does on the chain |
 | --- | --- |
@@ -430,23 +441,56 @@ Every synth sound is one **chain of five stages**, in signal order:
 | **ENV**, **FX**, **LFO** | jump to that stage's first page. Press again for the stage's next page |
 | **SELECT** | walks every page of the chain, one by one, and stops at both ends |
 
-A page the sound does not have is skipped. On the drum voice, **EDIT**, **ENV** and **LFO** open the drum screen's sound pages (SRC, AMP, LFO; see [Drums](#5-drums)), and **FX** the drum voice's own INSERT and SLICER. A page that does not apply says "NOT ON THIS SOUND".
+On the drum voice, **EDIT**, **ENV** and **LFO** open the drum screen's sound pages (SRC, AMP, LFO; see [Drums](#5-drums)), and **FX** the drum voice's own FILTER, INSERT and SLICER.
 
 ### Pages by stage
 
-| Stage | Pages and knobs (KNOB 1 to 4) |
+Each stage's pages are shown as halves, "1/3" at the right of the tabs.
+
+| Page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
+| --- | --- | --- | --- | --- |
+| **OSC 1/3** | **TYPE** (31, one a detent) | macro 1 | macro 2 | macro 3 |
+| **OSC 2/3** | **OCT** (-3 to +3 octaves) | **TUNE** (-99 to +99 cents) | **GLIDE** | **VOICE** (POLY, MONO, LEG, UNI) |
+| **OSC 3/3** | the Type's 4th control | the Type's 5th control | **DTUNE** (unison spread) | **PRIOR** (LAST, LOW, HIGH) |
+| **FILT 1/2** | **CUTOFF** | **RESO** | **ENV** (how far the filter's envelope moves it, either way) | **TYPE**: LP24, LP12, BP, HP |
+| **FILT 2/2** | **KEY** (the cutoff follows the note) | **DRIVE** | **LINK**: AMP or OWN | |
+| **ENV 1/2** (AMP) | **ATTACK** | **DECAY** | **SUSTN** | **RELEAS** |
+| **ENV 2/2** (FILT) | **ATTACK** | **DECAY** | **SUSTN** | **RELEAS** (the filter's own envelope) |
+| **FX** | **DIST** | **CHORUS** | **DELAY** | **REVERB** (this voice's sends) |
+| **INSERT** | **TYPE** | A | B | C |
+| **INSERT 2** | **MIX** | | | |
+| **SLICER** | **SLCR** | **PAT** | **RATE** | **DEPTH** |
+| **LFO** | **RATE** | **WAVE** | **PHASE** | **FADE** |
+| **LFO DEST** | **PIT** | **FLT** (the filter) | **SHP** | **AMP** |
+| **LFO SYNC** | **SYNC** | **TRIG** (NOTE, FREE, PATT) | **POL** | |
+| **ENV DEST** | **PIT** (the amp ENV to pitch) | **SHP** | **ESYNC** | |
+
+FX and MOD are kept as they were (wave 5 rebuilds them as FX slots and the mod matrix); only their look changed.
+
+### The oscillator: Type and macros
+
+**KNOB 1 on OSC** picks the Type: one list of 31, the same on every voice. Turning it changes only the oscillator; the filter, envelopes, FX and voice stay as they are. Changing to another engine's Type starts its macros at their plain defaults (no chorus, no envelope on the timbre); changing within PLAITS or within ELEMENTS keeps the macros where they are. The page shows the Type's name large and "TYPE n/31". See [section 17](#17-the-oscillator-types) for every Type and its macros.
+
+### The filter
+
+One resonant filter on every voice, after the oscillator and before the amp, whatever the Type: a four-pole ladder, like the SH-101's and the Juno's. Its **TYPE** takes the 24 dB or 12 dB low-pass, a 12 dB band-pass or a 12 dB high-pass from it. On **ACID** and **JUNO**, **LP24** is their own ladder (the 303's filter, the Juno's IR3109), moved by the same knobs; the line under the filter's name says which (303 LADDER, IR3109 LADDER, LADDER).
+
+- **RESO** at the top makes the filter sing at the cutoff on its own (self-oscillation).
+- **ENV** moves the cutoff with the filter's envelope, up (+) or down (-); at the ends it sweeps the whole range.
+- **DRIVE** pushes the sound into the filter for grit.
+- **KEY** at 100 % makes the cutoff follow the note exactly.
+- The LFO moves it too (MOD > LFO DEST > FLT), and an accented note opens it a little more.
+
+**LINK** chooses the filter's envelope:
+
+| LINK | The filter follows |
 | --- | --- |
-| **OSC** | per engine (see [engines](#17-the-engines-and-the-sound-list)). Then **VOICE**: VOICE, GLIDE, GLMODE, PRIOR. Then **VOICE 2**: ALLOC, DTUNE, PAN, MUTE |
-| **FILT** | ACID **FILTER**: CUT, RES, ENV, DEC; **FILTER 2**: FILT. JUNO **FILTER**: CUT, RES, ENV, FILT. ELEMENTS and PLAITS: **FILTER** with FILT. Drums: the drum voice's own FILTER |
-| **ENV** | **ENV**: ATK, DEC, SUS, REL. **ENV DEST**: FLT, PIT, SHP, ESYNC |
-| **FX** | **FX**: DIST, CHORUS, DELAY, REVERB (this voice's sends). **CHORUS** (JUNO's own chorus). **INSERT**: TYPE, A, B, C. **INSERT 2**: MIX. **SLICER** |
-| **MOD** | **LFO**: RATE, WAVE, PHASE, FADE. **LFO DEST**: PIT, FLT, SHP, AMP. **LFO SYNC**: SYNC, TRIG (NOTE, FREE, PATT), POL |
+| **AMP** | the amp ENV (ENV 1/2): one envelope shapes level and tone, the quick MiniFreak way |
+| **OWN** | its own ADSR (ENV 2/2), just for the filter |
 
-On the drum voice, each sound's pages are SRC, FLTR, AMP and LFO on the drum screen (see [Drums](#5-drums)).
+While it is linked, ENV 2/2 shows the amp ENV's values in grey and says LINKED TO THE AMP ENV. **Turning any of its knobs makes it OWN**, starting from the amp ENV's values (the message says FILTER ENV: OWN). LINK on FILT 2/2 switches back. Both shapes are drawn: the one you are on in the voice's colour, the other faint behind.
 
-**FILT** (in ELEMENTS, PLAITS and the JUNO and ACID pages above) is the voice's own one-knob filter: left of centre is a low-pass, right of centre is a high-pass, centre is off.
-
-**ESYNC** (ENV DEST) makes ATK, DEC and REL note values of the tempo. **LFO SYNC**: SYNC locks the LFO to a note value; TRIG chooses what restarts it; POL chooses bipolar or unipolar.
+**ESYNC** (MOD > ENV DEST) makes ATTACK, DECAY and RELEASE note values of the tempo, for both envelopes. **LFO SYNC**: SYNC locks the LFO to a note value; TRIG chooses what restarts it; POL chooses bipolar or unipolar.
 
 | TRIG | The LFO restarts (at its PHASE) |
 | --- | --- |
@@ -456,17 +500,17 @@ On the drum voice, each sound's pages are SRC, FLTR, AMP and LFO on the drum scr
 
 ### What the graphs show
 
-| Page | Graph |
+| Page | Drawing |
 | --- | --- |
-| FILTER | the filter's response curve, with a wedge showing how far the envelope sweeps it |
-| INSERT | the effect's transfer curve, or a swept-notch plot |
-| VOICE | a note diagram |
-| CHORUS | chorus lines |
+| OSC 1/3, 3/3 | the waveform (a schematic for ELEMENTS and some PLAITS models; FOLD, SWARM, WAVETABLE, ADDITIVE and CHORD their own picture) |
+| OSC 2/3 | the pitch on a scale of +-3 octaves, and a note diagram of the voice mode and glide |
+| FILT | the response curve at its TYPE, the resonance peak, a shaded wedge for how far the envelope sweeps it; DRIVE lifts the curve, KEY tilts a line through the cutoff |
+| ENV | the envelope (AMP | FILT selector top right); the other envelope faint behind when the filter is OWN |
 | FX | the sends as drawn boxes |
-| OSC | the waveform (a schematic for ELEMENTS and some PLAITS models) |
-| ENV | the envelope |
-| LFO | the LFO shape |
-| OSC 2, ENV DEST, LFO DEST, VOICE 2 | bar graphs |
+| INSERT | the effect's transfer curve, or a swept-notch plot |
+| SLICER | its 16-step pattern |
+| LFO | the LFO shape, running |
+| LFO DEST, ENV DEST | bar graphs |
 
 ### INSERT types
 
@@ -481,7 +525,7 @@ TYPE OFF (or MIX at 0) costs nothing. A, B, C and MIX can be locked on a step.
 ### Presets and INIT
 
 - **PRESETS** (on HOME, on the SAVE > PRESETS page, or on any sound page) browses the selected voice's sounds, grouped by kind (BASS, KEYS, ORGN, PAD, LEAD, PLCK, STAB, FX, INIT), then your user presets. On the drum voice it picks the kit.
-- **SAVE > PRESETS**: KNOB 1 the sound, KNOB 2 the engine (ACID or JUNO on voice 1, JUNO or ELEMENTS on voice 2).
+- **SAVE > PRESETS**: KNOB 1 the sound, KNOB 2 the engine (any of the four, on every voice).
 - **SAVE > USER**: KNOB 1 SLOT (1 to 32), KNOB 2 LOAD, KNOB 3 ERASE, KNOB 4 SAVE (all GO).
 - **SAVE > TOOLS**: KNOB 1 CLRSQ (clear the pattern), KNOB 2 INIT (reset the sound to the engine's defaults and first preset; the message says "SOUND INIT"), KNOB 4 NEW (all GO).
 
@@ -572,9 +616,9 @@ Tap **GLO**. Tap again, or turn SELECT, for the next page. These pages are share
 | **F#3** (black key) | MIDI LEARN on or off (the title reads "LEARN") |
 | **SELECT** | tempo |
 
-**Pan.** With GLO held (or the mixer kept open), press **key 11** (P): the title reads **PAN** and KNOB 1 to 4 set the pans of voices 1, 2, 3 and the drums (L, C, R). Press key 11 again for the levels. When the mixer closes, its knobs are the levels again. A synth voice's pan is also on **VOICE 2** (KNOB 3).
+**Pan.** With GLO held (or the mixer kept open), press **key 11** (P): the title reads **PAN** and KNOB 1 to 4 set the pans of voices 1, 2, 3 and the drums (L, C, R). Press key 11 again for the levels. When the mixer closes, its knobs are the levels again.
 
-A muted voice fades out in a few milliseconds and plays no new notes, but its pattern runs on in time. On the HOME screen, KNOB 4 sets the selected voice's level (on a muted voice the first turn unmutes it). **VOICE 2** has PAN and MUTE. **GLO > DRUMS** has the drum level, reverb and delay.
+A muted voice fades out in a few milliseconds and plays no new notes, but its pattern runs on in time. On the HOME screen, KNOB 4 sets the selected voice's level (on a muted voice the first turn unmutes it). **GLO > DRUMS** has the drum level, reverb and delay.
 
 ---
 
@@ -768,27 +812,47 @@ The FM-1 is also a class-compliant USB audio input (no driver). **MENU > AUDIO >
 
 ---
 
-## 17. The engines and the sound list
+## 17. The oscillator Types
 
-| Engine | Voice | What it is |
-| --- | --- | --- |
-| **ACID** | 1 | a TB-303 style voice (from X0X), one note at a time. A step's accent and slide are the 303's |
-| **JUNO** | 1 and 2 | a Juno-106 style synth (from FM-106): DCO, filter, chorus, up to 6 notes |
-| **ELEMENTS** | 2 | physical modelling (after Mutable Instruments Elements) |
-| **PLAITS** | 3 | 24 synthesis models (after Mutable Instruments Plaits) |
+Every synth voice can play every Type. A Type is an engine and, where the engine has several, one of its models. KNOB 1 on OSC picks it; KNOB 2 to 4 are its three macros (OSC 1/3); the 4th and 5th controls, where it has them, are on OSC 3/3.
 
-OSC page knobs:
+| # | Type | Engine | Macro 1 | Macro 2 | Macro 3 | OSC 3/3 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | ACID 303 | ACID | WAVE (saw, square) | ACCENT | SLIDE | |
+| 2 | JUNO DCO | JUNO | WAVE (SAW, PLS, S+P) | PW | SUB | NOISE, CHORUS |
+| 3 | VA | PLAITS | DETUNE | SQUARE | SAW | T.ENV, SUB |
+| 4 | VA VCF | PLAITS | F.RES | F.CUT | WAVE | T.ENV, SUB |
+| 5 | FOLD | PLAITS | SHAPE | FOLD | SKEW | T.ENV, SUB |
+| 6 | PHASE D | PLAITS | FREQ | AMOUNT | ASYM | T.ENV, SUB |
+| 7 | 2-OP FM | PLAITS | RATIO | INDEX | FDBK | T.ENV, SUB |
+| 8 to 10 | 6-OP A, B, C | PLAITS | PATCH | LEVEL | ENV | T.ENV, SUB |
+| 11 | WAVETABLE | PLAITS | BANK | ROW | COLUMN | T.ENV, SUB |
+| 12 | TERRAIN | PLAITS | TERRN | SIZE | OFFSET | T.ENV, SUB |
+| 13 | ADDITIVE | PLAITS | BUMPS | CENTRE | WIDTH | T.ENV, SUB |
+| 14 | CHORD | PLAITS | CHORD | INVRT | SOUND | T.ENV, SUB |
+| 15 | STR MACH | PLAITS | CHORD | COLOUR | WAVE | T.ENV, SUB |
+| 16 | SWARM | PLAITS | SPREAD | RATE | SIZE | T.ENV, SUB |
+| 17 | FORMANT | PLAITS | RATIO | FORMNT | WIDTH | T.ENV, SUB |
+| 18 | CHIPTUNE | PLAITS | CHORD | ARP | PW | T.ENV, SUB |
+| 19 | STRING | PLAITS | INHARM | BRIGHT | DECAY | T.ENV, SUB |
+| 20 | MODAL | PLAITS | MATERL | BRIGHT | DECAY | T.ENV, SUB |
+| 21 | BOUNCE | ELEMENTS | STRC | BRIT | DAMP | LAST, POS |
+| 22 | PLUCKED | ELEMENTS | STRC | BRIT | DAMP | GAP, POS |
+| 23 | BOWED | ELEMENTS | STRC | BRIT | DAMP | BOW, POS |
+| 24 | BLOWN | ELEMENTS | STRC | BRIT | DAMP | BLOW, POS |
+| 25 | OMINOUS | ELEMENTS | RATIO | FM | FDBK | SHAPE, SPACE |
+| 26 | NOISE | PLAITS | FILTER | CLOCK | RESO | T.ENV, SUB |
+| 27 | SPEECH | PLAITS | MODE | FORMNT | WORD | T.ENV, SUB |
+| 28 | PARTICLE | PLAITS | RANDOM | DENSTY | FILTER | T.ENV, SUB |
+| 29 | KICK | PLAITS | PUNCH | TONE | DECAY | T.ENV, SUB |
+| 30 | SNARE | PLAITS | NOISE | TONE | DECAY | T.ENV, SUB |
+| 31 | HI-HAT | PLAITS | METAL | TONE | DECAY | T.ENV, SUB |
 
-| Engine | OSC (KNOB 1 to 4) | OSC 2 |
-| --- | --- | --- |
-| ACID | WAVE, ACC, SLIDE, DRV | |
-| JUNO | WAVE, PW, SUB, NOISE | |
-| ELEMENTS | MODEL, STRC, BRIT, DAMP | POS, ACC, BOW, EXC |
-| PLAITS | MODEL, HARM, TIMB, MRPH | ENV, SUB |
+**T.ENV** is how far the amp ENV opens a PLAITS model's timbre; **SUB** adds a sine an octave down. ACID is one note at a time (the 303); JUNO up to 6 notes; the heavy PLAITS models (6-OP, STR MACH, STRING, SPEECH, PARTICLE) and BOWED, BLOWN and OMINOUS one note; the others several. Some ELEMENTS and OMINOUS controls the macros leave out (ACC, EXC or TONE; OMINOUS's DTUNE and BRIT) keep the values the sound loaded with.
 
-The factory sounds are listed by kind in PRESETS. Voice 1 offers the ACID and JUNO sounds, voice 2 the JUNO and ELEMENTS sounds, voice 3 the PLAITS sounds. Each list also has your user presets after the factory ones. A few examples: ACID has TB ACID, TB SQUARE, TB DIRTY, TB DEEP, TB SQUELCH and TB RUBBER. JUNO has JUNO BASS, SUB 106, JUNO KEYS, JUNO ORGAN, JUNO STRING, JUNO PAD, JUNO SWEEP, JUNO LEAD, JUNO HOOVER, JUNO BRASS and JUNO STAB. The INIT sounds are listed at the start of the ACID, JUNO and PLAITS sounds. ACID INIT (the power-on bass) is a plain saw with the filter part open, RES 45 %, ENVMOD 55 % and DECAY 55 %.
+**On the FM-1 itself** (the device build, not the simulator): tracks 1 and 2 have less memory for an oscillator than track 3, so 6-OP A, B, C, STRING, SPEECH and PARTICLE play only on track 3 there; on tracks 1 and 2 they are silent and the OSC page says NOT ON THIS TRACK.
 
-Engine details carried over from KARMA: ELEMENTS models are BOUNC, PICK, BOW, BLOW and OMIN (the Ominous Voice, one note at a time). PLAITS has FOLD, SWARM, WAVE, HARM, CHORD, VA, VCF, PHDIS, FM, 6OP A, B and C, GRAIN, TERRN, STRMC, CHIP, STRNG, MODAL, NOISE, SPECH, PARTC, KICK, SNARE and HIHAT. The heavy models (6OP, STRMC, STRNG, SPECH, PARTC) play one note at a time.
+The factory sounds are listed by kind in PRESETS, every engine's on every voice, then your user presets. A few examples: ACID has TB ACID, TB SQUARE, TB DIRTY, TB DEEP, TB SQUELCH and TB RUBBER. JUNO has JUNO BASS, SUB 106, JUNO KEYS, JUNO ORGAN, JUNO STRING, JUNO PAD, JUNO SWEEP, JUNO LEAD, JUNO HOOVER, JUNO BRASS and JUNO STAB. Each engine has an INIT sound, listed first. A sound made before the voice filter (a factory sound, an older project or user preset) has its own filter settings moved onto the FILT page: ACID INIT is a saw with CUTOFF and RESO at 35 %, its filter envelope OWN, decaying as the 303's did.
 
 Where they come from: ACID is Charles Vestal's TB-303 voice from X0X (after Open303). JUNO is PatttF's Juno-106 voice from FM-106. PLAITS and ELEMENTS are built on Émilie Gillet's open-source code for Mutable Instruments. The drum voices come from the LXR-02 firmware by Erica Synths. PHEBUS is not affiliated with or endorsed by any of them.
 
@@ -821,7 +885,7 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 | tap HOME | HOME screen (on the HOME screen: a screensaver) |
 | hold HOME 0.7 s | the menu |
 | tap ENV, LFO, FX, EDIT, ARP, SEL, GLO | open that button's pages (drum voice: EDIT, ENV, LFO the drum screen's SRC, AMP, LFO; SEL MUTE mode; ARP CHROMATIC mode) |
-| tap SEQ | the GRID (on a synth GRID: the SEQ pages; on the drum screen: TRIG, again back; on a SEQ page: back to the GRID) |
+| tap SEQ | the GRID (from a synth sound page: on that page's tab; on the GRID, synth or drum: TRIG, again back) |
 | tap SAVE | the SAVE pages (PRESETS, USER, TOOLS), on every screen |
 | hold a layer button, then tap HOME | lock that layer open |
 | ALGORITHM | choose the voice (not in the menu) |
@@ -845,9 +909,13 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 | Gesture | Does |
 | --- | --- |
 | tap EDIT | enter OSC; on the chain, the next stage |
-| tap ENV, FX, LFO | that stage's first page; again, its next page |
+| tap ENV, FX, LFO | that stage's first page; again, its next page (ENV: AMP, then FILT) |
 | SELECT | the previous or next page of the chain |
 | KNOB 1 to 4 | the four values shown |
+| OSC KNOB 1 | the oscillator Type (31), one a detent |
+| a FILT ENV knob, LINK AMP | the filter's envelope becomes OWN, from the amp ENV's values, then turns |
+| tap SEQ | the GRID, on this page's tab (the keys become steps) |
+| keys | play notes |
 
 ### GRID (synth voice)
 
@@ -855,19 +923,23 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 | --- | --- |
 | tap an empty step key | set it with the pen |
 | tap a set step key | clear it on release (unless a knob was turned) |
-| hold a step | select it and show its detail |
-| hold a step + KNOB 1 to 4 | NOTE, LEN, VEL, COND |
-| hold a step + SELECT right or left | FLAG, RATCH, NUDGE, or back |
-| hold a step + tap EDIT, ENV, LFO, FX | parameter locks |
-| hold a step + OCT- | clear locks (and nudge and condition on the GRID) |
+| hold a step | select it and show its notes and locks |
+| tap EDIT | the OSC tab; again the next stage (FILT ENV FX MOD, round); with a step held too |
+| tap ENV, FX, LFO | the ENV, FX, MOD tab; again its next page; with a step held too |
+| tap SEQ | the TRIG tab; again back to the tab before |
+| SELECT | every page of every tab, TRIG first, stopping at both ends |
+| KNOB 1 to 4, nothing held, a sound tab | edit the sound (as on the sound pages) |
+| KNOB 1 to 4, nothing held, TRIG 1/2 | NOTE (pen), STEP, HIT, VEL |
+| hold a step + KNOB 1 to 4, a sound tab | lock that value on the step (drawn inverted; the TYPE and VOICE, PRIOR cannot be locked) |
+| hold a step + KNOB 1 to 4, TRIG | NOTE, LEN, VEL, COND; TRIG 2/2 FLAG, RATCH, NUDGE |
+| hold a step + OCT-, a sound tab | the lock of the knob last turned off; again, every lock of the step |
+| hold a step + OCT-, TRIG | clear the step's locks, nudge and condition |
 | hold a step + OCT+ | next condition |
-| hold several steps | edit them together |
+| hold several steps | edit or lock them together |
 | black keys 1 to 4 | page 1 to 4 |
 | OCT- or OCT+ (nothing held) | previous or next page (OCT+ on the last page adds one) |
-| KNOB 1 to 4 (nothing held) | NOTE (pen), STEP, HIT, VEL |
-| PRESETS or SELECT (nothing held) | the sound, or the tempo |
+| PRESETS (nothing held) | the sound |
 | ALGORITHM | change voice and stay on the GRID (past DRUM: STUTTER) |
-| tap SEQ | the SEQ pages |
 | tap REC, stopped | STEP REC on or off |
 | tap REC, playing | record live (the keys play notes) |
 | STEP REC: keys | a note, or a chord (keys held together), on the red step; the cursor moves on |
@@ -1001,7 +1073,9 @@ These could not be confirmed from the code and are not described above as fact:
 - how it all behaves on a real FM-1;
 - that a flash save never stalls the screen or the audio;
 - the -60 dB silence threshold for the stop autosave against a real noise floor;
-- the backup page against the new firmware.
+- the backup page against the new firmware;
+- the voice filter's processor cost on the FM-1 (about half a JUNO voice per voice on the host), and three heavy Types at once;
+- how the filter sounds against a real 303 and SH-101.
 
 ---
 

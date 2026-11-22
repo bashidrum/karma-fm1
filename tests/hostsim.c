@@ -76,14 +76,17 @@ static void host_tracks_init(void)                /* as felucca_init: defaults, 
         song.g[i] = GP[i].def;
     song.g[G_BPM] = 120;                         /* (the tests' tempo; SLOOP powers on at 90) */
     for (k = 0; k < NTRK; k++) {
-        for (i = 0; i < P_E0; i++)
-            trk[k].p[i] = TP[i].def;
+        for (i = 0; i < P_COUNT; i++)            /* (PHEBUS wave 4: the voice filter's ids after P_E7 too) */
+            if (i < P_E0 || i > P_E7)
+                trk[k].p[i] = TP[i].def;
         steps_clear(&trk[k]);
         if (k < NPART) {                         /* (2026-10-19: ANALOG, the old engine 0, is gone: the tests' plain
                                                   * synth is JUNO, its defaults, on every synth track) */
             trk[k].eng_req = trk[k].engine = (uint8_t)ENGI_JUNO;
             for (i = 0; i < 8u; i++)
                 trk[k].p[P_E0 + i] = ENG_JUNO.edit[i].def;
+            voice_from_engine(trk[k].p, ENGI_JUNO, 0);   /* (PHEBUS wave 4: JUNO's filter values onto the voice filter, as
+                                                  * a preset loads: it sounds as before) */
         }
     }
     song.master_q12 = 4096;
@@ -116,6 +119,7 @@ static void host_preset_req(track_t *t, uint32_t e, uint32_t pi)
         t->p[P_AMODE + i] = (int16_t)(p->arp[i] ? p->arp[i] - 1 : TP[P_AMODE + i].def);
     }
     preset_extras(t->p, p);
+    voice_from_engine(t->p, e, 0);               /* (PHEBUS wave 4: its filter onto the voice filter, as apply_preset_to) */
 }
 static void host_preset(track_t *t, uint32_t e, uint32_t pi)
 {
@@ -819,7 +823,7 @@ int main(int argc, char **argv)
     if (getenv("CHORD"))
         nk = atoi(getenv("CHORD")) > 4 ? (uint32_t)atoi(getenv("CHORD")) : 4u;
     for (i = 0; i < G_COUNT; i++) song.g[i] = GP[i].def;
-    for (i = 0; i < P_E0; i++) inst.p[i] = TP[i].def;
+    for (i = 0; i < P_COUNT; i++) if (i < P_E0 || i > P_E7) inst.p[i] = TP[i].def;
     inst.eng_req = inst.engine = (uint8_t)eng;
     for (i = 0; i < 8; i++) inst.p[P_E0 + i] = ENGINES[eng]->edit[i].def;
     if (ENGINES[eng]->npresets) {

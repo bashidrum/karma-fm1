@@ -294,15 +294,19 @@ static int32_t op_wave(uint32_t ph, uint32_t kind, int32_t morph)
 
 /* the sound of the track, at the top of the graph canvas: its preset alone, in white (the engine is the header's tag,
  * review 18) */
-static void op_names(const track_t *t)
+static void op_names_str(const track_t *t, char *b)    /* (b holds 16) */
 {
-    char b[16];
     const engine_t *e = ENGINES[t->eng_req % NENGINES];
     b[0] = 0;
     if (user_of(t) < UP_SLOTS)
         up_name(user_of(t), b);
     else if (e->npresets)
-        str_cpy(b, e->presets[t->preset % e->npresets].name, sizeof b);
+        str_cpy(b, e->presets[t->preset % e->npresets].name, 16);
+}
+static void op_names(const track_t *t)
+{
+    char b[16];
+    op_names_str(t, b);
     cv_text(4, 2, &FONT_S, b, C_WHITE);
 }
 
@@ -759,8 +763,9 @@ static void op_arp_scene(const track_t *t)
  * helper (gp_to) draws every curve in the plot SP_L..SP_R x SP_T..SP_B (graph canvas rows) */
 #define SP_L 8
 #define SP_R 232
-#define SP_T 40
-#define SP_B 114
+static int32_t sp_t = 40, sp_b = 114;                   /* (wave 4: the plot's rows, set by who draws: ui_synth.c) */
+#define SP_T sp_t
+#define SP_B sp_b
 #define SP_M ((SP_T + SP_B) / 2)
 static int32_t gp_x, gp_y;
 static uint8_t gp_go;                                   /* 0: the next point starts a line */
@@ -856,12 +861,12 @@ static void gp_osc(const track_t *t, uint16_t c)
     }
     if (e == ENGI_ACID) {                               /* ACC and SLIDE, small, top left: a note, then one slid up
                                                          * to (as long as SLIDE), accented (taller, as ACC) */
-        int32_t sl = p[P_E7] * 24 / 127, ac = 3 + p[P_E5] * 6 / 127;
-        cv_rect(SP_L, 35, 24, 4, tint_col(1u, 1));
+        int32_t sl = p[P_E7] * 24 / 127, ac = 3 + p[P_E5] * 6 / 127, y = SP_T + 12;   /* (wave 4: inside the plot) */
+        cv_rect(SP_L, y, 24, 4, tint_col(1u, 1));
         gp_go = 0;
-        gp_to(SP_L + 24, 37, tint_col(2u, 0));
-        gp_to(SP_L + 26 + sl, 30, tint_col(2u, 0));
-        cv_rect(SP_L + 26 + sl, 30 - ac, 24, ac, c);
+        gp_to(SP_L + 24, y + 2, tint_col(2u, 0));
+        gp_to(SP_L + 26 + sl, y - 5, tint_col(2u, 0));
+        cv_rect(SP_L + 26 + sl, y - 5 - ac, 24, ac, c);
     }
 }
 /* the four knobs as bars under their columns (OSC 2, the DEST pages, VOICE 2), each from its value; a value that goes
@@ -872,11 +877,11 @@ static void gp_bars(const track_t *t, const page_t *pg)
     for (k = 0; k < 4u; k++) {
         const param_desc_t *d;
         int32_t x = 6 + (int32_t)k * 60, h, y, bi;
-        if (pg->id[k] >= P_COUNT || (d = track_desc(t, pg->id[k]))->max <= d->min)
+        if (pg_id(pg, k) >= P_COUNT || (d = track_desc(t, pg_id(pg, k)))->max <= d->min)
             continue;
         bi = d->min < 0;
         op_box(x, SP_T, 48, SP_B - SP_T + 1, tint_col(k, 2));
-        h = (t->p[pg->id[k]] - (bi ? 0 : d->min)) * (SP_B - SP_T) / (d->max - (bi ? 0 : d->min)) / (bi ? 2 : 1);
+        h = (t->p[pg_id(pg, k)] - (bi ? 0 : d->min)) * (SP_B - SP_T) / (d->max - (bi ? 0 : d->min)) / (bi ? 2 : 1);
         y = bi ? SP_M - (h > 0 ? h : 0) : SP_B - h;
         cv_rect(x + 3, y, 42, h < 0 ? -h : h > 0 ? h : 1, tint_col(k, 0));
         if (bi)
@@ -929,16 +934,17 @@ static void gp_insert(const track_t *t, uint16_t c)
         }
         return;
     }
-    for (x = 120 - 37; x <= 120 + 37; x += 1) {         /* a square, 75 px: in across, out up */
-        int32_t in = (x - 120) * 32767 / 37, out = in, g = 4096 + p[P_IA] * p[P_IA] * 3;
+    const int32_t R = (SP_B - SP_T) / 2;                /* (a square as tall as the plot: 37 px in the old one) */
+    for (x = 120 - R; x <= 120 + R; x += 1) {           /* a square: in across, out up */
+        int32_t in = (x - 120) * 32767 / R, out = in, g = 4096 + p[P_IA] * p[P_IA] * 3;
         if (ty == IT_CRUSH)
             out = ins_shape(IT_CRUSH, in, ins_bits_sh(p[P_IA]));
         else if (ty)
             out = (int32_t)((int64_t)ins_shape((uint32_t)ty, (in * (g >> 4)) >> 8, 0) * LEVEL_Q12[p[P_IC] & 127] >> 12);
         out = ins_mix(in, out, mix);
-        gp_to(x, SP_M - clamp(out, -32767, 32767) * 37 / 32768, c);
+        gp_to(x, SP_M - clamp(out, -32767, 32767) * R / 32768, c);
     }
-    cv_line(120 - 37, SP_M + 37, 120 + 37, SP_M - 37, OP_PUR_D);   /* the dry line */
+    cv_line(120 - R, SP_M + R, 120 + R, SP_M - R, OP_PUR_D);   /* the dry line */
     if (!ty)
         return;
     gp_go = 0;                                          /* right: TONE (CRUSH: LPF), the low-pass after it */
@@ -958,7 +964,7 @@ static void gp_voice(const track_t *t, uint16_t c)
 {
     int32_t vm = clamp(t->p[P_VOICE], 0, 3), pr = clamp(t->p[P_PRIO], 0, 2), gl = t->p[P_GLIDE] * 50 / 127, i;
     for (i = 0; i < 3; i++) {                           /* the notes, left: high, middle, low */
-        int32_t y = SP_T + 8 + i * 26, xs = SP_L + (i == 0 ? 20 : i == 1 ? 40 : 0);
+        int32_t y = SP_T + 6 + i * (SP_B - SP_T - 6) / 3, xs = SP_L + (i == 0 ? 20 : i == 1 ? 40 : 0);
         if (vm == V_POLY || i == (pr == 0 ? 1 : pr == 1 ? 2 : 0)) {
             cv_rect(xs, y - (vm == V_UNISON ? 4 : 0), SP_L + 104 - xs, vm == V_UNISON ? 14 : 6, c);
             if (vm == V_MONO || vm == V_LEGATO)         /* the note before: a gap (MONO), tied on (LEGATO) */
@@ -968,12 +974,12 @@ static void gp_voice(const track_t *t, uint16_t c)
         }
     }
     for (i = 0; i < 2; i++) {                           /* the slides, right: a step of 1, then of 3 */
-        int32_t y0 = SP_B - 4 - i * 40, len = t->p[P_GLMODE] ? gl : gl * (1 + i * 2) / 3;
+        int32_t hh = (SP_B - SP_T) / 4, y0 = SP_B - 4 - i * 2 * hh, len = t->p[P_GLMODE] ? gl : gl * (1 + i * 2) / 3;
         gp_go = 0;
         gp_to(128, y0, c);
         gp_to(152, y0, c);
-        gp_to(152 + len, y0 - 10 - i * 20, c);
-        gp_to(SP_R, y0 - 10 - i * 20, c);
+        gp_to(152 + len, y0 - hh / 2 - i * hh, c);
+        gp_to(SP_R, y0 - hh / 2 - i * hh, c);
     }
 }
 /* JUNO's CHORUS: OFF one line; I, II, I+II two, three, four, wider apart */
@@ -1240,3 +1246,5 @@ static void op_home_body(void)
         cv_blit(0, OP_BODY_Y + 60 + i * 18);
     }
 }
+
+#include "ui_synth.c"            /* (PHEBUS wave 4) the melodic voices' screens, the MiniFreak's way */

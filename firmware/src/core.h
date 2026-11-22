@@ -34,7 +34,8 @@ enum {
     F_INT, F_PCT, F_BIPCT, F_TIME, F_LFOHZ, F_CUTOFF, F_DB, F_SEMI, F_ENUM, F_BPM, F_NOTE,
     F_ONOFF, F_OCT, F_STEPS,
     F_SWING,                    /* 0..100: MPC swing, 50 % (straight) .. 75 % */
-    F_FILT                      /* -64..63: the DJ filter, LP <- OFF -> HP */
+    F_FILT,                     /* -64..63: the DJ filter, LP <- OFF -> HP */
+    F_SIGN                      /* (wave 4) a signed whole number shown with its + (OCT, TUNE) */
 };
 
 typedef struct {
@@ -71,8 +72,18 @@ enum {                          /* per-track parameters */
     P_ESYNC,                                   /* ENV SYNC: ATK DEC REL as note values of the tempo (voice.c) */
     P_LSYNC, P_LTRIG, P_LPOL,                  /* LFO 2: SYNC to the tempo, TRIG (NOTE / FREE / PATTERN), POL (BI / UNI) (voice.c) */
     P_E0, P_E1, P_E2, P_E3, P_E4, P_E5, P_E6, P_E7,
+    /* PHEBUS wave 4, the MiniFreak voices (Ben, 21 Nov 2026: "I'd really love the melodic parts of PHEBUS to feel as
+     * similar to the minifreak as possible"). Appended after P_E7, in the room format 8 kept (project.c PROJ_NP: 96 a
+     * track); P_COUNT_V8 is the count before them (user presets, MIDI LEARN and the old formats map by it). The voice
+     * filter on every voice, whatever the oscillator Type (voice.c, vfilt.c): CUTOFF RESO, KEY tracking, DRIVE; its TYPE is
+     * P_FTYPE (above: ANALOG's, gone), its ENV amount P_ED_FLT (above). Its own envelope ("ADSR + link", Ben 21 Nov):
+     * LINK 0 = it follows the amp ENV (as the MiniFreak's filter does), 1 = OWN, the ADSR after it. OCT and TUNE: the
+     * oscillator's, on OSC 2/3 */
+    P_FCUT, P_FRES, P_FKEY, P_FDRV, P_FLINK, P_FATK, P_FDEC, P_FSUS, P_FREL, P_OCT, P_TUNE,
     P_COUNT
 };
+#define P_COUNT_V8 (P_E7 + 1)            /* parameters before wave 4 (format 8 as wave 3 wrote it, user preset records v1) */
+enum { VF_LP24, VF_LP12, VF_BP, VF_HP, VF_NTYPE };   /* the voice filter's TYPE (P_FTYPE) */
 
 enum {                          /* global parameters */
     G_BPM, G_SWING, G_CLOCK, G_TUNE,
@@ -114,6 +125,11 @@ typedef struct {
     uint32_t ph[3];
     int32_t s[8];                /* engine state (filters, envs) */
     uint32_t age;
+    /* (PHEBUS wave 4) the voice filter (vfilt.c): its four ladder stages and the last block's coefficient; the filter's own
+     * envelope (P_FLINK OWN): its level (Q24) and stage, as env / stage above */
+    float vf[5];
+    int32_t fenv;
+    uint8_t fstage;
 } voice_t;
 
 typedef struct {                 /* per-voice control-rate modulation, computed in voice.c */

@@ -61,8 +61,11 @@ static void draw_head(void)
     else if (drums_page(pg))
         op_header("DRUM", TE_COL[TRK_DRUM], title, &ui.head_sig);
     else
-        op_header(!is_drum(TSEL) ? e->name : "DRUM",   /* a synth track: its engine, by name (review 18: never SYN1) */
-                  TE_COL[song.sel & 3u], title, &ui.head_sig);
+    {   /* (PHEBUS wave 4) a synth track: its number, as the sound pages and the GRID (the Type is the engine now) */
+        char tg[4] = {(char)('1' + (song.sel & 3u)), 0};
+        op_header(!is_drum(TSEL) ? tg : "DRUM", TE_COL[song.sel & 3u], title, &ui.head_sig);
+        (void)e;
+    }
 }
 /* (the bands cover the screen: header, graph, the pages strip, the knob band, the track bar) */
 static void draw_frame(void) {}
@@ -613,9 +616,11 @@ static void graph_big(void)
             y0 = 30;
         }
         cv_text(x0, y0 + 2, &FONT_S, ui.big_l[c], tint_col(c, 0));
-        x = cv_text(x0, y0 + 20, &FONT_L, ui.big_v[c], ui.big_c[c] == C_DIM ? C_DIM : ui.big_c[c] == C_WHITE && knob_tint[c] >= TINT_NEUTRAL ? C_WHITE : C_HI);   /* (a voice's: no white, review 16e) */
-        if (ui.big_u[c][0])
-            cv_text(x + 4, y0 + 34, &FONT_S, ui.big_u[c], C_GRAY);
+        (void)x;
+        if (opk.ratio[c] >= 0) {                        /* (wave 4: the value once, in the dials; here where it sits) */
+            cv_rect(x0, y0 + 30, 100, 3, TE_G2);
+            cv_rect(x0, y0 + 30, opk.ratio[c] * 100 / 1000, 3, ui.big_c[c] == C_DIM ? C_DIM : tint_col(c, 0));
+        }
     }
 }
 
@@ -638,18 +643,14 @@ static void graph_menu(const track_t *t)
         cv_rect(4, y + 6, 12, 18, tint_col(c, 0));      /* the knob: its number, in the page's tint */
         cv_text(6, y + 7, &FONT_S, n, C_BLACK);
         lw = cv_text(22, y + 7, &FONT_S, ui.big_l[c], tint_col(c, 0));
-        uw = ui.big_u[c][0] ? text_w(&FONT_S, ui.big_u[c]) + 4 : 0;
-        vw = text_w(&FONT_L, ui.big_v[c]);
-        if (168 - uw - vw >= lw + 8) {                  /* the value large, to the right */
-            x = cv_text(168 - uw - vw, y - 2, &FONT_L, ui.big_v[c], vc);
-            if (uw)
-                cv_text(x + 4, y + 12, &FONT_S, ui.big_u[c], C_GRAY);
-        } else {                                        /* (too long for it: small) */
-            x = cv_text(168 - uw - text_w(&FONT_S, ui.big_v[c]), y + 7, &FONT_S, ui.big_v[c], vc);
-            if (uw)
-                cv_text(x + 4, y + 7, &FONT_S, ui.big_u[c], C_GRAY);
+        (void)vc, (void)vw, (void)uw, (void)x;
+        if (opk.ratio[c] >= 0) {                        /* (PHEBUS wave 4: the value once, in the dials under; here where
+                                                         * the knob sits) */
+            int32_t gx = lw + 10 > 100 ? lw + 10 : 100, gw = 228 - gx;
+            cv_rect(gx, y + 13, gw, 3, TE_G2);
+            cv_rect(gx, y + 13, opk.ratio[c] * gw / 1000, 3, ui.big_c[c] == C_DIM ? C_DIM : tint_col(c, 0));
         }
-        cv_rect(22, y + 28, 146, 1, C_LINE);
+        cv_rect(22, y + 28, 206, 1, C_LINE);
     }
 }
 
@@ -789,7 +790,19 @@ static void draw_columns(void)                         /* the four knobs of the 
         knob_tint_all(drums_page(cur_page()) ? TRK_DRUM
                       : sc == SC_GLOBAL ? TINT_NEUTRAL : sc == SC_DRUM ? TRK_DRUM : song.sel);
     }
-    op_knobs(lab, val, unit, opk.ratio, opk.dim, song.sel * 7u + ui.page * 31u + ui.home, &ui.col_sig);
+    {   /* (PHEBUS wave 4) the dials every page has now: one tall face in fixed columns (the drum and synth pages'); a shared
+         * page's neutral, a voice's in its colour */
+        static char fv[4][12];
+        const char *fvp[4] = {fv[0], fv[1], fv[2], fv[3]};
+        uint32_t sc = cur_page()->scope, tr = drums_page(cur_page()) || sc == SC_DRUM ? TRK_DRUM : song.sel;
+        (void)unit;
+        for (c = 0; c < 4u; c++) {
+            str_cpy(fv[c], val[c], 12);
+            dval_fit(fv[c]);
+        }
+        op_dials(lab, fvp, opk.ratio, 0, opk.dim, sc == SC_GLOBAL && !drums_page(cur_page()) ? TE_G4 : TE_COL[tr & 3u],
+                 song.sel * 7u + ui.page * 31u + ui.home, &ui.col_sig);
+    }
     {                                                   /* the track bar under them: it follows the track selected here */
         static uint32_t bar;
         op_trackbar(&bar);
@@ -985,6 +998,12 @@ static void ui_draw(void)
         return;
     }
     cursor_fix();
+    if (on_chain() && !is_drum(TSEL)) {                 /* (wave 4) a synth's sound page, the MiniFreak's way (ui_synth.c) */
+        syn_page_draw();
+        ui_timers();
+        ui.force = 0;
+        return;
+    }
     if (ui.force)
         draw_frame();
     felucca_dbg.stage = 3;

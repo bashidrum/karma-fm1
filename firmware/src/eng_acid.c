@@ -1,6 +1,11 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* ACID: the TB-303 of X0X (acid303.c: Open303 with the Devilfish ranges, as X0X ported it) as a SLOOP engine for a
- * bass track. One note at a time, as the 303: a step's ACCENT (or a key played hard) is the 303's accent, a step's
+ * bass track. (PHEBUS wave 4: an oscillator Type on every track. Its filter is the voice filter when the FILT page's TYPE is
+ * LP24: CUTOFF and RESO are the 303's, DRIVE its drive, and the voice's modulation (the filter's envelope, LINK or OWN,
+ * the LFO, KEY: voice.c m->cutoff) moves its cutoff, in octaves on top of its own; its envelope's own depth (ENVMOD) is
+ * 0, its DECAY the filter envelope's. Any other TYPE: the 303's filter wide open, vfilt.c's ladder after it. The OSC
+ * page's macros are WAVE, ACC, SLIDE. E1 .. E4 and E6 (CUT RES ENV DEC DRV) are the presets' and old projects' values,
+ * mapped onto the voice filter when they load: ui.c voice_from_engine) One note at a time, as the 303: a step's ACCENT (or a key played hard) is the 303's accent, a step's
  * SLIDE its slide (the next note glides in without a new attack). The pitch comes from the track (its note,
  * transpose, glide, bend); the 303's own envelopes shape the sound, so the presets hold the track's SUS at 127.
  *   WAVE   saw or the 303's square
@@ -55,8 +60,11 @@ static void acid_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         return;
     if (n > CTL)
         n = CTL;
-    for (k = 0; k < 8u; k++) {                        /* the knobs, when they move */
-        int32_t p = clamp(t->p[P_E0 + k], 0, k ? 127 : 1);
+    int native = t->p[P_FTYPE] == VF_LP24;
+    for (k = 0; k < 8u; k++) {                        /* the knobs, when they move (wave 4: the filter's from the voice's) */
+        int32_t p = k == 1u ? (native ? t->p[P_FCUT] : 127) : k == 2u ? (native ? t->p[P_FRES] : 0) : k == 3u ? 0
+                  : k == 4u ? t->p[P_FDEC] : k == 6u ? (native ? t->p[P_FDRV] : 0) : t->p[P_E0 + k];
+        p = clamp(p, 0, k ? 127 : 1);
         if (p != A->pot[k]) {
             bass303_set(&A->b, POT[k], p);
             if (k == 6u)
@@ -73,6 +81,8 @@ static void acid_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     /* the track's pitch, finer than a note: transpose, glide, bend, LFO */
     f = A->b.tuning * fm_exp2f(((float)m->pitch16 * (1.0f / 16.0f) - 69.0f) * (1.0f / 12.0f));
     A->b.osc_freq = f;
+    A->b.ext = native ? (float)m->cutoff * (1.0f / (256.0f * 12.7f)) : 4.0f;   /* (wave 4: the voice's modulation; not LP24:
+                                                      * open, the voice filter does the work) */
     bass303_render(&A->b, y, (int)n);
     for (i = 0; i < n; i++) {
         float s = y[i] * 96000.0f;                    /* (the 303 peaks near 0.5 on an accent) */

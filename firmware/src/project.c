@@ -393,7 +393,7 @@ static int proj_from_v1(project_v7_t *q, const project_v1_t *v1, int n)
     proj_from_v3_ok(q, v3);
     for (i = 1; i < NTRK; i++) {               /* the other tracks: their defaults, no steps */
         uint32_t k;
-        for (k = 0; k < P_COUNT; k++)
+        for (k = 0; k < P_COUNT_V8; k++)
             pt_set(&q->t[i], k, k >= P_E0 ? ENGINES[trk_def_engine(i)]->edit[k - P_E0].def : TP[k].def);
         q->t[i].engine = (uint8_t)trk_def_engine(i);
         q->t[i].preset = 0xFF;                 /* 0xFF: its default preset (project_load) */
@@ -465,7 +465,8 @@ typedef struct {                               /* the drum track: 2,352 bytes */
 typedef struct {
     uint32_t magic, size;                      /* PROJ_MAGIC, sizeof (proj_core_t) */
     int16_t g[PROJ_NG8];                       /* by id */
-    uint8_t sel, drdly, rsv[2];                /* the selected track, G_DRDLY */
+    uint8_t sel, drdly, rsv[2];                /* the selected track, G_DRDLY; rsv[0] (PHEBUS wave 4): PROJ_VOICE_V once the
+                                                * synth tracks' parameters are wave 4's (0: before, mapped when it loads) */
     proj_perf_t perf;
     proj_syn_t t[NPART];
     proj_drm_t d;
@@ -483,6 +484,11 @@ _Static_assert(sizeof(proj_perf_t) == 160u && sizeof(proj_syn_t) == 1040u && siz
                "format 8 as stored");
 _Static_assert(sizeof(project_t) <= 2u * 4096u - 256u, "format 8 fits a big flash object (storage.c ST_BIG_MAX)");
 static uint32_t proj_sum(const proj_core_t *c) { return proj_hash(c, sizeof *c - 4u); }
+/* (PHEBUS wave 4) the core's voice layout: 1 = the voice filter, its envelope, OCT and TUNE (P_FCUT ..) are in it and the
+ * engines' own filter values are not read. A core of wave 2 or 3 (0, its room for them zero) is mapped when it is applied
+ * (ui.c voice_from_engine), as is every older format (they come through format 7 with 0). Format 8 still: a wave 3
+ * firmware reads it, without the new values */
+#define PROJ_VOICE_V 1u
 static int proj_ok(const proj_core_t *c) { return c->magic == PROJ_MAGIC && c->size == sizeof *c && c->sum == proj_sum(c); }
 
 /* a pattern's extras and locks checked: a free entry at the free mark, one for no trig (or out of range) freed, the
@@ -561,7 +567,7 @@ static void proj_from_v7(proj_core_t *c, const project_v7_t *v)
     c->drdly = v->drdly;
     for (i = 0; i < NPART; i++) {                       /* the synth tracks: as they were */
         proj_syn_t *d = &c->t[i];
-        for (k = 0; k < P_COUNT; k++)
+        for (k = 0; k < P_COUNT_V8; k++)                /* (wave 4's are not in format 7: mapped when applied, rsv[0] 0) */
             d->p[k] = pt_get(&v->t[i], k);
         d->engine = v->t[i].engine;
         d->preset = v->t[i].preset;
@@ -573,7 +579,7 @@ static void proj_from_v7(proj_core_t *c, const project_v7_t *v)
      * defaults); its locks (they were on its own parameters, its bus, and stay so: no sound's parameter is one of them) */
     for (k = 0; k < P_COUNT; k++)
         c->d.p[k] = (k > P_E0 && k <= P_E7) ? 0 : (k >= P_LRATE && k <= P_LD_AMP) || (k >= P_GLMODE && k <= P_DETUNE) ||
-                                                      (k >= P_ATK && k <= P_REL) ? TP[k].def : pt_get(od, k);
+                                                      (k >= P_ATK && k <= P_REL) || k >= P_COUNT_V8 ? TP[k].def : pt_get(od, k);
     memcpy(c->d.lock, od->lock, sizeof c->d.lock);
     for (l = 0; l < DRUM_LANES; l++) {                  /* each sound's sends: 7 bits a sound in P_E1 .. P_E7 (rsv[0] 0x40) */
         uint32_t b, w = 0;
@@ -653,6 +659,7 @@ static void proj_capture_core(proj_core_t *c)  /* what is playing now, as a proj
         c->g[i] = song.g[i];
     c->sel = song.sel;
     c->drdly = (uint8_t)song.g[G_DRDLY];
+    c->rsv[0] = PROJ_VOICE_V;                           /* (wave 4: the voice filter's values are in it) */
     memcpy(c->perf.on, stl.on, sizeof c->perf.on);
     memcpy(c->perf.lc, stl.lc, sizeof c->perf.lc);
     memcpy(c->perf.lx, stl.lx, sizeof c->perf.lx);
@@ -736,8 +743,10 @@ static void proj_apply(const proj_core_t *p, int all)
         for (i = 0; i < P_COUNT; i++) {                 /* every value back inside its range */
             const param_desc_t *d = drum && i == P_E0 ? &DRUM_KIT_DESC :   /* the drum kit */
                                     i >= P_E0 && i <= P_E7 ? &ENGINES[e]->edit[i - P_E0] : &TP[i];
-            t->p[i] = (int16_t)clamp(pp[i], d->min, d->max);
+            t->p[i] = (int16_t)clamp(i >= P_COUNT_V8 && drum ? TP[i].def : pp[i], d->min, d->max);
         }
+        if (!drum && p->rsv[0] < PROJ_VOICE_V)          /* (wave 4) saved before the voice filter: mapped onto it */
+            voice_from_engine(t->p, e, 1);
         if (drum) {
             t->preset = 0;
             memset(t->step, 0, sizeof t->step);         /* (its pattern: dpat; no step, nudge or condition of its own) */
@@ -782,6 +791,8 @@ static void proj_apply(const proj_core_t *p, int all)
                 t->lock[i].val = 0;
             }
         }
+        if (!drum && p->rsv[0] < PROJ_VOICE_V)          /* (wave 4) its filter's locks onto the voice filter's */
+            voice_locks_from_engine(t, e);
         if (!drum && !eng_allowed(t, t->eng_req)) {     /* an engine gone, or not this track's: its own, as it
                                                          * starts (not the drum track: it has none, and this put its
                                                          * kit back to HEX BOOM at every load, power-on and section

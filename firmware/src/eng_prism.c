@@ -149,7 +149,8 @@ static void prism_note_on(track_t *t, voice_t *v)
 static void prism_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
-    int32_t timb = (p[P_E2] << 8) + m->cutoff + mulq15(m->envq15, p[P_E4] * 256);
+    int32_t timb = (p[P_E2] << 8) + mulq15(m->envq15, p[P_E4] * 256);   /* (wave 4: ENV > FLT and LFO > FLT move the voice
+                                                      * filter now, not TIMB; T.ENV, E4, still opens it with the ENV) */
     int32_t mrph = (p[P_E3] << 8) + m->shape - (64 << 8), sub = p[P_E5] * 200;
     uint32_t ph2 = v->ph[2], done = 0, model = prism_model(t);
     prism_slot_t *sl = model == PRM_FOLD ? 0 : prism_slot(t, v);

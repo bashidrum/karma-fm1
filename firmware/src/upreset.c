@@ -11,19 +11,26 @@
  * are P_E0..P_E7, the first np - 8 are P_LEVEL.. in order, missing ones take
  * their defaults. So common parameters may only be added just before P_E0
  * (else bump UP_VER).
+ * (PHEBUS wave 4) record 2: the same 192 bytes; np is P_COUNT_V8 (the parameters before wave 4, mapped as above) and
+ * the 32 bytes of the 16-step pattern (never loaded: a sound never changes the sequence) hold the parameters from
+ * P_COUNT_V8 on, a signed byte each (px). A record 1 still loads, its filter values mapped onto the voice filter
+ * (ui.c voice_from_engine); a record 2 is shown empty by a firmware before wave 4 (it reads record 1 only).
  *
  * With -DUP_HOST (host test) only the part above #ifndef UP_HOST is built;
  * it needs nothing but core.h. */
 #define UP_PER_BANK 16u
 #define UP_PMAX 72u                              /* room for P_COUNT to grow */
 #define UP_USED 0xA5u
-#define UP_VER 1u
+#define UP_VER 2u                                /* (wave 4; record 1 still read) */
 #define UP_BANK_MAGIC 0x31425055u                /* "UPB1" */
 typedef struct {
     uint8_t used, ver, engine, np;               /* UP_USED, UP_VER, engine, P_COUNT when stored */
     char name[12];                               /* ASCII 32..126, 0-padded (no 0 when 12 long) */
     int16_t p[UP_PMAX];
-    uint8_t note[16], flags[16];                 /* note 0 = rest; flags 1 accent, 2 slide, 4 tie */
+    union {
+        struct { uint8_t note[16], flags[16]; };   /* record 1: note 0 = rest; flags 1 accent, 2 slide, 4 tie */
+        int8_t px[32];                           /* record 2: p[P_COUNT_V8 ..], a byte each */
+    };
 } up_rec_t;
 typedef struct {
     uint32_t magic;
@@ -31,15 +38,15 @@ typedef struct {
     up_rec_t r[UP_PER_BANK];
 } up_bank_t;
 _Static_assert(sizeof(up_rec_t) == 192, "user preset record layout");
-_Static_assert(P_COUNT <= UP_PMAX && P_COUNT < 128, "user preset record: P_COUNT");
+_Static_assert(P_COUNT_V8 <= UP_PMAX && P_COUNT - P_COUNT_V8 <= 32 && P_COUNT < 128, "user preset record: P_COUNT");
 static up_bank_t up_bank[UP_SLOTS / UP_PER_BANK];
 
 static up_rec_t *up_rec(uint32_t k) { return &up_bank[k / UP_PER_BANK].r[k % UP_PER_BANK]; }
 
 static int up_valid(const up_rec_t *r)
 {
-    return r->used == UP_USED && r->ver == UP_VER && r->engine < NENGINES && r->np >= 8u && r->np <= UP_PMAX &&
-           r->name[0];
+    return r->used == UP_USED && (r->ver == UP_VER || r->ver == 1u) && r->engine < NENGINES && r->np >= 8u &&
+           r->np <= UP_PMAX && r->name[0];
 }
 
 static int up_used(uint32_t k) { return k < UP_SLOTS && up_valid(up_rec(k)); }
@@ -60,6 +67,8 @@ static void up_params(const up_rec_t *r, int16_t *out, const int16_t *def)
         out[i] = i < nc ? r->p[i] : def[i];
     for (i = 0; i < 8u; i++)
         out[P_E0 + i] = r->p[nc + i];
+    for (i = P_COUNT_V8; i < P_COUNT; i++)              /* (record 2: wave 4's; record 1: mapped by up_values) */
+        out[i] = r->ver >= 2u ? r->px[i - P_COUNT_V8] : def[i];
 }
 
 static void up_name(uint32_t k, char *b)       /* upper case, 0-terminated: b holds 13 */
@@ -114,6 +123,8 @@ static void up_values(const up_rec_t *r, int16_t *v)   /* mapped and clamped for
     for (i = 0; i < P_COUNT; i++)
         def[i] = up_desc(r->engine, i)->def;
     up_params(r, v, def);
+    if (r->ver < 2u)                                   /* (wave 4) a record 1: its filter onto the voice filter */
+        voice_from_engine(v, r->engine, 1);
     for (i = 0; i < P_COUNT; i++)
         v[i] = (int16_t)clamp(v[i], up_desc(r->engine, i)->min, up_desc(r->engine, i)->max);
 }
@@ -172,7 +183,7 @@ static int up_store(uint32_t k, const char *name)
     r.used = UP_USED;
     r.ver = UP_VER;
     r.engine = TSEL->eng_req;
-    r.np = P_COUNT;
+    r.np = P_COUNT_V8;
     if (name && name[0]) {
         for (i = 0; i < 12u && name[i]; i++)
             r.name[i] = name[i];
@@ -185,9 +196,10 @@ static int up_store(uint32_t k, const char *name)
         for (i = 0; i < 12u && b[i]; i++)
             r.name[i] = b[i];
     }
-    for (i = 0; i < P_COUNT; i++)
+    for (i = 0; i < P_COUNT_V8; i++)
         r.p[i] = TSEL->p[i];
-    up_pat_from(&r, TSEL->step);
+    for (i = P_COUNT_V8; i < P_COUNT; i++)              /* (record 2: wave 4's parameters, a byte each) */
+        r.px[i - P_COUNT_V8] = (int8_t)clamp(TSEL->p[i], -128, 127);
     return up_put(k, &r);
 }
 

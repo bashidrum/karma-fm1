@@ -76,6 +76,8 @@ $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/stutter_test" tests/stutter_test.
 run "STUTTER lane (PHEBUS): lit steps repeat the span before at their length, the dry mix after, live punch first" "$OUT/stutter_test" "$OUT/stutter.wav"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fx251_test" tests/fx251_test.c $PLX -lm
 run "after Felucca 1.4 / 1.5: INSERT, filter TYPE, ENV SYNC, LFO 2, drum mutes, MIDI LEARN" "$OUT/fx251_test"
+$CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/voice4_test" tests/voice4_test.c $PLX -lm
+run "PHEBUS wave 4: every Type on every track, the voice filter moves (CUTOFF RESO ENV LFO TYPE) on every engine family, LINK / OWN, OCT / TUNE" "$OUT/voice4_test"
 
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o "$OUT/ui_pages_test" tests/ui_pages_test.c $PLX -lm
 run "live UI: pages, layers (punch, steps, erase, roll, key, mix), holds, drums, REC, fuzz" "$OUT/ui_pages_test" "$OUT"

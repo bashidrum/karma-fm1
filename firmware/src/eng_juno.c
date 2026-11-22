@@ -61,12 +61,22 @@ static void juno_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         return;
     V = &J->v[(uint32_t)(v - t->v) % NVOICE];
     pw = (clamp(p[P_E1], 0, 127) * 105 + ((m->shape - (64 << 8)) >> 8) * 105) / 127;   /* + LFO > SHP: the PWM */
-    cut = (p[P_E4] << 8) + m->cutoff + mulq15(m->envq15, p[P_E6] * 256) + (m->pitch16 - 60 * 16) * 6;
-    jn_vcf_coef(&k, (uint32_t)clamp(cut, 0, 32767) >> 1, (uint32_t)clamp(p[P_E5], 0, 127));
+    /* (PHEBUS wave 4) the voice filter: LP24 is the Juno's own ladder, CUTOFF RESO from the FILT page and the voice's
+     * modulation (its envelope, LINK or OWN, the LFO, KEY: voice.c m->cutoff); DRIVE a soft drive into it. Any other
+     * TYPE: the ladder open, vfilt.c's after it. (E4 .. E6, CUT RES ENV, the presets' and old projects' values: mapped
+     * onto the voice filter when they load, ui.c voice_from_engine) */
+    {
+        int native = p[P_FTYPE] == VF_LP24;
+        uint32_t drv = native ? (uint32_t)clamp(p[P_FDRV], 0, 127) : 0u;
+        cut = native ? (p[P_FCUT] << 8) + m->cutoff : 32767;
+        jn_vcf_coef(&k, (uint32_t)clamp(cut, 0, 32767) >> 1, native ? (uint32_t)clamp(p[P_FRES], 0, 127) : 0u);
     for (i = 0; i < n; i++) {
         int32_t x = jn_dco(&V->dco, m->inc, wave != 1u, wave != 0u, pw, sub, noi);
+        if (drv)
+            x = softclip(x * (int32_t)(16u + drv / 2u) / 16);
         x = jn_vcf_run(&V->vcf, &k, jn_dc_block(x, &V->dc));
         out[i] += voice_amp(x, m, i) << 1;           /* (a voice peaks near VOICE_FS, as ANALOG's) */
+    }
     }
 }
 
