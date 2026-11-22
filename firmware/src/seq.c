@@ -451,6 +451,15 @@ static struct {
     plock_t lock[NLOCK];
 } undo __attribute__((section(".noinit")));
 static void undo_init(void) { memset(&undo, 0, sizeof undo); }
+static void perf_undo_mark(void)         /* (wave 6, punch.c) a take records pads into the STUTTER lane: the lane before it */
+{
+    _Static_assert(sizeof stl <= sizeof undo.st, "the lane fits the undo's room");
+    memcpy(undo.st, &stl, sizeof stl);
+    undo.trk = NTRK;
+    undo.sess = 0;
+    undo.valid = 1;
+    undo.undone = 0;
+}
 static uint32_t undo_sess = 1;           /* UI sessions (seq.c: recording passes use the track's pass) */
 static void undo_mark(const track_t *t, uint32_t sess)
 {
@@ -1409,12 +1418,15 @@ static void key_down(uint32_t k)
     kb_trk[k] = (uint8_t)sel;
     kb_n[k] = 0;
     switch (layer) {
-    case LY_FX: {                                     /* FX held: the keys pick a punch-in effect (white and black) */
+    case LY_FX: {                                     /* FX held: PERFORM, the keys are pads (punch.c perf_press; OCT+
+                                                       * held: latch) */
         int32_t fx = punch_fx_of_key(k);
         kb_kind[k] = KS_FX;
-        if (fx >= 0 && fx < (int32_t)PUNCH_NFX) {
-            punch.req = (int8_t)fx;
-            punch.keybit = 1u << k;
+        kb_n[k] = 0;
+        if (fx >= 0 && fx < (int32_t)PF_NPAD) {
+            kb_nt[k][0] = (uint8_t)fx;
+            kb_n[k] = 1;
+            perf_press((uint32_t)fx, (fm1_in.buttons & dyn_bit[1]) != 0u);
         }
         return;
     }
@@ -1559,10 +1571,8 @@ static void key_up(uint32_t k)
     kb_kind[k] = KS_NONE;
     switch (kind) {
     case KS_FX:
-        if (punch.keybit == 1u << k) {                /* its key is up: the mix comes back */
-            punch.keybit = 0;
-            punch.req = -1;
-        }
+        if (kb_n[k])                                  /* its key is up: the mix comes back (a latched pad stays) */
+            perf_release(kb_nt[k][0]);
         return;
     case KS_UI:
         lk_push(kb_nt[k][0], k, 0);
@@ -1764,6 +1774,7 @@ static void seq_reset_tracks(uint32_t pos)
 #endif
     fill_last_bar = 0xFFFFFFFFu;                   /* (the same for an armed fill bar) */
     click_last = SEQ_NONE;
+    rep_l16 = 0;                                   /* (wave 6) a 1/1 or 1/2 replay held over: from this step on */
     song.tick = 0;
     song.playing = 1;
     slicer_start(pos);                             /* slicer.c: its step 0 with the sequencer's */
@@ -1798,6 +1809,7 @@ static void seq_stop(void)
 #endif
     if (song.playing)
         guard_stop();                               /* (3.1.5 test 11) how far the overload guard had trimmed */
+    perf_unlatch();                                 /* (wave 6) STOP ends PERFORM's latches (a pad still held plays on) */
     fill_held = 0;                                  /* STOP ends a fill, held, latched or armed */
     fill_lat = 0;
     fill_arm = 0;

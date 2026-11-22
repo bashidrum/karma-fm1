@@ -444,21 +444,21 @@ static uint32_t dly_units(uint32_t d)
 static uint32_t div_samples(uint32_t div) { return div_units(div) / (uint32_t)song.g[G_BPM]; }
 /* length of the delay's TIME (N_DLY order) in samples at the song tempo (rounded down) */
 static uint32_t dly_samples(uint32_t d) { return dly_units(d) / (uint32_t)song.g[G_BPM]; }
-/* SLOOP 2.6, after Felucca 1.5.1: REV THROW / ECHO THROW (FX held + OCT- / OCT+, ui_input.c): while held, every
- * track's send to the reverb / the delay goes full, gliding in and out (~12 ms); ECHO THROW also takes the delay's FDBK
- * up to 70 % if it is lower. The song's values never change, nothing is saved or recorded. thr_req: bit 0 the reverb,
- * bit 1 the echo (the UI); thr_rev, thr_dly: the glide now, Q15 (fx.c mix_block, a block at a time) */
-static volatile uint8_t thr_req;
-static int32_t thr_rev, thr_dly;
+/* SLOOP 2.6, after Felucca 1.5.1: REV THROW / ECHO THROW: while held, every track's send to the reverb / the delay
+ * goes up, gliding in and out (~12 ms); ECHO THROW also takes the delay's FDBK up to its floor if it is lower. The
+ * song's values never change. (PHEBUS wave 6: PERFORM's VERB and ECHO pads, punch.c perf.thr: how far, AMOUNT; the
+ * floor, ECHO's FDBK: thr_fb) thr_rev, thr_dly: the glide now, Q15 (fx.c mix_block, a block at a time) */
+static int32_t thr_rev, thr_dly, thr_fb;
 static inline int32_t send_thr(int32_t s, int32_t g) { return g ? s + (((127 * 258 - s) * g) >> 15) : s; }   /* s 0..32766 */
 #define TSEL (&trk[song.sel])    /* the selected track */
 #define TDRUM (&trk[TRK_DRUM])
 static int is_drum(const track_t *t) { return t == TDRUM; }
 /* silent: MUTE, or another track is soloed */
+static volatile uint8_t perf_kill;   /* (PHEBUS wave 6) PERFORM's KILLS: tracks faded out while the pad plays (punch.c) */
 static int trk_silent(const track_t *t)
 {
     uint32_t i = (uint32_t)(t - trk);
-    return t->p[P_MUTE] || (song.solo && !((song.solo >> i) & 1u));
+    return t->p[P_MUTE] || (song.solo && !((song.solo >> i) & 1u)) || ((perf_kill >> i) & 1u);
 }
 #define RING_PUBLISH() __asm__ volatile("" ::: "memory")   /* slot store before the index update */
 static volatile uint32_t fm1_ms;  /* milliseconds since boot (TIMER4-based, TIMER5 ISR in main.c) */

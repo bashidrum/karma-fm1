@@ -502,38 +502,36 @@ int main(int argc, char **argv)
     go_home(); frame();
     tap(B_FX); check(cur_fam() == FAM_FX, "FX tapped: the FX pages");
     go_home(); frame();
-    press(B_FX); frames(12); check(ui.layer == LY_FX && punch.hold, "FX held: the punch layer shows");
+    press(B_FX); frames(12); check(ui.layer == LY_FX, "FX held: PERFORM shows (wave 6)");
     check(keys_guide() == (1u << key_of_white(0) | 1u << key_of_white(4) | 1u << key_of_white(8) | 1u << key_of_white(12)),
           "FX held: keys 1, 5, 9, 13 lit dim (the rows of the grid)");
     ppm("layer-punch");
-    fm1_in.notes = 1u << 4; frame(); check(punch.req == 2, "FX + the 3rd white key: punch effect 3");
+    fm1_in.notes = 1u << 4; frame(); check(perf.held == 1u << PF_S4 && perf.last == PF_S4, "FX + the 3rd white key: the 1/4 pad, held");
     ppm("layer-punch-on");
-    fm1_in.notes = 0; frame(); check(punch.req == -1, "key up: the mix comes back");
-    fm1_in.notes = 1u << 17; frame(); check(punch.req == PX_FREEZE, "FX + the black key A#4: FREEZE (2.6: 11 black-key effects)");
-    check(keys_lit() == 1u << 17, "its key lights");
+    fm1_in.notes = 0; frame(); check(perf.held == 0u, "key up: the mix comes back");
+    fm1_in.notes = 1u << 20; frame(); check(perf.held == 1u << PF_S8T, "FX + the black key C#5: 1/8T");
+    check(keys_lit() == 1u << 20, "its key lights");
     ppm("layer-punch-black");
-    fm1_in.notes = 0; frame(); check(punch.req == -1, "black key up: the mix comes back");
-    encs[panel.enc[EN_K2]] = 10; frame(); check(song.g[G_DUST] > 0, "FX + KNOB 2: DUST");
-    encs[panel.enc[EN_K1]] = -10; frame(); check(song.g[G_FILT] < 0, "FX + KNOB 1: the filter (low-pass)");
-    encs[panel.enc[EN_K4]] = 12; frame(); check(TSEL->p[P_TFLT] > 0 && song.g[G_FILT] < 0, "FX + KNOB 4: the selected track's FILTER (high-pass)");
+    fm1_in.notes = 0; frame(); check(perf.held == 0u, "black key up: the mix comes back");
+    encs[panel.enc[EN_K2]] = 3; frame(); check(perf.par[PF_S8T][1] > 0, "FX + KNOB 2: the last pad's second knob (1/8T's DECAY)");
     ui.force = 1; frame(); ppm("layer-punch-trkflt");
-    TSEL->p[P_TFLT] = 0;
+    perf.par[PF_S8T][1] = 0;
     release(B_FX); check(cur_page()->scope == SC_TRK && ui.layer == LY_PLAY, "FX used then let go: no FX page");
-    song.g[G_DUST] = 0; song.g[G_FILT] = 0;
 
     /* ---- a layer locked open: held + HOME tapped; any other button (not PLAY, REC, OCT) lets it go */
     go_home(); frame();
     press(B_FX); frames(3); tap(B_HOME); release(B_FX); frames(3);
-    check(ly_lock == LY_FX && ui.layer == LY_FX && punch.hold, "FX held + HOME: locked open, FX let go");
+    check(ly_lock == LY_FX && ui.layer == LY_FX, "FX held + HOME: locked open, FX let go");
     check(cur_page()->scope == SC_TRK, "FX + HOME: no FX page, no HOME jump");
-    fm1_in.notes = 1u << 4; frame(); check(punch.req == 2, "locked FX + the 3rd white key: punch effect 3 (no hands on FX)");
-    fm1_in.notes = 0; frame(); check(punch.req == -1, "locked FX, key up: the mix comes back");
-    encs[panel.enc[EN_K2]] = 6; frame(); check(song.g[G_DUST] > 0, "locked FX + KNOB 2: DUST");
+    fm1_in.notes = 1u << 4; frame(); check(perf.held == 1u << PF_S4, "locked FX + the 3rd white key: the 1/4 pad (no hands on FX)");
+    fm1_in.notes = 0; frame(); check(perf.held == 0u, "locked FX, key up: the mix comes back");
+    encs[panel.enc[EN_K2]] = 6; frame(); check(perf.par[PF_S4][1] > 0, "locked FX + KNOB 2: the 1/4 pad's DECAY");
+    perf.par[PF_S4][1] = 0;
     ui.force = 1; frame(); ppm("layer-locked");
     { uint8_t was = song.playing; tap(B_PLAY); frames(2);
       check(ly_lock == LY_FX && song.playing != was, "locked: PLAY plays and keeps the lock"); tap(B_PLAY); frames(2); }
     tap(B_ENV); frames(2);
-    check(ly_lock == LY_PLAY && ui.layer == LY_PLAY && !punch.hold && cur_page()->scope == SC_TRK,
+    check(ly_lock == LY_PLAY && ui.layer == LY_PLAY && cur_page()->scope == SC_TRK,
           "locked, ENV pressed: unlocked, and only that (no ENV page)");
     press(B_FX); frames(3); tap(B_HOME); release(B_FX); frames(3);
     tap(B_HOME); frames(2);
@@ -1767,10 +1765,13 @@ int main(int argc, char **argv)
         check(trk[0].p[P_LRATE] > r0, "#39: then KNOB 1 is the page's again");
         trk[0].p[P_LRATE] = r0;
         press(B_FX); frames(10);
+        perf.par[perf.last][1] = 0;
         edges_btn |= BT(B_PLAY); fm1_in.buttons |= BT(B_PLAY);
         encs[panel.enc[EN_K2]] = 2; frame();
         fm1_in.buttons &= ~BT(B_PLAY);
-        check(trk[0].p[P_LWAVE] == w0 && song.g[G_DUST] > 0 && transport_req, "#102: PLAY pressed in the FX layer plays, KNOB 2 is DUST only");
+        check(trk[0].p[P_LWAVE] == w0 && perf.par[perf.last][1] > 0 && transport_req,
+              "#102: PLAY pressed in PERFORM plays, KNOB 2 is the last pad's only");
+        perf.par[perf.last][1] = 0;
         transport_req = 0; song.g[G_DUST] = 0;
         release(B_FX); frames(20);
         song.g[G_BPM] = 120;
@@ -2106,15 +2107,12 @@ int main(int argc, char **argv)
             set_engine_of(&trk[1], e0); apply_preset_to(&trk[1], p0); trk[1].engine = trk[1].eng_req;
             frames(4);
             press(B_FX); frames(10);
-            fm1_in.buttons |= BT(B_OCTDN); edges_btn |= BT(B_OCTDN); frame(); frame();
-            k = thr_req;
+            fm1_in.notes = 1u << key_of_white(14); frame();   /* (wave 6: the ECHO pad is the echo throw) */
             ui.force = 1; frame(); ppm("layer-fx-throw");
-            fm1_in.buttons &= ~BT(B_OCTDN); frame();
-            fm1_in.buttons |= BT(B_OCTUP); edges_btn |= BT(B_OCTUP); frame(); frame();
-            check(k == 1u && thr_req == 2u && !strcmp(sub_line(), "echo throw"), "FX + OCT-: REV THROW while held, FX + OCT+: ECHO THROW");
-            fm1_in.buttons &= ~BT(B_OCTUP); frame();
+            check(perf.thr[1] == 32767 && thr_dly > 0, "PERFORM: the ECHO pad throws into the delay while held");
+            fm1_in.notes = 0; frame();
             release(B_FX); frames(4);
-            check(thr_req == 0u && song.octave == 0, "  let go: no THROW, the octave untouched");
+            check(perf.thr[1] == 0 && song.octave == 0, "  let go: no THROW, the octave untouched");
         }
         steps_clear(&trk[0]); go_home(); frames(16);
         {   /* the GRID: two steps held + KNOB 3 (VEL): both one up (the turn accelerated once, not once a step; held SEQ

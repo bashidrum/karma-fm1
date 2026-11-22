@@ -446,7 +446,7 @@ _Static_assert(P_COUNT <= PROJ_NP && PROJ_NG <= PROJ_NG8, "format 8 keeps every 
 typedef struct {                               /* the STUTTER lane (punch.c stl), and wave 6's room: 160 bytes */
     uint8_t on[8], lc[16], lx[8];              /* as punch.c: lit steps, length codes (2 bits a step), the codes' third bit */
     uint8_t len, act, rsv[2];                  /* steps (1..64), ON */
-    uint8_t fx[124];                           /* reserved, zero: wave 6, the performance lane's recorded effects */
+    uint8_t fx[124];                           /* wave 6: the pads played into the lane (punch.c pev_t: 31 of 4 bytes) */
 } proj_perf_t;
 typedef struct {                               /* a synth track: 1,040 bytes */
     int16_t p[PROJ_NP];                        /* by id (P_COUNT ..: reserved, zero) */
@@ -702,6 +702,8 @@ static void proj_capture_core(proj_core_t *c)  /* what is playing now, as a proj
     memcpy(c->perf.lx, stl.lx, sizeof c->perf.lx);
     c->perf.len = stl.len;
     c->perf.act = stl.act;
+    _Static_assert(sizeof c->perf.fx == sizeof stl.ev, "wave 6: the recorded pads in format 8's room");
+    memcpy(c->perf.fx, stl.ev, sizeof c->perf.fx);     /* (wave 6) the pads recorded into the lane */
     for (i = 0; i < NPART; i++) {
         proj_syn_t *d = &c->t[i];
         for (k = 0; k < P_COUNT; k++)
@@ -769,6 +771,11 @@ static void proj_apply(const proj_core_t *p, int all)
     memcpy(stl.lx, p->perf.lx, sizeof stl.lx);
     stl.len = (uint8_t)(p->perf.len >= 1u && p->perf.len <= 64u ? p->perf.len : 16u);
     stl.act = (uint8_t)(p->perf.act != 0u);
+    memcpy(stl.ev, p->perf.fx, sizeof stl.ev);          /* (wave 6) the pads recorded (zero before: none) */
+    for (k = 0; k < PEV_N; k++)                         /* (a span that cannot be: dropped) */
+        if ((stl.ev[k].fx & 31u) > PF_NPAD || stl.ev[k].st >= NSTEP || !stl.ev[k].len || stl.ev[k].len > NSTEP)
+            stl.ev[k].fx = 0;
+    perf_rec_drop();
     for (k = 0; k < NTRK; k++) {
         track_t *t = &trk[k];
         int drum = k == TRK_DRUM;

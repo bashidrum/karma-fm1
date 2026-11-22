@@ -84,8 +84,6 @@ static struct {
     uint16_t line_i[4], ap_i[2];
     int32_t line_lp[4];
 } fx;
-static volatile uint8_t rev_frz;         /* punch-in FREEZE (punch.c): the reverb holds, no loss, no damping */
-static int32_t rev_l[CTL], rev_r[CTL];   /* the reverb's own return of this block (FREEZE plays it) */
 
 /* (the voice's DIST was here: since PHEBUS wave 5 it is an FX slot's type, XT_DIST, below) */
 
@@ -239,12 +237,10 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
 {
     uint32_t i, k, dl = delay_samples();
     int32_t fb = song.g[G_DFDBK] * 230, col = 2000 + song.g[G_DCOLOR] * 240;
-    if (thr_dly && fb < 89 * 230)                       /* ECHO THROW: FDBK at least 70 %, gliding with it (2.6) */
-        fb += ((89 * 230 - fb) * thr_dly) >> 15;
+    if (thr_dly && fb < thr_fb)                         /* ECHO THROW: FDBK at least ECHO's (70 % to start), gliding with it */
+        fb += ((thr_fb - fb) * thr_dly) >> 15;
     int32_t dmix = song.g[G_DMIX] * 258;
     int32_t g = 17000 + song.g[G_RSIZE] * 104, lpk = 32767 - song.g[G_RDAMP] * 200;   /* loop gain (RT60 ~0.4..4 s), damping */
-    int32_t frnd = rev_frz ? 128 : 0;                  /* FREEZE: what is in the lines stays there (below: no
-                                                         * loss, rounded to nearest; 0: as always, bit for bit) */
     int32_t cdepth = song.g[G_CDEPTH] * 6;
     int32_t ca0, ca1, cb0, cb1, ma, mb, dca, dcb;
     const uint32_t L0 = REV_LINE[0] + REV_MOD + 2u, B1 = L0, B2 = B1 + REV_LINE[1], B3 = B2 + REV_LINE[2];
@@ -301,30 +297,19 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
             if (ri >= L0)                                   /* (the oldest sample is at line_i: reading */
                 ri -= L0;                                   /* past it shortens line 0 by 0..2 REV_MOD) */
             rj = ri + 1u >= L0 ? 0u : ri + 1u;
-            o0 = c[ri] + (((c[rj] - c[ri]) * (r & 255) + frnd) >> 8);
+            o0 = c[ri] + (((c[rj] - c[ri]) * (r & 255)) >> 8);
             o1 = c[B1 + fx.line_i[1]];
             o2 = c[B2 + fx.line_i[2]];
             o3 = c[B3 + fx.line_i[3]];
             s0 = o0 + o1, d0 = o0 - o1, s1 = o2 + o3, d1 = o2 - o3;   /* Hadamard / 2: each feeds all four */
-            if (!frnd) {
-                fx.line_lp[0] += mulq15(((s0 + s1) >> 1) - fx.line_lp[0], lpk);
-                fx.line_lp[1] += mulq15(((d0 + d1) >> 1) - fx.line_lp[1], lpk);
-                fx.line_lp[2] += mulq15(((s0 - s1) >> 1) - fx.line_lp[2], lpk);
-                fx.line_lp[3] += mulq15(((d0 - d1) >> 1) - fx.line_lp[3], lpk);
-                c[fx.line_i[0]] = (int16_t)clamp(mulq15(fx.line_lp[0], g) + a, -32768, 32767);
-                c[B1 + fx.line_i[1]] = (int16_t)clamp(mulq15(fx.line_lp[1], g) - a, -32768, 32767);
-                c[B2 + fx.line_i[2]] = (int16_t)clamp(mulq15(fx.line_lp[2], g) + a, -32768, 32767);
-                c[B3 + fx.line_i[3]] = (int16_t)clamp(mulq15(fx.line_lp[3], g) - a, -32768, 32767);
-            } else {                                    /* FREEZE: a loop gain of exactly 1, so no rounding that
-                                                         * leans one way (a DC that would grow while held): the
-                                                         * halves towards zero, no damping or gain multiply */
-                fx.line_lp[0] = HALF0(s0 + s1), fx.line_lp[1] = HALF0(d0 + d1);
-                fx.line_lp[2] = HALF0(s0 - s1), fx.line_lp[3] = HALF0(d0 - d1);
-                c[fx.line_i[0]] = (int16_t)clamp(fx.line_lp[0] + a, -32768, 32767);
-                c[B1 + fx.line_i[1]] = (int16_t)clamp(fx.line_lp[1] - a, -32768, 32767);
-                c[B2 + fx.line_i[2]] = (int16_t)clamp(fx.line_lp[2] + a, -32768, 32767);
-                c[B3 + fx.line_i[3]] = (int16_t)clamp(fx.line_lp[3] - a, -32768, 32767);
-            }
+            fx.line_lp[0] += mulq15(((s0 + s1) >> 1) - fx.line_lp[0], lpk);
+            fx.line_lp[1] += mulq15(((d0 + d1) >> 1) - fx.line_lp[1], lpk);
+            fx.line_lp[2] += mulq15(((s0 - s1) >> 1) - fx.line_lp[2], lpk);
+            fx.line_lp[3] += mulq15(((d0 - d1) >> 1) - fx.line_lp[3], lpk);
+            c[fx.line_i[0]] = (int16_t)clamp(mulq15(fx.line_lp[0], g) + a, -32768, 32767);
+            c[B1 + fx.line_i[1]] = (int16_t)clamp(mulq15(fx.line_lp[1], g) - a, -32768, 32767);
+            c[B2 + fx.line_i[2]] = (int16_t)clamp(mulq15(fx.line_lp[2], g) + a, -32768, 32767);
+            c[B3 + fx.line_i[3]] = (int16_t)clamp(mulq15(fx.line_lp[3], g) - a, -32768, 32767);
             if (++fx.line_i[0] >= L0) fx.line_i[0] = 0;
             if (++fx.line_i[1] >= REV_LINE[1]) fx.line_i[1] = 0;
             if (++fx.line_i[2] >= REV_LINE[2]) fx.line_i[2] = 0;
@@ -332,8 +317,6 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
         }
         wet_l[i] = yl + o0 + o2;
         wet_r[i] = yr + o1 - o3;
-        rev_l[i] = o0 + o2;
-        rev_r[i] = o1 - o3;
     }
 }
 
@@ -1366,10 +1349,12 @@ static void mix_block(int32_t *out, uint32_t n)
     int fx_wait = 0;                                    /* (test 8) CPU0 ran them in its wait */
     for (i = 0; i < n; i++)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
-    {   /* REV / ECHO THROW (2.6): the sends glide to full and back over ~12 ms (17 blocks) */
-        uint32_t q = thr_req;
-        thr_rev = (q & 1u) ? (thr_rev + 1928 > 32767 ? 32767 : thr_rev + 1928) : (thr_rev > 1928 ? thr_rev - 1928 : 0);
-        thr_dly = (q & 2u) ? (thr_dly + 1928 > 32767 ? 32767 : thr_dly + 1928) : (thr_dly > 1928 ? thr_dly - 1928 : 0);
+    {   /* REV / ECHO THROW (2.6; wave 6: PERFORM's VERB and ECHO pads, to their AMOUNT): the sends glide there and back
+         * over ~12 ms (17 blocks); the pads as the block before left them (punch.c perf_block runs in events_block) */
+        int32_t tr = perf.thr[0], td = perf.thr[1];
+        thr_rev = thr_rev < tr ? (thr_rev + 1928 > tr ? tr : thr_rev + 1928) : (thr_rev - 1928 < tr ? tr : thr_rev - 1928);
+        thr_dly = thr_dly < td ? (thr_dly + 1928 > td ? td : thr_dly + 1928) : (thr_dly - 1928 < td ? td : thr_dly - 1928);
+        thr_fb = perf.fb;
     }
 #if KARMA_PCOST
     {
@@ -1503,7 +1488,6 @@ static void mix_block(int32_t *out, uint32_t n)
     if (fx_stems)                                       /* the FX return: what is added from here (not the metronome) */
         for (i = 0; i < n; i++)
             stem_fx[0][i] = mix_l[i], stem_fx[1][i] = mix_r[i];
-    punch_freeze_feed(send_r, mix_l, mix_r, n);         /* punch-in FREEZE: the dry mix into the held reverb */
 #if !KARMA_DUAL_CORE || (!KARMA_CPU1_FX && !KARMA_FX_WAIT)
     fxp_n = n;                                          /* (3.1.5) the effects on this block's sends, here */
 #endif

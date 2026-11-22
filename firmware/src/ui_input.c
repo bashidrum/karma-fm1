@@ -105,8 +105,8 @@ static uint32_t keys_lit(void)
     uint32_t m = 0, i, blink = (fm1_ms / 125u) & 1u;
     track_t *t = TSEL;
     switch (ui.layer) {
-    case LY_FX:
-        return punch.req >= 0 ? 1u << punch_key_of_fx((uint32_t)punch.req) : 0u;
+    case LY_FX:                                    /* (wave 6) PERFORM: the pads playing; latched ones blink */
+        return perf_keys_lit(blink);
     case LY_STEP:                                  /* (PHEBUS) SEQ held: its keys do nothing, none lit */
         return 0u;
     case LY_SCALE:                                 /* the keys in the scale; the root blinks */
@@ -198,9 +198,10 @@ static void ui_leds(void)
                                       (ci_on && ci_u % BEAT_U < BEAT_U / 4u));   /* (the count-in's beats) */
     led_put(nl, panel.btn[B_REC], song.rec != 0u || (rec_wait && ((fm1_ms / 125u) & 1u)) ||
                                      (ui.hold_kind == 1u && ((fm1_ms / 60u) & 1u)));   /* blinks: armed; fast: clearing */
-    if (ui.layer == LY_FX) {                       /* FX: OCT- / OCT+ lit while REV / ECHO THROW (2.6) */
-        led_put(nl, panel.btn[B_OCTDN], (thr_req & 1u) != 0u);
-        led_put(nl, panel.btn[B_OCTUP], (thr_req & 2u) != 0u);
+    if (ui.layer == LY_FX) {                       /* PERFORM: OCT- lit while something is latched (all off), OCT+ while
+                                                    * a pad is held (latch it) or held itself */
+        led_put(nl, panel.btn[B_OCTDN], perf.lat != 0u);
+        led_put(nl, panel.btn[B_OCTUP], perf.held != 0u || (fm1_in.buttons & dyn_bit[1]) != 0u);
     } else if (is_drum(TSEL)) {                    /* the drum track: OCT- / OCT+ lit while ghost / hard */
         led_put(nl, panel.btn[B_OCTDN], (fm1_in.buttons & dyn_bit[0]) != 0u);
         led_put(nl, panel.btn[B_OCTUP], (fm1_in.buttons & dyn_bit[1]) != 0u);
@@ -694,9 +695,11 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
             used[l] = 1;                                  /* a key while held: not a tap */
         if (!d && down[l] && !used[l] && !((shown >> l) & 1u) && now - t0[l] < TAP_MS && !ui.menu && !ui.confirm)
             layer_tap(l);
-        if (!d && down[l] && !used[l] && l == LY_MIX && now - t0[l] >= GLO_KEEP_MS && ly_lock == LY_PLAY && !ui.menu && !ui.confirm) {
-            ly_lock = LY_MIX;                             /* GLO held a while, nothing touched: the mixer stays (2026-10-28,
-                                                           * Ariel); any other button, or GLO again, lets it go */
+        if (!d && down[l] && !used[l] && (l == LY_MIX || l == LY_FX) && now - t0[l] >= GLO_KEEP_MS && ly_lock == LY_PLAY &&
+            !ui.menu && !ui.confirm) {
+            ly_lock = (uint8_t)l;                         /* GLO held a while, nothing touched: the mixer stays (2026-10-28,
+                                                           * Ariel); any other button, or GLO again, lets it go. (PHEBUS
+                                                           * wave 6) FX the same: PERFORM stays */
             ui.force = 1;
         }
         down[l] = (uint8_t)d;
@@ -713,13 +716,11 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         held = ly_lock;
         used[held] = 1;
     }
-    punch.hold = (uint8_t)(held == LY_FX);
     if (held != LY_PLAY && held != ui.layer && ui.layer != LY_PLAY)
         ui.layer = (uint8_t)held;                         /* (from one layer straight to another) */
     if (ui.layer != LY_PLAY)
         shown |= (uint8_t)(1u << ui.layer);               /* (seen: its button let go is no tap) */
     if (held == LY_PLAY) {
-        thr_req = 0;                                      /* (the THROWs: FX let go) */
         while (lk_r != lk_w) {                            /* a key let go after its layer: its release only */
             uint32_t e = lk_q[lk_r % LKQ];
             lk_r++;
@@ -753,16 +754,26 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         ui.layer = (uint8_t)held;                         /* show it (not for a quick tap) */
         shown |= (uint8_t)(1u << held);
     }
-    {   /* FX + OCT- / OCT+, held (2.6, after Felucca 1.5.1): REV THROW / ECHO THROW (fx.c); with punch-ins too */
-        uint32_t q = 0;
-        if (held == LY_FX) {
-            q = ((fm1_in.buttons >> panel.btn[B_OCTDN]) & 1u) | ((fm1_in.buttons >> panel.btn[B_OCTUP]) & 1u) << 1;
-            if (q)
-                used[held] = 1;
+    if (held == LY_FX) {   /* (wave 6) PERFORM: OCT+ latches the pads held (a pad pressed with OCT+ held: seq.c), OCT- lets
+                            * every latch go */
+        uint32_t ob = 1u << panel.btn[B_OCTDN], pb = 1u << panel.btn[B_OCTUP];
+        static uint32_t prev;
+        uint32_t b = fm1_in.buttons & (ob | pb), press = b & ~prev;
+        prev = b;
+        if (press)
+            used[held] = 1;
+        if ((press & pb) && perf.held) {
+            fm1_irq_off();
+            perf_latch_held();
+            fm1_irq_on();
+            ui.force = 1;
         }
-        if (q != thr_req)
-            ui.force = 1;                                 /* (the layer's sub line says it) */
-        thr_req = (uint8_t)q;
+        if ((press & ob) && perf.lat) {
+            fm1_irq_off();
+            perf_unlatch();
+            fm1_irq_on();
+            ui_message("LATCH OFF");
+        }
     }
     if (held == LY_ERASE) {                               /* EDIT + OCT- / OCT+: undo / redo */
         uint32_t ob = 1u << panel.btn[B_OCTDN], pb = 1u << panel.btn[B_OCTUP];
@@ -880,6 +891,10 @@ static void ui_input(void)
     page_fix();                                         /* (a page the track does not have: its neighbour, 2.6) */
     drum_keys_fix();                                    /* (PHEBUS wave 3: MUTE / CHROMATIC end with the drum screen) */
     midi_entry();                                       /* (the MIDI notes' queue: read every frame, 2.6) */
+    if (perf.full) {                                    /* (wave 6) a pad recorded found the STUTTER lane full */
+        perf.full = 0;
+        ui_message("FX LANE FULL: 31");
+    }
     if (home == BT_HOLD) {                              /* HOME held: open the menu, or leave it */
         if (ui.menu) {
             menu_close();
@@ -899,8 +914,6 @@ static void ui_input(void)
     if (sg_held && (!kb_grid || song.sel != sg_trk))
         sg_drop();                                      /* (the GRID left with steps held: their keys clear nothing) */
     if (ui.menu) {                                      /* HOME / REC taps do nothing here */
-        punch.hold = 0;
-        thr_req = 0;
         if (!ui.home_t0)
             menu_input(pressed);
         return;

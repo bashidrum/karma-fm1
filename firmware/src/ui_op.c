@@ -32,7 +32,7 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
     uint32_t beat = clk_beat, k, playing = song.playing;
     uint32_t sig = studio_hash((uint32_t)song.g[G_BPM] * 7u + playing * 3u + (song.rec != 0) * 1999u +
                                (playing ? beat * 131u : 0u) + (ui.bpm_t != 0) * 104729u + (uint32_t)batt_shown() * 7777u + proj_unsaved * 31337u +
-                               sr_on * 3331u + fill_now * 7331u, title);
+                               sr_on * 3331u + fill_now * 7331u + pf_count(perf.lat) * 13331u, title);
     sig = studio_hash(sig * 31u + tc, tag);
     if (!ui.force && sig == *cache)
         return;
@@ -47,10 +47,20 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
         str_cpy(b, title, 10);
         while (b[0] && w + 8 + text_w(&FONT_S, b) > 122)
             b[str_len(b) - 1u] = 0;
-        if (fill_now) {                                 /* (PHEBUS wave 3) a fill on (held, latched, the bar): FILL inverted,
-                                                         * white: it is everyone's (the conditions of every track) */
-            cv_rect(w + 6, 2, text_w(&FONT_S, "FILL") + 4, 16, C_WHITE);
-            cv_text(w + 8, 2, &FONT_S, "FILL", C_BLACK);
+        if (fill_now || perf.lat) {                     /* (PHEBUS wave 3) a fill on (held, latched, the bar): FILL inverted,
+                                                         * white: it is everyone's (the conditions of every track). (wave 6)
+                                                         * PERFORM pads latched: FX and how many, the same way */
+            int32_t x = w + 6;
+            if (fill_now) {
+                cv_rect(x, 2, text_w(&FONT_S, "FILL") + 4, 16, C_WHITE);
+                x = cv_text(x + 2, 2, &FONT_S, "FILL", C_BLACK) + 4;
+            }
+            if (perf.lat) {
+                char f[6] = "FX ";
+                fmt_int(f + 3, (int32_t)pf_count(perf.lat));
+                cv_rect(x, 2, text_w(&FONT_S, f) + 4, 16, C_WHITE);
+                cv_text(x + 2, 2, &FONT_S, f, C_BLACK);
+            }
         } else {
             cv_text(w + 8, 2, &FONT_S, b, TE_G3);
         }
@@ -88,6 +98,7 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
  * nothing now (dim: a bit per knob): grey. A label left empty: an empty column. unit may be 0. A message replaces
  * the band (as te_dials) */
 #define OPK_BASE 50                                     /* the values' baseline, in the band */
+static uint32_t opk_y = OP_KNOB_Y;                      /* where the band goes (PHEBUS wave 6: PERFORM's lower) */
 static void op_knobs(const char *const lab[4], const char *const val[4], const char *const *unit, const int32_t ratio[4],
                      uint32_t dim, uint32_t sig, uint32_t *cache)
 {
@@ -107,7 +118,7 @@ static void op_knobs(const char *const lab[4], const char *const val[4], const c
     if (ui.msg_t) {                                     /* a message: a white bar */
         cv_rect(0, 14, 240, 32, C_WHITE);
         cv_text((240 - text_w(&FONT_S, ui.msg)) / 2, 22, &FONT_S, ui.msg, C_BLACK);
-        cv_blit(0, OP_KNOB_Y);
+        cv_blit(0, opk_y);
         return;
     }
     for (k = 0; k < 4u; k++) {
@@ -142,7 +153,7 @@ static void op_knobs(const char *const lab[4], const char *const val[4], const c
         if (hot)
             cv_rect(x0, 54, 52, 3, tint_col(k, 0));
     }
-    cv_blit(0, OP_KNOB_Y);
+    cv_blit(0, opk_y);
 }
 
 #include "op_sprites.h"

@@ -55,7 +55,7 @@ static void song_setup(void)
     stl.len = 32;
     stl.act = 1;
     stl_want = stl_was = -1;
-    punch.req = -1, punch.cur = -1, punch.g = 0, punch.w = 0;
+    perf.held = perf.lat = 0, punch.cur = -1, punch.g = 0, punch.w = 0;
     memset(punch_ring, 0, sizeof punch_ring);
     clk_beat = 0, clk_pos = 0;
     transport_req = 1;
@@ -74,7 +74,7 @@ static void render_in(int32_t *o, int retrig)
     uint8_t pos_was = 0xFF;
     for (b = 0; b < NSAMP / CTL; b++) {
         mix_block(blk, CTL);
-        if (retrig && stl_pos != pos_was && stl_want >= 0 && punch.req < 0) {
+        if (retrig && stl_pos != pos_was && stl_want >= 0 && !perf.held) {
             punch.cur = -1, punch.g = 0, stl_was = -1;   /* (after this block: the next one starts it again) */
         }
         pos_was = stl_pos;
@@ -351,13 +351,13 @@ int main(int argc, char **argv)
         uint32_t held = 0;
         for (b = 0; b < NSAMP / CTL; b++) {
             uint32_t t = b * CTL;
-            punch.req = (int8_t)(t >= 11u * STEP_S && t < 17u * STEP_S ? PX_LOOP16 : -1);
+            perf.held = t >= 11u * STEP_S && t < 17u * STEP_S ? 1u << PF_S16 : 0u;   /* (wave 6: the 1/16 pad) */
             mix_block(blk, CTL);
             if (t > 13u * STEP_S && t < 16u * STEP_S)
                 held += punch.cur == PX_LOOP16;
         }
         check(held == (3u * STEP_S - CTL) / CTL + 1u || held >= (3u * STEP_S) / CTL - 2u, "FX held + a key: its effect plays over the lane's steps");
-        punch.req = -1;
+        perf.held = 0;
     }
     {   /* 1/2 and 1/1: the sequencer replays (the bass three bars long, so each bar is told apart) */
         static int32_t *dry3, *half, *bar;

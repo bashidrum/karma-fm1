@@ -2,7 +2,7 @@
 /* LAYERS, teenage-engineering style: hold a function button, touch a key (or turn a knob). While the
  * button is held the screen shows what the 16 white keys and KNOB 1..4 do now; tapped (pressed and
  * let go without touching anything) the button opens its pages as before.
- *   FX    punch-in effects (punch.c)       knobs: FILTER  DUST  DUCK
+ *   FX    PERFORM: the keys are pads       knobs: the last pad's (ui_perf.c, punch.c perf_*)
  *   EDIT  erase that sound / note (seq.c)  knobs: SHIFT  LENGTH x2 / half  TRANSPOSE   OCT- undo  OCT+ redo
  *   ARP   note repeat (seq.c roll)         knobs: RATE
  *   SEQ   the keys do nothing              knobs: -  DIV  SWING  STEPS (PHEBUS, Ben 21 Nov 2026: "Remove them": the
@@ -16,7 +16,7 @@
  * GLO keys come to the UI through seq.c lk_q. HOLD: REC held clears the track, SAVE held saves the
  * project (a ring fills; let go before and nothing happens). */
 static const uint8_t LAYER_BTN[LY_COUNT] = {NB, B_FX, B_EDIT, B_ARP, B_SEQ, B_SCL, B_GLO, B_SAVE};
-static const char *const LAYER_NAME[LY_COUNT] = {"", "punch", "erase", "roll", "steps", "key", "mix", "section"};
+static const char *const LAYER_NAME[LY_COUNT] = {"", "perform", "erase", "roll", "steps", "key", "mix", "section"};
 static const char *layer_name(uint32_t l)               /* (PHEBUS wave 3: on the drum track SEL picks a sound, ARP retrigs) */
 {
     if (is_drum(TSEL) && l == LY_SCALE)
@@ -28,6 +28,7 @@ static const char *layer_name(uint32_t l)               /* (PHEBUS wave 3: on th
 static const char *const LAYER_BTN_NAME[LY_COUNT] = {"", "fx:", "edit:", "arp:", "seq:", "sel:", "glo:", "save:"};   /* the button
                                                          * held, before the layer's name: "FX: PUNCH" (review 21) */
 static void section_store(uint32_t s);                  /* project.c */
+static void perf_knob(uint32_t k, int32_t s);           /* ui_perf.c (wave 6: PERFORM) */
 static void section_load(uint32_t s);
 static uint8_t sec_armed;                               /* store over a used section: the key again within 3 s */
 static uint32_t sec_armed_ms;
@@ -258,15 +259,8 @@ static void layer_knobs(uint32_t layer)
         ui.hot_col = (uint8_t)k;
         ui.hot_t = 40;
         switch (layer) {
-        case LY_FX:
-            if (k == 0u)
-                song.g[G_FILT] = (int16_t)clamp(song.g[G_FILT] + accel(EN_K1, s, 127), -64, 63);
-            else if (k == 1u)
-                song.g[G_DUST] = (int16_t)clamp(song.g[G_DUST] + accel(EN_K2, s, 127), 0, 127);
-            else if (k == 2u)
-                song.g[G_DUCK] = (int16_t)clamp(song.g[G_DUCK] + accel(EN_K3, s, 127), 0, 127);
-            else                                        /* the selected track's FILTER (2.4) */
-                t->p[P_TFLT] = (int16_t)clamp(t->p[P_TFLT] + accel(EN_K4, s, 127), -64, 63);
+        case LY_FX:                                     /* (wave 6) PERFORM: the last pad's knobs */
+            perf_knob(k, s);
             break;
         case LY_ERASE:
             if (k == 0u)
@@ -353,43 +347,6 @@ static void tiles_draw(const tile_t *tl, uint32_t *cache)
     }
 }
 
-/* the punch layer (2.6): the 27 keys as a keyboard, four rows of four white keys (as the other layers' 16
- * tiles) with the black keys over them, between the white keys they sit between (the one after the
- * row's last white key at its right end); a held effect lit white */
-#define PT_BW 40                                        /* a black key's tile: centred on the gap (review 19) */
-static void punch_tiles_draw(const tile_t *tl, uint32_t *cache)
-{
-    uint32_t r, c, i, sig = 11u;
-    for (i = 0; i < PUNCH_NFX; i++)
-        sig = studio_hash(sig * 31u + tl[i].bg * 3u + tl[i].fg * 5u + tl[i].top * 7u, tl[i].lab);
-    if (!ui.force && sig == *cache)
-        return;
-    *cache = sig;
-    for (r = 0; r < 4u; r++) {
-        cv_begin(240, 36, C_BLACK);
-        for (c = 0; c < 4u; c++) {                      /* the white keys */
-            const tile_t *t = &tl[r * 4u + c];
-            int32_t x = 2 + (int32_t)c * 60;
-            cv_rect(x, 19, 56, 17, t->bg);
-            if (t->top)
-                cv_rect(x, 19, 56, 2, t->top);
-            te_text_c(x + 28, 20, t->lab, t->fg);
-        }
-        for (i = 16u; i < PUNCH_NFX; i++) {             /* the black keys of this row */
-            const tile_t *t = &tl[i];
-            int32_t w = punch_key(PUNCH_BLACK[i - 16u] - 1u), x;   /* the white key before it */
-            if ((uint32_t)w / 4u != r)
-                continue;
-            x = w % 4 < 3 ? 60 * (w % 4 + 1) - PT_BW / 2 : 238 - PT_BW;
-            if (t->bg == C_BLACK)
-                cv_rect(x, 0, PT_BW, 17, TE_G2);         /* an outline: a black key on the black screen */
-            cv_rect(x + 1, 1, PT_BW - 2, 15, t->bg);
-            te_text_c(x + PT_BW / 2, 1, t->lab, t->fg);
-        }
-        cv_blit(0, 40 + r * 36);
-    }
-}
-
 static void layer_title(const char *name, const char *sub, uint16_t col, uint32_t *cache)
 {
     uint32_t locked = ly_lock != LY_PLAY;
@@ -470,12 +427,13 @@ static void seq_time_draw(const track_t *t, uint16_t col, uint32_t *cache)
     cv_blit(0, 46);
 }
 
+#include "ui_perf.c"                                    /* (wave 6) PERFORM, the FX layer */
 static uint8_t layer_shown;                              /* the screen holds a layer (or a hold) */
 static const char *layer_sub_shown = "";                 /* the sub line last drawn (the host tests read it) */
 static void layer_screen_draw(void)
 {
     static uint32_t head, tiles, foot;
-    static tile_t tl[PUNCH_NFX];                        /* 16 (the punch layer: 27) */
+    static tile_t tl[16];
     static char v[4][10], sub[24];
     const char *lab[4] = {"", "", "", ""}, *val[4] = {v[0], v[1], v[2], v[3]};
     int32_t ratio[4] = {-1, -1, -1, -1};
@@ -486,6 +444,11 @@ static void layer_screen_draw(void)
         lcd_fill(0, 0, 240, 240, C_BLACK);
         ui.force = 1;
         layer_shown = 1;
+    }
+    if (layer == LY_FX) {                               /* (wave 6) PERFORM: its own screen (ui_perf.c) */
+        perf_screen_draw();
+        layer_sub_shown = "";
+        return;
     }
     for (i = 0; i < 4u; i++)
         v[i][0] = 0;
@@ -500,37 +463,6 @@ static void layer_screen_draw(void)
     if (sel == TRK_DRUM)
         str_cpy(sub, "drum track", sizeof sub);
     switch (layer) {
-    case LY_FX:                                         /* the 27 punch-in effects: 16 white keys, 11 black (the mix's:
-                                                         * neutral, review 16c) */
-        col = C_WHITE;
-        str_cpy(sub, thr_req == 3u ? "rev+echo throw" : thr_req == 2u ? "echo throw" : thr_req ? "rev throw" : "hold + key",
-                sizeof sub);
-        for (i = 0; i < PUNCH_NFX; i++) {
-            static const char *const PSHORT[PUNCH_NFX] = {"lp 4", "lp 8", "lp 16", "lp 32", "stutr", "revrs", "stop",
-                                                          "half", "low", "high", "phone", "crush", "alias", "gate", "echo",
-                                                          "wow", "-low", "-mid", "-hi", "rwnd", "oct+", "flng",
-                                                          "pan", "frz", "lp8t", "mono", "fade"};   /* (5 characters at most; the
-                                                         * black keys' 4: 3 px of their 40 px tile left each side, review 19) */
-            int on = punch.req == (int8_t)i, black = i >= 16u;
-            str_cpy(tl[i].lab, PSHORT[i], 8);
-            tl[i].bg = on ? C_WHITE : black ? C_BLACK : TE_G1;
-            tl[i].fg = on ? C_BLACK : black ? TE_G3 : TE_G4;
-        }
-        lab[0] = "filter", lab[1] = "dust", lab[2] = "duck", lab[3] = "trk flt";
-        {
-            const char *u;
-            param_format(&GP[G_FILT], song.g[G_FILT], v[0], &u);
-            te_lower(v[0], v[0], 8);
-            fmt_int(v[1], song.g[G_DUST] * 100 / 127);
-            fmt_int(v[2], song.g[G_DUCK] * 100 / 127);
-            param_format(&TP[P_TFLT], t->p[P_TFLT], v[3], &u);
-            te_lower(v[3], v[3], 8);
-        }
-        ratio[0] = (song.g[G_FILT] + 64) * 1000 / 127;
-        ratio[1] = song.g[G_DUST] * 1000 / 127;
-        ratio[2] = song.g[G_DUCK] * 1000 / 127;
-        ratio[3] = (t->p[P_TFLT] + 64) * 1000 / 127;
-        break;
     case LY_ERASE:
     case LY_ROLL: {                                     /* the keys' sounds: lit = held */
         uint32_t held = fm1_in.notes;
@@ -750,9 +682,7 @@ static void layer_screen_draw(void)
         return;
     }
     layer_title(layer_name(layer), sub, col, &head);
-    if (layer == LY_FX)
-        punch_tiles_draw(tl, &tiles);
-    else if (layer == LY_STEP)
+    if (layer == LY_STEP)
         seq_time_draw(t, col, &tiles);
     else
         tiles_draw(tl, &tiles);
@@ -762,10 +692,8 @@ static void layer_screen_draw(void)
         if (layer == LY_MIX)                            /* GLO layer: the levels of tracks 1..4 */
             knob_tint_voices();
         else
-            knob_tint_all(layer == LY_SCALE || layer == LY_SONG || layer == LY_FX ? TINT_NEUTRAL : song.sel);   /* the key,
-                                                         * the song, the mix's effects: everyone's */
-        if (layer == LY_FX)
-            knob_tint[3] = (uint8_t)song.sel;           /* TRK FLT: the selected track's own filter */
+            knob_tint_all(layer == LY_SCALE || layer == LY_SONG ? TINT_NEUTRAL : song.sel);   /* the key, the song:
+                                                         * everyone's */
         te_dials(184, lab, val, ratio, layer * 7919u, &foot);
         ui.msg_t = m;
     }
