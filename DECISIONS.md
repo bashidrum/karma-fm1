@@ -337,7 +337,7 @@ Latch (Ben: latch)
 The knobs (Ben: "knobs tweak the last effect pressed")
 - The drum and synth pages' dials (op_dials), white-grey. KNOB 4 is AMOUNT (the wet level) wherever a pad has one. Per pad: stutters PITCH DECAY GATE; REVRS and HALF LENGTH; LP and HP CUTOFF RESO SPEED; CRUSH BITS RATE; GATE RATE WIDTH; STOP TIME; DROP DEPTH TIME; ECHO TIME FDBK; VERB SIZE DAMP; -BAS VOICE; LCUT FREQ; FLNG RATE FDBK; 1/1, 1/2 and -DRM none.
 - ECHO's TIME and VERB's SIZE and DAMP are GLO's own (shared, as an FX slot shows them since wave 5); the rest belong to the pad.
-- The start values sound as the old effects did where there was one (1/4 a beat, HALF a beat, STOP to a stop in a beat, the gate 1/16 half open, CRUSH 7 bits, LCUT 251 Hz, ECHO's feedback floor 70 %, FLNG a bar a sweep, AMOUNT 100 %). LP now closes over its SPEED (1/2 to start: about 1 s at 120 BPM, as the old code's comment said; it measured 0.18 s) down to 161 Hz; HP rises to 610 Hz, as before.
+- The start values sound as the old effects did where there was one (1/4 a beat, HALF a beat, STOP to a stop in a beat, the gate 1/16 half open, CRUSH 7 bits, LCUT 251 Hz, ECHO's feedback floor 70 %, FLNG a bar a sweep, AMOUNT 100 %). LP now closes over its SPEED (1/2 to start: about 1 s at 120 BPM, as the old code's comment said; it measured 0.18 s) down to 161 Hz; HP rises from 81 Hz to about 1.5 kHz, as before.
 - Knob settings are performance state, as mutes: kept until power-off, not saved. The STUTTER lane's own lit steps always play at the start settings (so they sound exactly as before).
 
 Recording into the STUTTER lane (Ben: "Keep, and record played FX into it")

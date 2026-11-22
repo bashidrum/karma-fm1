@@ -2293,7 +2293,7 @@ int main(int argc, char **argv)
         /* exit with latches on: they stay (hands free to play), the header says FX 2; STOP lets them go */
         release(B_FX); frames(2);
         go_home(); ui.force = 1; frame(); ppm("home-fx-latched");
-        check(pf_count(perf.lat) == 2u && px_count(52, 2, 60, 16, C_WHITE) > 60u, "out of PERFORM, latched pads play on: the header says FX 2, in white");
+        check(pf_count(perf.lat) == 2u && px_count(52, 2, 60, 16, C_WHITE) > 60u, "out of PERFORM, latched pads play on: the header says PERF 2, in white");
         press(B_FX); frames(12);
         fm1_in.buttons |= BT(B_OCTDN); edges_btn |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
         check(!perf.lat, "LATCH: OCT- in PERFORM: every latch off");

@@ -49,15 +49,17 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
             b[str_len(b) - 1u] = 0;
         if (fill_now || perf.lat) {                     /* (PHEBUS wave 3) a fill on (held, latched, the bar): FILL inverted,
                                                          * white: it is everyone's (the conditions of every track). (wave 6)
-                                                         * PERFORM pads latched: FX and how many, the same way */
+                                                         * PERFORM pads latched: PERF and how many, the same way */
             int32_t x = w + 6;
             if (fill_now) {
                 cv_rect(x, 2, text_w(&FONT_S, "FILL") + 4, 16, C_WHITE);
                 x = cv_text(x + 2, 2, &FONT_S, "FILL", C_BLACK) + 4;
             }
-            if (perf.lat) {
-                char f[6] = "FX ";
-                fmt_int(f + 3, (int32_t)pf_count(perf.lat));
+            if (perf.lat) {                             /* (PERF, not FX: never read as a voice's FX slot) */
+                char f[8] = "PERF ";
+                if (fill_now)
+                    str_cpy(f, "P", 8);
+                fmt_int(f + str_len(f), (int32_t)pf_count(perf.lat));
                 cv_rect(x, 2, text_w(&FONT_S, f) + 4, 16, C_WHITE);
                 cv_text(x + 2, 2, &FONT_S, f, C_BLACK);
             }

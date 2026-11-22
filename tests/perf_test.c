@@ -473,7 +473,7 @@ static void engine_tests(void)
     perf_press(PF_GATE, 0);
     check(!perf.lat && !perf.held, "LATCH: the latched pad pressed again: off");
     perf_press(PF_LP, 1), perf_press(PF_HP, 1), perf_release(PF_LP), perf_release(PF_HP);
-    check(pf_count(perf.lat) == 2u, "LATCH: two latched with OCT+ (the header says FX 2)");
+    check(pf_count(perf.lat) == 2u, "LATCH: two latched with OCT+ (the header says PERF 2)");
     perf_unlatch();
     check(!perf.lat, "LATCH: OCT- lets every latch go");
     /* the last TIME pad wins, and the one under it comes back when it is let go (the MPC's beat repeat) */
