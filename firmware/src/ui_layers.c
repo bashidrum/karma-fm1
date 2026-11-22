@@ -282,8 +282,10 @@ static void layer_knobs(uint32_t layer)
             else if (k == 0u)
                 song.g[G_ROLL] = (int16_t)clamp(song.g[G_ROLL] + s, 0, 4);
             break;
-        case LY_STEP:                                   /* -  DIV  SWING  STEPS */
-            if (k == 1u)
+        case LY_STEP:                                   /* GATE  DIV  SWING  STEPS (wave 5: GATE, a call for Ben) */
+            if (k == 0u && !is_drum(t))
+                t->p[P_SGATE] = (int16_t)clamp(t->p[P_SGATE] + accel(EN_K1, s, 126), 1, 127);
+            else if (k == 1u)
                 t->p[P_SDIV] = (int16_t)clamp(t->p[P_SDIV] + s, 0, (int32_t)NDIV_STEP - 1);   /* (up to 2BAR) */
             else if (k == 2u)
                 t->p[P_SSWING] = (int16_t)clamp(t->p[P_SSWING] + accel(EN_K3, s, 100), 0, 100);
@@ -596,7 +598,11 @@ static void layer_screen_draw(void)
         str_cpy(sub + str_len(sub), len == 1u ? " step = " : " steps = ", 10);
         fmt_int(sub + str_len(sub), (int32_t)bars);
         str_cpy(sub + str_len(sub), bars == 1u ? " bar" : " bars", 6);
-        lab[1] = "div", lab[2] = "swing", lab[3] = "steps";
+        lab[0] = "gate", lab[1] = "div", lab[2] = "swing", lab[3] = "steps";
+        if (is_drum(t))                                 /* (a drum hit is one-shot: no gate) */
+            str_cpy(v[0], "--", 4), ratio[0] = 0;
+        else
+            fmt_int(v[0], (t->p[P_SGATE] * 100 + 63) / 127), ratio[0] = t->p[P_SGATE] * 1000 / 127;
         str_cpy(v[1], N_SDIV[t->p[P_SDIV] % NDIV_STEP], 8);
         swing_str(v[2], t->p[P_SSWING]);
         fmt_int(v[3], t->p[P_SLEN]);

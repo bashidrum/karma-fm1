@@ -340,6 +340,56 @@ static void edit_param_pg(const page_t *pg, uint32_t slot, int32_t steps)   /* (
         tracks_edit(slot, steps);
         return;
     }
+    if (pg->graph == GR_XSLOT && slot == 0u && !is_drum(TSEL)) {   /* (wave 5) a slot's TYPE: one a detent, past one a voice
+                                                         * may have once (CHORUS REVERB DELAY FLANGER, in another slot);
+                                                         * a type picked starts at its own settings */
+        uint32_t k = pg_slot(pg);
+        int32_t ty = TSEL->p[P_XS(k, 0)], to = ty, n;
+        for (n = 0; n < (int32_t)XT_N; n++) {
+            to = clamp(to + (steps > 0 ? 1 : -1), 0, (int32_t)XT_N - 1);
+            if (xs_type_ok(TSEL->p, k, to) || to == 0 || to == (int32_t)XT_N - 1)
+                break;
+        }
+        if (!xs_type_ok(TSEL->p, k, to))
+            to = ty;
+        ml_knob(TSEL, P_XS(k, 0));                        /* (MIDI LEARN: the TYPE too) */
+        if (to != ty) {
+            fm1_irq_off();
+            locks_restore(TSEL);                          /* (a lock in force on the old type's knob: its base first) */
+            xs_type_set(TSEL->p, k, to);
+            fm1_irq_on();
+        }
+        return;
+    }
+    if (pg->graph == GR_MATRIX && !is_drum(TSEL) && (id == V_MAMT || id == V_MK4)) {   /* (wave 5) the grid's cell, TARGET */
+        uint32_t ti = song.sel % NPART, r = (uint32_t)mx_row % MS_N, c = (uint32_t)mx_col % MD_N;
+        if (id == V_MAMT) {
+            int32_t v = clamp(mx_get(ti, r, c) + accel(EN_K1 + slot, steps, 127), -64, 63), e;
+            fm1_irq_off();
+            e = mx_set(ti, r, c, v);
+            fm1_irq_on();
+            if (e < 0)
+                ui_message("MATRIX FULL: 19 CELLS");
+        } else if (c >= MD_AS1) {                         /* TARGET: the next / previous parameter a column can move */
+            int32_t a = mxt[ti].as[c - MD_AS1] ? mxt[ti].as[c - MD_AS1] - 1 : -1, n;
+            for (n = 0; n < (int32_t)P_COUNT + 1; n++) {
+                a += steps > 0 ? 1 : -1;
+                if (a < -1)
+                    a = (int32_t)P_COUNT - 1;
+                if (a >= (int32_t)P_COUNT)
+                    a = -1;
+                if (a < 0 || mx_as_ok((uint32_t)a))
+                    break;
+            }
+            mxt[ti].as[c - MD_AS1] = (uint8_t)(a + 1);
+        } else if (mx_get(ti, r, c)) {                    /* CLEAR: the cell to 0 (a fixed one: its parameter's 0) */
+            fm1_irq_off();
+            mx_set(ti, r, c, 0);
+            fm1_irq_on();
+            ui_message("CELL CLEARED");
+        }
+        return;
+    }
     if (pg->graph == GR_BROWSE) {                         /* KNOB 1: one preset, KNOB 2: the next / previous engine */
         if (slot == 0u && !is_drum(TSEL)) {
             uint32_t total, cur = preset_pos(&total);

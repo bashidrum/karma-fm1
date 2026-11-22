@@ -466,7 +466,9 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
         break;
     case F_EQDB: {                                    /* (wave 5) an EQ band: 64 flat, +-12 dB */
         int32_t db10 = (v - 64) * 120 / 64;
-        if (db10 > -100 && db10 < 100)
+        if (!db10)
+            str_cpy(val, "0", 6);
+        else if (db10 > -100 && db10 < 100)
             fmt_fix(val, db10, 1);
         else
             fmt_int(val, db10 / 10);

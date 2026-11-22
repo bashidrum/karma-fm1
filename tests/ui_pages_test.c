@@ -994,9 +994,10 @@ int main(int argc, char **argv)
               "GRID: the locked value drawn inverted (a box in the voice's colour)");
         tap(B_FX); frame();
         check(syn_tab == 4u && PAGES[syn_page()].fam == FAM_FX, "GRID: step held + FX tapped: the FX tab");
-        a1 = pg_id(&PAGES[syn_page()], 0);
-        encs[panel.enc[EN_K1]] = 2; frame();
-        check(lock_find(t, 4, a1, 0) >= 0, "GRID: FX + KNOB 1: its lock on step 5");
+        xs_type_set(t->p, 0, XT_PHASER);               /* (wave 5: FX 1 a PHASER; its TYPE cannot lock, its RATE can) */
+        a1 = pg_id(&PAGES[syn_page()], 1);
+        encs[panel.enc[EN_K2]] = 2; frame();
+        check(lock_find(t, 4, a1, 0) >= 0, "GRID: FX + KNOB 2: its lock on step 5 (FX 1's RATE)");
         ui.force = 1; frame(); ppm("grid-synth-lock");
         press(B_OCTDN); release(B_OCTDN); frame();
         check(lock_find(t, 4, a1, 0) < 0 && lock_find(t, 4, P_ATK, 0) >= 0,
@@ -1596,7 +1597,7 @@ int main(int argc, char **argv)
         {   /* PHEBUS, 21 Nov 2026 (Ben: "Merge and move"): each voice's chain without the shared effects, LFO 2 named
              * LFO SYNC; DLY, REV/CHO under GLO, neutral; every parameter still on a page (CLOUD, TEXTURE: cut, wave 1) */
             /* (PHEBUS wave 4, Ben: "The same layout on every voice") the same chain on every synth engine */
-#define SYN_CHAIN "OSC|OSC 2|OSC 3|FILT|FILT 2|ENV|FILT ENV|FX|INSERT|INSERT 2|SLICER|LFO|LFO DEST|LFO SYNC|ENV DEST"
+#define SYN_CHAIN "OSC|OSC 2|OSC 3|OSC 4|FILT|FILT 2|ENV|FILT ENV|FX 1|FX 2|FX 3|SLICER|LFO|LFO SYNC|LFO 2|MATRIX"   /* (wave 5) */
             static const char *const WANT[5] = {SYN_CHAIN, SYN_CHAIN, SYN_CHAIN, SYN_CHAIN,
                 "FILTER|INSERT|INSERT 2|SLICER"};   /* (PHEBUS wave 3: the drum sounds' pages are the drum screen's) */
 #undef SYN_CHAIN
@@ -1646,24 +1647,24 @@ int main(int argc, char **argv)
         song.g[G_BPM] = bpm;
         tap(B_LFO);
         check(!strcmp(PT(), "LFO"), "SELECT: LFO opens its first page");
-        /* (the sound chain, Ben 20 Nov 2026: OSC > FILTER > ENV > FX > MOD; MOD is LFO, LFO DEST, LFO SYNC (21 Nov)) */
+        /* (the sound chain, Ben 20 Nov 2026: OSC > FILTER > ENV > FX > MOD; wave 5: MOD is LFO, LFO SYNC, LFO 2, MATRIX) */
         SEL(1);
-        check(!strcmp(PT(), "LFO DEST") && song.g[G_BPM] == bpm, "SELECT on LFO: next page LFO DEST, the tempo untouched");
+        check(!strcmp(PT(), "LFO SYNC") && song.g[G_BPM] == bpm, "SELECT on LFO: next page LFO SYNC, the tempo untouched");
+        ui.force = 1; frame(); ppm("page-lfo-sync");
         SEL(1);
-        check(!strcmp(PT(), "LFO SYNC") && song.g[G_BPM] == bpm, "SELECT: then LFO SYNC (2.6's LFO 2, named for what it is)");
-        ui.force = 1; frame(); ppm("page-lfo2");
+        check(!strcmp(PT(), "LFO 2") && song.g[G_BPM] == bpm, "SELECT: then LFO 2 (wave 5: the second LFO)");
         SEL(1);
-        check(!strcmp(PT(), "ENV DEST") && song.g[G_BPM] == bpm, "SELECT: then ENV DEST (wave 4: where the ENV goes, in MOD)");
+        check(!strcmp(PT(), "MATRIX") && song.g[G_BPM] == bpm, "SELECT: then MATRIX (wave 5: the grid, MOD's last)");
         SEL(1);
-        check(!strcmp(PT(), "ENV DEST") && song.g[G_BPM] == bpm, "SELECT: stops at the end of the chain (MOD's last page)");
+        check(!strcmp(PT(), "MATRIX") && song.g[G_BPM] == bpm, "SELECT: stops at the end of the chain (MOD's last page)");
         SEL(-2);
-        check(!strcmp(PT(), "LFO DEST"), "SELECT left: the page before");
+        check(!strcmp(PT(), "LFO SYNC"), "SELECT left: the page before");
         SEL(-1);
         check(!strcmp(PT(), "LFO"), "SELECT left: LFO");
         SEL(-1);
         check(!strcmp(PT(), "SLICER"), "SELECT left from MOD's first page: FX's last, SLICER (one chain)");
         tap(B_FX); SEL(1);
-        check(!strcmp(PT(), "INSERT"), "SELECT on FX: next page, INSERT");
+        check(!strcmp(PT(), "FX 2"), "SELECT on FX: next page, FX 2 (wave 5: the next slot)");
         go_home(); tap(B_EDIT); tap(B_EDIT); SEL(1);
         check(!strcmp(PT(), "FILT 2"), "EDIT, EDIT: FILT; SELECT: FILT 2 (KEY DRIVE LINK)");
         ui.force = 1; frames(2); ppm("page-filter");
@@ -1694,7 +1695,7 @@ int main(int argc, char **argv)
         tap(B_EDIT);
         check(!strcmp(PT(), "ENV"), "EDIT: then ENV");
         tap(B_EDIT);
-        check(!strcmp(PT(), "FX"), "EDIT: then FX");
+        check(!strcmp(PT(), "FX 1"), "EDIT: then FX (FX 1, the first slot)");
         tap(B_EDIT);
         check(!strcmp(PT(), "LFO"), "EDIT: then MOD (LFO)");
         tap(B_EDIT);
@@ -2146,16 +2147,16 @@ int main(int argc, char **argv)
         frames(16);
         ui.force = 1; frame(); ppm("header-learn");
         K(EN_K1, 1);
-        check(mlu.pick && mlu.id == P_DIST && mlu.trk == 0u && ml_arm, "LEARN: a knob turned picks its parameter (DIST)");
+        check(mlu.pick && mlu.id == P_X1TYPE && mlu.trk == 0u && ml_arm, "LEARN: a knob turned picks its parameter (FX 1's TYPE)");
         midi_cc(&trk[0], 74, 10); frame();
-        check(ml_count() == 1u && (ml_tab[0] & 127u) == 74u && (ml_tab[0] >> 9) == ml_code(P_DIST) && !mlu.pick,
-              "LEARN: a CC sent: CC 74 = track 1 DIST");
+        check(ml_count() == 1u && (ml_tab[0] & 127u) == 74u && (ml_tab[0] >> 9) == ml_code(P_X1TYPE) && !mlu.pick,
+              "LEARN: a CC sent: CC 74 = track 1 FX 1 TYPE");
         go_home(); frames(16);
         press(B_GLO); frames(10); key(1); release(B_GLO); frames(4);
         check(!mlu.on, "GLO + F#3 again: LEARN off");
         midi_cc(&trk[1], 74, 127);
-        check(trk[0].p[P_DIST] == TP[P_DIST].max, "CC 74 (any channel): track 1's DIST to its top");
-        trk[0].p[P_DIST] = 0;
+        check(trk[0].p[P_X1TYPE] == TP[P_X1TYPE].max, "CC 74 (any channel): track 1's FX 1 TYPE to its top");
+        xs_defaults(trk[0].p, 0, XT_OFF);
         ui.menu = 1; ui.menu_sel = 0; ui.force = 1; frame();
         for (j = 0; j < 6u; j++) { encs[panel.enc[EN_SELECT]] = 1; frame(); }
         encs[panel.enc[EN_K2]] = 1; frame();
@@ -2337,9 +2338,11 @@ int main(int argc, char **argv)
             {0, ENGI_JUNO, 11, FAM_OSC, "OSC", "osc-juno", 15}, {0, ENGI_JUNO, 11, FAM_OSC, "OSC 2", "osc2", 15},
             {0, ENGI_JUNO, 11, FAM_OSC, "OSC 3", "osc3-juno", 1}, {0, ENGI_JUNO, 11, FAM_FLT, "FILT", "filt-juno", 15},
             {0, ENGI_JUNO, 11, FAM_FLT, "FILT 2", "filt2", 15}, {0, ENGI_JUNO, 11, FAM_ENV, "ENV", "env", 15},
-            {0, ENGI_JUNO, 11, FAM_ENV, "FILT ENV", "fenv", 15}, {0, ENGI_JUNO, 11, FAM_MOD, "ENV DEST", "envdest", 3},
-            {0, ENGI_JUNO, 11, FAM_FX, "FX", "fx-sends", 15}, {0, ENGI_JUNO, 11, FAM_FX, "INSERT", "insert", 15},
-            {0, ENGI_JUNO, 11, FAM_FX, "INSERT 2", "insert2", 15}, {0, ENGI_JUNO, 11, FAM_MOD, "LFO DEST", "lfodest", 15},
+            {0, ENGI_JUNO, 11, FAM_ENV, "FILT ENV", "fenv", 15}, {0, ENGI_JUNO, 11, FAM_OSC, "OSC 4", "osc4", 0},
+            /* (PHEBUS wave 5) the FX slots (a DELAY, a PHASER, an EQ), LFO 2, the matrix */
+            {0, ENGI_JUNO, 11, FAM_FX, "FX 1", "fx1-delay", 9}, {0, ENGI_JUNO, 11, FAM_FX, "FX 2", "fx2-phaser", 15},
+            {0, ENGI_JUNO, 11, FAM_FX, "FX 3", "fx3-eq", 14}, {0, ENGI_JUNO, 11, FAM_MOD, "LFO 2", "lfo2", 3},
+            {0, ENGI_JUNO, 11, FAM_MOD, "MATRIX", "matrix", 0},
             {0, ENGI_ACID, 0, FAM_OSC, "OSC", "osc-acid", 15}, {0, ENGI_ACID, 0, FAM_FLT, "FILT", "filt-acid", 15},
             {2, ENGI_PRISM, 58, FAM_OSC, "OSC", "osc-va", 15}, {2, ENGI_PRISM, 0, FAM_OSC, "OSC", "osc-fold", 15},
             {1, ENGI_ELEM, 3, FAM_OSC, "OSC", "osc-elem", 15}, {3, 0, 0, FAM_FLT, "FILTER", "filter-drum", 15},
@@ -2359,6 +2362,13 @@ int main(int argc, char **argv)
             if (SP[c].eng == ENGI_ACID) t->p[P_E3] = 60;             /* (ENV: DEC at work) */
             t->p[P_VOICE] = V_MONO; t->p[P_GLIDE] = 60;              /* (PRIO, GLMODE at work) */
             t->p[P_FLINK] = 1;                                       /* (wave 4: the filter's own envelope drawn) */
+            if (SP[c].trk < 3u && (SP[c].fam == FAM_FX || SP[c].fam == FAM_MOD)) {   /* (wave 5) slots and cells at work */
+                xs_type_set(t->p, 0, XT_DELAY); xs_type_set(t->p, 1, XT_PHASER); xs_type_set(t->p, 2, XT_EQ);
+                t->p[P_X3TIME] = 90; t->p[P_X3INT] = 40;
+                mx_set(SP[c].trk, MS_LFO2, MD_M2, 40); mx_set(SP[c].trk, MS_VEL, MD_LVL, 30);
+                mx_set(SP[c].trk, MS_AENV, MD_RES, -24); t->p[P_ED_FLT] = 50; t->p[P_LD_PIT] = 6;
+                mx_row = MS_FENV; mx_col = MD_CUT;
+            }
             if (!is_drum(t)) t->p[P_TFLT] = 0;
             frames(16);
             if (!chain_goto(SP[c].fam, SP[c].title)) {
@@ -2366,7 +2376,7 @@ int main(int argc, char **argv)
             }
             pg = cur_page();
             ui.force = 1; frames(2);
-            chr &= SP[c].fam == FAM_ENV || px_count(196, 22, 44, 38, TE_COL[SP[c].trk & 3u]) < 8u;   /* (ENV: the AMP | FILT
+            chr &= SP[c].fam == FAM_ENV || SP[c].fam == FAM_FX || SP[c].fam == FAM_MOD || px_count(196, 22, 44, 38, TE_COL[SP[c].trk & 3u]) < 8u;   /* (ENV: the AMP | FILT
                                                          * selector there, mock-synth-env-A) */
             for (k = 0; k < 4u; k++) {                  /* every knob: the picture moves */
                 const param_desc_t *d;
