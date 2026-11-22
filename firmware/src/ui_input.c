@@ -801,6 +801,7 @@ static void ui_input(void)
     midi_chan_fix();                                    /* GLO > MIDI: no channel on two tracks (2.6, ui.c) */
     ml_poll();                                          /* MIDI LEARN: a CC came for the picked parameter (2.6) */
     page_fix();                                         /* (a page the track does not have: its neighbour, 2.6) */
+    drum_keys_fix();                                    /* (PHEBUS wave 3: MUTE / CHROMATIC end with the drum screen) */
     midi_entry();                                       /* (the MIDI notes' queue: read every frame, 2.6) */
     if (home == BT_HOLD) {                              /* HOME held: open the menu, or leave it */
         if (ui.menu) {

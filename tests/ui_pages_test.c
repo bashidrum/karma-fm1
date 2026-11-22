@@ -893,6 +893,9 @@ int main(int argc, char **argv)
               "MUTE mode: a muted sound shows a yellow M (no red: red is only record and erase)");
         tap(B_SCL); frames(2);
         check(drum_keys == DK_PLAY && grid_keys_on() && drum_mute == (1u << 5 | 1u << 11), "MUTE mode: SEL again: the steps again, the mutes stay");
+        tap(B_SCL); frames(2); go_home(); frames(2);
+        check(drum_keys == DK_PLAY, "MUTE mode: leaving the drum screen ends it (the keys play the sounds on HOME)");
+        tap(B_EDIT); frames(2);
         drum_mute = 0;
     }
     {   /* ARP tapped: CHROMATIC mode, the selected sound across the keys; OCT+ an octave up */
