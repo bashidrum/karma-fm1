@@ -145,11 +145,11 @@ int main(int argc, char **argv)
     assert(pf);
     n = (int)fread(raw, 1, sizeof raw, pf);
     fclose(pf);
-    if (!proj_import(&q, raw, n)) {
+    if (!proj_import(&q.c, raw, n, PROJ_V7_TMP)) {
         printf("%s: not an FM-1 project\n", pat);
         return 1;
     }
-    proj_apply(&q, 1);
+    proj_apply(&q.c, 1);
     for (i = 0; i < NTRK; i++) {
         if (i < NPART)
             trk[i].engine = trk[i].eng_req;

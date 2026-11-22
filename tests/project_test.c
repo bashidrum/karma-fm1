@@ -577,6 +577,37 @@ int main(void)
         bad += check("FUN7 -> FUN8: no lane in it: an empty one, 16 steps, ON; a lane from before 1/2 and 1/1: no 3rd bits", ok);
         host_tracks_init();
     }
+    {   /* real projects saved by the simulator before wave 2 (format 7 files): each loads, every drum hit a trig at its
+         * level's velocity, the synth steps as stored */
+        static const char *const F[3] = {"tests/op_build_pattern.fm1p", "tests/op_tour_pattern.fm1p", "tests/op_v3_pattern.fm1p"};
+        static uint8_t raw[8192];
+        static project_t r8;
+        uint32_t f, k, l, okf = 1, hits = 0;
+        for (f = 0; f < 3u; f++) {
+            FILE *pf = fopen(F[f], "rb");
+            const project_v7_t *o = (const project_v7_t *)raw;
+            int n = pf ? (int)fread(raw, 1, sizeof raw, pf) : 0;
+            if (pf)
+                fclose(pf);
+            if (n != (int)sizeof(project_v7_t) || !proj_ok_v7(o) || !proj_import(&r8.c, raw, n, PROJ_V7_TMP)) {
+                okf = 0;
+                continue;
+            }
+            for (k = 0; k < NSTEP; k++) {
+                for (l = 0; l < DRUM_LANES; l++) {
+                    uint32_t on = dstep_has(&o->t[TRK_DRUM].dstep[k], l);
+                    okf &= on ? r8.c.d.pat.vel[k][l] == lvl_vel(dstep_lvl(&o->t[TRK_DRUM].dstep[k], l), 100) : !r8.c.d.pat.vel[k][l];
+                    hits += on;
+                }
+                okf &= !memcmp(&r8.c.t[0].step[k], &o->t[0].step[k], sizeof(step_t)) &&
+                       !memcmp(&r8.c.t[2].step[k], &o->t[2].step[k], sizeof(step_t));
+            }
+            okf &= r8.c.g[G_BPM] == o->g[G_BPM] && r8.c.d.p[P_E0] == pt_get(&o->t[TRK_DRUM], P_E0);
+        }
+        printf("  (the three format 7 files: %u drum hits)\n", hits);
+        bad += check("FUN7 -> FUN8: the simulator's saved patterns (3 files) load: drum hits as trigs, synth steps, tempo, kit",
+                     okf && hits > 0u);
+    }
     bad += check("2.6 SAVE > PROJECT > ERASE: an object of no bytes is no project (an empty slot, older SLOOP too)",
                  !proj_import(&q2v8_tmp.c, &q, 0, PROJ_V7_TMP) && !proj_import_v7(&q2, &q, 0));
     /* PHEBUS (21 Nov, Ben: "Dot + save on stop"): autosave_due(stop, stop_quiet, quiet, idle ms, ms since the last save) */
