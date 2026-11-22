@@ -16,7 +16,7 @@
  * GLO keys come to the UI through seq.c lk_q. HOLD: REC held clears the track, SAVE held saves the
  * project (a ring fills; let go before and nothing happens). */
 static const uint8_t LAYER_BTN[LY_COUNT] = {NB, B_FX, B_EDIT, B_ARP, B_SEQ, B_SCL, B_GLO, B_SAVE};
-static const char *const LAYER_NAME[LY_COUNT] = {"", "perform", "erase", "roll", "steps", "key", "mix", "section"};
+static const char *const LAYER_NAME[LY_COUNT] = {"", "perform", "erase", "roll", "steps", "key", "mix", "pattern"};   /* (wave 7: A to D are patterns, Ben's word) */
 static const char *layer_name(uint32_t l)               /* (PHEBUS wave 3: on the drum track SEL picks a sound, ARP retrigs) */
 {
     if (is_drum(TSEL) && l == LY_SCALE)
@@ -757,7 +757,7 @@ static void hold_screen_draw(void)
         if (ui.hold_trk == TRK_DRUM)
             str_cpy(b, "drum track", sizeof b);
     } else {
-        str_cpy(b, "into section A", sizeof b);
+        str_cpy(b, "into pattern A", sizeof b);
         b[13] = (char)('A' - 1 + clamp(song.g[G_SLOT], 1, 4));
     }
     te_text_c(120, 4, b, TE_G4);

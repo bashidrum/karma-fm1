@@ -768,7 +768,7 @@ int main(int argc, char **argv)
         key(key_of_white(12)); key(key_of_white(13)); key(key_of_white(15));
         check(sec_stores == st0 && sec_loads == ld0 && live_req == 1 && ui.page == pg0 && ui.layer == LY_SONG,
               "SAVE held + keys 13, 14, 16: nothing (song mode, SONG REC and the song page are gone)");
-        check(str_eq(LAYER_NAME[LY_SONG], "section") && str_eq(sub_line(), "next bar"), "the layer reads \"section\", playing: \"next bar\"");
+        check(str_eq(LAYER_NAME[LY_SONG], "pattern") && str_eq(sub_line(), "next bar"), "the layer reads \"pattern\", playing: \"next bar\"");
     }
     release(B_SAVE); frames(2);
     check(live_req == 1 && saves == 0, "SAVE let go: B still asked for, nothing saved");
