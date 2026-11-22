@@ -28,7 +28,7 @@ static const param_desc_t DL_DESC[8] = {     /* DSP_LSPD .. DSP_LMOD */
     DE("SYNC", N_LSYNC, 0), DD("FADE", F_INT, -64, 63, 0), DD("PHASE", F_INT, 0, 127, 0), DE("MODE", N_DLMOD, 0),
 };
 static const param_desc_t DSEND_DESC[2] = {DD("REV", F_INT, 0, DRUM_SEND_REV, 0), DD("DEL", F_INT, 0, DRUM_SEND_DLY, 0)};
-static const param_desc_t DNOTE_DESC = DD("NOTE", F_SEMI, -24, 24, 0);
+static const param_desc_t DNOTE_DESC = DD("NOTE", F_SEMI, -48, 48, 0);   /* (chromatic: 27 keys, OCT -2 .. +2) */
 /* a HEX byte's descriptor as the sound's model reads it (the DRUM model's are params.c GP's, G_HXMODEL ..) */
 static const param_desc_t *hex_desc_m(uint32_t m, uint32_t id)
 {

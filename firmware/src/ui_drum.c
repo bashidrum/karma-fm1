@@ -487,7 +487,7 @@ static void drum_main_draw(void)
                 if (W[k % 12u] >= 0) {
                     int32_t x = ((int32_t)(k / 12u) * 7 + W[k % 12u]) * 15;
                     uint32_t on = (fm1_in.notes >> k) & 1u;
-                    cv_rect(x + 1, 0, 13, 28, on ? TE_DRUM : TE_G4);
+                    cv_rect(x + 1, 0, 13, 28, on ? TE_DRUM : TE_G3);
                     if (k == CHR_KEY0)
                         te_disc(x + 7, 22, 2, on ? C_BLACK : TE_DRUM);
                 }
@@ -609,7 +609,7 @@ static void drum_main_draw(void)
                     int32_t nv = lk >= 0 ? lk_val(DSP_NOTE, dpat.lk[lk].val) : 0;
                     param_format(&DNOTE_DESC, nv, v[k], &u);
                     locked |= (uint32_t)(lk >= 0) << k;
-                    ratio[k] = (nv + 24) * 1000 / 48;
+                    ratio[k] = (nv + 48) * 1000 / 96;
                     break;
                 }
                 }
@@ -652,22 +652,27 @@ static void drum_mute_draw(void)
         cv_begin(240, 124, C_BLACK);
         for (l = 0; l < DRUM_LANES; l++) {
             int32_t x = 2 + (int32_t)(l % 4u) * 60, y = 3 + (int32_t)(l / 4u) * 25;
-            uint32_t m = (drum_mute >> l) & 1u, so = (drum_solo >> l) & 1u, sel = l == drum_lane;
+            uint32_t m = (drum_mute >> l) & 1u, so = (drum_solo >> l) & 1u, sel = l == drum_lane, i, j;
             char nm[8];
-            str_cpy(nm, LANE_SHORT[l], 8);
-            if (m) {
+            for (i = j = 0; LANE_SHORT[l][i] && j < 7u; i++)    /* (the name without its space when a badge needs the room) */
+                if (LANE_SHORT[l][i] != ' ' || !(m || so))
+                    nm[j++] = LANE_SHORT[l][i];
+            nm[j] = 0;
+            if (m) {                                    /* muted: dark, the name grey, a yellow M */
                 cv_rect(x, y, 56, 22, TE_G1);
-                te_text_c(x + 23, y + 3, nm, TE_G3);
-                op_badge(x + 44, y + 4, 'M', TE_MUTE);
+                cv_text(x + 1, y + 3, &FONT_S, nm, TE_G3);
             } else {
                 if (sel || pad_lit[l])
                     cv_rect(x, y, 56, 22, sel ? TE_DRUM : TE_MID[3]);
                 else
                     op_box(x, y, 56, 22, TE_DRUM);
-                te_text_c(x + (so ? 23 : 28), y + 3, nm, sel || pad_lit[l] ? C_BLACK : TE_DRUM);
                 if (so)
-                    op_badge(x + 44, y + 4, 'S', TE_SOLO);
+                    cv_text(x + 1, y + 3, &FONT_S, nm, sel || pad_lit[l] ? C_BLACK : TE_DRUM);
+                else
+                    te_text_c(x + 28, y + 3, nm, sel || pad_lit[l] ? C_BLACK : TE_DRUM);
             }
+            if (m || so)                                /* the badge at the tile's right edge (as the strip's) */
+                op_badge(x + 45, y + 4, m ? 'M' : 'S', m ? TE_MUTE : TE_SOLO);
         }
         cv_text(4, 104, &FONT_S, "KEYS: MUTE", TE_G3);
         cv_text(236 - text_w(&FONT_S, "SEL+KEY: SOLO"), 104, &FONT_S, "SEL+KEY: SOLO", TE_G3);

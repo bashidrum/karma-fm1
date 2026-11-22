@@ -928,7 +928,7 @@ int main(int argc, char **argv)
         check(!fill_lat, "FILL: twice again: off");
     }
     {   /* a HEX kit: the same pages, the HEX machine's parameters */
-        TDRUM->p[P_E0] = 0; dpg_go(1, 0); frames(2); ui.force = 1; frame(); ppm("drum-hex");
+        TDRUM->p[P_E0] = 0; dpg_go(1, 0); frames(2); ui.msg_t = 0; ui.force = 1; frame(); ppm("drum-hex");
         check(drum_model() == DM_HEX && dpg_halves(1) == 3u, "a HEX kit: SRC 1/3 .. 3/3 of the LXR machine's parameters");
         TDRUM->p[P_E0] = DRUM_DEFAULT_KIT; frames(2);
     }

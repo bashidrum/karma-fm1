@@ -186,3 +186,37 @@ Small fixes from wave 1
 
 Not checked
 - No device build (no toolchain here): the real sizes and the timing of the queued nudges and retrigs on the FM-1 are unmeasured. The long tests (regress, soak, stress, web) were not run.
+
+## Rebuild wave 3, the Rytm drum screens (22 Nov): calls made that Ben did not specify
+The sound model (Ben: "Make every kit editable", the 606 stays the start kit)
+- Every sound of every kit has the same four pages, SRC FLTR AMP LFO, four knobs a half. A kit is one of two machines and each page holds that machine's own parameters in the Rytm's places: a HEX kit (and MY HEX) is the LXR's voice (SRC 1/3 TUNE SWEEP SW.DEC WAVE, 2/3 MODEL MOD M.PIT FM, 3/3 the transient and PSLOPE or FINE; FLTR FREQ RES TYPE DRIVE; AMP ATK DEC SLOPE DIST, then CRUSH DEL REV LEVEL); a synthesised kit (the 606 and the other 31) is its own model (SRC 1/3 TUNE FINE WAVE TONE, 2/3 SWEEP SWTIME PART2 P2 LVL, 3/3 NOISE N.LVL CLICK CHIP; FLTR FREQ RES TYPE ENV, then HPF; AMP HOLD DECAY N.HOLD N.DEC, then DRIVE DEL REV LEVEL). The synthesised sounds were not converted to the HEX machine: the 606 keeps sounding as it did.
+- LFO on every sound (neither machine had one): SPEED DEPTH DEST WAVE, then SYNC FADE PHASE MODE. It moves PITCH (up to 12 semitones), CUT, RES or LEVEL of the hit it belongs to. MODE: TRIG (restarts at each hit), FREE, ONE (one cycle). FADE: in (right) or out (left).
+- AMP 2/2 carries the sound's own reverb and delay sends (they were on the KIT page), in the Rytm's order (DEL, REV, then VOL as LEVEL).
+- Copy-on-write: the first knob turned on a built-in kit (HEX, synthesised, MY HEX) copies the whole kit into the project; the built-in kits never change. The copy is saved in format 8's ext (488 of its 1,024 bytes) and plays whenever the drum track is on the kit it came from; its name then has a * (as the MiniFreak marks an edited preset). One kit's copy a project: a turn on another kit asks "AGAIN: REPLACE 606*" and replaces it only on a second turn within 1.5 s.
+- In the copy each of the 16 sounds is its own: the built-in kits give PEDAL the closed hat's sound; the copy gives it a sound of its own, so all 16 are separately editable.
+- MY HEX 1 to 4 are copied on write like the other kits, so they are no longer edited in place (Ben: "turning a knob on any kit makes your own editable copy"). OPEN: a way to store the project's copy into MY HEX, if Ben wants kits to travel between projects.
+- A lock holds any parameter on these pages, the sends and the LFO included (not MODEL, as the Rytm's machine), plus a pitch (NOTE). A lock made for the other machine (a HEX lock on the 606) does nothing.
+The screen (Ben: "B: four dials over the knobs")
+- TRIG sits left of SRC as a fifth tab (the Rytm's TRIG page): the held trig's VEL RETRIG NUDGE COND, then CHANCE LENGTH CURVE NOTE. Nothing held, its KNOB 1 is the velocity new trigs get (100 to start, not saved).
+- Values in one tall face (the 16 px face drawn twice as tall), five characters in a fixed 40 px column beside a small dial, in the drum voice's coral; a locked value is a coral box with the value in black; the touched knob's label inverted and its value underlined.
+- A trig with locks has a black square in it, a retrig three lines, a condition a notch in its corner; hard trigs stay white as in wave 2.
+- The sound map at the top right: dim coral for a sound with trigs, lit as it plays, white frame for the selected one, a yellow bar for muted, ice blue for soloed.
+The buttons (the most Rytm-like the FM-1 allows)
+- Pages: EDIT opens SRC and walks SRC > FLTR > AMP > LFO (as EDIT walks a synth's chain); ENV opens AMP, LFO opens LFO (again: the page's next half); SEQ on the drum screen opens TRIG (again: back); SELECT walks every half of every page, TRIG first. All of them work with a trig held (the Rytm's page keys).
+- SELECT on the drum GRID: the pages (wave 1 left it doing nothing).
+- Sound select: hold SEL and press a key (the Rytm's TRACK + pad). SEL held on the drum track no longer sets the key of the song there (it does on the synth voices).
+- MUTE mode: tap SEL on the drum track (again: back). SEL + key in MUTE mode solos that sound (as mock "drum mute" says). Mutes and solos are performance state, never saved. EDIT + a black key still turns EDIT's white keys into mutes (kept from 2.6), now with the yellow mark.
+- CHROMATIC mode: tap ARP on the drum track. The 27 keys play the selected sound; C4 (white key 5) is its own pitch; OCT- and OCT+ move the keys an octave (-2 to +2). Recorded live, a trig keeps its pitch as a NOTE lock (none at its own pitch). It is a mode of the drum screen: leaving the screen or the track ends it.
+- Live RETRIG: hold ARP on the drum track (it was ROLL there) and press a key; the black keys pick the rate (F#3 1/4, G#3 1/6, A#3 1/8, C#4 1/12, D#4 1/16, F#4 1/24, G#4 1/32, A#4 1/40, C#5 1/48, D#5 1/64, F#5 1/80), KNOB 1 too (all 17 rates, 1/1 to 1/80). Recorded, a retrig faster than a step is a trig with a one-step retrig at that rate; slower ones are a trig a hit. Synth voices keep ARP's ROLL and G_ROLL.
+- FILL on the drum screen: the last black key, F#5, held (the Rytm holds PAGE); pressed twice within 0.4 s it latches until pressed twice again or STOP. GLO + key 9 / 10 work as before. While a fill is on, FILL shows inverted in white in every header (it acts on every track's conditions).
+- Removing locks: hold the trig and press OCT-: the lock of the knob last turned in this hold goes; OCT- again (or with no knob turned) every lock of the trig. On TRIG, OCT- clears what wave 2's OCT- cleared (condition, chance, nudge, retrig, every lock, the drum voice's own locks on the step). OCT+ is still the next condition.
+- FX with a trig held still locks the drum voice's own pages per step (its bus: FILTER, INSERT, SLICER), as wave 2; the tabs then read LOCK and the page's name.
+- The KIT page is gone (sound pick: SEL + key; kit: PRESETS; sends: AMP 2/2). HOME KNOB 2 DECAY now turns the selected sound's decay on every kit (copy-on-write as the pages).
+RAM (Ben, 22 Nov 00:50: "Make the perfect version. Then we'll compromise": nothing trimmed; given back instead)
+- Freed in main RAM: KARMA's scope buffers (2 KB: the visualisers that read them are gone; the stop autosave's silence test is now a count in audio.c), the HOME scope's snapshot (1 KB; dead since the sections), the HEX page preview (1 KB), the drum voices' two states as a union (720 B), the MIDI SEL note map a nibble a note (1 KB).
+- Section C moved from the pool into main RAM, so the pool has 5.7 KB more for waves 4 and 5.
+- Stand-in figures (rv32 -Os, as wave 2 measured): .data+.bss 91,921 B (wave 2: 91,477), pool 328,420 B (wave 2: 334,164), code and constants +13.6 KB. Estimated on the device: .data+.bss about 92,100 of 98,304, pool about 328,400 of 344,064 (15.6 KB spare, 7.4 KB above the 8 KiB rule), image about 491 KB of 581,564.
+Found on the way
+- A crash in PLAITS: turning FOLD wiped a Plaits model's memory that was still marked ready; the next Plaits model read a null pointer. The host UI fuzz hit it (wave 2's tree too, with another seed). Fixed in eng_prism.c.
+Not checked
+- No device build (no toolchain here). The LFO's and the copy's cost on the FM-1 is unmeasured (a few operations a voice a block); the long tests (soak, stress, regress, web) were not run.
