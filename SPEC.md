@@ -168,3 +168,7 @@ Ask me before starting any long test run."
 - Order: "Drums first", after a first wave of cuts and the new save format.
 - "Start building".
 - After wave 1 (Ben, by picker): web tests "Run it now"; stutter headroom "Keep 12 dB"; scene backgrounds left behind sound-page graphs "Cut them". Asked how to pace the rebuild, he wrote: "What even are the waves that you're building?"
+
+### 22 Nov 2026, 00:49
+
+Asked whether to pause after wave 4, Ben said: "Noo build the thing we dreamed of. If you're confident". All seven waves are to be built.

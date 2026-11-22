@@ -160,4 +160,4 @@ Each is asked in the pickers.
 
 Taken as read, not asked: the visual fixes that follow from the new screens (one value size in fixed columns, the touched knob shown large on pages with no graph, stutter lengths drawn as spans, shared list pages showing values once).
 
-Status: building. Wave 1 is the cuts.
+Status: building. Wave 1 (the cuts) is done and merged. Wave 2 (drum hits and the new save format) is in progress. Ben asked on 22 Nov for all seven waves to be built.
