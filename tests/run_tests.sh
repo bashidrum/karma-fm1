@@ -77,6 +77,8 @@ run "STUTTER lane (PHEBUS): lit steps repeat the span before at their length, th
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fx251_test" tests/fx251_test.c $PLX -lm
 run "after Felucca 1.4 / 1.5: INSERT, filter TYPE, ENV SYNC, LFO 2, drum mutes, MIDI LEARN" "$OUT/fx251_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/voice4_test" tests/voice4_test.c $PLX -lm
+$CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/fx5_test" tests/fx5_test.c $PLX -lm
+run "PHEBUS wave 5: FX slots (each type, bypass, no FX by default), every matrix source to every destination, the fixed cells, Spice and Dice, projects" "$OUT/fx5_test"
 run "PHEBUS wave 4: every Type on every track, the voice filter moves (CUTOFF RESO ENV LFO TYPE) on every engine family, LINK / OWN, OCT / TUNE" "$OUT/voice4_test"
 
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o "$OUT/ui_pages_test" tests/ui_pages_test.c $PLX -lm
