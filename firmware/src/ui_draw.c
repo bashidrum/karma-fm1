@@ -562,6 +562,8 @@ static void draw_tracks(void)
     }
 }
 
+#if !FELUCCA_ARRANGER                                   /* (PHEBUS wave 3: HOME is the TRACKS page, ui.home is never set:
+                                                         * the scope and its 1 KB snapshot only in a build without it) */
 /* oscilloscope of the output, triggered on a rising zero crossing */
 static void graph_scope(uint16_t c)
 {
@@ -588,6 +590,7 @@ static void graph_scope(uint16_t c)
         py = y;
     }
 }
+#endif
 
 /* SLOOP 2.4: a page without a graph (EDIT, VOICE, the DEST pages, GLOBAL, MASTER, SYSTEM...): its values
  * large in the empty space, 2 x 2 as the knobs (KNOB 1 2 / KNOB 3 4), the one turned in white; one value
@@ -663,7 +666,9 @@ static void draw_graph(void)
     cv_begin(240, H_GRAPH, C_BLACK);
     cv_oy = G_OY;
     if (ui.home) {
+#if !FELUCCA_ARRANGER
         graph_scope(c);
+#endif
     } else if (drum_note) {                          /* a page the drum track has no use for */
         static const char *const L[2] = {"DRUM TRACK", "SEQ  TRACKS  GLO DRUMS"};
         cv_text((240 - text_w(&FONT_S, L[0])) / 2, 26, &FONT_S, L[0], C_HI);

@@ -797,11 +797,12 @@ static void proj_apply(const proj_core_t *p, int all)
 }
 
 /* (PHEBUS wave 2) the four slots (the sections A..D) in RAM, a project's core each (5,744 bytes): A and B in .noinit (they
- * survive a reset, as all four did), C in the pool, D in main RAM (the .noinit region holds no more, and the pool keeps
- * 8 KiB spare, tools/build.py: after a reset C and D are read from flash again, which an update or UPDATE MODE writes
- * first, persist_flush_now; only a section stored while playing and not yet in flash is lost if the FM-1 crashes) */
+ * survive a reset, as all four did), C and D in main RAM (the .noinit region holds no more: after a reset C and D are read
+ * from flash again, which an update or UPDATE MODE writes first, persist_flush_now; only a section stored while playing
+ * and not yet in flash is lost if the FM-1 crashes). (Wave 3: C moved out of the pool into main RAM, which wave 3's
+ * clean-up freed 4.8 KB of: the pool, which tools/build.py keeps 8 KiB of spare, has 5.7 KB more for waves 4 and 5) */
 static proj_core_t proj_sec_a[2] __attribute__((section(".noinit")));
-static proj_core_t proj_sec_c __attribute__((section(".pool")));
+static proj_core_t proj_sec_c;
 static proj_core_t proj_sec_d;
 static proj_core_t *const proj_slots[4] = {&proj_sec_a[0], &proj_sec_a[1], &proj_sec_c, &proj_sec_d};
 #define PSLOT(s) (proj_slots[(s) & 3u])
@@ -966,13 +967,9 @@ static int audio_quiet(void)
     return 1;
 }
 #if FELUCCA_FLASH
-static int out_silent(void)                    /* (PHEBUS) the last 512 samples of the mix (audio.c scope) under -60 dB */
+static int out_silent(void)                    /* (PHEBUS) the last 512 samples of the mix (every other one) under -60 dB */
 {
-    uint32_t i;
-    for (i = 0; i < SCOPE_N; i++)
-        if (scope_buf[i] > 32 || scope_buf[i] < -32 || scope_bufr[i] > 32 || scope_bufr[i] < -32)
-            return 0;
-    return 1;
+    return out_quiet >= SCOPE_N;                /* (audio.c counts them: wave 3, its scope buffers gone) */
 }
 
 /* (PHEBUS) the header's unsaved dot (ui_op.c proj_unsaved): the working project as it is now against the one in flash,

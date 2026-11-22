@@ -41,10 +41,10 @@ static void run_block(void)                        /* a block, and every drum hi
                 h->k = (uint8_t)k;
                 h->note = drums.v[k].note;
                 h->vel = drums.v[k].vel;
-                h->own = drums.synth[k] == 1 ? (const void *)drums.ds[k].d == (const void *)&drum_own[k]
-                                             : drums.hx[k].d == &drum_own[k];
-                h->base16 = drums.synth[k] == 1 ? drums.ds[k].base16 : drums.hx[k].note * 16;
-                h->decay = drums.synth[k] == 1 ? drums.ds[k].d->decay : drums.hx[k].d->dec;
+                h->own = drums.synth[k] == 1 ? (const void *)drums.vx[k].ds.d == (const void *)&drum_own[k]
+                                             : drums.vx[k].hx.d == &drum_own[k];
+                h->base16 = drums.synth[k] == 1 ? drums.vx[k].ds.base16 : drums.vx[k].hx.note * 16;
+                h->decay = drums.synth[k] == 1 ? drums.vx[k].ds.d->decay : drums.vx[k].hx.d->dec;
             }
     blk++;
 }
@@ -206,9 +206,9 @@ static void t_lfo_send(void)
             ;
         for (b0 = 0; b0 < 200u && k < NDRUM; b0++) {
             run_block();
-            if (b0 && drums.ds[k].lp16 != last)
+            if (b0 && drums.vx[k].ds.lp16 != last)
                 moved++;
-            last = drums.ds[k].lp16;
+            last = drums.vx[k].ds.lp16;
         }
         check(k < NDRUM && moved > 20u, "LFO: the sound's LFO on PITCH moves its hit as it rings");
     }

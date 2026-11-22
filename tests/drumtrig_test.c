@@ -32,9 +32,9 @@ static void run_block(void)                        /* a block, and every drum hi
                 h->blk = blk;
                 h->note = drums.v[k].note;
                 h->vel = drums.v[k].vel;
-                h->own = drums.synth[k] == 2 && drums.hx[k].d == &drum_own[k];
-                h->cut = drums.synth[k] == 2 ? drums.hx[k].d->cut : 0;
-                h->lvl = drums.synth[k] == 2 ? drums.hx[k].d->level : 0;
+                h->own = drums.synth[k] == 2 && drums.vx[k].hx.d == &drum_own[k];
+                h->cut = drums.synth[k] == 2 ? drums.vx[k].hx.d->cut : 0;
+                h->lvl = drums.synth[k] == 2 ? drums.vx[k].hx.d->level : 0;
             }
     blk++;
 }

@@ -65,9 +65,11 @@ static struct {
     int32_t gs[NDRUM][2];        /* each voice's reverb and delay send gains in the last block, Q15 */
     int32_t peak;                /* largest |output| since the UI last looked (TRACKS meter) */
     uint8_t kit[NDRUM];
-    uint8_t synth[NDRUM];        /* the voice plays a synthesised kit (ds[]) */
-    dsv_t ds[NDRUM];
-    hex_v_t hx[NDRUM];           /* .. or a HEX kit (synth[] 2) */
+    uint8_t synth[NDRUM];        /* the voice plays a synthesised kit (vx[].ds) */
+    union {                      /* (PHEBUS wave 3: one or the other, never both: 720 bytes of RAM back) */
+        dsv_t ds;
+        hex_v_t hx;              /* .. or a HEX kit (synth[] 2) */
+    } vx[NDRUM];
     volatile uint16_t hits;      /* bit per lane hit since the UI last looked (pads, key LEDs) */
     volatile uint8_t kick;       /* a kick was hit (fx.c DUCK) */
     int32_t a0, a1;              /* the drum track's mute / solo attenuation over this block (fx.c), Q15, 0 = heard */
@@ -93,7 +95,7 @@ static void drums_hex_pre(uint32_t n)          /* CPU1 */
         if (drums.v[k].active && drums.synth[k] == 2) {
             lx_par_t p;
             drum_hex_par(k, &p);                       /* (its sound, and its LFO: wave 3) */
-            hx_pre_alive[k] = (uint8_t)lx_render(&drums.hx[k].lx, &p, hx_pre_buf[k], n, drums.hx[k].note);
+            hx_pre_alive[k] = (uint8_t)lx_render(&drums.vx[k].hx.lx, &p, hx_pre_buf[k], n, drums.vx[k].hx.note);
             m |= 1u << k;
         }
     hx_pre_mask = (uint8_t)m;
@@ -514,7 +516,7 @@ static void drum_lfo_mod(uint32_t k, int32_t *p16, int32_t *cut, int32_t *res, i
 static void drum_hex_par(uint32_t k, lx_par_t *p)   /* a HEX voice's parameters this block: its sound's, its LFO on them */
 {
     int32_t p16, cut, res, lvl;
-    hex_par(drums.hx[k].d, p);
+    hex_par(drums.vx[k].hx.d, p);
     drum_lfo_mod(k, &p16, &cut, &res, &lvl);
     if (p16) {                                      /* (COARSE in semitones, FINE +-half a semitone; DRUM / SNARE keep
                                                      * their FINE at 64: theirs is the slope) */
@@ -574,9 +576,9 @@ static void __attribute__((noinline)) drum_synth_on(uint32_t note, uint32_t vel)
     }
     drum_lfo_start(i, &lf);
     if (model == DM_HEX)
-        hex_on_snd_x(&drums.hx[i], own ? &drum_own[i] : (const hex_snd_t *)snd, note, vel, xs);
+        hex_on_snd_x(&drums.vx[i].hx, own ? &drum_own[i] : (const hex_snd_t *)snd, note, vel, xs);
     else
-        ds_on_snd(&drums.ds[i], own ? (const dsnd_t *)&drum_own[i] : (const dsnd_t *)snd, crush, note, vel, xs);
+        ds_on_snd(&drums.vx[i].ds, own ? (const dsnd_t *)&drum_own[i] : (const dsnd_t *)snd, crush, note, vel, xs);
 }
 
 static void drum_on_(uint32_t note, uint32_t vel);
@@ -682,13 +684,13 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dl
         } else if (drums.synth[k] == 2) {
             lx_par_t hp;
             drum_hex_par(k, &hp);
-            if (!hex_render_p(&drums.hx[k], ds_buf, m, &hp))
+            if (!hex_render_p(&drums.vx[k].hx, ds_buf, m, &hp))
                 v->active = 0;
         } else {
-            drums.ds[k].lp16 = (int16_t)lp16;
-            drums.ds[k].lcut = (int16_t)(lcut * 16);
-            drums.ds[k].lres = (int16_t)(lres / 4);
-            if (!ds_render(&drums.ds[k], ds_buf, m))
+            drums.vx[k].ds.lp16 = (int16_t)lp16;
+            drums.vx[k].ds.lcut = (int16_t)(lcut * 16);
+            drums.vx[k].ds.lres = (int16_t)(lres / 4);
+            if (!ds_render(&drums.vx[k].ds, ds_buf, m))
                 v->active = 0;
         }
         if (llvl != 16384)
