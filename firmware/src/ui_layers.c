@@ -676,6 +676,12 @@ static void layer_screen_draw(void)
             tl[4 + i].fg = sec_armed == i + 1u ? C_BLACK : TE_G4;
             tl[4 + i].top = 0;
         }
+        for (i = 8; i < 16u; i++) {                     /* (PHEBUS wave 2) keys 9..16 do nothing here since the song cut:
+                                                         * their two rows left out, not eight empty outlines */
+            tl[i].lab[0] = 0;
+            tl[i].bg = tl[i].fg = C_BLACK;
+            tl[i].top = 0;
+        }
         break;
     }
     default:

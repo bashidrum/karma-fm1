@@ -246,7 +246,12 @@ static int16_t *home_knob(uint32_t k, const param_desc_t **d)
 static void studio_tracks_draw(void)
 {
     static uint32_t head, footer, bar;
-    op_header("HOME", TE_G3, "", &head);
+    {   /* (PHEBUS wave 2: the header's title was empty since the song cut) the pattern playing, A..D, as the Rytm names
+         * its pattern; none stored or picked yet: the instrument's name */
+        char ti[12] = "PATTERN A";
+        ti[8] = (char)('A' + (live_sec & 3));
+        op_header("HOME", TE_G3, live_sec >= 0 && live_sec <= 3 ? ti : "PHEBUS", &head);
+    }
     op_home_body();                                    /* the deck, the selected track, the four lanes (ui_op.c) */
     {   /* KNOB 1 cutoff, 2 decay of the selected voice, 3 the STUTTER lane on / off (everyone's), 4 the voice's level */
         track_t *t = TSEL;

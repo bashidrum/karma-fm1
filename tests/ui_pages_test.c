@@ -229,6 +229,18 @@ int main(int argc, char **argv)
       for (k = 0; k < 6u; k++) { char nm[16]; snprintf(nm, sizeof nm, "boot-%u", (unsigned)k); flow_seed = SEED[k]; boot_frame(60u + k * 9u); ppm(nm); } }
     ui.menu = 2; ui.force = 1; frame(); ppm("page-about"); ui.menu = 0;
     go_home(); ui.force = 1; frame(); ppm("page-tracks");
+    {   /* (PHEBUS wave 2) HOME's header title: the pattern playing (A..D), else PHEBUS; never empty */
+        static uint16_t h0[240 * 20];
+        int8_t ls = live_sec;
+        uint32_t k, lit = 0, diff = 0;
+        live_sec = -1; ui.force = 1; frame();
+        memcpy(h0, screen, sizeof h0);
+        for (k = 52u * 1u; k < 240u * 20u; k++) lit += (k % 240u) >= 60u && (k % 240u) < 150u && h0[k] != 0;
+        live_sec = 2; ui.force = 1; frame();
+        for (k = 0; k < 240u * 20u; k++) diff += h0[k] != screen[k];
+        check(lit > 20u && diff > 20u, "HOME: the header's title says PHEBUS, then PATTERN C while C plays");
+        live_sec = ls; ui.force = 1; frame();
+    }
     open_family(FAM_EDIT); ui.force = 1; frame(); ppm("page-osc-default");
     /* (the rest of this test was written on the old power-on sounds, ACID TB ACID and ELEMENTS PICKED BAR: those again) */
     set_engine_of(&trk[0], ENGI_ACID); trk[0].engine = trk[0].eng_req;
@@ -711,6 +723,8 @@ int main(int argc, char **argv)
     key(key_of_white(0)); check(live_req == 0, "playing: A asked for the next bar");
     key(key_of_white(1)); check(live_req == 1, "B tapped in the same hold: B asked for instead (no chain)");
     ui.force = 1; frame(); ppm("layer-song");
+    check(px_count(0, 112, 240, 72, TE_G1) == 0u && px_count(0, 76, 240, 36, TE_G1) > 100u,
+          "SAVE layer: keys 9..16 do nothing: their two rows left out (no empty outlines); SAVE A..D drawn");
     {   /* (PHEBUS wave 1: song mode, SONG REC and the SONG screen are cut) keys 13, 14, 16 do nothing */
         uint32_t st0 = sec_stores, ld0 = sec_loads, pg0 = ui.page;
         key(key_of_white(12)); key(key_of_white(13)); key(key_of_white(15));
