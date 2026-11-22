@@ -118,39 +118,46 @@ static void hex_par(const hex_snd_t *d, lx_par_t *p)
     }
 }
 
-/* a voice on sound d (the kit's, or drums.c's locked copy); note: the GM note (its pitch offset) */
-static void hex_on_snd(hex_v_t *v, const hex_snd_t *d, uint32_t note, uint32_t vel)
+/* a voice on sound d (the kit's, the project's, or drums.c's locked copy); note: the GM note (its pitch offset); xs:
+ * semitones more (a pitch lock, chromatic mode: PHEBUS wave 3) */
+static void hex_on_snd_x(hex_v_t *v, const hex_snd_t *d, uint32_t note, uint32_t vel, int32_t xs)
 {
     int32_t semi;
     lx_par_t p;
     (void)ds_lane(note, &semi);
     memset(v, 0, sizeof *v);
     v->d = d;
-    v->note = (uint8_t)(60 + semi);
+    v->note = (uint8_t)clamp(60 + semi + xs, 1, 127);
     hex_par(v->d, &p);
     lx_trigger(&v->lx, &p, v->note, vel ? vel : 1u);
 }
+static void hex_on_snd(hex_v_t *v, const hex_snd_t *d, uint32_t note, uint32_t vel) { hex_on_snd_x(v, d, note, vel, 0); }
 static void hex_on(hex_v_t *v, const hex_snd_t *kit, uint32_t note, uint32_t vel)
 {
     int32_t semi;
     hex_on_snd(v, &kit[ds_lane(note, &semi) % HEX_LANES], note, vel);
 }
 
-/* n samples of a voice into out[] (the drums' scale: +-32767 at full); 0 when it has rung out */
-static int hex_render(hex_v_t *v, int32_t *out, uint32_t n)
+/* n samples of a voice into out[] (the drums' scale: +-32767 at full) with its parameters p (hex_par, and drums.c's LFO);
+ * 0 when it has rung out */
+static int hex_render_p(hex_v_t *v, int32_t *out, uint32_t n, const lx_par_t *p)
 {
     int16_t b[32];
     uint32_t i, j, k;
     int alive = 1;
-    lx_par_t p;
-    hex_par(v->d, &p);
     for (i = 0; i < n; i += k) {
         k = n - i < 32u ? n - i : 32u;
-        alive = lx_render(&v->lx, &p, b, k, v->note);
+        alive = lx_render(&v->lx, p, b, k, v->note);
         for (j = 0; j < k; j++)
             out[i + j] = b[j];
     }
     return alive;
+}
+static int hex_render(hex_v_t *v, int32_t *out, uint32_t n)
+{
+    lx_par_t p;
+    hex_par(v->d, &p);
+    return hex_render_p(v, out, n, &p);
 }
 
 /* ---- the kits: {MODEL, WAVE, COARSE, FINE, ATK, DEC, SLOPE, LEVEL, PAMT, PDEC, RATIO, FM, CLICK, CLVL, CTONE,

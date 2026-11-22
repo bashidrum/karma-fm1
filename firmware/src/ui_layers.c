@@ -17,6 +17,14 @@
  * project (a ring fills; let go before and nothing happens). */
 static const uint8_t LAYER_BTN[LY_COUNT] = {NB, B_FX, B_EDIT, B_ARP, B_SEQ, B_SCL, B_GLO, B_SAVE};
 static const char *const LAYER_NAME[LY_COUNT] = {"", "punch", "erase", "roll", "steps", "key", "mix", "section"};
+static const char *layer_name(uint32_t l)               /* (PHEBUS wave 3: on the drum track SEL picks a sound, ARP retrigs) */
+{
+    if (is_drum(TSEL) && l == LY_SCALE)
+        return drum_keys == DK_MUTE ? "solo" : "sound";
+    if (is_drum(TSEL) && l == LY_ROLL)
+        return "retrig";
+    return LAYER_NAME[l % LY_COUNT];
+}
 static const char *const LAYER_BTN_NAME[LY_COUNT] = {"", "fx:", "edit:", "arp:", "seq:", "sel:", "glo:", "save:"};   /* the button
                                                          * held, before the layer's name: "FX: PUNCH" (review 21) */
 static void section_store(uint32_t s);                  /* project.c */
@@ -162,6 +170,21 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
     switch (layer) {                                    /* (SEQ: its keys do nothing, PHEBUS) */
     case LY_SCALE: {                                    /* the key of the song: every synth part */
         uint32_t i, root = (53u + k) % 12u;
+        if (is_drum(TSEL)) {                            /* (PHEBUS wave 3) the drum track: SEL + a key picks its sound (the
+                                                         * Rytm's TRACK + pad); in MUTE mode it solos it (again: off) */
+            if (w < 0)
+                return;
+            if (drum_keys == DK_MUTE) {
+                drum_solo ^= (uint16_t)(1u << w);
+                drum_lane = (uint8_t)w;
+            } else {
+                drum_lane = (uint8_t)w;
+                audition_lane((uint32_t)w);
+                sg_drop();
+            }
+            ui.force = 1;
+            return;
+        }
         for (i = 0; i < NPART; i++)
             trk[i].p[P_ROOT] = (int16_t)root;
         ui_say("KEY ", N_NOTE[root]);
@@ -254,7 +277,9 @@ static void layer_knobs(uint32_t layer)
                 pattern_transpose(t, s);
             break;
         case LY_ROLL:
-            if (k == 0u)
+            if (k == 0u && is_drum(t))                  /* (PHEBUS wave 3) the drum track's live RETRIG rate, 1/1 .. 1/80 */
+                drt_live = (uint8_t)clamp((int32_t)drt_live + s, 1, (int32_t)NRTRG);
+            else if (k == 0u)
                 song.g[G_ROLL] = (int16_t)clamp(song.g[G_ROLL] + s, 0, 4);
             break;
         case LY_STEP:                                   /* -  DIV  SWING  STEPS */
@@ -266,6 +291,8 @@ static void layer_knobs(uint32_t layer)
                 t->p[P_SLEN] = (int16_t)clamp(t->p[P_SLEN] + accel(EN_K4, s, 63), 1, NSTEP);
             break;
         case LY_SCALE:
+            if (is_drum(t))                             /* (wave 3: the sound pick; its knobs do nothing) */
+                break;
             if (k == 0u) {
                 if (!is_drum(t))
                     t->p[P_CHORD] = (int16_t)clamp(t->p[P_CHORD] + s, 0, 5);
@@ -508,6 +535,9 @@ static void layer_screen_draw(void)
         int mute = layer == LY_ERASE && is_drum(t) && er_mute;   /* (2.6) EDIT + a black key: the mutes */
         col = layer == LY_ERASE ? TE_RED : col;
         str_cpy(sub, mute ? "keys mute" : layer == LY_ERASE ? (song.playing ? "as it plays" : "every step") : "hold + key", sizeof sub);
+        if (layer == LY_ROLL && is_drum(t)) {           /* (PHEBUS wave 3) RETRIG: its rate, the black keys pick one */
+            str_cpy(sub, "black keys: rate", sizeof sub);
+        }
         for (i = 0; i < 16u; i++) {
             uint32_t k = key_of_white(i), down = (held >> k) & 1u, present = 0, j;
             if (is_drum(t)) {
@@ -531,13 +561,12 @@ static void layer_screen_draw(void)
             tl[i].bg = down ? (layer == LY_ERASE ? TE_RED : C_WHITE) : TE_G1;
             tl[i].fg = down ? C_BLACK : present ? C_WHITE : TE_G3;
             tl[i].top = present && !down ? (layer == LY_ERASE ? TE_RED : col) : 0;
-            if (mute) {                                 /* MUTE: a muted sound white on red, "off" */
+            if (mute) {                                 /* MUTE: a muted sound dark, with the yellow of M (the colour rule:
+                                                         * yellow is mute, red only records and erases) */
                 uint32_t off = (drum_mute >> i) & 1u;
-                tl[i].bg = off ? TE_RED : TE_G1;
-                tl[i].fg = off ? C_WHITE : present ? C_WHITE : TE_G3;
-                tl[i].top = 0;
-                if (off)
-                    str_cpy(tl[i].lab, "off", 8);
+                tl[i].bg = TE_G1;
+                tl[i].fg = off ? TE_G3 : present ? C_WHITE : TE_G3;
+                tl[i].top = off ? TE_MUTE : 0;
             }
         }
         if (layer == LY_ERASE && is_drum(t) && !mute && !undo.valid)
@@ -550,6 +579,10 @@ static void layer_screen_draw(void)
             if (!mute)                                  /* what OCT- / OCT+ do now (one step: undo, then redo) */
                 str_cpy(sub, undo.valid ? (undo.undone ? "oct+ redo" : "oct- undo") : is_drum(t) ? sub : "no undo yet",
                         sizeof sub);
+        } else if (is_drum(t)) {
+            lab[0] = "rate";
+            str_cpy(v[0], SG_RATE[drt_live % 18u], 8);
+            ratio[0] = ((int32_t)drt_live - 1) * 1000 / ((int32_t)NRTRG - 1);
         } else {
             lab[0] = "rate";
             str_cpy(v[0], N_ROLL[clamp(song.g[G_ROLL], 0, 4)], 8);
@@ -574,6 +607,23 @@ static void layer_screen_draw(void)
     }
     case LY_SCALE: {                                    /* the white keys' notes / chords; the root lit */
         uint32_t root = (uint32_t)trk[0].p[P_ROOT] % 12u, mask = SCALE_MASK[clamp(trk[0].p[P_SCALE], 0, NSCALES - 1)];
+        if (is_drum(t)) {                               /* (PHEBUS wave 3) the drum track: the 16 sounds, the key picks one
+                                                         * (MUTE mode: solos it); the selected one filled, a muted one with
+                                                         * the yellow of M, a soloed one ice blue */
+            int solo = drum_keys == DK_MUTE;
+            col = TE_DRUM;
+            str_cpy(sub, solo ? "key: solo" : "key: pick a sound", sizeof sub);
+            for (i = 0; i < 16u; i++) {
+                uint32_t j, present = 0, m = (drum_mute >> i) & 1u, so = (drum_solo >> i) & 1u;
+                for (j = 0; j < trk_len(t); j++)
+                    present |= (uint32_t)dt_has(j, i);
+                str_cpy(tl[i].lab, LANE_SHORT[i], 8);
+                tl[i].bg = i == drum_lane ? TE_DRUM : TE_G1;
+                tl[i].fg = i == drum_lane ? C_BLACK : m ? TE_G3 : present ? TE_DRUM : TE_G3;
+                tl[i].top = so ? TE_SOLO : m ? TE_MUTE : 0;
+            }
+            break;
+        }
         col = TE_G4;
         str_cpy(sub, "key: ", sizeof sub);
         str_cpy(sub + 5, N_NOTE[root], 4);
@@ -693,7 +743,7 @@ static void layer_screen_draw(void)
                     (uint32_t)(song.playing && clk_pos < BEAT_U / 4u) << 3 | (uint32_t)mix_pan << 4);
         return;
     }
-    layer_title(LAYER_NAME[layer % LY_COUNT], sub, col, &head);
+    layer_title(layer_name(layer), sub, col, &head);
     if (layer == LY_FX)
         punch_tiles_draw(tl, &tiles);
     else if (layer == LY_STEP)

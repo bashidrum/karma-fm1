@@ -32,7 +32,7 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
     uint32_t beat = clk_beat, k, playing = song.playing;
     uint32_t sig = studio_hash((uint32_t)song.g[G_BPM] * 7u + playing * 3u + (song.rec != 0) * 1999u +
                                (playing ? beat * 131u : 0u) + (ui.bpm_t != 0) * 104729u + (uint32_t)batt_shown() * 7777u + proj_unsaved * 31337u +
-                               sr_on * 3331u, title);
+                               sr_on * 3331u + fill_now * 7331u, title);
     sig = studio_hash(sig * 31u + tc, tag);
     if (!ui.force && sig == *cache)
         return;
@@ -47,7 +47,13 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
         str_cpy(b, title, 10);
         while (b[0] && w + 8 + text_w(&FONT_S, b) > 122)
             b[str_len(b) - 1u] = 0;
-        cv_text(w + 8, 2, &FONT_S, b, TE_G3);
+        if (fill_now) {                                 /* (PHEBUS wave 3) a fill on (held, latched, the bar): FILL inverted,
+                                                         * white: it is everyone's (the conditions of every track) */
+            cv_rect(w + 6, 2, text_w(&FONT_S, "FILL") + 4, 16, C_WHITE);
+            cv_text(w + 8, 2, &FONT_S, "FILL", C_BLACK);
+        } else {
+            cv_text(w + 8, 2, &FONT_S, b, TE_G3);
+        }
     }
     fmt_int(b, song.g[G_BPM]);
     cv_text(150 - text_w(&FONT_S, b), 2, &FONT_S, b, ui.bpm_t ? C_WHITE : TE_G4);
@@ -741,47 +747,6 @@ static void op_arp_scene(const track_t *t)
     else if (!t->nheld)
         cv_text(150, 24, &FONT_S, "HOLD KEYS", TE_G3);
 #undef AY
-}
-
-/* ---------------------------------------------------------------- HEX --- */
-/* the drum track's EDIT pages: the sound of the selected lane, played once into a picture (its first 0.75 s, the
- * louder half of each column), redrawn when it changes; the sound's name and its kit */
-static void op_hex_scene(void)
-{
-    static int8_t col[200][2];
-    static uint32_t made = 0xFFFFFFFFu;
-    uint32_t kit = drum_kit(), i, k;
-    const hex_snd_t *kits;
-    if (kit >= DRUM_SAMPLED && kit < DRUM_SYN) {
-        cv_text(28, 50, &FONT_S, "A HEX KIT ONLY:", TE_G3);
-        cv_text(28, 68, &FONT_S, "PRESETS: KIT 1-5", TE_G3);
-        return;
-    }
-    kits = kit < DRUM_SAMPLED ? HEX_KITS[kit].s : dsu_kit(kit - DRUM_SYN)->s;
-    if (made != hex_gen * 64u + kit * 16u + drum_lane) {
-        static hex_v_t v;
-        static int32_t buf[166];
-        hex_on(&v, kits, LANE_NOTE[drum_lane % DRUM_LANES], 110);
-        for (i = 0; i < 200u; i++) {
-            int32_t lo = 0, hi = 0;
-            hex_render(&v, buf, 166);
-            for (k = 0; k < 166u; k++) {
-                lo = buf[k] < lo ? buf[k] : lo;
-                hi = buf[k] > hi ? buf[k] : hi;
-            }
-            col[i][0] = (int8_t)clamp(lo / 1300, -32, 0);
-            col[i][1] = (int8_t)clamp(hi / 1300, 0, 32);
-        }
-        made = hex_gen * 64u + kit * 16u + drum_lane;
-    }
-    for (i = 0; i < 200u; i += 4u)
-        cv_pset(20 + (int32_t)i, 70, OP_PUR_D);
-    for (i = 0; i < 200u; i++)
-        if (col[i][1] - col[i][0] > 0)
-            cv_line(20 + (int32_t)i, 70 - col[i][1], 20 + (int32_t)i, 70 - col[i][0], i < 6u ? C_WHITE : TE_DRUM);
-    cv_text(4, 2, &FONT_S, LANE_NAME[drum_lane % DRUM_LANES], C_WHITE);
-    cv_text(4 + text_w(&FONT_S, LANE_NAME[drum_lane % DRUM_LANES]) + 8, 2, &FONT_S, DRUM_KIT_NAMES[kit], TE_G3);
-    cv_text(4, 106, &FONT_S, "KEY: PICK SOUND", TE_G2);
 }
 
 /* ------------------------------------------------------------------- FX --- */

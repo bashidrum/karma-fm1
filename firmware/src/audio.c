@@ -35,8 +35,10 @@ static volatile uint32_t audio_halves, audio_max_us;
 static volatile uint32_t t5_nested_ticks;              /* TIMER4 ticks TIMER5 spent nested in this ISR (main.c) */
 static uint32_t t5_all_ticks;                          /* (3.1.5) TIMER4 ticks spent in TIMER5, all of it (editor ED_STAT) */
 #define SCOPE_N 512u
-static int16_t scope_buf[SCOPE_N], scope_bufr[SCOPE_N];   /* left, right (the visualiser): the mix at full level */
-static uint32_t scope_w;
+/* (PHEBUS wave 3) the mix at full level, every other sample: how many since one was louder than -60 dB (project.c
+ * out_silent: the stop autosave waits for SCOPE_N of them). It was KARMA's scope, two 512-sample buffers (2 KB of RAM)
+ * the visualisers read; they are gone (wave 1) and only the silence test was left on them */
+static volatile uint32_t out_quiet;
 
 static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 -> 24 bit */
 {
@@ -49,10 +51,12 @@ static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 
         uac_tap(usb_full_now ? usb_out : out, n);       /* the USB audio input: the master output, or at full level */
 #endif
     for (i = 0; i < n; i++) {
-        if (i & 1u)
-        {
-            scope_bufr[scope_w & (SCOPE_N - 1u)] = vis_tap[2u * i + 1u];   /* (fx.c: MASTER all the way up) */
-            scope_buf[scope_w++ & (SCOPE_N - 1u)] = vis_tap[2u * i];
+        if (i & 1u) {                                   /* (fx.c vis_tap: MASTER all the way up) */
+            int32_t l = vis_tap[2u * i], r = vis_tap[2u * i + 1u];
+            if (l > 32 || l < -32 || r > 32 || r < -32)
+                out_quiet = 0;
+            else if (out_quiet < SCOPE_N)
+                out_quiet++;
         }
         out[2u * i] <<= OUT_SHIFT;
         out[2u * i + 1u] <<= OUT_SHIFT;

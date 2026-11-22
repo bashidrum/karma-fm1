@@ -65,9 +65,11 @@ static struct {
     int32_t gs[NDRUM][2];        /* each voice's reverb and delay send gains in the last block, Q15 */
     int32_t peak;                /* largest |output| since the UI last looked (TRACKS meter) */
     uint8_t kit[NDRUM];
-    uint8_t synth[NDRUM];        /* the voice plays a synthesised kit (ds[]) */
-    dsv_t ds[NDRUM];
-    hex_v_t hx[NDRUM];           /* .. or a HEX kit (synth[] 2) */
+    uint8_t synth[NDRUM];        /* the voice plays a synthesised kit (vx[].ds) */
+    union {                      /* (PHEBUS wave 3: one or the other, never both: 720 bytes of RAM back) */
+        dsv_t ds;
+        hex_v_t hx;              /* .. or a HEX kit (synth[] 2) */
+    } vx[NDRUM];
     volatile uint16_t hits;      /* bit per lane hit since the UI last looked (pads, key LEDs) */
     volatile uint8_t kick;       /* a kick was hit (fx.c DUCK) */
     int32_t a0, a1;              /* the drum track's mute / solo attenuation over this block (fx.c), Q15, 0 = heard */
@@ -83,6 +85,7 @@ static int32_t ds_buf[CTL];
 static int16_t hx_pre_buf[HX_PRE_N][CTL];       /* (main RAM: the pool keeps its 8 KiB spare) */
 static uint8_t hx_pre_alive[NDRUM];
 static uint8_t hx_pre_mask;                    /* bit k: voice k's block is in hx_pre_buf (set by CPU1, used once) */
+static void drum_hex_par(uint32_t k, lx_par_t *p);   /* (below: its sound, its LFO) */
 static void drums_hex_pre(uint32_t n)          /* CPU1 */
 {
     uint32_t k, m = 0;
@@ -91,8 +94,8 @@ static void drums_hex_pre(uint32_t n)          /* CPU1 */
     for (k = 0; k < HX_PRE_N; k++)
         if (drums.v[k].active && drums.synth[k] == 2) {
             lx_par_t p;
-            hex_par(drums.hx[k].d, &p);
-            hx_pre_alive[k] = (uint8_t)lx_render(&drums.hx[k].lx, &p, hx_pre_buf[k], n, drums.hx[k].note);
+            drum_hex_par(k, &p);                       /* (its sound, and its LFO: wave 3) */
+            hx_pre_alive[k] = (uint8_t)lx_render(&drums.vx[k].hx.lx, &p, hx_pre_buf[k], n, drums.vx[k].hx.note);
             m |= 1u << k;
         }
     hx_pre_mask = (uint8_t)m;
@@ -145,6 +148,20 @@ static uint32_t key_of_lane(uint32_t l)
     static const uint8_t K[7] = {0, 2, 4, 6, 7, 9, 11};      /* F G A B C D E */
     return (l / 7u) * 12u + K[l % 7u];
 }
+
+/* (PHEBUS wave 3) the selected sound: the one the drum screen's pages, its step keys, chromatic mode and the sound pick
+ * address (written by the UI only; seq.c reads it for chromatic mode) */
+static uint8_t drum_lane;
+#include "drum_snd.c"         /* (PHEBUS wave 3) the sounds as the pages edit them: the project's kit, each sound's LFO */
+/* each voice's LFO as it plays, and a locked send (0 none, else the value + 1: reverb, delay) */
+static struct {
+    dlfo_t lf[NDRUM];
+    uint32_t ph[NDRUM], rnd[NDRUM];
+    int32_t fade[NDRUM], val[NDRUM];             /* fade: Q15 the depth's share now; val: the LFO x the depth, Q15 */
+    uint8_t one[NDRUM];                          /* ONE: the cycle is over (it holds) */
+    uint8_t sov[NDRUM][2];
+    uint32_t t;                                  /* samples the drums ran (FREE's phase) */
+} dlr;
 
 /* ---- the drum pattern's trigs (PHEBUS wave 2, core.h dpat_t): step i's trig of sound l, its extras, its sound's locks.
  * Every writer runs with the audio IRQ off (the sequencer reads them in the ISR) */
@@ -220,11 +237,11 @@ static int dt_lk_set(uint32_t i, uint32_t l, uint32_t p, uint32_t v)   /* set (o
     dpat.lk[k].val = (uint8_t)v;
     return 1;
 }
-static uint32_t dt_lk_del(uint32_t i, uint32_t l, uint32_t p)   /* p DSP_COUNT: every lock of the trig; how many went */
+static uint32_t dt_lk_del(uint32_t i, uint32_t l, uint32_t p)   /* p DSP_ALL: every lock of the trig; how many went */
 {
     uint32_t k, n = 0;
     for (k = 0; k < DT_NLK; k++)
-        if (dpat.lk[k].step == i && dpat.lk[k].lane == l && (p >= DSP_COUNT || dpat.lk[k].param == p)) {
+        if (dpat.lk[k].step == i && dpat.lk[k].lane == l && (p == DSP_ALL || dpat.lk[k].param == p)) {
             dpat.lk[k].step = DT_FREE;
             n++;
         }
@@ -249,7 +266,7 @@ static void dt_clr(uint32_t i, uint32_t l)             /* a trig gone, its extra
     dpat.vel[i % NSTEP][l & 15u] = 0;
     if (k >= 0)
         dpat.x[k].step = DT_FREE;
-    dt_lk_del(i, l, DSP_COUNT);
+    dt_lk_del(i, l, DSP_ALL);
 }
 static void dpat_clear(dpat_t *d)                      /* no trig, no extra, no lock */
 {
@@ -416,19 +433,110 @@ static voice_t *drum_pick(uint32_t note)
     return &drums.v[0];
 }
 
-/* (PHEBUS wave 2) the locks of the hit about to start (seq.c dhit sets them just before trk_note_on, and clears them
- * after): a HEX sound plays from its voice's own copy of the kit's sound with these bytes in it, so the lock changes that
- * hit only, for as long as it rings. A hit without locks plays the kit's sound itself (a knob turned is heard on it at once,
- * as before). The synthesised kits (606 ..) have no editable sound yet: they play their sound as it is */
-static uint8_t drum_lk_n, drum_lk_p[DSP_COUNT], drum_lk_v[DSP_COUNT];
-static hex_snd_t drum_own[NDRUM];
+/* (PHEBUS wave 2, 3) the locks of the hit about to start (seq.c dhit sets them just before trk_note_on, and clears them
+ * after; chromatic mode a pitch): the hit plays from its voice's own copy of its sound with the locked values in it, so a
+ * lock changes that hit only, for as long as it rings; its LFO, its sends and its pitch the same. A hit without locks
+ * plays the kit's sound itself (a knob turned is heard on it at once, as before) */
+static uint8_t drum_lk_n, drum_lk_p[DLK_MAX], drum_lk_v[DLK_MAX];
+static hex_snd_t drum_own[NDRUM];                /* (a hex_snd_t, or a dsnd_t: both 22 bytes) */
 static void dsu_fix_sound(hex_snd_t *d);
-/* a synthesised voice: note on the 16 sounds snd (a factory kit, SYN1..4), the oldest voice stolen */
-static void __attribute__((noinline)) drum_synth_on(uint32_t note, uint32_t vel, uint32_t kit, const dsnd_t *snd, uint32_t crush,
-                                                    const hex_snd_t *hex)   /* (a HEX kit: hex, snd unused) */
+/* the sound a note plays on the kit the drum track is on (model, crush: its machine, a SYN kit's crush) */
+static const uint8_t *drum_note_snd(uint32_t note, uint32_t *model, uint32_t *crush)
+{
+    uint32_t kit = drum_kit();
+    int32_t semi;
+    *crush = 0;
+    if (pkit_on()) {
+        *model = pkit.model;
+        *crush = pkit.crush;
+        return pkit.snd[lane_of_note(note) & 15u];
+    }
+    *model = kit_model(kit);
+    if (*model == DM_SYN)
+        *crush = DS_KITS[(kit - DRUM_SAMPLED) % DS_NKITS].crush;
+    if (kit >= DRUM_SYN)
+        return (const uint8_t *)&dsu_kit(kit - DRUM_SYN)->s[ds_lane(note, &semi) % DS_LANES];
+    if (kit < DRUM_SAMPLED)
+        return (const uint8_t *)&HEX_KITS[kit].s[ds_lane(note, &semi) % DS_LANES];
+    return (const uint8_t *)&DS_KITS[(kit - DRUM_SAMPLED) % DS_NKITS].s[ds_lane(note, &semi) % DS_LANES];
+}
+static void drum_lfo_val(uint32_t k)             /* voice k's LFO x its depth now (dlr.val) */
+{
+    const dlfo_t *f = &dlr.lf[k];
+    int32_t w = dlfo_wave(f->wav, dlr.ph[k], dlr.rnd[k]);
+    dlr.val[k] = f->dep ? mulq15(w, mulq15(dlr.fade[k], f->dep * 516)) : 0;   /* (63 x 516: about 1.0) */
+}
+static void drum_lfo_start(uint32_t k, const dlfo_t *f)
+{
+    dlr.lf[k] = *f;
+    dlr.one[k] = 0;
+    dlr.rnd[k] = rng();
+    dlr.ph[k] = (f->mode == DLM_FREE ? dlr.t * (dlfo_inc(f, 1u)) : 0u) + ((uint32_t)f->sph << 25);
+    dlr.fade[k] = f->fad > 0 ? 0 : 32767;
+    drum_lfo_val(k);
+}
+static void drum_lfo_tick(uint32_t k, uint32_t n)   /* a block of n samples later */
+{
+    const dlfo_t *f = &dlr.lf[k];
+    uint32_t old = dlr.ph[k];
+    if (!f->dep)
+        return;
+    if (!dlr.one[k]) {
+        dlr.ph[k] += dlfo_inc(f, n);
+        if (dlr.ph[k] < old) {
+            dlr.rnd[k] = rng();
+            if (f->mode == DLM_ONE) {
+                dlr.one[k] = 1;
+                dlr.ph[k] = 0xFFFFFFFFu;            /* (holds at the cycle's end) */
+            }
+        }
+    }
+    if (f->fad) {                                   /* FADE: about 2 ms .. 8 s to its end */
+        int32_t step = (int32_t)(32767u * n / (uint32_t)(88u + 5500u * (uint32_t)((f->fad < 0 ? -f->fad : f->fad) *
+                                                                                  (f->fad < 0 ? -f->fad : f->fad)) / 64u));
+        dlr.fade[k] = clamp(dlr.fade[k] + (f->fad > 0 ? step : -step), 0, 32767);
+    }
+    drum_lfo_val(k);
+}
+/* voice k's LFO as its machine's modulation: pitch (1/16 semitone), cutoff, resonance (in the machine's steps), level (Q14) */
+static void drum_lfo_mod(uint32_t k, int32_t *p16, int32_t *cut, int32_t *res, int32_t *lvl)
+{
+    int32_t v = dlr.val[k];
+    *p16 = *cut = *res = 0;
+    *lvl = 16384;
+    if (!v)
+        return;
+    switch (dlr.lf[k].dst) {
+    case DL_PIT: *p16 = v * 192 / 32767; break;      /* +-12 semitones */
+    case DL_CUT: *cut = v * 64 / 32767; break;       /* +-64 of 127 */
+    case DL_RES: *res = v * 64 / 32767; break;
+    default: *lvl = clamp(16384 + (v >> 1), 0, 32767); break;
+    }
+}
+static void drum_hex_par(uint32_t k, lx_par_t *p)   /* a HEX voice's parameters this block: its sound's, its LFO on them */
+{
+    int32_t p16, cut, res, lvl;
+    hex_par(drums.vx[k].hx.d, p);
+    drum_lfo_mod(k, &p16, &cut, &res, &lvl);
+    if (p16) {                                      /* (COARSE in semitones, FINE +-half a semitone; DRUM / SNARE keep
+                                                     * their FINE at 64: theirs is the slope) */
+        int32_t semi = (p16 + (p16 < 0 ? -8 : 8)) / 16, fr = p16 - semi * 16;
+        p->coarse = (uint8_t)clamp((int32_t)p->coarse + semi, 0, 127);
+        p->fine = (uint8_t)clamp((int32_t)p->fine + fr * 8, 0, 126);
+    }
+    if (cut)
+        p->fcut = (uint8_t)clamp((int32_t)p->fcut + cut, 0, 127);
+    if (res)
+        p->fres = (uint8_t)clamp((int32_t)p->fres + res, 0, 127);
+}
+/* a voice: note on the kit the drum track is on (its sound, the project's copy or the kit's), the oldest voice stolen */
+static void __attribute__((noinline)) drum_synth_on(uint32_t note, uint32_t vel)
 {
     voice_t *v = &drums.v[0];
-    uint32_t i;
+    uint32_t i, k, model, crush, lane = note < 128u ? lane_of_note(note) : 0u, own = 0;
+    int32_t xs = 0;
+    const uint8_t *snd = drum_note_snd(note, &model, &crush);
+    dlfo_t lf = *lane_lfo(lane);
     if (note == 42u || note == 44u)                 /* hi-hat choke */
         for (i = 0; i < NDRUM; i++)
             if (drums.v[i].active && drums.v[i].note == 46u) {
@@ -444,21 +552,33 @@ static void __attribute__((noinline)) drum_synth_on(uint32_t note, uint32_t vel,
     v->active = 1;
     v->s[7] = 0;
     v->age = ++drums.age;
-    drums.synth[i] = hex ? 2 : 1;
-    drums.lane[i] = (uint8_t)(note < 128u ? lane_of_note(note) : 0u);
-    drums.kit[i] = (uint8_t)kit;
-    if (hex && drum_lk_n) {                         /* locked: the voice's own copy */
-        int32_t semi;
-        uint32_t k;
-        drum_own[i] = hex[ds_lane(note, &semi) % HEX_LANES];
-        for (k = 0; k < drum_lk_n && k < DSP_COUNT; k++)
-            ((uint8_t *)&drum_own[i])[drum_lk_p[k] % DSP_COUNT] = drum_lk_v[k];
-        dsu_fix_sound(&drum_own[i]);                /* (a value the model has no use for: back in its range) */
-        hex_on_snd(&drums.hx[i], &drum_own[i], note, vel);
-    } else if (hex)
-        hex_on(&drums.hx[i], hex, note, vel);
+    drums.synth[i] = model == DM_HEX ? 2 : 1;
+    drums.lane[i] = (uint8_t)lane;
+    drums.kit[i] = (uint8_t)drum_kit();
+    dlr.sov[i][0] = dlr.sov[i][1] = 0;
+    for (k = 0; k < drum_lk_n && k < DLK_MAX; k++) {   /* the locks: into the voice's own copy, its LFO, sends, pitch */
+        uint32_t id = drum_lk_p[k];
+        int32_t val = id == DSP_FINE || id == DSP_NOTE || id == DSP_LDEP || id == DSP_LFAD ||
+                      id == DSP_S0 + DS_FENV || id == DSP_S0 + DS_LEVEL ? (int32_t)(int8_t)drum_lk_v[k] : (int32_t)drum_lk_v[k];
+        if (id == DSP_NOTE) {
+            xs = clamp(val, -48, 48);
+        } else if (id == DSP_REV || id == DSP_DEL) {
+            dlr.sov[i][id - DSP_REV] = (uint8_t)(clamp(val, 0, id == DSP_REV ? DRUM_SEND_REV : DRUM_SEND_DLY) + 1);
+        } else if (id >= DSP_LSPD && id <= DSP_LMOD) {
+            dsp_put(model, 0, &lf, id, val);
+        } else if ((id < DSP_COUNT && model == DM_HEX && id != DSP_MODEL) ||
+                   (id >= DSP_S0 && id < DSP_S0 + DS_N && model == DM_SYN)) {
+            if (!own)
+                memcpy(&drum_own[i], snd, 22);
+            own = 1;
+            dsp_put(model, (uint8_t *)&drum_own[i], &lf, id, val);
+        }
+    }
+    drum_lfo_start(i, &lf);
+    if (model == DM_HEX)
+        hex_on_snd_x(&drums.vx[i].hx, own ? &drum_own[i] : (const hex_snd_t *)snd, note, vel, xs);
     else
-        ds_on(&drums.ds[i], snd, crush, note, vel);
+        ds_on_snd(&drums.vx[i].ds, own ? (const dsnd_t *)&drum_own[i] : (const dsnd_t *)snd, crush, note, vel, xs);
 }
 
 static void drum_on_(uint32_t note, uint32_t vel);
@@ -470,26 +590,19 @@ static void drum_on(uint32_t note, uint32_t vel)   /* (3.1.3: timed in the measu
 }
 static void drum_on_(uint32_t note, uint32_t vel)
 {
-    uint32_t kit = drum_kit();
     if (note != 76u && note != 77u)                 /* the pads and key LEDs (not the click's wood block) */
         drums.hits |= (uint16_t)(1u << lane_of_note(note));
     if (note == 35u || note == 36u)
         drums.kick = 1;                             /* (DUCK) */
-    if (kit >= DRUM_SYN) {                          /* SYN1..SYN4: your synthesised kit */
-        const dsu_kit_t *u = dsu_kit(kit - DRUM_SYN);
-        drum_synth_on(note, vel, kit, 0, 0, u->s);
-    } else if (kit < DRUM_SAMPLED) {                /* a HEX kit */
-        drum_synth_on(note, vel, kit, 0, 0, HEX_KITS[kit].s);
-    } else {                                        /* synthesised kit */
-        drum_synth_on(note, vel, kit, DS_KITS[kit - DRUM_SAMPLED].s, DS_KITS[kit - DRUM_SAMPLED].crush, 0);
-    }
+    drum_synth_on(note, vel);
 }
 
 /* the reverb and delay sends of voice k, Q15: the kit's plus its sound's own; own_only: the sound's alone */
 static inline void drum_voice_sends(uint32_t k, int own_only, int32_t *rs, int32_t *ds)
 {
     uint32_t ln = drums.lane[k] % DRUM_LANES;
-    int32_t r = drum_send[ln][0] * 127 / DRUM_SEND_REV, d = drum_send[ln][1] * 127 / DRUM_SEND_DLY;
+    int32_t r = (dlr.sov[k][0] ? dlr.sov[k][0] - 1 : drum_send[ln][0]) * 127 / DRUM_SEND_REV;   /* (a locked send: the */
+    int32_t d = (dlr.sov[k][1] ? dlr.sov[k][1] - 1 : drum_send[ln][1]) * 127 / DRUM_SEND_DLY;  /* hit's own, wave 3) */
     if (own_only) {
         *rs = r * 258;
         *ds = d * 258;
@@ -556,19 +669,34 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dl
     for (k = 0; k < NDRUM; k++) {               /* synthesised voices: render, then as below */
         voice_t *v = &drums.v[k];
         uint32_t m = n < CTL ? n : CTL;             /* (the mix runs in blocks of CTL) */
+        int32_t lp16, lcut, lres, llvl;
         if (!v->active || !drums.synth[k])
             continue;
         drum_voice_sends(k, mono != 0, &send, &dsend);
         drums.gs[k][0] = send;                      /* (3.1.2: for drum_cut) */
         drums.gs[k][1] = dsend;
+        drum_lfo_mod(k, &lp16, &lcut, &lres, &llvl);   /* (PHEBUS wave 3) the sound's LFO */
         if (drums.synth[k] == 2 && ((hx_pre_mask >> k) & 1u)) {   /* (3.1.3: CPU1 rendered it) */
             for (i = 0; i < m; i++)
                 ds_buf[i] = hx_pre_buf[k][i];
             if (!hx_pre_alive[k])
                 v->active = 0;
-        } else if (!(drums.synth[k] == 2 ? hex_render(&drums.hx[k], ds_buf, m) : ds_render(&drums.ds[k], ds_buf, m))) {
-            v->active = 0;
+        } else if (drums.synth[k] == 2) {
+            lx_par_t hp;
+            drum_hex_par(k, &hp);
+            if (!hex_render_p(&drums.vx[k].hx, ds_buf, m, &hp))
+                v->active = 0;
+        } else {
+            drums.vx[k].ds.lp16 = (int16_t)lp16;
+            drums.vx[k].ds.lcut = (int16_t)(lcut * 16);
+            drums.vx[k].ds.lres = (int16_t)(lres / 4);
+            if (!ds_render(&drums.vx[k].ds, ds_buf, m))
+                v->active = 0;
         }
+        if (llvl != 16384)
+            for (i = 0; i < m; i++)
+                ds_buf[i] = (ds_buf[i] * llvl) >> 14;
+        drum_lfo_tick(k, m);
         for (i = 0; i < m; i++) {
             int32_t s = mulq15(ds_buf[i], mulq15(lvl, 32767 - drums.a0 - (((drums.a1 - drums.a0) * (int32_t)i) >> CTL_LOG2)));
             s = soft_knee((s * kboost) >> 8, DRUM_KNEE);   /* louder, the hits' tips rounded (2026-10-20) */
@@ -596,6 +724,7 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dl
         }
     }
     drums.peak = pk;
+    dlr.t += n;
     hx_pre_mask = 0;                                /* (3.1.3: used: the next block is CPU1's again, or rendered here) */
 }
 static void drums_render(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dly, uint32_t n) { drums_mix(ml, mr, rev, dly, 0, n); }

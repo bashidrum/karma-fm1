@@ -106,7 +106,7 @@ EXPORT void web_boot(void)
 }
 
 /* the project, as the FM-1 saves one (project.c, format 8 since PHEBUS wave 2: tracks, steps, locks, conditions, the
- * drum trigs, the globals a project holds): the page keeps it in the browser (a reload brings it back) and in a file (SAVE / OPEN PATTERN).
+ * drum trigs, the globals a project holds; since wave 3 its own kit too): the page keeps it in the browser (a reload brings it back) and in a file (SAVE / OPEN PATTERN).
  * web_proj_get: what plays now into the buffer; web_proj_put: the buffer's n bytes loaded (any format the FM-1 reads),
  * 0 = not a project */
 #define PROJ_HOST 1                                  /* project.c: the format, capture and apply (the flash is none) */
@@ -125,6 +125,7 @@ EXPORT uint32_t web_proj_put(uint32_t n)
     uint32_t i;
     if (n > sizeof web_proj || !proj_import(&q, &web_proj, (int)n, PROJ_V7_TMP))   /* (an older one: through format 7) */
         return 0;
+    proj_kit_take((const uint8_t *)&web_proj, (int)n); /* (PHEBUS wave 3: the project's own kit, in its ext) */
     proj_apply(&q, 1);
     song.sel = (uint8_t)(q.sel < NTRK ? q.sel : 0u);
     for (i = 0; i < NPART; i++)

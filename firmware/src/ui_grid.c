@@ -29,6 +29,9 @@ static uint8_t sg_alt;                                  /* a synth step held: 0 
 static uint8_t sg_lpage = 0xFF;                         /* a step held + ENV / LFO / FX / EDIT: the page that locks */
 static uint8_t sg_trk;                                  /* the track the steps held are on (from the first key down) */
 static void stl_key(uint32_t k, uint32_t down);         /* (ui_stut.c) */
+static int drum_grid_black(uint32_t k, uint32_t down);  /* (ui_drum.c) */
+static uint8_t drum_newvel;                             /* (ui_drum.c: a new drum trig's velocity) */
+static int32_t lk_val(uint32_t id, uint32_t v);         /* (ui_drum.c: a sound lock's value) */
 static uint32_t stl_keys_lit(uint32_t blink);
 static const char *const SG_COND[4] = {"-", "FILL", "NOFL", "CHNC"};
 static const char *const SG_COND_L[4] = {"", "FILL ONLY", "NO FILL", "CHANCE"};
@@ -99,7 +102,7 @@ static void sg_set(track_t *t, uint32_t idx)            /* an empty step set: th
     sg_undo(t);
     fm1_irq_off();
     if (is_drum(t)) {
-        dt_set(idx, drum_lane, DT_VEL_DEF);
+        dt_set(idx, drum_lane, drum_newvel);
     } else {
         step_t *s = &t->step[idx];
         uint32_t i, n = pen_n ? pen_n : 1u, tie = s->time == ST_TIE;
@@ -201,8 +204,9 @@ static void sg_follow(void)
     }
     was = (uint8_t)pg;
 }
-/* the GRID shown, no layer held: its keys are steps (seq.c kb_grid). The drum track's KIT page: its pads */
-static int grid_keys_on(void) { return on_drum_page() && (song.sel != TRK_DRUM || !drum_page) && !ui.menu; }
+/* the GRID shown, no layer held: its keys are steps (seq.c kb_grid). The drum track's MUTE and CHROMATIC modes: the
+ * keys mute, play (PHEBUS wave 3) */
+static int grid_keys_on(void) { return on_drum_page() && (song.sel != TRK_DRUM || drum_keys == DK_PLAY) && !ui.menu; }
 /* a key of the GRID (seq.c lk_q KB_GRID), down or up: a white key is a step of the page shown, the first four
  * black keys pick the page (steps 1-16, 17-32, 33-48, 49-64). The cursor follows */
 static void grid_key(uint32_t k, uint32_t down)
@@ -216,6 +220,8 @@ static void grid_key(uint32_t k, uint32_t down)
         return;
     }
     if (w < 0) {
+        if (drum_grid_black(k, down))                   /* (PHEBUS wave 3: the drum GRID's F#5, FILL) */
+            return;
         if (!down || sg_held || k >= 12u || PG[k] < 0)
             return;
         if ((uint32_t)PG[k] * 16u < len) {
@@ -263,24 +269,11 @@ static void grid_key(uint32_t k, uint32_t down)
 }
 
 /* ------------------------------------------------------------ locks --- */
-/* (PHEBUS wave 2) the drum track's sound locks: on its sound's EDIT pages (GR_HEX, G_HXMODEL .., core.h DSP_*), the
- * picked sound's lock of that parameter on the step, its own alone (the kit a HEX one: the synthesised kits have no
- * editable sound yet). Not MODEL (as on the Rytm, the machine is not lockable) */
-static int sg_hex_kit(void) { uint32_t k = drum_kit(); return k < DRUM_SAMPLED || k >= DRUM_SYN; }
-static int sg_dsp(uint32_t id)                          /* a G_ id a drum trig's sound lock can hold: its DSP_*, else -1 */
-{
-    return is_drum(TSEL) && id > G_HXMODEL && id <= G_HXCRUSH && sg_hex_kit() ? (int)(id - G_HXMODEL) : -1;
-}
+/* (the drum sounds' locks, PHEBUS wave 3: the drum screen's pages, ui_drum.c drum_lock_turn) */
 /* a page whose knobs can lock on the selected track: shown, a track's page, with a lockable parameter */
 static int sg_lock_page_ok(const page_t *pg)
 {
     uint32_t s;
-    if (page_shown(pg) && pg->graph == GR_HEX && is_drum(TSEL) && sg_hex_kit()) {
-        for (s = 0; s < 4u; s++)
-            if (pg->id[s] != 0xFFu && sg_dsp(pg->id[s]) >= 0)
-                return 1;
-        return 0;
-    }
     if (!page_shown(pg) || (pg->scope != SC_TRACK && pg->scope != SC_ENGINE) || (is_drum(TSEL) && !page_for_drum(pg)))
         return 0;
     for (s = 0; s < 4u; s++) {
@@ -334,48 +327,12 @@ static int locks_fit(const track_t *t, uint32_t pg, uint32_t held, uint32_t id)
     ui_message(fr ? "LOCKS FULL: HOLD FEWER STEPS" : "LOCKS FULL: 24 A TRACK");
     return 0;
 }
-/* a drum trig's sound lock of DSP p shown as its parameter: the value (signed for DSP_FINE) */
-static int32_t sg_dsp_val(uint32_t p, uint32_t v) { return p == DSP_FINE ? (int32_t)(int8_t)v : (int32_t)v; }
-/* the steps held, the picked sound's trigs: a sound lock of G_ id moved s (made at the sound's value first) */
-static void sg_dsp_turn(uint32_t id, int32_t s, uint32_t role)
-{
-    const param_desc_t *d = hex_desc(id);
-    uint32_t w, len = trk_len(TSEL), p = (uint32_t)sg_dsp(id), need = 0;
-    int32_t sk = accel(role, s, d->max - d->min);
-    for (w = 0; w < 16u; w++) {
-        uint32_t idx = sg_page() * 16u + w;
-        need += ((sg_held >> w) & 1u) && idx < len && dt_has(idx, drum_lane) && dt_lk(idx, drum_lane, p) < 0;
-    }
-    if (need > dt_free_lk()) {                          /* (all or none, as the track's locks) */
-        ui_message("SOUND LOCKS FULL: 128");
-        return;
-    }
-    sg_undo(TSEL);
-    fm1_irq_off();
-    for (w = 0; w < 16u; w++) {
-        uint32_t idx = sg_page() * 16u + w;
-        int k;
-        int32_t v;
-        if (!((sg_held >> w) & 1u) || idx >= len || !dt_has(idx, drum_lane))
-            continue;
-        k = dt_lk(idx, drum_lane, p);
-        v = clamp((k >= 0 ? sg_dsp_val(p, dpat.lk[k].val) : song.g[id]) + sk, d->min, d->max);
-        (void)dt_lk_set(idx, drum_lane, p, (uint32_t)(uint8_t)v);
-    }
-    fm1_irq_on();
-    sg_pend &= (uint16_t)~sg_held;                      /* (edited: kept when let go) */
-    sync_reload = 1;
-}
 /* the steps held: a lock of id moved s (made at the track's value first) */
 static void sg_lock_turn(uint32_t id, int32_t s, uint32_t role)
 {
     track_t *t = TSEL;
     uint32_t w, len = trk_len(t);
     int32_t sk;
-    if (sg_dsp(id) >= 0) {
-        sg_dsp_turn(id, s, role);
-        return;
-    }
     if (id >= P_COUNT || !p_lockable(id) || (is_drum(t) && id > P_E0 && id <= P_E7)) {
         ui_message("NOT LOCKABLE");
         return;
@@ -622,15 +579,13 @@ static void sg_held_oct(uint32_t up)
             } else if (sg_lpage < NPAGES) {
                 for (s = 0; s < 4u; s++) {
                     uint32_t id = PAGES[sg_lpage].id[s];
-                    if (id != 0xFFu && sg_dsp(id) >= 0)
-                        n += dt_lk_del(idx, drum_lane, (uint32_t)sg_dsp(id));
-                    else if (id < P_COUNT && lock_find(t, idx, id, 0) >= 0) {
+                    if (id < P_COUNT && lock_find(t, idx, id, 0) >= 0) {
                         lock_del(t, idx, id);
                         n++;
                     }
                 }
             } else {
-                n += dt_lk_del(idx, drum_lane, DSP_COUNT) + (xi >= 0) + step_locked(t, idx);
+                n += dt_lk_del(idx, drum_lane, DSP_ALL) + (xi >= 0) + step_locked(t, idx);
                 if (xi >= 0)
                     dpat.x[xi].step = DT_FREE;          /* (its condition, chance, nudge, retrig) */
                 lock_del(t, idx, P_COUNT);              /* (and the drum track's own locks on the step) */
@@ -973,13 +928,14 @@ static uint32_t sg_lines(const track_t *t, uint32_t idx, char ln[4][31])
                 const dlk_t *q = &dpat.lk[k];
                 char e[18];
                 uint32_t el;
-                if (q->step != idx || q->lane != drum_lane || q->param >= DSP_COUNT)
+                const param_desc_t *qd = q->step == idx && q->lane == drum_lane ? dsp_desc(drum_model(), lane_snd(drum_lane), q->param) : 0;
+                if (!qd)
                     continue;
                 e[0] = ' ';
-                str_cpy(e + 1, hex_desc(G_HXMODEL + q->param)->label, 7);
+                str_cpy(e + 1, qd->label, 7);
                 el = str_len(e);
                 e[el++] = ' ';
-                param_format(hex_desc(G_HXMODEL + q->param), sg_dsp_val(q->param, q->val), v, &u);
+                dsp_format(q->param, qd, lk_val(q->param, q->val), v, &u);
                 str_cpy(e + el, v, 8);
                 if (!nl)
                     str_cpy(ln[n], "LOCK", 31);
@@ -1212,16 +1168,7 @@ static void sg_knobs_held(uint32_t idx, uint32_t *footer)
             uint32_t id = pg->id[k];
             lab[k] = lb[k];
             lb[k][0] = v[k][0] = 0;
-            if (id != 0xFFu && sg_dsp(id) >= 0) {       /* (PHEBUS wave 2) the picked sound's lock, or its value */
-                const param_desc_t *d = hex_desc(id);
-                int l = dt_lk(idx, drum_lane, (uint32_t)sg_dsp(id));
-                int32_t x = l >= 0 ? sg_dsp_val((uint32_t)sg_dsp(id), dpat.lk[l].val) : song.g[id];
-                te_lower(lb[k], d->label, 8);
-                param_format(d, x, v[k], &u);
-                ratio[k] = (x - d->min) * 1000 / (d->max > d->min ? d->max - d->min : 1);
-                if (l < 0)
-                    dim |= 1u << k;
-            } else if (id < P_COUNT && p_lockable(id) && !(is_drum(t) && id > P_E0 && id <= P_E7) &&
+            if (id < P_COUNT && p_lockable(id) && !(is_drum(t) && id > P_E0 && id <= P_E7) &&
                 lock_desc(t, id)->max > lock_desc(t, id)->min) {
                 const param_desc_t *d = lock_desc(t, id);
                 int l = lock_find(t, idx, id, 0);

@@ -250,6 +250,18 @@ _Static_assert(sizeof(dtx_t) == 8 && sizeof(dlk_t) == 4 && sizeof(dpat_t) == 204
 enum { DSP_MODEL, DSP_WAVE, DSP_COARSE, DSP_FINE, DSP_ATK, DSP_DEC, DSP_SLOPE, DSP_LEVEL, DSP_PAMT, DSP_PDEC, DSP_RATIO,
        DSP_FM, DSP_CLICK, DSP_CLVL, DSP_CTONE, DSP_FTYPE, DSP_CUT, DSP_RES, DSP_DRIVE, DSP_AUX1, DSP_AUX2, DSP_CRUSH, DSP_COUNT };
 _Static_assert(DSP_COUNT == G_HXCRUSH - G_HXMODEL + 1, "a drum sound's lockable parameters: the EDIT pages' G_HX*, in order");
+/* (PHEBUS wave 3, the Rytm drum pages: drums.c drum_snd) the ids after the HEX bytes, in the room format 8 kept for them.
+ * DSP_COUNT stays the number of HEX bytes (0 .. 21): a HEX sound's lock is its byte, as in wave 2 */
+enum {
+    DSP_REV = 22, DSP_DEL = 23,                    /* the sound's own sends (drums.c drum_send: reverb 0..15, delay 0..7) */
+    DSP_LSPD = 24, DSP_LDEP, DSP_LDST, DSP_LWAV,   /* the sound's LFO: SPEED DEPTH DEST WAVE */
+    DSP_LSYN, DSP_LFAD, DSP_LSPH, DSP_LMOD,         /* .. SYNC FADE PHASE MODE (24 .. 31) */
+    DSP_S0 = 32,                                   /* a synthesised sound's parameters (drum_synth.c dsnd_t): DSP_S0 + DS_* */
+    DSP_NOTE = 55,                                 /* the trig's pitch in semitones (signed): chromatic mode records it */
+    DSP_NIDS = 56                                  /* (a lock's param is below this; 0xFF: every lock, dt_lk_del) */
+};
+#define DSP_ALL 0xFFu
+#define DLK_MAX 24u                                /* the locks one hit carries at most (seq.c dhit) */
 
 typedef struct track {
     int16_t p[P_COUNT];

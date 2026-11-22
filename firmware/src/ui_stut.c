@@ -27,7 +27,7 @@ static uint8_t stl_pg;                                  /* the page of steps sho
 static uint32_t stl_sess;                               /* the undo session (one hold, or one knob's turns) */
 _Static_assert(sizeof stl <= sizeof undo.st, "the lane fits the undo's room");
 
-static int stl_shown(void) { return stl_view && song.sel == TRK_DRUM && !drum_page; }
+static int stl_shown(void) { return stl_view && song.sel == TRK_DRUM; }
 static uint32_t stl_pages(void) { return (stl.len + 15u) / 16u; }
 static void stl_mark(void)                              /* undo (EDIT + OCT-): the lane before this edit (ui.c undo_swap) */
 {
@@ -61,7 +61,7 @@ static int stl_algo(int32_t s)
         }
         return 1;
     }
-    if (song.sel != TRK_DRUM || s <= 0 || drum_page)
+    if (song.sel != TRK_DRUM || s <= 0)
         return 0;
     stl_view = 1;
     stl_pg = 0;

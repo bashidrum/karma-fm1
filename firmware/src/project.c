@@ -425,7 +425,8 @@ static int proj_import_v7(project_v7_t *q, const void *b, int n)
  *   proj_core_t  what a section (A..D) holds and switches: the globals, each track's parameters by id, its steps, nudges,
  *                conditions and locks, the drum track's pattern (core.h dpat_t: every sound's trigs, their extras and
  *                their sounds' locks), each drum sound's sends, the STUTTER lane. 5,744 bytes.
- *   proj_ext_t   the project's own, not switched with the sections: reserved for wave 6's kits. 1,024 bytes, zero.
+ *   proj_ext_t   the project's own, not switched with the sections: its own kit (PHEBUS wave 3, drum_snd.c pkit_t: the copy
+ *                of the built-in kit it edited, 488 bytes; then zero). 1,024 bytes.
  * The working project (autosave) is stored whole (core + ext, 6,768 bytes); a slot (a section) its core. Both are storage.c
  * "big" objects (two sectors a copy). A reader takes either length (a slot written whole by a later wave loads too).
  * Room kept, zero, so the waves to come need no new format (each named where it is):
@@ -437,8 +438,8 @@ static int proj_import_v7(project_v7_t *q, const void *b, int n)
  *   - the globals by id up to PROJ_NG8 (48; a project keeps G_BPM .. G_NEWPRJ, 32 of them, and G_DRDLY in its byte)
  *   - perf: the STUTTER lane as punch.c keeps it, then fx[124] for wave 6's performance lane (the played effects
  *     recorded into it)
- *   - the drum pattern's lock ids from DSP_COUNT (core.h) for the sound pages to come
- *   - ext.kit: wave 6, the project's own kit (16 sounds, copy-on-write from the built-in kits) */
+ *   - the drum pattern's lock ids from DSP_COUNT (core.h): wave 3's sends, LFO, synthesised sounds and pitch (to DSP_NIDS)
+ *   - ext.kit: the project's own kit (wave 3: 16 sounds and their LFOs, copy-on-write from the built-in kits) */
 #define PROJ_NP 96u                            /* parameters a track keeps, by id (P_COUNT and up: 0, waves 4 and 5) */
 #define PROJ_NG8 48u                           /* globals a project keeps, by id (PROJ_NG and up: 0, later waves) */
 _Static_assert(P_COUNT <= PROJ_NP && PROJ_NG <= PROJ_NG8, "format 8 keeps every parameter and global by id");
@@ -471,7 +472,7 @@ typedef struct {
     uint32_t sum;                              /* FNV-1a of the bytes before it */
 } proj_core_t;
 typedef struct {
-    uint8_t kit[1024];                         /* reserved, zero: wave 6, the project's own kit */
+    uint8_t kit[1024];                         /* the project's own kit (drum_snd.c pkit_t, 488 bytes; magic 0: none), then zero */
 } proj_ext_t;
 typedef struct {                               /* the working project as stored */
     proj_core_t c;
@@ -506,7 +507,7 @@ static void pat_fix(dpat_t *d)
     }
     for (k = 0; k < DT_NLK; k++) {
         dlk_t *q = &d->lk[k];
-        if (q->step >= NSTEP || q->lane >= DRUM_LANES || q->param >= DSP_COUNT || !d->vel[q->step][q->lane])
+        if (q->step >= NSTEP || q->lane >= DRUM_LANES || q->param >= DSP_NIDS || !d->vel[q->step][q->lane])
             q->step = DT_FREE;
     }
 }
@@ -676,10 +677,27 @@ static void proj_capture_core(proj_core_t *c)  /* what is playing now, as a proj
     c->d.pat = dpat;
     c->sum = proj_sum(c);
 }
-static void proj_capture(project_t *p)        /* .. as a whole project, as stored (the ext: zero, reserved) */
+static void proj_capture(project_t *p)        /* .. as a whole project, as stored (the ext: the project's kit, wave 3) */
 {
     memset(&p->x, 0, sizeof p->x);
+    if (pkit.magic == PK_MAGIC)
+        memcpy(p->x.kit, &pkit, sizeof pkit);
     proj_capture_core(&p->c);
+}
+/* (PHEBUS wave 3) the working project's sum as stored: its core's and its kit's (the autosave, the unsaved dot) */
+static uint32_t work_sum(uint32_t core_sum) { return core_sum ^ pkit_hash() * 0x9E3779B1u; }
+/* a working project of n bytes as stored (b: its core, then its ext): its kit becomes the project's (none in it: none) */
+static void proj_kit_take(const uint8_t *b, int n)
+{
+    _Static_assert(sizeof(pkit_t) <= sizeof(proj_ext_t), "the project's kit fits its ext");
+    fm1_irq_off();
+    if (n == (int)sizeof(project_t))
+        memcpy(&pkit, b + sizeof(proj_core_t), sizeof pkit);
+    else
+        memset(&pkit, 0, sizeof pkit);
+    pkit_fix(&pkit);
+    pkit_gen++;
+    fm1_irq_on();
 }
 _Static_assert(sizeof proj_tmp == sizeof(project_t) && sizeof(project_v3_t) <= sizeof proj_tmp - 3840u,
                "proj_tmp holds a whole project, or an old one's bytes and format 3");
@@ -779,11 +797,12 @@ static void proj_apply(const proj_core_t *p, int all)
 }
 
 /* (PHEBUS wave 2) the four slots (the sections A..D) in RAM, a project's core each (5,744 bytes): A and B in .noinit (they
- * survive a reset, as all four did), C in the pool, D in main RAM (the .noinit region holds no more, and the pool keeps
- * 8 KiB spare, tools/build.py: after a reset C and D are read from flash again, which an update or UPDATE MODE writes
- * first, persist_flush_now; only a section stored while playing and not yet in flash is lost if the FM-1 crashes) */
+ * survive a reset, as all four did), C and D in main RAM (the .noinit region holds no more: after a reset C and D are read
+ * from flash again, which an update or UPDATE MODE writes first, persist_flush_now; only a section stored while playing
+ * and not yet in flash is lost if the FM-1 crashes). (Wave 3: C moved out of the pool into main RAM, which wave 3's
+ * clean-up freed 4.8 KB of: the pool, which tools/build.py keeps 8 KiB of spare, has 5.7 KB more for waves 4 and 5) */
 static proj_core_t proj_sec_a[2] __attribute__((section(".noinit")));
-static proj_core_t proj_sec_c __attribute__((section(".pool")));
+static proj_core_t proj_sec_c;
 static proj_core_t proj_sec_d;
 static proj_core_t *const proj_slots[4] = {&proj_sec_a[0], &proj_sec_a[1], &proj_sec_c, &proj_sec_d};
 #define PSLOT(s) (proj_slots[(s) & 3u])
@@ -948,13 +967,9 @@ static int audio_quiet(void)
     return 1;
 }
 #if FELUCCA_FLASH
-static int out_silent(void)                    /* (PHEBUS) the last 512 samples of the mix (audio.c scope) under -60 dB */
+static int out_silent(void)                    /* (PHEBUS) the last 512 samples of the mix (every other one) under -60 dB */
 {
-    uint32_t i;
-    for (i = 0; i < SCOPE_N; i++)
-        if (scope_buf[i] > 32 || scope_buf[i] < -32 || scope_bufr[i] > 32 || scope_bufr[i] < -32)
-            return 0;
-    return 1;
+    return out_quiet >= SCOPE_N;                /* (audio.c counts them: wave 3, its scope buffers gone) */
 }
 
 /* (PHEBUS) the header's unsaved dot (ui_op.c proj_unsaved): the working project as it is now against the one in flash,
@@ -971,7 +986,7 @@ static void unsaved_tick(void)
         for (k = 0; k < trk[i].lk_n && k < NLOCK; k++)
             if (trk[i].p[trk[i].lk_param[k] % P_COUNT] == trk[i].lk_set[k])
                 (i == TRK_DRUM ? autosave_buf.d.p : autosave_buf.t[i].p)[trk[i].lk_param[k] % P_COUNT] = trk[i].lk_base[k];
-    proj_unsaved = (uint8_t)(proj_sum(&autosave_buf) != autosave_hash || sec_dirty || song_dirty || dsu_dirty);
+    proj_unsaved = (uint8_t)(work_sum(proj_sum(&autosave_buf)) != autosave_hash || sec_dirty || song_dirty || dsu_dirty);
 }
 #endif
 
@@ -988,14 +1003,15 @@ static void autosave_tick(void)                /* main loop */
         return;
     autosave_checked = now;
     proj_capture_core(&autosave_buf);
-    h = autosave_buf.sum;
+    h = work_sum(autosave_buf.sum);
     if (h == autosave_hash) {
         stop_save = 0;                         /* (nothing changed since the last save) */
         return;
     }
     if (!audio_quiet())
         return;
-    if (st_save_big(OBJ_WORK, &autosave_buf, sizeof autosave_buf, sizeof(proj_ext_t)) == 0)   /* (the ext: zeros, reserved) */
+    if (st_save_big2(OBJ_WORK, &autosave_buf, sizeof autosave_buf, pkit.magic == PK_MAGIC ? &pkit : 0, sizeof pkit,
+                     sizeof(proj_ext_t) - sizeof pkit) == 0)   /* (the ext: the project's kit, then zeros) */
         autosave_hash = h;
     autosave_ms = fm1_ms;
     stop_save = 0;
@@ -1028,7 +1044,8 @@ static void autosave_resume(void)              /* power-on: the project as it wa
     drch_seed = 0;
     if (!proj_import(q, &proj_tmp, n, PROJ_V7_TMP))
         return;
-    autosave_hash = old ? 0u : q->sum;                 /* (converted: saved in the new format when next quiet) */
+    proj_kit_take(proj_tmp.raw, old ? 0 : n);           /* (PHEBUS wave 3) the project's kit, from its ext */
+    autosave_hash = old ? 0u : work_sum(q->sum);       /* (converted: saved in the new format when next quiet) */
     proj_apply(q, 1);
     song.sel = (uint8_t)(q->sel < NTRK ? q->sel : 0u);
     for (n = 0; n < NPART; n++)
@@ -1316,6 +1333,7 @@ static uint32_t project_restore(uint32_t slot, const void *raw, uint32_t n)
         if ((const void *)raw != (const void *)proj_tmp.raw || !proj_import(q, raw, (int)n, PROJ_V7_TMP))
             return 2;
         if (slot == 4u) {
+            proj_kit_take(proj_tmp.raw, (int)n);        /* (wave 3: the kit in its ext) */
             project_apply(q);
             return 0;
         }
@@ -1373,8 +1391,10 @@ static void persist_flush_now(void)
 #if FELUCCA_FLASH
     if (flash_ok) {
         proj_capture_core(&autosave_buf);
-        if (autosave_buf.sum != autosave_hash && st_save_big(OBJ_WORK, &autosave_buf, sizeof autosave_buf, sizeof(proj_ext_t)) == 0)
-            autosave_hash = autosave_buf.sum;
+        if (work_sum(autosave_buf.sum) != autosave_hash &&
+            st_save_big2(OBJ_WORK, &autosave_buf, sizeof autosave_buf, pkit.magic == PK_MAGIC ? &pkit : 0, sizeof pkit,
+                         sizeof(proj_ext_t) - sizeof pkit) == 0)
+            autosave_hash = work_sum(autosave_buf.sum);
     }
 #endif
 }

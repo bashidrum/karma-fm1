@@ -321,8 +321,6 @@ static uint32_t graph_signature(void)
     for (i = 0; i < P_COUNT; i++)
         h = (h ^ (uint32_t)t->p[i]) * 16777619u;
     h ^= (uint32_t)TSEL->preset * 7u + (uint32_t)song.g[G_SLOT] * 13u + TSEL->user * 257u + up_gen * 7919u + ui.uslot * 104729u;
-    if (pg->graph == GR_HEX)                         /* the drum sound's picture: as it is edited, the lane */
-        h ^= (hex_gen * 977u + drum_lane * 31u + (uint32_t)TDRUM->p[P_E0] * 7u) * 40503u;
     if (pg->graph == GR_ARP && !is_drum(t))          /* ARP: the stones as the keys change, the hops */
         h ^= (t->nheld * 31u + t->arp_note * 977u + (op_arp_hop ? ui.frame + 1u : 0u)) * 40503u;
     if (pg->graph == GR_LFO && !is_drum(t))          /* LFO: the wave runs (every other frame) */
@@ -564,6 +562,8 @@ static void draw_tracks(void)
     }
 }
 
+#if !FELUCCA_ARRANGER                                   /* (PHEBUS wave 3: HOME is the TRACKS page, ui.home is never set:
+                                                         * the scope and its 1 KB snapshot only in a build without it) */
 /* oscilloscope of the output, triggered on a rising zero crossing */
 static void graph_scope(uint16_t c)
 {
@@ -590,6 +590,7 @@ static void graph_scope(uint16_t c)
         py = y;
     }
 }
+#endif
 
 /* SLOOP 2.4: a page without a graph (EDIT, VOICE, the DEST pages, GLOBAL, MASTER, SYSTEM...): its values
  * large in the empty space, 2 x 2 as the knobs (KNOB 1 2 / KNOB 3 4), the one turned in white; one value
@@ -665,7 +666,9 @@ static void draw_graph(void)
     cv_begin(240, H_GRAPH, C_BLACK);
     cv_oy = G_OY;
     if (ui.home) {
+#if !FELUCCA_ARRANGER
         graph_scope(c);
+#endif
     } else if (drum_note) {                          /* a page the drum track has no use for */
         static const char *const L[2] = {"DRUM TRACK", "SEQ  TRACKS  GLO DRUMS"};
         cv_text((240 - text_w(&FONT_S, L[0])) / 2, 26, &FONT_S, L[0], C_HI);
@@ -687,10 +690,6 @@ static void draw_graph(void)
         case GR_ARP:
             cv_oy = 0;
             op_arp_scene(t);                         /* the stepping stones (ui_op.c) */
-            break;
-        case GR_HEX:
-            cv_oy = 0;
-            op_hex_scene();                          /* the drum sound, its picture (ui_op.c) */
             break;
         case GR_FX:
             cv_oy = 0;
@@ -787,8 +786,7 @@ static void draw_columns(void)                         /* the four knobs of the 
     }
     {                                                   /* a track's page: its colour; a song or global page: neutral */
         uint32_t sc = cur_page()->scope;
-        knob_tint_all(cur_page()->graph == GR_HEX && !ui.home ? TRK_DRUM   /* (the drum voice's sound: its colour) */
-                      : drums_page(cur_page()) ? TRK_DRUM
+        knob_tint_all(drums_page(cur_page()) ? TRK_DRUM
                       : sc == SC_GLOBAL ? TINT_NEUTRAL : sc == SC_DRUM ? TRK_DRUM : song.sel);
     }
     op_knobs(lab, val, unit, opk.ratio, opk.dim, song.sel * 7u + ui.page * 31u + ui.home, &ui.col_sig);
@@ -914,7 +912,7 @@ static void ui_draw(void)
     pads_tick();
     {   /* a message belongs to the screen it showed on: another screen, it goes (review 21) */
         uint16_t k = (uint16_t)((ui.menu * 1000003u + ui.layer * 7919u + ui.hold_kind * 131u + rec_wait * 17u +
-                                 ui.home * 3u + ui.page * 977u + drum_page * 5u + vis_on * 11u) % 65521u);
+                                 ui.home * 3u + ui.page * 977u + drum_keys * 5u + vis_on * 11u) % 65521u);
         if (!ui.msg_t)
             ;
         else if (msg_scr == 0xFFFFu)

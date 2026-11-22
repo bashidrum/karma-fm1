@@ -89,7 +89,7 @@ int main(int argc, char **argv)
     printf("kit %s, sound %s, %u frames a clip\n", DRUM_KIT_NAMES[drum_kit()], ENGINES[0]->presets[trk[0].preset].name, (unsigned)nf);
     song.sel = 0; go_home();
     clip(dir, "home", nf);
-    song.sel = TRK_DRUM; studio_open(SC_DRUM); drum_page = 0; drum_lane = 0; drum_cursor = 0;
+    song.sel = TRK_DRUM; studio_open(SC_DRUM); drum_keys = DK_PLAY; drum_lane = 0; drum_cursor = 0;
     clip(dir, "drums", nf);
     go_home(); song.sel = 0; open_family(FAM_EDIT);
     clip(dir, "bass", nf);
@@ -102,7 +102,7 @@ int main(int argc, char **argv)
         frames(2);
         transport_req = 1;
         for (i = 0; i < nf; i++) vframe();
-        song.sel = TRK_DRUM; studio_open(SC_DRUM); drum_page = 0; ui.force = 1;
+        song.sel = TRK_DRUM; studio_open(SC_DRUM); drum_keys = DK_PLAY; ui.force = 1;
         for (i = 0; i < nf; i++) vframe();
         go_home(); song.sel = 0; open_family(FAM_EDIT); ui.force = 1;
         for (i = 0; i < nf; i++) vframe();

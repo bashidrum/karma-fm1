@@ -163,7 +163,7 @@ int main(int argc, char **argv)
     assert(fv && fa);
 
     song.sel = TRK_DRUM; go_home(); frames(2);
-    studio_open(SC_DRUM); drum_page = 0; drum_lane = 0; drum_cursor = 0; ui.force = 1; frames(2);
+    studio_open(SC_DRUM); drum_keys = DK_PLAY; drum_lane = 0; drum_cursor = 0; ui.force = 1; frames(2);
     transport_req = 1;
     part(0.25, 0, 0, 0, 0);                         /* 1. the GRID, empty, running */
     for (b = 0; b < 4u; b++) {                      /* the kick on 1, 5, 9, 13: a beat at a time */
@@ -171,7 +171,7 @@ int main(int argc, char **argv)
         part(0.25 + (b == 3u ? 0.0 : 0.0), 0, 0, 0, 0);
     }
     part(1.75, 0, 0, 0, 0);                         /* the 4/4 kick */
-    studio_open(SC_DRUM); drum_page = 0; ui.force = 1; vframe();
+    studio_open(SC_DRUM); drum_keys = DK_PLAY; ui.force = 1; vframe();
 
     song.sel = 0;                                   /* 2. ACID */
     gen_from_key(0, -1, 2);

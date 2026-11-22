@@ -32,9 +32,9 @@ static void run_block(void)                        /* a block, and every drum hi
                 h->blk = blk;
                 h->note = drums.v[k].note;
                 h->vel = drums.v[k].vel;
-                h->own = drums.synth[k] == 2 && drums.hx[k].d == &drum_own[k];
-                h->cut = drums.synth[k] == 2 ? drums.hx[k].d->cut : 0;
-                h->lvl = drums.synth[k] == 2 ? drums.hx[k].d->level : 0;
+                h->own = drums.synth[k] == 2 && drums.vx[k].hx.d == &drum_own[k];
+                h->cut = drums.synth[k] == 2 ? drums.vx[k].hx.d->cut : 0;
+                h->lvl = drums.synth[k] == 2 ? drums.vx[k].hx.d->level : 0;
             }
     blk++;
 }
@@ -102,7 +102,8 @@ static void t_locks(void)
           "locks: the snare on steps 1 and 9 plays as the kit has it (the lock is step 5's alone)");
     check(sn->cut == cut_before && sn->level == HEX_KITS[0].s[ds_lane(LANE_NOTE[2], &semi)].level,
           "locks: the kit itself is not changed");
-    {   /* a synthesised kit (the 606): no editable sound yet, the lock is not applied; the hit plays */
+    {   /* a synthesised kit (the 606): a HEX byte's lock is not one of its machine's parameters, so it is not applied; the
+         * hit plays (its own parameters lock since PHEBUS wave 3: tests/drumrytm_test.c) */
         reset(DRUM_DEFAULT_KIT);
         dt_set(4, 2, 100);
         dt_lk_set(4, 2, DSP_CUT, 20);
@@ -110,7 +111,7 @@ static void t_locks(void)
         run(step_blocks() * 6u);
         transport_req = 2;
         run_block();
-        check(count(38, 0, blk) == 1u && !nth(38, 0)->own, "locks: on a synthesised kit the snare plays, unlocked (it has no editable sound yet)");
+        check(count(38, 0, blk) == 1u && !nth(38, 0)->own, "locks: a HEX lock on a synthesised kit: not its machine's, the snare plays unlocked");
     }
 }
 
