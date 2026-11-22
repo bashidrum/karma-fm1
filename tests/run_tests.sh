@@ -71,7 +71,9 @@ run "synthesised drum kits: every kit x sound bounded, audible, finite, levels, 
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/font_test" tests/font_test.c
 run "the screen font at 1 bit a pixel: every glyph, the same pixels as 2.5" "$OUT/font_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/punch_test" tests/punch_test.c $PLX -lm
-run "punch-in FX: 27 effects (11 on the black keys), bounded, dry after release, FX-held keys, the 16-bit ring" "$OUT/punch_test" "$OUT/punch-fx.wav"
+run "PERFORM's pads on the punch ring: each does what it says, its knobs too, bounded, dry after release, FX-held keys, the 16-bit ring" "$OUT/punch_test" "$OUT/punch-fx.wav"
+$CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/perf_test" tests/perf_test.c $PLX -lm
+run "PERFORM (PHEBUS wave 6): every pad on the whole mix and back, latch, knobs, recorded into the STUTTER lane, saved, no stuck state, the lane as before" "$OUT/perf_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/stutter_test" tests/stutter_test.c $PLX -lm
 run "STUTTER lane (PHEBUS): lit steps repeat the span before at their length, the dry mix after, live punch first" "$OUT/stutter_test" "$OUT/stutter.wav"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fx251_test" tests/fx251_test.c $PLX -lm

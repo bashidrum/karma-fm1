@@ -36,7 +36,7 @@ The FM-1 has these controls: the buttons PLAY, REC, SAVE, HOME, ENV, LFO, FX, SE
 5. [Drums](#5-drums)
 6. [The STUTTER lane](#6-the-stutter-lane)
 7. [Sound design along the chain](#7-sound-design-along-the-chain)
-8. [Performance effects and global effects](#8-performance-effects-and-global-effects)
+8. [PERFORM and global effects](#8-perform-and-global-effects)
 9. [Mixer, mute and solo](#9-mixer-mute-and-solo)
 10. [Sections](#10-sections)
 11. [Recording live, erasing and clearing](#11-recording-live-erasing-and-clearing)
@@ -74,7 +74,7 @@ The three synth voices work the way the Arturia MiniFreak does: the same pages o
 
 | Hold | Layer | Used for |
 | --- | --- | --- |
-| FX | PUNCH | performance effects on the keys |
+| FX | PERFORM | effects on the whole mix, the keys as pads (see [PERFORM](#8-perform-and-global-effects)) |
 | EDIT | ERASE | erase, shift, undo and redo |
 | ARP | ROLL | note-repeat rolls (on the drum voice: RETRIG) |
 | SEQ | STEPS | pattern time: division, swing, length |
@@ -82,7 +82,7 @@ The three synth voices work the way the Arturia MiniFreak does: the same pages o
 | GLO | MIX | levels, mute, solo, fills, tap tempo |
 | SAVE | SECTION | sections A to D |
 
-A layer shows its name in the header ("FX: PUNCH") once you have held it for a moment. To keep a layer open without holding it, hold its button and tap HOME. Any other button lets it go again, except PLAY, REC, OCT- and OCT+. If you hold GLO for about 0.7 seconds without touching anything else and then let go, the mixer stays open.
+A layer shows its name in the header ("SEQ: STEPS") once you have held it for a moment. To keep a layer open without holding it, hold its button and tap HOME. Any other button lets it go again, except PLAY, REC, OCT- and OCT+. If you hold GLO for about 0.7 seconds without touching anything else and then let go, the mixer stays open. FX does the same: held 0.7 seconds untouched and let go, PERFORM stays open.
 
 After a layer lets go, the knobs ignore you for a quarter of a second, so a knob still turning does not change the page underneath.
 
@@ -93,7 +93,7 @@ After a layer lets go, the knobs ignore you for a quarter of a second, so a knob
 **The header** runs along the top:
 
 - a boxed **tag** showing what the screen acts on: the synth voice's number (**1**, **2**, **3**), DRUM, HOME, STUT (the stutter lane) or ALL (shared pages, in grey);
-- the **sound's name** on a synth voice's sound pages and GRID (the kit on the drum screen; elsewhere the page name; while a fill is on: **FILL** in white, see [Fill](#fill));
+- the **sound's name** on a synth voice's sound pages and GRID (the kit on the drum screen; elsewhere the page name; while a fill is on: **FILL** in white, see [Fill](#fill); while PERFORM pads are latched: **PERF** and how many, in white, see [PERFORM](#8-perform-and-global-effects));
 - the **tempo** (BPM) and a play or stop symbol;
 - four **beat lights**. While you record, only the light on beat 1 turns red;
 - a red **record disc** while recording, or a small white **unsaved dot** when the project in memory differs from what is saved (see [Saving](#12-saving));
@@ -117,7 +117,7 @@ The four knobs play the selected voice, for quick changes while it plays:
 | --- | --- |
 | **KNOB 1 CUTOFF** | the voice filter's CUTOFF, on every synth voice; the drum track's FILTER on the drums |
 | **KNOB 2 DECAY** | the decay of the envelope that moves the sound: the filter's own envelope's DECAY while it is OWN (as ACID starts), else the amp ENV's DECAY; on the drums, the selected sound's decay on every kit (the first turn on a built-in kit makes your copy, see [Drums](#5-drums)) |
-| **KNOB 3 STUT** | the STUTTER lane **ON** (turn right) or **OFF** (turn left). It is drawn in white and grey because it acts on the whole mix. See [The STUTTER lane](#6-the-stutter-lane) |
+| **KNOB 3 STUT** | the STUTTER lane **ON** (turn right) or **OFF** (turn left): its lit steps and the PERFORM pads recorded into it. It is drawn in white and grey because it acts on the whole mix. See [The STUTTER lane](#6-the-stutter-lane) |
 | **KNOB 4 LEVEL** | the voice's level. On a muted voice the first turn unmutes it |
 
 Swing and the pattern length are on **hold SEQ**. Pan is on the mixer (**GLO + key 11**).
@@ -411,7 +411,7 @@ Recording on the drum voice keeps each hit's velocity (from MIDI as played, from
 
 ## 6. The STUTTER lane
 
-The STUTTER lane is a fifth sequencer lane that does not play notes. It repeats a slice of what you just heard, on the steps you light.
+The STUTTER lane is a fifth sequencer lane that does not play notes. It is PHEBUS's FX track: its lit steps repeat a slice of what you just heard, and the PERFORM pads you play while recording are recorded into it and play back with the pattern.
 
 On the GRID, turn **ALGORITHM** past 1, 2, 3 and DRUM to reach **STUTTER** (turn left to go back). Its tag is STUT, in neutral white and grey.
 
@@ -420,10 +420,14 @@ On the GRID, turn **ALGORITHM** past 1, 2, 3 and DRUM to reach **STUTTER** (turn
 | **Tap an unlit step** | it lights, with the length last set (new steps start at **1/4**) |
 | **Tap a lit step** | it goes out when you let go of the key, unless you turned KNOB 1 meanwhile |
 | **Hold a step + KNOB 1** | that step's length: **1/1, 1/2**, 1/4, 1/8, 1/16 or 1/32. Turn right for shorter, left for longer |
+| **Hold a step + OCT-** | the recorded pads over that step are erased (a step that press lit goes out again) |
 | **KNOB 1** (no step held) | the length new steps take |
-| **KNOB 2** | the whole lane ON or OFF (the steps are kept). **KNOB 3 on HOME** does the same |
+| **KNOB 2** | the whole lane ON or OFF: its steps and its recorded pads (both are kept). **KNOB 3 on HOME** does the same |
+| **KNOB 3 FX** | how many pads are recorded (up to 31). Turn it once, then again within 1.5 seconds: every recorded pad is cleared (the lit steps stay) |
 | **KNOB 4** | the lane's length, 1 to 64 steps |
 | **Black keys 1 to 4**, **OCT-**, **OCT+** | change page |
+
+The screen shows the 16 steps of the page as tiles (a lit step shows its length: 4, 8, 16, 32, 2, 1), a line saying what the lit steps do (or the step you hold), and under it the **recorded pads as bars** across the steps they cover, each named, in up to three rows ("+2 MORE" on the right when there are more). A bar lights while it plays. Holding a step turns the bars over it white: those are the ones OCT- erases.
 
 How it behaves:
 
@@ -431,10 +435,19 @@ How it behaves:
 - A lit step repeats the span that played just before the run of lit steps. It repeats the whole mix, not one voice. Lit steps in a row with the same length are one continuous loop.
 - **1/4, 1/8, 1/16 and 1/32** repeat the sound itself (an audio stutter). Their tiles read 4, 8, 16, 32.
 - **1/2 and 1/1 replay the sequencer** (tiles 2 and 1): for as long as the run of lit steps lasts, every voice and the drums play again the steps of the half bar (1/2) or the bar (1/1) just before the run, with their notes and locks, in a loop. The song position keeps counting underneath, so when the run ends every voice carries on from the step it would have played without the stutter. Notes ring on naturally (it is not a recording), so the replay is not sample-identical. A voice whose steps are longer than the span (a bar's steps on 1/2) is not replayed.
-- Holding **FX** and a key (see [Performance effects](#8-performance-effects-and-global-effects)) takes over while you hold it.
+- A PERFORM pad you play takes over from the lit steps while it plays (see [PERFORM](#8-perform-and-global-effects)).
 - The lane is mono (16-bit). Below about 84 BPM a quarter-note loop is cut to 0.72 seconds.
-- It is saved with the project and with each section (it lives in unused drum-track bytes). Stock KARMA loads such a project but drops the stutter lane if it saves again. A lane saved before 1/2 and 1/1 existed loads as it was.
-- **EDIT + OCT-** undoes a stutter edit.
+- It is saved with the project and with each section, the recorded pads too. Stock KARMA loads such a project but drops the stutter lane if it saves again. A lane saved before 1/2 and 1/1 existed loads as it was, and a project from before the recorded pads loads with none.
+- **EDIT + OCT-** undoes a stutter edit, an erase, a clear, or the pads a take recorded.
+
+### Recording PERFORM pads into the lane
+
+While the sequencer records (**REC** while playing, on any voice), every PERFORM pad you play is written into the lane: which pad, from the step you pressed it to the step you let go (both to the nearest 1/16), and the knob you turned while it played, with its value. A latched pad records from its latch to its unlatch (or to the end of the take). On the next loop the lane plays it back exactly as you played it, while the lane is ON.
+
+- A pad recorded over its own earlier recording replaces the part it overlaps. Other pads overdub.
+- The lane holds 31 recorded pads. One more says **FX LANE FULL: 31** and is not recorded.
+- Spans follow the lane's own steps and length, not the voices' patterns.
+- The knobs you did not turn play at their current setting. The shared settings (ECHO's TIME, VERB's SIZE and DAMP) are not recorded.
 
 ---
 
@@ -581,48 +594,80 @@ Changing a sound never changes the voice's key, chord mode, pattern or mix.
 
 ---
 
-## 8. Performance effects and global effects
+## 8. PERFORM and global effects
 
-### Hold FX: PUNCH
+PHEBUS has three kinds of effect, and each has its own place and name:
 
-Hold **FX** and press keys. The effect runs on the whole mix while you hold the key, and lets go cleanly when you release it. Keys pressed with FX held never play a note and are never recorded. Loops and the gate start on the grid.
-
-**The 16 white keys** (four rows of four):
-
-| Key | Effect | Key | Effect |
+| Kind | Where | Acts on | Colour |
 | --- | --- | --- | --- |
-| 1 (F3) | **LOOP 4**: loops the last **quarter note** | 9 (G4) | **LOW**: low-pass sweep |
-| 2 (G3) | **LOOP 8**: loops the last **eighth note** | 10 (A4) | **HIGH**: high-pass sweep |
-| 3 (A3) | **LOOP 16**: loops the last sixteenth | 11 (B4) | **PHONE** |
-| 4 (B3) | **LOOP 32**: loops the last thirty-second | 12 (C5) | **CRUSH** |
-| 5 (C4) | **STUTTER** (beat divided by six) | 13 (D5) | **ALIAS** |
-| 6 (D4) | **REVERSE** | 14 (E5) | **GATE** |
-| 7 (E4) | **STOP** (tape stop) | 15 (F5) | **ECHO** |
-| 8 (F4) | **HALF** (half speed) | 16 (G5) | **WOBBLE** |
+| **PERFORM pads** | hold **FX**: the keys are pads | the whole mix, while a pad plays | white and grey |
+| **FX 1, FX 2, FX 3** (slots) | tap **FX** on a voice | that voice only | the voice's colour |
+| **Global effects** | tap **GLO**: MASTER, DLY, REV/CHO | everything, always on as dialled | white and grey |
 
-**The 11 black keys:**
+### PERFORM: the keys as pads
 
-| Key | Effect | Key | Effect |
+PERFORM works the way the MPC's pad effects do: each key is one effect on the whole mix, on while you hold it, off when you let go; several can play at once; a latch keeps one on without fingers; and the four knobs set the last pad you pressed.
+
+**In and out.** Hold **FX**: PERFORM shows while you hold it, and the keys are pads. Let go and the keys play notes again. To keep PERFORM open with both hands free, hold **FX** for about 0.7 seconds without touching anything and let go (as GLO keeps the mixer): the screen shows **LOCK**. Tap **FX** again, or any page button, to leave. **FX + HOME** also keeps it open. PLAY and REC work while it is open. Keys pressed in PERFORM never play a note and are never recorded as notes.
+
+**The pad map** (the 16 white keys as four rows of four, as on the screen; keys 1 to 4 are the top row):
+
+| Row | Key 1 / 5 / 9 / 13 | Key 2 / 6 / 10 / 14 | Key 3 / 7 / 11 / 15 | Key 4 / 8 / 12 / 16 |
+| --- | --- | --- | --- | --- |
+| 1, stutters | **1/1** replay the bar | **1/2** replay the half bar | **1/4** repeat | **1/8** repeat |
+| 2 | **1/16** repeat | **1/32** repeat | **REVRS** reverse | **HALF** half speed |
+| 3 | **LP** low-pass sweep down | **HP** high-pass sweep up | **CRUSH** bit crush | **GATE** trance gate |
+| 4 | **STOP** tape stop | **DROP** pitch drop | **ECHO** echo throw | **VERB** reverb throw |
+
+**The black keys** (the screen shows them as two rows of chips above the pads, in key order):
+
+| Key | Pad | Key | Pad |
 | --- | --- | --- | --- |
-| F#3 | **KILL LOW** | F#4 | **FLANGER** |
-| G#3 | **KILL MID** | G#4 | **AUTO-PAN** |
-| A#3 | **KILL HIGH** | A#4 | **FREEZE** |
-| C#4 | **REWIND** | C#5 | **LOOP 8T** (an eighth-note triplet loop) |
-| D#4 | **OCT UP** | D#5 | **MONO** |
-| | | F#5 | **FADE OUT** |
+| F#3 | **-DRM** kill the drums | C#5 | **8T** 1/8 triplet repeat |
+| G#3 | **-BAS** kill the bass (voice 1; KNOB 1 picks the voice) | D#5 | **16T** 1/16 triplet repeat |
+| A#3 | **LCUT** low cut | | |
+| C#4 | **FLNG** flanger sweep | | |
 
-The loops replay the span you just heard, locked to the grid. The effect's buffer holds 0.74 seconds. On the layer's screen the keys show short names: lp 4, lp 8, lp 16, lp 32, stutr, revrs, stop, half, low, high, phone, crush, alias, gate, echo, wow, then -low, -mid, -hi, rwnd, oct+, flng, pan, frz, lp8t, mono, fade.
+D#4, F#4, G#4, A#4 and F#5 have no pad (empty chips).
 
-**Knobs while FX is held:**
+What each does:
 
-| Knob | Does |
-| --- | --- |
-| KNOB 1 | master **FILTER**: left a low-pass, right a high-pass |
-| KNOB 2 | **DUST** |
-| KNOB 3 | **DUCK** |
-| KNOB 4 | **TRK FILT**: the selected voice's own filter |
+- **1/4, 1/8, 1/16, 1/32, 8T, 16T** repeat the slice just played at that length, locked to the grid (the MPC's beat repeat). **1/1 and 1/2** are too long for the 0.74-second buffer, so the sequencer replays the bar or half bar before instead, exactly as the STUTTER lane's 1/1 and 1/2 do (they need the transport running).
+- **REVRS** plays the last slice backwards; **HALF** plays it at half speed, an octave down; **STOP** slows the mix to a stop (a tape stop) and holds silence; **DROP** bends the whole mix down in pitch and stays there (a vinyl pitch drop); **FLNG** sweeps a flanger.
+- **LP** sweeps a resonant low-pass down from open to its CUTOFF; **HP** sweeps a high-pass up; **LCUT** cuts the lows at its FREQ (24 dB/oct); **CRUSH** lowers the bits and the rate; **GATE** chops the mix on the grid.
+- **ECHO** and **VERB** throw the whole mix into GLO's shared delay and reverb while held; the echoes and the reverb ring out after you let go.
+- **-DRM** and **-BAS** fade the drums or the bass out as a mute does; their notes keep playing unheard, so the part comes back exactly in place.
 
-**FX + OCT-** is a **REV THROW** and **FX + OCT+** is an **ECHO THROW**. Both at once throw both. **FX + HOME** locks the layer open.
+**Several at once.** Colour effects (LP, HP, LCUT, CRUSH, GATE), throws and kills all play together, with one time effect (a stutter, REVRS, HALF, STOP, DROP or FLNG) on top: the last one pressed plays, and if you let it go while an earlier one is still held, that one comes back (as the MPC's beat repeat).
+
+**Latch.** Hold **OCT+** and press a pad, or press **OCT+** while holding pads: they stay on with no key held (a white dot on the pad, "2 LATCHED" in the title, **PERF 2** in the header on every screen). Press a latched pad again to turn it off; **OCT-** turns every latch off; **STOP** also ends them. Latched pads keep playing after you leave PERFORM, so you can play notes over them.
+
+**The screen.** Held pads are white. Latched pads are grey with a white dot. A pad the STUTTER lane is playing back (recorded) is grey with a white bar under it. The pad the knobs set has a grey outline. The line above the dials names it and says HELD, LATCHED, FROM THE LANE or LAST PAD.
+
+**The knobs** set the last pad pressed (the same dials as the sound pages). KNOB 4 is AMOUNT (the wet level, 100 to start) wherever a pad has one:
+
+| Pad | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
+| --- | --- | --- | --- | --- |
+| 1/4, 1/8, 1/16, 1/32, 8T, 16T | PITCH (-12 to +12 semitones, each repeat read faster or slower) | DECAY (each repeat quieter, 0 to 100) | GATE (how much of each repeat sounds, 10 to 100) | AMOUNT |
+| 1/1, 1/2 | | | | |
+| REVRS, HALF | LENGTH (1/16, 1/8, 1/4, 1/2) | | | AMOUNT |
+| LP, HP | CUTOFF (where the sweep lands, in Hz) | RESO | SPEED (0, 1/16 to 2/1: how long the sweep takes) | AMOUNT |
+| CRUSH | BITS (2 to 12) | RATE (OFF, 2 to 16: the sample held) | | AMOUNT |
+| GATE | RATE (1/8, 1/16, 1/32) | WIDTH (10 to 90) | | AMOUNT |
+| STOP | TIME (1/8 to 1/1: how long the stop takes) | | | AMOUNT |
+| DROP | DEPTH (1 to 24 semitones) | TIME (1/8 to 1/1) | | AMOUNT |
+| ECHO | TIME (GLO's delay time, shared) | FDBK (the echoes' feedback while thrown, 70 to start) | | AMOUNT (how far the sends go up) |
+| VERB | SIZE (GLO's, shared) | DAMP (GLO's, shared) | | AMOUNT |
+| -DRM | | | | |
+| -BAS | VOICE (1 to 3) | | | |
+| LCUT | FREQ (in Hz, 250 to start) | | | |
+| FLNG | RATE (1/2 to 4/1 bars a sweep) | FDBK | | AMOUNT |
+
+The knobs' settings are performance state: they last until power-off and are not saved (the ones recorded into the STUTTER lane are saved with it). The STUTTER lane's own lit steps always play at the start settings.
+
+**Recording.** While the sequencer records, the pads you play are recorded into the STUTTER lane and play back with the pattern. See [Recording PERFORM pads into the lane](#recording-perform-pads-into-the-lane).
+
+The time effects are mono (the 16-bit buffer keeps 12 dB of headroom for a hot mix); the colour effects are stereo.
 
 ### Global effects (GLO pages)
 
@@ -645,7 +690,8 @@ Tap **GLO**. Tap again, or turn SELECT, for the next page. These pages are share
 - **FILT** is a DJ filter: left low-pass, right high-pass, centre off.
 - **ROLL** is the note-repeat rate of ARP + key.
 - **DLY** TIME values include 1/4, 1/8, 1/16, 1/32, 8T, 16T and dotted values.
-- **DLY** and **REV/CHO** are the shared effects a voice sends to through a CHORUS, REVERB or DELAY FX slot; such a slot shows their TIME and INTENSITY too (in white: the same for every voice).
+- **DLY** and **REV/CHO** are the shared effects a voice sends to through a CHORUS, REVERB or DELAY FX slot; such a slot shows their TIME and INTENSITY too (in white: the same for every voice). PERFORM's ECHO and VERB pads throw the whole mix into these same two.
+- DUST, DUCK and FILT live on **MASTER** only (before, FX held put them on the knobs too).
 
 ---
 
@@ -701,7 +747,7 @@ Holding and releasing SAVE with nothing else does not save anything. Tap **SAVE*
 
 On the REC screen: KNOB 2 the length (1, 2 or 4 bars), KNOB 3 **START** (on a note, or with a count-in). The click setting is GLO > GLOBAL > CLICK (OFF, REC, ON). The beat lights turn red on beat 1 only while recording.
 
-Notes are recorded as you play them, quantised to the voice's DIV. Rolls (hold ARP and a key) are recorded as ratchets (on the drum voice, as a retrig).
+Notes are recorded as you play them, quantised to the voice's DIV. Rolls (hold ARP and a key) are recorded as ratchets (on the drum voice, as a retrig). PERFORM pads played while recording go into the STUTTER lane (see [Recording PERFORM pads into the lane](#recording-perform-pads-into-the-lane)).
 
 ### The EDIT layer: erase, shift, undo
 
@@ -923,7 +969,7 @@ A backup holds the music you are working on (with its own kit), the four project
 
 ## 19. Every button gesture, screen by screen
 
-Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_grid.c`, `ui_drum.c`, `ui_stut.c`, `ui_studio.c`, `ui_menu.c`, and the keys in `seq.c`). "Twice" means two taps or two clicks within the stated time.
+Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_perf.c`, `ui_grid.c`, `ui_drum.c`, `ui_stut.c`, `ui_studio.c`, `ui_menu.c`, and the keys in `seq.c` and `punch.c`). "Twice" means two taps or two clicks within the stated time.
 
 ### Anywhere
 
@@ -938,6 +984,8 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 | tap SEQ | the GRID (from a synth sound page: on that page's tab; on the GRID, synth or drum: TRIG, again back) |
 | tap SAVE | the SAVE pages (PRESETS, USER, TOOLS), on every screen |
 | hold a layer button, then tap HOME | lock that layer open |
+| hold FX | PERFORM while held (the keys are pads) |
+| hold FX 0.7 s untouched, let go | PERFORM stays open (LOCK); FX again or any page button: out |
 | ALGORITHM | choose the voice (not in the menu) |
 | PRESETS | the sound list (drums: the kit) |
 | SELECT | the next or previous page; on screens with no pages, the tempo |
@@ -1044,20 +1092,37 @@ Each row was checked against the input code (`ui_input.c`, `ui_layers.c`, `ui_gr
 | --- | --- |
 | tap an unlit or lit step | light it, or put it out (on release) |
 | hold a step + KNOB 1 | that step's length (1/1 to 1/32; right: shorter) |
+| hold a step + OCT- | erase the recorded pads over that step |
 | KNOB 1 | the length for new steps (1/4 to start) |
-| KNOB 2 | lane on or off (also KNOB 3 on HOME) |
+| KNOB 2 | lane on or off, steps and recorded pads (also KNOB 3 on HOME) |
+| KNOB 3, twice within 1.5 s | clear every recorded pad (it shows how many) |
 | KNOB 4 | lane length |
 | black keys 1 to 4, OCT-, OCT+ | page |
-| hold FX + key | a performance effect while held |
+| hold FX + key | a PERFORM pad while held |
 | EDIT + OCT- | undo |
+
+### PERFORM (hold FX, or kept open)
+
+| Gesture | Does |
+| --- | --- |
+| a white key | its pad while held: 1/1 1/2 1/4 1/8, 1/16 1/32 REVRS HALF, LP HP CRUSH GATE, STOP DROP ECHO VERB |
+| F#3, G#3, A#3, C#4 | -DRM, -BAS, LCUT, FLNG while held |
+| C#5, D#5 | 8T, 16T while held |
+| hold OCT+ + a pad, or OCT+ with pads held | latch them (the header: PERF and how many) |
+| a latched pad | unlatch it |
+| OCT- | unlatch every pad |
+| KNOB 1 to 4 | the last pad's knobs (KNOB 4: AMOUNT) |
+| FX (kept open), HOME, any page button | leave (latched pads play on) |
+| PLAY | start or stop (STOP ends the latches) |
+| REC while playing | record the pads you play into the STUTTER lane |
 
 ### Layers
 
 | Hold | Gesture | Does |
 | --- | --- | --- |
-| FX | keys | punch effects |
-| FX | KNOB 1 to 4 | master FILTER, DUST, DUCK, TRK FILT |
-| FX | OCT- or OCT+ | REV THROW, ECHO THROW |
+| FX | keys | PERFORM pads (see the table above) |
+| FX | KNOB 1 to 4 | the last pad's knobs |
+| FX | OCT+, OCT- | latch, unlatch all |
 | EDIT | key | erase that note or sound |
 | EDIT | KNOB 1 to 3 | SHIFT, STEPS (double or halve), TRANSP |
 | EDIT | OCT- or OCT+ | undo or redo |

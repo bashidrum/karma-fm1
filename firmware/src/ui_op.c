@@ -32,7 +32,7 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
     uint32_t beat = clk_beat, k, playing = song.playing;
     uint32_t sig = studio_hash((uint32_t)song.g[G_BPM] * 7u + playing * 3u + (song.rec != 0) * 1999u +
                                (playing ? beat * 131u : 0u) + (ui.bpm_t != 0) * 104729u + (uint32_t)batt_shown() * 7777u + proj_unsaved * 31337u +
-                               sr_on * 3331u + fill_now * 7331u, title);
+                               sr_on * 3331u + fill_now * 7331u + pf_count(perf.lat) * 13331u, title);
     sig = studio_hash(sig * 31u + tc, tag);
     if (!ui.force && sig == *cache)
         return;
@@ -47,10 +47,22 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
         str_cpy(b, title, 10);
         while (b[0] && w + 8 + text_w(&FONT_S, b) > 122)
             b[str_len(b) - 1u] = 0;
-        if (fill_now) {                                 /* (PHEBUS wave 3) a fill on (held, latched, the bar): FILL inverted,
-                                                         * white: it is everyone's (the conditions of every track) */
-            cv_rect(w + 6, 2, text_w(&FONT_S, "FILL") + 4, 16, C_WHITE);
-            cv_text(w + 8, 2, &FONT_S, "FILL", C_BLACK);
+        if (fill_now || perf.lat) {                     /* (PHEBUS wave 3) a fill on (held, latched, the bar): FILL inverted,
+                                                         * white: it is everyone's (the conditions of every track). (wave 6)
+                                                         * PERFORM pads latched: PERF and how many, the same way */
+            int32_t x = w + 6;
+            if (fill_now) {
+                cv_rect(x, 2, text_w(&FONT_S, "FILL") + 4, 16, C_WHITE);
+                x = cv_text(x + 2, 2, &FONT_S, "FILL", C_BLACK) + 4;
+            }
+            if (perf.lat) {                             /* (PERF, not FX: never read as a voice's FX slot) */
+                char f[8] = "PERF ";
+                if (fill_now)
+                    str_cpy(f, "P", 8);
+                fmt_int(f + str_len(f), (int32_t)pf_count(perf.lat));
+                cv_rect(x, 2, text_w(&FONT_S, f) + 4, 16, C_WHITE);
+                cv_text(x + 2, 2, &FONT_S, f, C_BLACK);
+            }
         } else {
             cv_text(w + 8, 2, &FONT_S, b, TE_G3);
         }

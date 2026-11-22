@@ -332,6 +332,7 @@ static uint32_t drum_trig_sig(uint32_t l, uint32_t bank)
 #define DIAL_VX 17                                      /* the value's start in its column */
 #define DIAL_VW 40                                      /* its room */
 static uint32_t dial_over;                              /* values drawn past their column (0, always) */
+static uint32_t dials_y = SG_KNOB_Y;                    /* where the dials go (PHEBUS wave 6: PERFORM's lower) */
 static int32_t dial_adv(const char *s) { return str_len(s) >= 5u ? 7 : 8; }
 static int32_t dial_w(const char *s) { return (int32_t)str_len(s) * dial_adv(s); }
 static int32_t cv_text_tall_n(int32_t x, int32_t y, const char *s, uint16_t c, int32_t adv)   /* FONT_S x2 tall, adv a letter */
@@ -367,7 +368,7 @@ static void op_dials(const char *const lab[4], const char *const val[4], const i
     if (ui.msg_t) {                                     /* a message: a white bar */
         cv_rect(0, 14, 240, 32, C_WHITE);
         cv_text((240 - text_w(&FONT_S, ui.msg)) / 2, 22, &FONT_S, ui.msg, C_BLACK);
-        cv_blit(0, SG_KNOB_Y);
+        cv_blit(0, dials_y);
         return;
     }
     for (k = 0; k < 4u; k++) {
@@ -395,7 +396,7 @@ static void op_dials(const char *const lab[4], const char *const val[4], const i
         if (hot)
             cv_rect(vx - 1, 56, vw + 1, 2, c);
     }
-    cv_blit(0, SG_KNOB_Y);
+    cv_blit(0, dials_y);
 }
 static void drum_dials(const char *const lab[4], const char *const val[4], const int32_t ratio[4], uint32_t locked,
                        uint32_t dim, uint32_t sig, uint32_t *cache)

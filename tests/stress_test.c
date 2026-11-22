@@ -210,7 +210,7 @@ static void t_fuzz(uint32_t nframes)
         } else if (r < 59) {
             trk[rn(NTRK)].p[P_SLCR] = (int16_t)rn(3);
         } else if (r < 60) {
-            punch.req = (int8_t)(rn(3) ? -1 : (int)rn(PUNCH_NFX));
+            perf.held = rn(3) ? 0u : 1u << rn(PF_NPAD);
         } else if (r < 61) {
             song.g[G_FILT] = (int16_t)((int)rn(128) - 64);
         } else if (r < 62) {
@@ -239,7 +239,7 @@ static void t_fuzz(uint32_t nframes)
     nf = f;
     /* the end: everything let go, MIDI notes off, stop, 5 s */
     fm1_in.notes = 0; fm1_in.buttons = 0; held_btn = 0; ly_lock = 0; ui.menu = 0;
-    punch.hold = 0; punch.req = -1;
+    perf.held = 0;
     sframe();
     for (k = 0; k < 16u; k++)
         for (i = 24; i < 104u; i++) {

@@ -58,7 +58,7 @@ int main(int argc, char **argv)
             case 2: song.rec = 0; rec_wait = 0; break;                            /* REC off */
             case 3: { uint32_t s = rnd(NTRK); song.sel = (uint8_t)s; rec_follow(s); break; }   /* ALGO */
             case 4: TDRUM->p[P_E0] = (int16_t)rnd(DRUM_KITS); break;              /* kit */
-            case 5: punch.req = (int8_t)(rnd(3) ? -1 : (int)rnd(PUNCH_NFX)); break;
+            case 5: perf.held = rnd(3) ? 0u : 1u << rnd(PF_NPAD); if (!rnd(8)) perf.lat ^= 1u << rnd(PF_NPAD); break;   /* PERFORM's pads */
             case 6: song.g[G_BPM] = (int16_t)(60 + rnd(140)); break;
             case 7: { uint32_t t = rnd(NPART), e = rnd(NENGINES);                 /* engine / preset */
                       host_preset_req(&trk[t], e, rnd(ENGINES[e]->npresets)); panic_req |= (uint8_t)(1u << t); break; }
@@ -108,8 +108,7 @@ int main(int argc, char **argv)
     /* the end: keys up, MIDI notes off on every channel, stop, punch off; then 5 s */
     fm1_in.notes = 0;
     fm1_in.buttons = 0;
-    punch.hold = 0;
-    punch.req = -1;
+    perf.held = 0;                                    /* (STOP below lets the latches go) */
     mix_block(out, CTL);
     for (k = 0; k < 16u; k++)
         for (i = 24; i < 104u; i++) {
@@ -120,7 +119,7 @@ int main(int argc, char **argv)
     for (k = 0; k < NTRK; k++) trk[k].p[P_AMODE] = 0;
     for (b = 0; b < 5u * FS / CTL; b++) mix_block(out, CTL);
     assert(!song.playing && !song.rec && !rec_wait);
-    assert(punch.cur == -1);
+    assert(punch.cur == -1 && !perf.lat && !perf.act && !perf_kill && !rep_l16);
     for (k = 0; k < NPART; k++)
         for (i = 0; i < NVOICE; i++)
             assert(!trk[k].v[i].active);                     /* no hanging synth note */

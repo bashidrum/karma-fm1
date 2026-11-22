@@ -640,10 +640,11 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dl
         kt = dsu.k[(kt - DRUM_SYN) % DSU_N].src % DSU_NSRC;
     kboost = (int32_t)((DRUM_BOOST_Q8 * (kt < 7u ? DRUM_KIT_TRIM[kt] : 256u)) >> 8);
     int32_t pan = trk[TRK_DRUM].p[P_PAN], gl = 4096 - (pan > 0 ? pan * 64 : 0), gr = 4096 + (pan < 0 ? pan * 64 : 0);
-    if (drums.a0 >= 32767 && drums.a1 >= 32767) {    /* (3.1.3) muted (or another track soloed) all this block: nothing
+    if (drums.a0 >= 32767 && drums.a1 >= 32767 && !((perf_kill >> TRK_DRUM) & 1u)) {   /* (3.1.3) muted (or another track soloed) all this block: nothing
                                                        * is heard, so nothing is computed (measured on an FM-1: a muted
                                                        * drum track still cost ~0.38 ms of a 0.73 ms block). Its sounds end
-                                                       * (unmuted, the next hits play) */
+                                                       * (unmuted, the next hits play). (wave 6) Not for PERFORM's KILL
+                                                       * DRUMS: it plays on unheard and comes back as it was */
         for (k = 0; k < NDRUM; k++)
             drums.v[k].active = 0;
         drums.tail = drums.trev = drums.tdly = 0;
