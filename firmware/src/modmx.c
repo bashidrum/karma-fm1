@@ -137,8 +137,8 @@ static void lfo2_tick(track_t *t)
     m = &mxt[ti];
     old = m->l2ph;
     m->l2ph += m->l2sync > 0 ? lsync_inc((uint32_t)m->l2sync) : LFO_INC[t->p[P_L2RATE] & 127];
-    if (m->l2ph < old)
-        m->l2rnd = rng();
+    if (m->l2ph < old)                                  /* (its own random numbers: the shared ones stay the voices') */
+        m->l2rnd = m->l2rnd * 1664525u + 1013904223u + ti;
     m->l2val = lfo_shape((uint32_t)t->p[P_L2WAVE] % 5u, m->l2ph, m->l2rnd);
 }
 

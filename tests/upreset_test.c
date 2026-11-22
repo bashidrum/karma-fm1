@@ -223,9 +223,15 @@ int main(void)
     ok = 1;
     for (i = 0; i < P_COUNT_V8; i++)
         ok &= v[i] == (int16_t)i;
+    for (i = P_COUNT_V8; i < P_COUNT; i++)              /* (PHEBUS wave 5: a record 2 has wave 4's; wave 5's at their defaults) */
+        ok &= v[i] == (i < P_COUNT_V9 ? (int16_t)(i - 120) : def[i]);
+    bad += check("np == P_COUNT: as stored (record 2: wave 4's; wave 5's FX slots and LFO 2 at their defaults)", ok);
+    r.ver = 3;                                          /* (wave 5) record 3: every one as stored */
+    up_params(&r, v, def);
+    ok = 1;
     for (i = P_COUNT_V8; i < P_COUNT; i++)
         ok &= v[i] == (int16_t)(i - 120);
-    bad += check("np == P_COUNT: as stored (record 2)", ok);
+    bad += check("record 3 (wave 5): the FX slots and LFO 2 as stored", ok);
     r.ver = 1;
     bad += check("record 1 still read (wave 4)", up_valid(&r));
 
