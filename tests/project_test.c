@@ -440,12 +440,16 @@ int main(void)
         bad += check("format 8: loaded and saved again: the same bytes", !memcmp(&a, &b, sizeof a));
         b = a;
         b.c.d.pat.vel[9][4] ^= 1u;
-        bad += check("format 8: a changed byte breaks the sum (refused)", !proj_import(&q2v8_tmp, &b, (int)sizeof b));
+        bad += check("format 8: a changed byte breaks the sum (refused)", !proj_import(&q2v8_tmp.c, &b, (int)sizeof b, PROJ_V7_TMP));
         q2v8_tmp.c.magic = 0;
-        bad += check("format 8: a slot (the core alone, 5744 bytes) and a whole project (6768) both load; 0 bytes: none",
-                     proj_import(&q2v8_tmp, &a.c, (int)sizeof a.c) && !memcmp(&q2v8_tmp.c, &a.c, sizeof a.c) &&
-                     q2v8_tmp.x.kit[5] == 0 && proj_import(&q2v8_tmp, &a, (int)sizeof a) && !memcmp(&q2v8_tmp, &a, sizeof a) &&
-                     !proj_import(&q2v8_tmp, &a, 0) && !proj_import(&q2v8_tmp, &a, (int)sizeof a - 2));
+        bad += check("format 8: a slot (the core alone, 5744 bytes) and a whole project (6768) both load (its core); 0 bytes: none",
+                     proj_import(&q2v8_tmp.c, &a.c, (int)sizeof a.c, PROJ_V7_TMP) && !memcmp(&q2v8_tmp.c, &a.c, sizeof a.c) &&
+                     (memset(&q2v8_tmp, 0, sizeof q2v8_tmp), proj_import(&q2v8_tmp.c, &a, (int)sizeof a, PROJ_V7_TMP)) &&
+                     !memcmp(&q2v8_tmp.c, &a.c, sizeof a.c) && !proj_import(&q2v8_tmp.c, &a, 0, PROJ_V7_TMP) &&
+                     !proj_import(&q2v8_tmp.c, &a, (int)sizeof a - 2, PROJ_V7_TMP));
+        b = a;
+        bad += check("format 8: checked where it is (the core imported onto itself)", proj_import(&b.c, &b, (int)sizeof b, PROJ_V7_TMP) &&
+                     !memcmp(&b, &a, sizeof a));
         a.c.d.pat.vel[9][4] = 0;                       /* the hat gone, its extras and locks left behind */
         a.c.d.pat.lk[100].step = 3, a.c.d.pat.lk[100].lane = 0, a.c.d.pat.lk[100].param = 200;   /* no such parameter */
         a.c.d.pat.vel[3][0] = 200;                     /* a velocity past 127 */
@@ -505,7 +509,7 @@ int main(void)
         d->preset = (uint8_t)(31u | 64u | 128u);
         d->p[P_LRATE] = 0x1B2C, d->p[P_GLMODE] = 0x0102, d->p[P_ATK] = 0x0500;
         v.sum = proj_sum_v7(&v);
-        ok = proj_import(&c8, &v, (int)sizeof v) && proj_ok(&c8.c) && c8.c.magic == PROJ_MAGIC;
+        ok = proj_import(&c8.c, &v, (int)sizeof v, PROJ_V7_TMP) && proj_ok(&c8.c) && c8.c.magic == PROJ_MAGIC;
         bad += check("FUN7 -> FUN8: converted, a valid format 8 project", ok);
         ok = c8.c.g[G_BPM] == 128 && c8.c.sel == 3 && c8.c.drdly == 40 && c8.c.d.p[P_E0] == 7 && c8.c.d.p[P_SDIV] == 2 &&
              c8.c.t[0].step[1].note[0] == 48 && (c8.c.t[0].mf[1] >> 6) == FC_CHANCE && c8.c.t[0].engine == ENGI_JUNO;
@@ -556,7 +560,7 @@ int main(void)
             pt_set_mf(d, k, 3, FC_NORM);
         }
         v.sum = proj_sum_v7(&v);
-        ok = proj_import(&c8, &v, (int)sizeof v);
+        ok = proj_import(&c8.c, &v, (int)sizeof v, PROJ_V7_TMP);
         {
             uint32_t l, trigs = 0, xs = 0;
             for (k = 0; k < NSTEP; k++) for (l = 0; l < DRUM_LANES; l++) trigs += c8.c.d.pat.vel[k][l] != 0;
@@ -566,15 +570,15 @@ int main(void)
         }
         d->engine = 0;                                 /* (KARMA wrote it: no lane) */
         v.sum = proj_sum_v7(&v);
-        ok = proj_import(&c8, &v, (int)sizeof v) && c8.c.perf.len == 16 && c8.c.perf.act == 1 && !c8.c.perf.on[0];
+        ok = proj_import(&c8.c, &v, (int)sizeof v, PROJ_V7_TMP) && c8.c.perf.len == 16 && c8.c.perf.act == 1 && !c8.c.perf.on[0];
         d->engine = 0x53u, d->preset &= 0x7Fu;         /* (a PHEBUS lane saved before 1/2 and 1/1: no 3rd bits) */
         v.sum = proj_sum_v7(&v);
-        ok &= proj_import(&c8, &v, (int)sizeof v) && !c8.c.perf.lx[1] && c8.c.perf.on[1] == 0x01;
+        ok &= proj_import(&c8.c, &v, (int)sizeof v, PROJ_V7_TMP) && !c8.c.perf.lx[1] && c8.c.perf.on[1] == 0x01;
         bad += check("FUN7 -> FUN8: no lane in it: an empty one, 16 steps, ON; a lane from before 1/2 and 1/1: no 3rd bits", ok);
         host_tracks_init();
     }
     bad += check("2.6 SAVE > PROJECT > ERASE: an object of no bytes is no project (an empty slot, older SLOOP too)",
-                 !proj_import(&q2v8_tmp, &q, 0) && !proj_import_v7(&q2, &q, 0));
+                 !proj_import(&q2v8_tmp.c, &q, 0, PROJ_V7_TMP) && !proj_import_v7(&q2, &q, 0));
     /* PHEBUS (21 Nov, Ben: "Dot + save on stop"): autosave_due(stop, stop_quiet, quiet, idle ms, ms since the last save) */
     bad += check("save on stop: 0.3 s after STOP, silent, 5 s since the last save: saved",
                  autosave_due(1, 1, 1, AUTOSAVE_STOP_IDLE, AUTOSAVE_STOP_GAP) == 1);

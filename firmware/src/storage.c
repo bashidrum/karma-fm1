@@ -203,15 +203,17 @@ static int st_save2(uint32_t obj, const void *src, uint32_t len, const void *src
 }
 static int st_save(uint32_t obj, const void *src, uint32_t len) { return st_save2(obj, src, len, 0, 0); }
 
-/* (PHEBUS wave 2) a big object (a project, project.c): up to ST_BIG_MAX bytes from src, which must be RAM (the flash driver
- * reads it as it programs; nothing is copied). The same A/B commit as the others: both sectors of the copy that is not the
- * current one erased, the payload programmed, the header last, then everything read back */
-static int st_save_big(uint32_t obj, const void *src, uint32_t len)
+/* (PHEBUS wave 2) a big object (a project, project.c): len bytes from src, which must be RAM (the flash driver reads it
+ * as it programs; nothing is copied), then zt zero bytes (a reserved part, kept in no RAM), up to ST_BIG_MAX in all. The
+ * same A/B commit as the others: both sectors of the copy that is not the current one erased, the payload programmed,
+ * the header last, then everything read back */
+static int st_save_big(uint32_t obj, const void *src, uint32_t len, uint32_t zt)
 {
-    uint32_t seq, base, off, c;
+    uint32_t seq, base, off, c, crc, all = len + zt;
+    uint8_t z[256];
     int cur, rc;
     st_hdr_t h;
-    if (!st_big(obj) || len > ST_BIG_MAX)
+    if (!st_big(obj) || len > ST_BIG_MAX || zt > ST_BIG_MAX - len)
         return -1;
     cur = st_current(obj, &h);
     seq = cur < 0 ? 0u : h.seq;
@@ -219,17 +221,26 @@ static int st_save_big(uint32_t obj, const void *src, uint32_t len)
     base = st_sector(obj, c);
     if ((rc = st_erase(base)) != 0 || (rc = st_erase(base + ST_SECTOR)) != 0)
         return rc;
-    for (off = 0; off < len; off += 256u) {
-        uint32_t n = len - off > 256u ? 256u : len - off;
-        if ((rc = st_prog(base + ST_PAYLOAD_OFF + off, (const uint8_t *)src + off, n)) != 0)
+    crc = 0xFFFFFFFFu;
+    for (off = 0; off < all; off += 256u) {
+        uint32_t n = all - off > 256u ? 256u : all - off;
+        const uint8_t *pg = (const uint8_t *)src + off;
+        if (off + n > len) {                          /* (a page with the zeros in it: made up here) */
+            uint32_t k = off < len ? len - off : 0u;
+            memset(z, 0, sizeof z);
+            memcpy(z, (const uint8_t *)src + off, k);
+            pg = z;
+        }
+        crc = st_crc32_up(crc, pg, n);
+        if ((rc = st_prog(base + ST_PAYLOAD_OFF + off, pg, n)) != 0)
             return rc;
     }
     h.magic = ST_MAGIC;
     h.type = (uint16_t)obj;
     h.slot = (uint16_t)c;
     h.seq = seq + 1u;
-    h.len = len;
-    h.crc = st_crc32(src, len);
+    h.len = all;
+    h.crc = ~crc;
     h.rsv[0] = h.rsv[1] = 0xFFFFFFFFu;
     h.hcrc = st_crc32(&h, sizeof h - 4u);
     if ((rc = st_prog(base, &h, sizeof h)) != 0)       /* the commit record, last */

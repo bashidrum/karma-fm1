@@ -138,18 +138,18 @@ int main(void)
         for (k = 0; k < sizeof p2; k++)
             p2[k] = (uint8_t)(k * 13u + 5u);
         bad += check("big: empty at first", st_load(OBJ_PRJ0, g, sizeof g) < 0 && st_load(OBJ_WORK, g, sizeof g) < 0);
-        bad += check("big: saved", st_save_big(OBJ_PRJ0, p1, sizeof p1) == 0);
+        bad += check("big: saved", st_save_big(OBJ_PRJ0, p1, sizeof p1, 0) == 0);
         n = st_load(OBJ_PRJ0, g, sizeof g);
         bad += check("big: loads whole", n == (int)sizeof p1 && !memcmp(g, p1, sizeof p1));
-        bad += check("big: the largest saved", st_save_big(OBJ_PRJ0, p2, sizeof p2) == 0);
+        bad += check("big: the largest saved", st_save_big(OBJ_PRJ0, p2, sizeof p2, 0) == 0);
         n = st_load(OBJ_PRJ0, g, sizeof g);
         bad += check("big: ... loads whole (the newer copy)", n == (int)sizeof p2 && !memcmp(g, p2, sizeof p2));
         fail_after = 20;                             /* the first sector's pages and some of the second's, then torn */
-        st_save_big(OBJ_PRJ0, p1, sizeof p1);
+        st_save_big(OBJ_PRJ0, p1, sizeof p1, 0);
         fail_after = -1;
         n = st_load(OBJ_PRJ0, g, sizeof g);
         bad += check("big: a torn save keeps the last one", n == (int)sizeof p2 && !memcmp(g, p2, sizeof p2));
-        bad += check("big: saved again", st_save_big(OBJ_PRJ0, p1, sizeof p1) == 0);
+        bad += check("big: saved again", st_save_big(OBJ_PRJ0, p1, sizeof p1, 0) == 0);
         {
             st_hdr_t h;
             int cur = st_current(OBJ_PRJ0, &h);
@@ -157,16 +157,24 @@ int main(void)
         }
         n = st_load(OBJ_PRJ0, g, sizeof g);
         bad += check("big: rot in the second sector: the older copy", n == (int)sizeof p2 && !memcmp(g, p2, sizeof p2));
-        bad += check("big: too big refused", st_save_big(OBJ_PRJ0, p2, sizeof p2 + 1u) == -1);
-        bad += check("big: a small object refuses it", st_save_big(OBJ_SETTINGS, p1, 100) == -1 &&
+        bad += check("big: too big refused", st_save_big(OBJ_PRJ0, p2, sizeof p2 + 1u, 0) == -1 && st_save_big(OBJ_PRJ0, p2, 7000, 937) == -1);
+        bad += check("big: a small object refuses it", st_save_big(OBJ_SETTINGS, p1, 100, 0) == -1 &&
                      st_save(OBJ_WORK, p1, 100) == -1);
         bad += check("big: the others untouched", st_load(OBJ_PRJ0 + 1u, g, sizeof g) < 0 && st_load(OBJ_WORK, g, sizeof g) < 0);
-        bad += check("big: an empty one (an erased slot)", st_save_big(OBJ_PRJ0 + 3u, p1, 0) == 0 &&
+        bad += check("big: an empty one (an erased slot)", st_save_big(OBJ_PRJ0 + 3u, p1, 0, 0) == 0 &&
                      st_load(OBJ_PRJ0 + 3u, g, sizeof g) == 0);
-        bad += check("big: the working project", st_save_big(OBJ_WORK, p2, 5000) == 0 &&
+        bad += check("big: the working project", st_save_big(OBJ_WORK, p2, 5000, 0) == 0 &&
                      st_load(OBJ_WORK, g, sizeof g) == 5000 && !memcmp(g, p2, 5000));
         n = st_load(OBJ_WORK, g, 3000);
         bad += check("big: a shorter load takes its part", n == 3000 && !memcmp(g, p2, 3000));
+        {   /* a part of zeros after the bytes (a reserved part, in no RAM): 5744 bytes then 1024 zeros */
+            static uint8_t want[6768];
+            memset(want, 0, sizeof want);
+            memcpy(want, p2, 5744);
+            bad += check("big: bytes then a zero tail (5744 + 1024): loads as one object, its sum good",
+                         st_save_big(OBJ_WORK, p2, 5744, 1024) == 0 && st_load(OBJ_WORK, g, sizeof g) == 6768 &&
+                         !memcmp(g, want, sizeof want));
+        }
         bad += check("the songs' objects are released", st_save(OBJ_FM6BANK + 1u, p1, 10) == -1 && st_load(OBJ_FM6BANK + 2u, g, 10) < 0);
     }
     {   /* 2.6: SAVE > PROJECT > ERASE (project.c project_erase), as the editor's restore of an empty slot: an object

@@ -353,7 +353,14 @@ static int proj_from_v3(project_v7_t *q, const project_v3_t *v3, int n)
     return 1;
 }
 
-static project_v3_t proj_v3_tmp;               /* (formats 1, 2: through format 3) */
+/* the RAM a load stages a project in (format 8 as stored: its core, then its ext; or an older one's bytes), and the
+ * backup page's (editor.c ED_BK_RAW). Formats 1, 2 go through format 3 in its second half (their bytes, 688 and 2552, in
+ * its first; format 7 is made elsewhere, proj_import) */
+static union {
+    uint8_t raw[6768];                         /* (sizeof (project_t), below) */
+    struct { uint8_t old[3840]; project_v3_t v3; } o;
+} proj_tmp;
+#define proj_v3_tmp (proj_tmp.o.v3)            /* (formats 1, 2: through format 3) */
 /* a format 2 project (n bytes in *v2) -> slot q as format 5 */
 static int proj_from_v2(project_v7_t *q, const project_v2_t *v2, int n)
 {
@@ -540,12 +547,11 @@ static uint32_t proj_rt_rate(uint32_t div, uint32_t hits)
     }
     return best;
 }
-static void proj_from_v7(project_t *q, const project_v7_t *v)
+static void proj_from_v7(proj_core_t *c, const project_v7_t *v)
 {
     const proj_trk_t *od = &v->t[TRK_DRUM];
-    proj_core_t *c = &q->c;
     uint32_t i, k, l, div;
-    memset(q, 0, sizeof *q);
+    memset(c, 0, sizeof *c);
     c->magic = PROJ_MAGIC;
     c->size = sizeof *c;
     for (i = 0; i < PROJ_NG; i++)
@@ -619,25 +625,19 @@ static void proj_from_v7(project_t *q, const project_v7_t *v)
     c->sum = proj_sum(c);
 }
 
-/* n bytes of a stored project (any format) -> q, format 8 (a slot's core alone: the ext zero); 0 = not a project. An old
- * one through format 7 (in the second half of proj_tmp: the bytes b may be in its first) */
-static union {
-    project_t cur;                             /* format 8, as stored */
-    struct {
-        uint8_t raw[3840];                     /* an older one, as stored */
-        project_v7_t v7;                       /* .. and as format 7 */
-    } old;
-} proj_tmp;
-static int proj_import(project_t *q, const void *b, int n)
+/* n bytes of a stored project (any format: format 8 a slot's core alone or a whole project, its ext reserved) -> its core
+ * q; 0 = not a project. q may be b (format 8: checked where it is). An older one goes through format 7 in v7 (RAM of its
+ * own: it must not overlap b, nor q; the main loop uses autosave_buf), its bytes read whole before q is written */
+static int proj_import(proj_core_t *q, const void *b, int n, project_v7_t *v7)
 {
     if ((n == (int)sizeof(proj_core_t) || n == (int)sizeof(project_t)) && proj_ok((const proj_core_t *)b)) {
-        memset(q, 0, sizeof *q);
-        memcpy(q, b, (uint32_t)n);
+        if ((const void *)q != b)
+            memcpy(q, b, sizeof *q);
         return 1;
     }
-    if (n <= 0 || n > (int)sizeof proj_tmp.old.raw || !proj_import_v7(&proj_tmp.old.v7, b, n))
+    if (n <= 0 || n > (int)sizeof(project_v7_t) || !proj_import_v7(v7, b, n))
         return 0;
-    proj_from_v7(q, &proj_tmp.old.v7);
+    proj_from_v7(q, v7);
     return 1;
 }
 
@@ -676,11 +676,13 @@ static void proj_capture_core(proj_core_t *c)  /* what is playing now, as a proj
     c->d.pat = dpat;
     c->sum = proj_sum(c);
 }
-static void proj_capture(project_t *p)        /* .. as a whole project (the ext: zero, reserved) */
+static void proj_capture(project_t *p)        /* .. as a whole project, as stored (the ext: zero, reserved) */
 {
     memset(&p->x, 0, sizeof p->x);
     proj_capture_core(&p->c);
 }
+_Static_assert(sizeof proj_tmp == sizeof(project_t) && sizeof(project_v3_t) <= sizeof proj_tmp - 3840u,
+               "proj_tmp holds a whole project, or an old one's bytes and format 3");
 
 /* a project's tracks (and its globals, all: a load; or only the drum level / reverb / delay: a song
  * section) into the working one, every value back inside its range. The audio ISR must not run
@@ -776,15 +778,20 @@ static void proj_apply(const proj_core_t *p, int all)
     drum_rt_clear();                                    /* (nothing of the last pattern waits or retrigs) */
 }
 
-/* (PHEBUS wave 2) the four slots (the sections A..D) in RAM, a project's core each (5,744 bytes): two in .noinit (they
- * survive a reset, as all four did), two in the pool (the .noinit region holds no more: after a reset they are read
- * from flash again, which an update or UPDATE MODE writes first, project.c persist_flush_now; only a section stored
- * while playing and not yet in flash is lost if the FM-1 crashes) */
+/* (PHEBUS wave 2) the four slots (the sections A..D) in RAM, a project's core each (5,744 bytes): A and B in .noinit (they
+ * survive a reset, as all four did), C in the pool, D in main RAM (the .noinit region holds no more, and the pool keeps
+ * 8 KiB spare, tools/build.py: after a reset C and D are read from flash again, which an update or UPDATE MODE writes
+ * first, persist_flush_now; only a section stored while playing and not yet in flash is lost if the FM-1 crashes) */
 static proj_core_t proj_sec_a[2] __attribute__((section(".noinit")));
-static proj_core_t proj_sec_b[2] __attribute__((section(".pool")));
-static proj_core_t *const proj_slots[4] = {&proj_sec_a[0], &proj_sec_a[1], &proj_sec_b[0], &proj_sec_b[1]};
+static proj_core_t proj_sec_c __attribute__((section(".pool")));
+static proj_core_t proj_sec_d;
+static proj_core_t *const proj_slots[4] = {&proj_sec_a[0], &proj_sec_a[1], &proj_sec_c, &proj_sec_d};
 #define PSLOT(s) (proj_slots[(s) & 3u])
-static project_t autosave_buf __attribute__((section(".pool")));   /* (main loop: a project's scratch, see below) */
+/* the main loop's scratch for a project: the working one captured (its sum: autosave_hash), a slot fetched, format 7 made
+ * of an older one (proj_import) */
+static proj_core_t autosave_buf __attribute__((section(".pool")));
+#define PROJ_V7_TMP ((project_v7_t *)&autosave_buf)
+_Static_assert(sizeof(project_v7_t) <= sizeof(proj_core_t), "format 7 is made in autosave_buf");
 
 /* ---- when the working project goes to flash (autosave_tick below; on the host: tests/project_test.c). PHEBUS, 21 Nov
  * 2026 (Ben: "Dot + save on stop"): each time the transport stops, once the panel has rested AUTOSAVE_STOP_IDLE and the
@@ -810,22 +817,15 @@ static int autosave_due(uint32_t stop, uint32_t stop_quiet, uint32_t quiet, uint
 #endif
 static uint8_t sec_dirty, song_dirty;           /* live sections / the settings: in RAM, not yet in flash */
 #if FELUCCA_FLASH
-/* a slot's object: format 8 (a big object); else, once, the old one converted (format 7 and older, never written again) */
-static int proj_load_obj(uint32_t slot, project_t *q)
-{
-    int n = st_load(OBJ_PRJ0 + (slot & 3u), &proj_tmp, sizeof proj_tmp.cur);
-    if (n < 0)
-        n = st_load(OBJ_PROJECT0 + (slot & 3u), &proj_tmp, sizeof proj_tmp.old.raw);
-    return proj_import(q, &proj_tmp, n);
-}
-/* slot from flash into RAM (through autosave_buf) */
+/* slot from flash into RAM: format 8 (a big object); else, once, the old one converted (format 7 and older, never written
+ * again) */
 static void proj_fetch(uint32_t slot)
 {
-    proj_core_t *q = PSLOT(slot);
-    if (proj_load_obj(slot, &autosave_buf))
-        *q = autosave_buf.c;
-    else
-        q->magic = 0;
+    int n = st_load(OBJ_PRJ0 + (slot & 3u), &proj_tmp, sizeof proj_tmp);
+    if (n < 0)
+        n = st_load(OBJ_PROJECT0 + (slot & 3u), &proj_tmp, sizeof(project_v7_t));
+    if (!proj_import(PSLOT(slot), &proj_tmp, n, PROJ_V7_TMP))
+        PSLOT(slot)->magic = 0;
 }
 #endif
 
@@ -842,7 +842,7 @@ static void project_save(uint32_t slot)
 #endif
 #if FELUCCA_FLASH
     if (flash_ok) {
-        int err = st_save_big(OBJ_PRJ0 + (slot & 3u), p, sizeof *p);
+        int err = st_save_big(OBJ_PRJ0 + (slot & 3u), p, sizeof *p, 0);
         if (!err) {                                 /* (2026-10-28, Ariel: the kit came back as before) what power-on */
             if (dsu_dirty)                          /* loads, now too: the working project (else only autosaved when */
                 song_dirty = 1;                     /* idle, 20 s apart) and an edited HEX kit with the settings */
@@ -869,7 +869,7 @@ static void project_erase(uint32_t slot)
         return;
     }
 #if FELUCCA_FLASH
-    if (flash_ok && (st_save_big(OBJ_PRJ0 + slot, PSLOT(slot), 0) ||
+    if (flash_ok && (st_save_big(OBJ_PRJ0 + slot, PSLOT(slot), 0, 0) ||
                      (st_load(OBJ_PROJECT0 + slot, &proj_tmp, 4) >= 0 && st_save(OBJ_PROJECT0 + slot, &proj_tmp, 0)))) {
         ui_message("ERASE ERROR");                      /* (an old object there too: emptied, so it does not come back) */
         return;
@@ -966,12 +966,12 @@ static void unsaved_tick(void)
     if (!flash_ok || fm1_ms - unsaved_ms < 500u)
         return;
     unsaved_ms = fm1_ms;
-    proj_capture(&autosave_buf);
+    proj_capture_core(&autosave_buf);
     for (i = 0; i < NTRK; i++)
         for (k = 0; k < trk[i].lk_n && k < NLOCK; k++)
             if (trk[i].p[trk[i].lk_param[k] % P_COUNT] == trk[i].lk_set[k])
-                (i == TRK_DRUM ? autosave_buf.c.d.p : autosave_buf.c.t[i].p)[trk[i].lk_param[k] % P_COUNT] = trk[i].lk_base[k];
-    proj_unsaved = (uint8_t)(proj_sum(&autosave_buf.c) != autosave_hash || sec_dirty || song_dirty || dsu_dirty);
+                (i == TRK_DRUM ? autosave_buf.d.p : autosave_buf.t[i].p)[trk[i].lk_param[k] % P_COUNT] = trk[i].lk_base[k];
+    proj_unsaved = (uint8_t)(proj_sum(&autosave_buf) != autosave_hash || sec_dirty || song_dirty || dsu_dirty);
 }
 #endif
 
@@ -987,15 +987,15 @@ static void autosave_tick(void)                /* main loop */
         !autosave_due(stop_save, stop_save && out_silent(), 1, now - ui_input_ms, now - autosave_ms))
         return;
     autosave_checked = now;
-    proj_capture(&autosave_buf);
-    h = autosave_buf.c.sum;
+    proj_capture_core(&autosave_buf);
+    h = autosave_buf.sum;
     if (h == autosave_hash) {
         stop_save = 0;                         /* (nothing changed since the last save) */
         return;
     }
     if (!audio_quiet())
         return;
-    if (st_save_big(OBJ_WORK, &autosave_buf, sizeof autosave_buf) == 0)
+    if (st_save_big(OBJ_WORK, &autosave_buf, sizeof autosave_buf, sizeof(proj_ext_t)) == 0)   /* (the ext: zeros, reserved) */
         autosave_hash = h;
     autosave_ms = fm1_ms;
     stop_save = 0;
@@ -1008,17 +1008,17 @@ static uint8_t drch_seed;                           /* a settings object as 2.5 
 static void autosave_resume(void)              /* power-on: the project as it was left (felucca_init) */
 {
 #if FELUCCA_FLASH
-    project_t *q = &autosave_buf;
+    proj_core_t *q = (proj_core_t *)proj_tmp.raw;
     int n, old = 0;
     if (!flash_ok)
         return;
-    n = st_load(OBJ_WORK, &proj_tmp, sizeof proj_tmp.cur);
+    n = st_load(OBJ_WORK, &proj_tmp, sizeof proj_tmp);
     if (n < 0) {                                       /* (PHEBUS wave 2) none yet: the old one, once, converted */
-        n = st_load(OBJ_AUTOSAVE, &proj_tmp, sizeof proj_tmp.old.raw);
+        n = st_load(OBJ_AUTOSAVE, &proj_tmp, sizeof(project_v7_t));
         old = 1;
         if (n == (int)sizeof(project_v7_t) || n == (int)sizeof(project_v6_t)) {   /* (2.6) updated from 2.5: GLO > DRUMS
             * > CH as it was there (a project's then, a setting of the FM-1 now), kept in the settings */
-            const project_v6_t *o = (const project_v6_t *)proj_tmp.old.raw;
+            const project_v6_t *o = (const project_v6_t *)proj_tmp.raw;
             if (drch_seed && !(o->rsv[0] & 0x80u) && o->g[G_DRCH] >= 0 && o->g[G_DRCH] <= 16 && o->g[G_DRCH] != midi_set[3]) {
                 midi_set[3] = (uint8_t)o->g[G_DRCH];
                 settings_later = 1;
@@ -1026,11 +1026,11 @@ static void autosave_resume(void)              /* power-on: the project as it wa
         }
     }
     drch_seed = 0;
-    if (!proj_import(q, &proj_tmp, n))
+    if (!proj_import(q, &proj_tmp, n, PROJ_V7_TMP))
         return;
-    autosave_hash = old ? 0u : q->c.sum;               /* (converted: saved in the new format when next quiet) */
-    proj_apply(&q->c, 1);
-    song.sel = (uint8_t)(q->c.sel < NTRK ? q->c.sel : 0u);
+    autosave_hash = old ? 0u : q->sum;                 /* (converted: saved in the new format when next quiet) */
+    proj_apply(q, 1);
+    song.sel = (uint8_t)(q->sel < NTRK ? q->sel : 0u);
     for (n = 0; n < NPART; n++)
         trk[n].engine = trk[n].eng_req;        /* (nothing sounds yet: no fade) */
 #endif
@@ -1107,8 +1107,8 @@ static void persist_boot(void)                    /* before settings_init / pane
                 if (proj_ok(PSLOT(i)) && st_load(OBJ_PRJ0 + i, &proj_tmp, 4) < 0)
                     sec_dirty |= (uint8_t)(1u << i);   /* (converted from the old format: written in the new one) */
             } else {
-                int n = st_load(OBJ_PRJ0 + i, &proj_tmp, sizeof proj_tmp.cur);
-                if (n != (int)sizeof *PSLOT(i) || memcmp(&proj_tmp.cur.c, PSLOT(i), sizeof *PSLOT(i)))
+                int n = st_load(OBJ_PRJ0 + i, &proj_tmp, sizeof proj_tmp);
+                if (n != (int)sizeof *PSLOT(i) || memcmp(proj_tmp.raw, PSLOT(i), sizeof *PSLOT(i)))
                     sec_dirty |= (uint8_t)(1u << i);
             }
     }
@@ -1249,7 +1249,7 @@ static void settings_save(void)
 }
 
 #if FELUCCA_FLASH
-_Static_assert(sizeof(project_t) <= ST_BIG_MAX && sizeof proj_tmp <= 7680u, "a project fits a big flash object");
+_Static_assert(sizeof(project_t) <= ST_BIG_MAX, "a project fits a big flash object");
 
 /* ---- backup restore (editor.c BK_PUT): each object checked as a load checks it, then written through the
  * same A/B commit as a save. rc: 0 ok, 2 not a valid object, 3 stop first, 4 flash */
@@ -1305,21 +1305,24 @@ static uint32_t project_restore(uint32_t slot, const void *raw, uint32_t n)
     if (song.playing || transport_req)
         return 3;
     if (slot < 4u && !n) {
-        if (!flash_ok || st_save_big(OBJ_PRJ0 + slot, raw, 0))
+        if (!flash_ok || st_save_big(OBJ_PRJ0 + slot, raw, 0, 0))
             return 4;
         memset(PSLOT(slot), 0, sizeof *PSLOT(slot));
         sec_dirty &= (uint8_t)~(1u << slot);
         return 0;
     }
-    if (!proj_import(&autosave_buf, raw, (int)n))
-        return 2;
-    if (slot == 4u) {
-        project_apply(&autosave_buf.c);
-        return 0;
+    {   /* (raw: the staging RAM, proj_tmp) checked where it is; an older one through format 7 in autosave_buf, back here */
+        proj_core_t *q = (proj_core_t *)proj_tmp.raw;
+        if ((const void *)raw != (const void *)proj_tmp.raw || !proj_import(q, raw, (int)n, PROJ_V7_TMP))
+            return 2;
+        if (slot == 4u) {
+            project_apply(q);
+            return 0;
+        }
+        if (!flash_ok || st_save_big(OBJ_PRJ0 + slot, q, sizeof *q, 0))
+            return 4;
+        *PSLOT(slot) = *q;
     }
-    if (!flash_ok || st_save_big(OBJ_PRJ0 + slot, &autosave_buf.c, sizeof autosave_buf.c))
-        return 4;
-    *PSLOT(slot) = autosave_buf.c;
     sec_dirty &= (uint8_t)~(1u << slot);
     return 0;
 }
@@ -1351,7 +1354,7 @@ static void sections_write(void)                        /* the dirty sections an
 #if FELUCCA_FLASH
     if (flash_ok)
         for (i = 0; i < 4u; i++)
-            if (((sec_dirty >> i) & 1u) && st_save_big(OBJ_PRJ0 + i, PSLOT(i), sizeof *PSLOT(i)) == 0)
+            if (((sec_dirty >> i) & 1u) && st_save_big(OBJ_PRJ0 + i, PSLOT(i), sizeof *PSLOT(i), 0) == 0)
                 sec_dirty &= (uint8_t)~(1u << i);       /* (a failed write stays dirty: tried again later) */
     if (!flash_ok)
 #endif
@@ -1369,9 +1372,9 @@ static void persist_flush_now(void)
     sections_write();
 #if FELUCCA_FLASH
     if (flash_ok) {
-        proj_capture(&autosave_buf);
-        if (autosave_buf.c.sum != autosave_hash && st_save_big(OBJ_WORK, &autosave_buf, sizeof autosave_buf) == 0)
-            autosave_hash = autosave_buf.c.sum;
+        proj_capture_core(&autosave_buf);
+        if (autosave_buf.sum != autosave_hash && st_save_big(OBJ_WORK, &autosave_buf, sizeof autosave_buf, sizeof(proj_ext_t)) == 0)
+            autosave_hash = autosave_buf.sum;
     }
 #endif
 }

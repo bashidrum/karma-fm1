@@ -58,13 +58,13 @@ int main(void)
         v.magic = PROJ_MAGIC_V7, v.size = sizeof v;
         v.t[TRK_DRUM].e[1] = 0x7F;                     /* (sound 0: every bit) */
         v.sum = proj_sum_v7(&v);
-        same = proj_import(&p, &v, (int)sizeof v);
+        same = proj_import(&p.c, &v, (int)sizeof v, PROJ_V7_TMP);
         proj_apply(&p.c, 1);
         for (l = 0; l < DRUM_LANES; l++) same &= !drum_send[l][0] && !drum_send[l][1];
         check("a format 7 project from before (no flag): every sound dry", same);
         v.rsv[0] = 0x40;
         v.sum = proj_sum_v7(&v);
-        same = proj_import(&p, &v, (int)sizeof v);
+        same = proj_import(&p.c, &v, (int)sizeof v, PROJ_V7_TMP);
         proj_apply(&p.c, 1);
         same &= drum_send[0][0] == 15u && drum_send[0][1] == 7u && !drum_send[1][0] && !drum_send[1][1];
         check("a format 7 project with the flag: the sounds' sends converted", same);
