@@ -186,7 +186,7 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
     <tr><td>FX</td><td><b>PUNCH</b>: effects on the keys, while held</td></tr>
     <tr><td>EDIT</td><td><b>ERASE</b>: key erases that note or sound. K1 SHIFT, K2 STEPS x2 / half, K3 TRANSP</td></tr>
     <tr><td>ARP</td><td><b>ROLL</b>: hold a key to repeat. K1 rate</td></tr>
-    <tr><td>SEQ</td><td><b>STEPS</b>: K2 DIV, K3 SWING, K4 STEPS (keys do nothing)</td></tr>
+    <tr><td>SEQ</td><td><b>STEPS</b>: K1 GATE, K2 DIV, K3 SWING, K4 STEPS (keys do nothing)</td></tr>
     <tr><td>SEL</td><td><b>KEY</b>: a key sets the song key. K1 CHORD, K2 SCALE, K3 KEYS, K4 TRANSP</td></tr>
     <tr><td>GLO</td><td><b>MIX</b>: mixer (below)</td></tr>
     <tr><td>SAVE</td><td><b>SONG</b>: sections A to D (below)</td></tr>
@@ -203,6 +203,7 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
   <table>
     <tr><td>tabs</td><td>TRIG OSC FILT ENV FX MOD, as the drum screen's. EDIT: OSC, again the next stage. ENV, FX, LFO: their tab (again: its next half). SEQ: TRIG (again: back). SELECT: every half. With a step held too</td></tr>
     <tr><td>nothing held</td><td>A sound tab: the knobs edit the sound. TRIG: K1 NOTE (pen), K2 STEP (cursor), K3 HIT (right sets, left clears), K4 VEL. PRESETS the sound</td></tr>
+    <tr><td>Spice and Dice</td><td>TRIG 2/2 (SELECT right on TRIG), nothing held: K1 SPICE (0: the pattern as written), K2 DICE (each click right a new roll, left the roll before). The tiles show the variation; the notes never change</td></tr>
     <tr><td>step + OCT- / OCT+</td><td>OCT-: the lock of the knob last turned off; again: every lock (on TRIG: locks, nudge, condition). OCT+: next condition. 24 locks a voice</td></tr>
   </table>
 </section>
@@ -237,9 +238,12 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
   <table>
     <tr><td>EDIT</td><td>Enters at OSC. Again: next stage, MOD wraps to OSC</td></tr>
     <tr><td>ENV / FX / LFO</td><td>That stage's first page. Again: its next page (ENV: AMP, then FILT, the filter's own)</td></tr>
+    <tr><td>FX 1 2 3</td><td>Three slots in series, as the MiniFreak: K1 TYPE, then TIME INTENS AMOUNT as the type names them. CHORUS, REVERB, DELAY are the shared effects: their slot is this voice's send (K4), their K2 K3 are GLO's (white). All OFF to start</td></tr>
+    <tr><td>MATRIX</td><td>The grid: K1 SOURCE (row), K2 DEST (column), K3 AMOUNT (+-), K4 CLEAR (on AS1 AS2: TARGET, the parameter it moves). The FILT page's ENV and KEY, LFO to PIT, CUT, LVL and PENV to PIT are cells of the grid</td></tr>
+    <tr><td>OSC 4</td><td>GLMODE (glide RATE or TIME), ALLOC (poly ROT or REUSE)</td></tr>
     <tr><td>SELECT</td><td>Walks every page of the chain</td></tr>
   </table>
-  <div class="pages" aria-label="Pages in order"><span class="on">OSC</span><span>OSC 2</span><span>OSC 3</span><span class="on">FILT</span><span>FILT 2</span><span class="on">ENV</span><span>FILT ENV</span><span class="on">FX</span><span>INSERT</span><span>INSERT 2</span><span>SLICER</span><span class="on">LFO</span><span>LFO DEST</span><span>LFO SYNC</span><span>ENV DEST</span></div>
+  <div class="pages" aria-label="Pages in order"><span class="on">OSC</span><span>OSC 2</span><span>OSC 3</span><span>OSC 4</span><span class="on">FILT</span><span>FILT 2</span><span class="on">ENV</span><span>FILT ENV</span><span class="on">FX 1</span><span>FX 2</span><span>FX 3</span><span>SLICER</span><span class="on">LFO</span><span>LFO SYNC</span><span>LFO 2</span><span>MATRIX</span></div>
   <div class="knobs"><div class="c1">TYPE</div><div class="c2">MACRO</div><div class="c3">MACRO</div><div class="c4">MACRO<span>OSC: names change with the Type</span></div></div>
   <div class="knobs"><div class="c1">CUTOFF</div><div class="c2">RESO</div><div class="c3">ENV</div><div class="c4">TYPE<span>FILT: LP24 LP12 BP HP. FILT 2: KEY DRIVE LINK</span></div></div>
   <p class="note">The same pages on every voice. OSC 2: OCT TUNE GLIDE VOICE. OSC 3: the Type's other controls, DTUNE, PRIOR. LINK AMP: the filter follows the amp ENV; turn a FILT ENV knob and it has its OWN. The tabs show the stage and its half (1/3).</p>
@@ -310,6 +314,7 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
   <table>
     <tr><td>Tempo</td><td>SELECT on HOME · GLO + key 16 · GLO > GLOBAL > BPM</td></tr>
     <tr><td>Swing</td><td>HOME K1 (all) · hold SEQ + K3 (voice)</td></tr>
+    <tr><td>Gate</td><td>hold SEQ + K1 (a synth voice's note length)</td></tr>
     <tr><td>Key / scale</td><td>Hold SEL + a key / K2</td></tr>
     <tr><td>Chord</td><td>Hold SEL + K1 (OFF TRIAD 7TH 9TH SUS4 POWER)</td></tr>
   </table>
