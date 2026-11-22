@@ -147,3 +147,42 @@ Device build: image 558,264 B of 581,564, about 23 KB left.
 - Deleted unused sample data and tools from the repository (about 6 MB).
 - The flash layout still reserves the old slots for songs and sample kits; they go when the new save format lands.
 - A fault the subagent caused and fixed: cutting CLOUD briefly removed the CLICK and CLRSQ settings; restored, with a new test that every setting shown has a label.
+
+## Rebuild wave 2, drum trigs and the save format (22 Nov): calls made that Ben did not specify
+Drum trigs (Ben: "Per-sound trigs, one track", 16 sounds)
+- Every sound has its own trig on every step, with a velocity from 1 to 127. A new trig plays at 100, as the keys do and as the Rytm starts. Recorded hits keep their velocity: MIDI as played (it was rounded to four levels before), the keys 100, OCT- and OCT+ held 42 and 127 as before.
+- What few trigs have besides a velocity (a condition, a chance, a nudge, a retrig) sits in a pool of 64 per pattern, and the sounds' locks in a pool of 128 per pattern. A trig with none of them costs nothing. When a pool is full the edit is refused with a message (TRIG EXTRAS FULL: 64, SOUND LOCKS FULL: 128). Dense storage for all of it would not fit the RAM.
+- CHANCE counts only when the condition is CHNC. Its knob walks the Rytm's steps (1, 2, 4 .. 50 .. 98, 99 %). A trig set to CHNC starts at 50 %, what the old fixed CHNC was. Synth steps keep the fixed 50 % CHNC; the wave brief was the drum trigs.
+- RETRIG follows the Rytm: a rate from 1/1 to 1/80 of a bar (a note value, whatever the track's DIV), a length from 1/8 step to 16 steps or INF, and a velocity curve from -128 (fades out) to 127 (fades in). The curve also sets the first hit, so a fade in starts quiet. INF repeats until the sound's next trig and has no curve. The sound's next trig always ends its retrig, and a retrig hit that falls on that trig is not doubled. Retrig hits play the trig's locks.
+- NUDGE keeps the old range (half a step either way, in 64ths). A trig nudged early is queued when the step before it plays; at PLAY, or after a jump, it plays at once. Conditions and chances are drawn per trig, an early trig's when it is queued.
+- Sound locks hold a HEX sound's parameters (the EDIT pages' order; the ids after them are free for wave 3's pages). MODEL is not lockable, as the Rytm's machine is not. A locked hit plays from its voice's own copy of the sound with the lock in it, for as long as it rings; an unlocked hit plays the kit's sound itself, so a knob turned is still heard at once. The synthesised kits (606 and the rest) have no editable sound until wave 6: their trigs play unlocked. To try sound locks in the simulator, pick a HEX kit.
+- The drum voice's own locks (its FILTER, FX sends, INSERT, SLICER, its kit) stay as they were, per step, for the whole drum voice, like the Rytm's FX track. Old projects' drum locks were all of this kind and are kept as they are: none is dropped, none moved onto a sound (no sound parameter means the same thing).
+- GRID, a drum step held: VEL, RETRIG, NUDGE, COND sit where LEVEL, RATCH, NUDGE, COND were; SELECT right gives CHANCE, LENGTH, CURVE, as SELECT does on a synth step. CHANCE, LENGTH and CURVE are drawn dim until they count. Nothing held, KNOB 4 is now the cursor trig's velocity.
+- OCT- with a drum step held clears the trig's condition, chance, nudge, retrig and sound locks, and the drum voice's own locks on that step. On a lock page it clears that page's locks only.
+- EDIT's SHIFT and length x2 move each drum trig with its extras and sound locks. (On synth voices SHIFT still moves the notes only, as before.)
+- Undo keeps the whole drum pattern; its buffer moved to .noinit and is cleared at power-on.
+- The GRID colours a trig by its velocity's band (ghost, soft, normal, hard), as the levels were; a retrig shows as notches.
+
+Format 8 ("FUN8")
+- A project is a core of 5,744 bytes (what a section holds and switches) and an ext of 1,024 bytes (the project's own, reserved for wave 6's kits, zero). The working project is stored whole (6,768 bytes); a slot (section) stores its core. A reader takes either length. The ext is written as zeros straight to flash and kept in no RAM.
+- Room kept, zero, named in project.c: parameters by id up to 96 per track (71 used: wave 4's filter envelope ADSR and LINK / OWN, the resonant filter, wave 5's FX slots as new P_ ids); 46 bytes per synth track for wave 5's mod matrix; globals by id up to 48 (32 used); 124 bytes after the STUTTER lane for wave 6's recorded performance effects; drum lock ids after the HEX bytes; 1,024 bytes of ext for wave 6's kit. The engine choice per track (wave 4) is the engine byte, as now.
+- Each drum sound's sends and the STUTTER lane now have their own fields (format 7 hid them in the drum track's unused parameters).
+- The magic stays in the FUN family ("FUN8") so the backup page can tell it; the editor protocol is 12, and the backup page refuses a format 8 backup on firmware older than that. The web tests were not run (they are long).
+- Format 7 and older load and convert: each lane's hit becomes a trig at its level's velocity (ghost 42, soft 72, normal 100, hard 127); a ratchet x2 to x4 becomes a retrig of one step at the nearest rate (exact on 1/16, 1/8 and 1/4 steps; on 1/32 steps x3 and x4 become 1/80, the fastest); a step's nudge and condition go onto every trig of that step; if more trigs need extras than the 64 fit, the rest play on the grid with no condition (rare: it needs over 64 nudged or conditioned hits).
+- A CHNC step saved in format 7 came back as a normal step (format 7's loader read the value as normal). Converted, it is CHNC again, at 50 %, for synth steps and drum trigs. Format 8 keeps CHNC.
+
+Flash
+- The projects are new "big" objects, each copy two neighbouring sectors, A/B with the header last as before: the four slots at 0xA0000..0xAFFFF, the working project at 0xB0000..0xB3FFF, where KARMA's sample slots were. 0xB4000..0xDBFFF stays free.
+- The old project objects stay where they were. Each is read once, converted, and written back in the new place when quiet; it is never written again, so an old firmware still finds its own. Erasing a slot empties the old object too, so it cannot come back.
+- The song objects (0xE5000, 0xE6000, 0xFB000) are released.
+
+RAM (the device budgets after wave 1: .data+.bss 83,572 of 98,304 B; pool 326,512 of 344,064 B, and tools/build.py refuses a build with under 8 KiB of the pool spare)
+- Sections A and B stay in .noinit; .noinit has no room for C and D, so C is in the pool and D in main RAM. After a reset C and D are read from flash again; an update or UPDATE MODE writes them first. Only a section stored while playing and not yet written is lost if the FM-1 crashes.
+- Measured on the host stand-in build (rv32, -Os; the device was within 210 B of it in wave 1): .data+.bss +8,112 B, pool +7,648 B (9,900 B left above the 8 KiB rule: 1,708 B), .noinit -1,716 B, code +10.5 KB. Estimated on the device: .data+.bss about 91,700 of 98,304 B, pool about 334,160 of 344,064 B. Waves 4 and 5 will have little RAM to spend; the extras and lock pools could shrink (each 128 bytes per copy, 7 copies) if needed.
+
+Small fixes from wave 1
+- HOME's header says PATTERN A to D while that section plays, otherwise PHEBUS (it was empty since the song cut).
+- The SAVE layer no longer draws two rows of empty outlines for keys 9 to 16, which do nothing.
+
+Not checked
+- No device build (no toolchain here): the real sizes and the timing of the queued nudges and retrigs on the FM-1 are unmeasured. The long tests (regress, soak, stress, web) were not run.
