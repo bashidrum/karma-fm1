@@ -9,6 +9,10 @@
  *   KNOB 1           the length for new steps (1/4 to start); KNOB 2 the lane ON / OFF (its steps kept); KNOB 4 its
  *                    length, 1..64 steps, looping by itself under the tracks
  *   black keys 1..4  the page of steps; OCT- / OCT+ the page before / after
+ * (wave 6, Ben: "Keep, and record played FX into it") the PERFORM pads played while the sequencer records land here as
+ * spans of steps (punch.c stl.ev), drawn under the steps, each named; they play with the pattern while the lane is ON.
+ *   hold a step + OCT-   the recorded pads over that step go
+ *   KNOB 3               FX: how many are recorded; turned twice within 1.5 s, all of them go
  * A lit step under the playhead: the mix repeats the span just played at the step's length (steps in a row with the
  * same length: one loop); 1/2 and 1/1: the sequencer replays the half bar / bar before instead (punch.c rep_*); FX held
  * + a key comes first. Saved with the project and each section (project.c stl_put). */
@@ -33,12 +37,42 @@ static void stl_mark(void)                              /* undo (EDIT + OCT-): t
 {
     if (undo.valid && !undo.undone && undo.trk == NTRK && undo.sess == stl_sess)
         return;
+    fm1_irq_off();                                      /* (wave 6: a take marks it from the audio ISR too) */
     memcpy(undo.st, &stl, sizeof stl);
     undo.trk = NTRK;
     undo.sess = stl_sess;
     undo.valid = 1;
     undo.undone = 0;
+    fm1_irq_on();
 }
+/* (wave 6) the recorded pads */
+static uint32_t pev_count(void)
+{
+    uint32_t i, n = 0;
+    for (i = 0; i < PEV_N; i++)
+        n += stl.ev[i].fx != 0u;
+    return n;
+}
+static int pev_covers(const pev_t *e, uint32_t s)       /* the span plays at the lane's step s */
+{
+    uint32_t L = stl.len ? stl.len : 16u, ln = e->len < L ? e->len : L;
+    return e->fx && e->st < L && s < L && (s + L - e->st) % L < ln;
+}
+static uint32_t pev_erase_held(void)                    /* hold a step + OCT-: the spans over the steps held go */
+{
+    uint32_t i, w, n = 0;
+    for (i = 0; i < PEV_N; i++)
+        for (w = 0; w < 16u; w++)
+            if ((stl_held >> w) & 1u && pev_covers(&stl.ev[i], stl_pg * 16u + w)) {
+                if (!n)
+                    stl_mark();
+                stl.ev[i].fx = 0;                       /* (a byte: the ISR reads it whole) */
+                n++;
+                break;
+            }
+    return n;
+}
+static uint32_t pev_clear_ms;                           /* KNOB 3 turned once: again within 1.5 s clears them all */
 static void stl_put_step(uint32_t s, int32_t code)      /* code < 0: off (bytes: the audio ISR reads them whole) */
 {
     if (code < 0) {
@@ -113,6 +147,11 @@ static void stl_input(uint32_t pressed)
     if ((pressed & 1u << panel.btn[B_OCTDN]) | (pressed & 1u << panel.btn[B_OCTUP]) && !stl_held) {
         stl_pg = (uint8_t)((stl_pg + ((pressed >> panel.btn[B_OCTUP]) & 1u ? 1u : stl_pages() - 1u)) % stl_pages());
         ui.force = 1;
+    } else if ((pressed & 1u << panel.btn[B_OCTDN]) && stl_held) {   /* (wave 6) a step held + OCT-: its recorded pads go */
+        uint32_t n = pev_erase_held();
+        stl_pend &= (uint16_t)~stl_held;                /* (the step itself stays when let go) */
+        ui_message(n ? "FX ERASED" : "NO FX ON THIS STEP");
+        ui.force = 1;
     }
     panel_enc(EN_PRESET);                               /* (nothing here: no turn waits) */
     panel_enc(EN_SELECT);
@@ -137,6 +176,24 @@ static void stl_input(uint32_t pressed)
             stl_new = (uint8_t)stl_turn(stl_new, s);
         } else if (k == 1u) {
             stl.act = (uint8_t)(s > 0);
+        } else if (k == 2u) {                           /* (wave 6) FX: twice within 1.5 s clears the recorded pads */
+            static uint32_t last;                       /* (a new turn: 0.2 s since the last click) */
+            uint32_t gap = fm1_ms - last;
+            last = fm1_ms;
+            if (!pev_count()) {
+                ui_message("NO FX RECORDED");
+            } else if (pev_clear_ms && gap > 200u && fm1_ms - pev_clear_ms < 1500u) {
+                uint32_t i;
+                stl_sess = (undo_sess += 4u) | 3u;
+                stl_mark();
+                for (i = 0; i < PEV_N; i++)
+                    stl.ev[i].fx = 0;
+                pev_clear_ms = 0;
+                ui_message("FX CLEARED");
+            } else if (!pev_clear_ms || fm1_ms - pev_clear_ms >= 1500u) {
+                pev_clear_ms = fm1_ms | 1u;
+                ui_message("AGAIN: CLEAR FX");
+            }
         } else if (k == 3u) {
             if (!again)
                 stl_sess = (undo_sess += 4u) | 3u;
@@ -165,14 +222,14 @@ static uint32_t stl_keys_lit(uint32_t blink)
     return m;
 }
 /* the lane: the 16 steps of the page as the synth GRID's tiles (two rows of eight), a lit step filled grey with its
- * length (4 8 16 32), the step held white, the playhead a white bar; the page slots; then ON / OFF (or the step held)
- * and the length a new step (or the step held) takes; the knobs; the tracks */
+ * length (4 8 16 32), the step held white, the playhead a white bar; the page slots; then what the lit steps do (or the
+ * step held) and the length a new step takes; the recorded pads as spans (wave 6); the knobs; the tracks */
 static void stl_draw(void)
 {
     static uint32_t head, sig_was, footer, bar;
     static char v[4][8];
-    const char *lab[4] = {"len", "on", "", "steps"}, *val[4] = {v[0], v[1], v[2], v[3]};
-    int32_t ratio[4] = {0, 0, -1, 0};
+    const char *lab[4] = {"len", "on", "fx", "steps"}, *val[4] = {v[0], v[1], v[2], v[3]};
+    int32_t ratio[4] = {0, 0, 0, 0};
     uint32_t j, sig, hs = 0xFFu, c;
     char t[16];
     for (j = 16u; j--;)                                 /* (the first step held) */
@@ -208,16 +265,70 @@ static void stl_draw(void)
         for (j = 0; j < 4u; j++)                        /* the page slots: the one shown light, the others in use grey */
             cv_rect(4 + (int32_t)j * 58, 64, 54, 5, j >= stl_pages() ? TE_G1 : j == stl_pg ? TE_G4 : TE_G2);
         cv_rect(0, 72, 240, 1, TE_G1);
-        if (hs < NSTEP) {                               /* a step held: its number, its length big */
+        if (hs < NSTEP) {                               /* a step held: its number and length; OCT- erases its pads */
             str_cpy(t, "STEP ", 16);
             fmt_int(t + 5, (int32_t)hs + 1);
-            cv_text(6, 80, &FONT_S, t, C_WHITE);
-        } else {                                        /* ON / OFF big, the length new steps take */
-            cv_text(6, 96, &FONT_L, stl.act ? "ON" : "OFF", stl.act ? C_WHITE : TE_G3);
-            cv_text(6, 80, &FONT_S, !stl.act ? "STEPS KEPT, SILENT" : c >= 4u ? "THE STEPS REPLAY" : "LIT STEPS REPEAT", TE_G3);
-            cv_text(234 - text_w(&FONT_S, "NEW STEPS"), 80, &FONT_S, "NEW STEPS", TE_G3);
+            if (stl_lit(hs)) {
+                str_cpy(t + str_len(t), "  ", 3);
+                str_cpy(t + str_len(t), STL_LEN[c % 6u], 6);
+            }
+            cv_text(4, 74, &FONT_S, t, C_WHITE);
+            cv_text(236 - text_w(&FONT_S, "OCT-: ERASE FX"), 74, &FONT_S, "OCT-: ERASE FX", TE_G3);
+        } else {                                        /* what the lit steps do; the length new steps take */
+            cv_text(4, 74, &FONT_S, !stl.act ? "OFF: KEPT, SILENT" : c >= 4u ? "THE STEPS REPLAY" : "LIT STEPS REPEAT",
+                    stl.act ? TE_G4 : TE_G3);
+            str_cpy(t, "NEW ", 16);
+            str_cpy(t + 4, STL_LEN[c % 6u], 6);
+            cv_text(236 - text_w(&FONT_S, t), 74, &FONT_S, t, TE_G4);
         }
-        cv_text(234 - text_w(&FONT_L, STL_LEN[c % 6u]), 96, &FONT_L, STL_LEN[c % 6u], C_WHITE);
+        {   /* (wave 6) the recorded pads over the page's steps: a bar a span, named, two rows (more: "+n"); the ones
+             * playing now light, the ones over a held step white (OCT- erases them) */
+            uint32_t rows[2] = {0, 0}, more = 0, i, any = 0;
+            for (i = 0; i < PEV_N; i++) {
+                const pev_t *e = &stl.ev[i];
+                uint32_t m = 0, r, w, held = 0;
+                if (!e->fx)
+                    continue;
+                any = 1;
+                for (w = 0; w < 16u; w++)
+                    if (pev_covers(e, stl_pg * 16u + w)) {
+                        m |= 1u << w;
+                        held |= (stl_held >> w) & 1u;
+                    }
+                if (!m)
+                    continue;
+                for (r = 0; r < 2u && (rows[r] & m); r++)
+                    ;
+                if (r == 2u) {
+                    more++;
+                    continue;
+                }
+                rows[r] |= m;
+                for (w = 0; w < 16u; w++) {             /* each run of steps it covers */
+                    uint32_t e0 = w, p = (e->fx & 31u) - 1u, now;
+                    int32_t x, wd;
+                    uint16_t bg, fg;
+                    if (!((m >> w) & 1u))
+                        continue;
+                    while (w + 1u < 16u && (m >> (w + 1u)) & 1u)
+                        w++;
+                    x = (int32_t)e0 * 15, wd = (int32_t)(w - e0 + 1u) * 15 - 1;
+                    now = song.playing && stl.act && pev_covers(e, stl_pos);
+                    bg = held ? C_WHITE : now ? TE_G4 : TE_G2, fg = held || now ? C_BLACK : C_WHITE;
+                    cv_rect(x, 92 + (int32_t)r * 16, wd, 14, bg);
+                    if (p < PF_NPAD && (int32_t)text_w(&FONT_S, PFD[p].pad) + 2 <= wd)
+                        cv_text(x + 2, 91 + (int32_t)r * 16, &FONT_S, PFD[p].pad, fg);
+                }
+            }
+            if (more) {
+                t[0] = '+';
+                fmt_int(t + 1, (int32_t)more);
+                cv_rect(236 - text_w(&FONT_S, t) - 2, 108, text_w(&FONT_S, t) + 4, 14, C_BLACK);
+                cv_text(236 - text_w(&FONT_S, t), 107, &FONT_S, t, TE_G4);
+            }
+            if (!any)
+                cv_text(4, 99, &FONT_S, "FX: REC + PADS LAND HERE", TE_G3);
+        }
         cv_blit(0, SG_BODY_Y);
         if (ui.force) {                                 /* (the rows under it, to the knobs) */
             cv_begin(240, SG_KNOB_Y - SG_BODY_Y - 124u, C_BLACK);
@@ -229,9 +340,11 @@ static void stl_draw(void)
     str_cpy(v[1], stl.act ? "ON" : "OFF", 8);
     ratio[1] = stl.act ? 1000 : 0;
     fmt_int(v[3], (int32_t)stl.len);
+    fmt_int(v[2], (int32_t)pev_count());                /* (wave 6) the recorded pads */
+    ratio[2] = (int32_t)pev_count() * 1000 / (int32_t)PEV_N;
     ratio[3] = ((int32_t)stl.len - 1) * 1000 / 63;
     if (hs < NSTEP)
-        lab[1] = lab[3] = "";
+        lab[1] = lab[2] = lab[3] = "";
     knob_tint_all(TINT_NEUTRAL);
     op_knobs(lab, val, 0, ratio, 0, 101u + (hs < NSTEP), &footer);
     op_trackbar(&bar);

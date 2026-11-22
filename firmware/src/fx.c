@@ -329,7 +329,8 @@ static int32_t send_c[CTL], send_d[CTL], send_r[CTL], wet_l[CTL], wet_r[CTL], mi
 #define MUTE_STEP 4096                                  /* Q15 per block: 8 blocks */
 static int32_t gain_next(track_t *t)                    /* the track's mute gain at the end of this block */
 {
-    int32_t to = trk_silent(t) ? 32767 : 0, a = t->att;
+    int32_t to = trk_silent(t) || ((perf_kill >> (uint32_t)(t - trk)) & 1u) ? 32767 : 0, a = t->att;   /* (wave 6: a KILL
+                                                         * fades as a mute does; its notes play on, unheard) */
     t->att = a < to ? (to - a > MUTE_STEP ? a + MUTE_STEP : to) : (a - to > MUTE_STEP ? a - MUTE_STEP : to);
     return 32767 - t->att;
 }
