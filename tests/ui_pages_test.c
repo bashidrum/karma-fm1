@@ -2401,6 +2401,98 @@ int main(int argc, char **argv)
         go_home(); track_select(0); host_preset(&trk[0], ENGI_ACID, 0); frames(2);
         trk[0].p[P_VOICE] = V_LEGATO; trk[0].p[P_GLIDE] = 0; trk[0].p[P_ITYPE] = 0;
     }
+    {   /* PHEBUS wave 4, the MiniFreak voices (Ben, 21 Nov 2026: "Oscillator type plus a few macro knobs ... The same layout
+         * on every voice"; 22 Nov: every Type on every track). On each synth track, OSC's KNOB 1 walks every Type, one a
+         * detent, and the three macros take the Type's names; the same knob layout on every track and Type */
+        uint32_t tr, ty, ok = 1, lay = 1;
+        char what[120];
+        for (tr = 0; tr < NPART; tr++) {
+            go_home(); track_select(tr); frames(2);
+            chain_goto(FAM_OSC, "OSC"); frames(16);
+            for (ty = 0; ty < NVTYPE + 2u; ty++) { encs[panel.enc[EN_K1]] = -1; frame(); }
+            for (ty = 0; ty < NVTYPE; ty++) {
+                uint32_t k;
+                int16_t *vp;
+                ok &= vtype_of(TSEL) == ty && TSEL->eng_req == VTYPES[ty].eng;
+                for (k = 1; k < 4u; k++) {                /* M1 .. M3: the Type's names (or the engine's own) */
+                    const param_desc_t *d = page_desc(&PAGES[ui.page], k, &vp);
+                    const char *want = VTYPES[ty].lab[k - 1u];
+                    if (!d || (want && !str_eq(d->label, want))) {
+                        printf("ui:   track %u %s: macro %u is %s\n", tr + 1u, VTYPES[ty].name, k, d ? d->label : "-");
+                        ok = 0;
+                    }
+                }
+                lay &= PAGES[ui.page].id[0] == V_TYPE && PAGES[ui.page].id[1] == V_M1 && PAGES[ui.page].id[3] == V_M3;
+                if (tr == 2u && (ty == 0u || ty == 1u || ty == 2u || ty == 18u || ty == 22u)) {
+                    snprintf(what, sizeof what, "osc-type-%s", VTYPES[ty].name);
+                    for (k = 0; what[k]; k++) if (what[k] == ' ') what[k] = '-';
+                    ui.force = 1; frame(); ppm(what);
+                }
+                encs[panel.enc[EN_K1]] = 1; frame(); frames(2);
+            }
+        }
+        check(ok, "OSC KNOB 1 (TYPE) on every synth track: every Type in turn (31), its three macros named as the Type means them");
+        check(lay, "OSC: TYPE and the three macros in the same places on every track and Type");
+        track_select(0); host_preset(&trk[0], ENGI_ACID, 0); trk[0].engine = trk[0].eng_req; go_home(); frames(2);
+    }
+    {   /* "ADSR + link" (Ben, 21 Nov): FILT ENV while LINKed shows the amp ENV's values dim; the first turn makes it OWN,
+         * starting where the amp ENV is */
+        track_t *t = &trk[1];
+        int16_t a0;
+        go_home(); track_select(1); frames(2);
+        t->p[P_FLINK] = 0; t->p[P_ATK] = 20; t->p[P_DEC] = 40; t->p[P_SUS] = 70; t->p[P_REL] = 30; t->p[P_FDEC] = 5;
+        chain_goto(FAM_ENV, "FILT ENV"); frames(16);
+        ui.force = 1; frame(); ppm("page-fenv-link");
+        a0 = t->p[P_DEC];
+        encs[panel.enc[EN_K2]] = 2; frame();
+        check(t->p[P_FLINK] == 1 && t->p[P_FATK] == 20 && t->p[P_FDEC] == a0 + 2 && t->p[P_FSUS] == 70 && t->p[P_FREL] == 30 &&
+              t->p[P_DEC] == a0, "FILT ENV, LINKed: the first turn makes it OWN from the amp ENV's values, then turns DECAY");
+        ui.msg_t = 0; ui.force = 1; frame(); ppm("page-fenv-own");
+        chain_goto(FAM_FLT, "FILT 2"); frames(16);
+        encs[panel.enc[EN_K3]] = -1; frame();
+        check(t->p[P_FLINK] == 0, "FILT 2: KNOB 3 LINK back to AMP");
+        go_home(); track_select(0); frames(2);
+    }
+    {   /* item 9: one value size in fixed 40 px columns on every page: no value drawn past its column (the drum LFO page's
+         * "PITCH" against the next ring, wave 3), on every synth page of every Type, the GRID's tabs, the drum screen */
+        uint32_t tr, ty, i, n = 0, over0;
+        dial_over = 0;
+        for (tr = 0; tr < NPART; tr++) {
+            go_home(); track_select(tr); frames(2);
+            for (ty = 0; ty < NVTYPE; ty += 3u) {
+                uint8_t idx[40];
+                uint32_t np;
+                vtype_switch(TSEL, ty); TSEL->engine = TSEL->eng_req; frames(2);
+                np = chain_list(idx, sizeof idx);
+                for (i = 0; i < np; i++) {
+                    uint32_t k, x;
+                    page_go(idx[i]);
+                    for (x = 0; x < 3u; x++) {             /* each knob at its least, its middle, its most */
+                        for (k = 0; k < 4u; k++) {
+                            int16_t *vp;
+                            const param_desc_t *d = page_desc(&PAGES[idx[i]], k, &vp);
+                            if (d && vp && pg_id(&PAGES[idx[i]], k) != V_TYPE)
+                                *vp = (int16_t)(x == 0u ? d->min : x == 1u ? (d->min + d->max) / 2 : d->max);
+                        }
+                        ui.force = 1; frame(); n++;
+                    }
+                }
+            }
+            host_preset(TSEL, tr == 0u ? ENGI_ACID : tr == 1u ? ENGI_JUNO : ENGI_PRISM, 0); TSEL->engine = TSEL->eng_req;
+        }
+        over0 = dial_over;
+        song.sel = 0; studio_open(SC_DRUM); frames(2);
+        for (i = 0; i < 6u; i++) for (ty = 0; ty < 3u; ty++) { syn_go(i, ty % syn_halves(i)); ui.force = 1; frame(); n++; }
+        song.sel = TRK_DRUM; studio_open(SC_DRUM); frames(2);
+        for (i = 0; i < 5u; i++) for (ty = 0; ty < 3u; ty++) { dpg_go(i, ty % dpg_halves(i)); ui.force = 1; frame(); n++; }
+        dpg_go(4, 0); ui.force = 1; frame();
+        {
+            char b[80];
+            snprintf(b, sizeof b, "no value drawn past its 40 px column (%u screens; the drum LFO page too)", n);
+            check(dial_over == 0u && over0 == 0u, b);
+        }
+        go_home(); track_select(0); frames(2);
+    }
     {   /* PHEBUS (21 Nov 2026): TOOLS > NEW: every send and effect off, the STUTTER lane empty */
         uint32_t ok = 1, l;
         for (i = 0; i < NPART; i++) trk[i].p[P_REV] = 50, trk[i].p[P_DLY] = 40, trk[i].p[P_DIST] = 20;

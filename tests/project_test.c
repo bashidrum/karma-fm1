@@ -621,6 +621,54 @@ int main(void)
     bad += check("no stop: as before, 2.5 s untouched and 20 s apart (a tail does not block it)",
                  !autosave_due(0, 1, 1, 1000, 99999) && !autosave_due(0, 1, 1, 9999, 10000) &&
                  autosave_due(0, 0, 1, AUTOSAVE_IDLE, AUTOSAVE_GAP) && autosave_due(1, 0, 1, AUTOSAVE_IDLE, AUTOSAVE_GAP));
+    {   /* PHEBUS wave 4: the voice filter, its envelope, OCT and TUNE (P_FCUT ..., in format 8's room) and the Type round
+         * trip; a core of wave 3 (rsv[0] 0, those ids zero) is mapped onto the voice filter as it sounded */
+        static project_t w;
+        static const int16_t V[11] = {33, 99, 64, 12, 1, 5, 66, 20, 44, -2, 37};
+        uint32_t k, ok = 1;
+        int l;
+        host_tracks_init();
+        for (k = 0; k < 11u; k++)
+            trk[0].p[P_FCUT + k] = V[k];
+        trk[0].p[P_FTYPE] = VF_BP, trk[0].p[P_ED_FLT] = -20;
+        vtype_switch(&trk[2], 4);                       /* (FOLD: PLAITS on track 3) */
+        vtype_switch(&trk[1], 0);                       /* (ACID on track 2: every Type on every track) */
+        lock_set(&trk[0], 3, P_FCUT, 10);
+        lock_set(&trk[0], 3, P_TUNE, -50);
+        proj_capture(&w);
+        ok &= w.c.rsv[0] == PROJ_VOICE_V && proj_ok(&w.c);
+        host_tracks_init();
+        proj_apply(&w.c, 1);
+        for (k = 0; k < 11u; k++)
+            ok &= trk[0].p[P_FCUT + k] == V[k];
+        ok &= trk[0].p[P_FTYPE] == VF_BP && trk[0].p[P_ED_FLT] == -20 && trk[2].eng_req == ENGI_PRISM && vtype_of(&trk[2]) == 4u &&
+              trk[1].eng_req == ENGI_ACID;
+        l = lock_find(&trk[0], 3, P_FCUT, 0);
+        ok &= l >= 0 && trk[0].lock[l].val == 10;
+        l = lock_find(&trk[0], 3, P_TUNE, 0);
+        ok &= l >= 0 && trk[0].lock[l].val == -50;
+        bad += check("wave 4: the voice filter, its envelope, OCT, TUNE, their locks and each track's Type through a project", ok);
+        /* a wave 3 core: ACID with its own filter values, a CUT lock; the new ids zero as wave 3 left them */
+        w.c.rsv[0] = 0;
+        w.c.t[0].engine = ENGI_ACID;
+        w.c.t[0].p[P_E1] = 40, w.c.t[0].p[P_E2] = 100, w.c.t[0].p[P_E3] = 80, w.c.t[0].p[P_E4] = 50, w.c.t[0].p[P_E6] = 30;
+        for (k = P_COUNT_V8; k < PROJ_NP; k++)
+            w.c.t[0].p[k] = 0;
+        w.c.t[0].p[P_FTYPE] = 0, w.c.t[0].p[P_ED_FLT] = 0, w.c.t[0].p[P_TFLT] = 0;
+        for (k = 0; k < NLOCK; k++)
+            w.c.t[0].lock[k].step = LOCK_FREE;
+        w.c.t[0].lock[0].step = 2, w.c.t[0].lock[0].param = P_E1, w.c.t[0].lock[0].val = 70;
+        w.c.t[2].p[P_TFLT] = 32;                        /* (the old track FILT: a DJ high-pass on PLAITS) */
+        w.c.sum = proj_sum(&w.c);
+        host_tracks_init();
+        proj_apply(&w.c, 1);
+        l = lock_find(&trk[0], 2, P_FCUT, 0);
+        ok = trk[0].p[P_FCUT] == 40 && trk[0].p[P_FRES] == 100 && trk[0].p[P_FLINK] == 1 && trk[0].p[P_FDRV] == 30 &&
+             !trk[0].p[P_FSUS] && trk[0].p[P_ED_FLT] > 0 && trk[0].p[P_FTYPE] == VF_LP24 && l >= 0 && trk[0].lock[l].val == 70 &&
+             lock_find(&trk[0], 2, P_E1, 0) < 0 && trk[2].p[P_FTYPE] == VF_HP && !trk[2].p[P_TFLT] && trk[2].p[P_FCUT] > 0;
+        bad += check("a core of wave 3: ACID's CUT RES ENVMOD DECAY DRV onto the voice filter (OWN), its CUT lock a CUTOFF lock; "
+                     "the old FILT HP onto the voice filter's HP", ok);
+    }
     printf("%s\n", bad ? "PROJECT FORMAT TEST FAILED" : "project format test passed");
     return bad != 0;
 }

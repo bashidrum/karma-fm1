@@ -384,7 +384,7 @@ static void op_dials(const char *const lab[4], const char *const val[4], const i
         }
         te_dial(x0 + 7, 38, 6, ratio[k], c, TE_G2);
         vw = dial_w(val[k]);
-        dial_over += vw > DIAL_VW;
+        dial_over += vw > DIAL_VW - 3;                  /* (its ink and a clear gap: wave 3's 40 px "PITCH" touched the next ring) */
         if (lk) {                                       /* locked on the trig held: inverted (the Rytm's way) */
             cv_rect(vx - 3, 21, vw + 5, 34, c);
             cv_text_tall_n(vx, 22, val[k], C_BLACK, dial_adv(val[k]));
