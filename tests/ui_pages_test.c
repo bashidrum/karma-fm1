@@ -169,6 +169,11 @@ static int chain_goto(uint32_t fam, const char *title)
     return !strcmp(PAGES[ui.page].title, title);
 }
 
+static void lane_set_ui(uint32_t s, uint32_t code)   /* a STUTTER lane step lit at a length code */
+{
+    stl.on[s >> 3] |= (uint8_t)(1u << (s & 7u));
+    stl.lc[s >> 2] = (uint8_t)((stl.lc[s >> 2] & ~(3u << 2u * (s & 3u))) | (code & 3u) << 2u * (s & 3u));
+}
 #ifndef UI_PAGES_HARNESS_ONLY                       /* (tests/stress_test.c: the harness, its own main) */
 int main(int argc, char **argv)
 {
@@ -2234,6 +2239,132 @@ int main(int argc, char **argv)
         uint32_t i, n = 0;
         for (i = 0; i < NPAGES; i++) n += PAGES[i].fam == FAM_SAVE && (PAGES[i].graph == GR_SLOTS || !strcmp(PAGES[i].title, "SONGS"));
         check(n == 0u, "SAVE pages: the sound's only (PRESETS, USER, TOOLS)");
+    }
+    {   /* PHEBUS wave 6: PERFORM (ui_perf.c, punch.c perf_*). Ben: "the MPC's feel for pad like fx play and stuttering";
+         * pickers "A: pad map, trimmed set", latch, the knobs on the last pad, the STUTTER lane kept and recorded into */
+        uint32_t p, k, x, over0, kn;
+        go_home(); song.sel = 0; song.playing = 0; ui.force = 1; frames(3);
+        perf.held = perf.lat = 0; perf_init();
+        /* in: FX held a while, nothing touched, let go: PERFORM stays (as GLO's mixer); FX again: out */
+        press(B_FX); frames(50); release(B_FX); frames(2);
+        check(ly_lock == LY_FX && ui.layer == LY_FX, "PERFORM: FX held 0.7 s untouched and let go: it stays open (as the mixer)");
+        ui.force = 1; frame(); ppm("perform-lock");
+        check(px_count(170, 4, 70, 20, C_WHITE) > 40u, "PERFORM: LOCK shown while it stays open");
+        key(key_of_white(3));
+        check(!trk[0].v[0].active && !perf.held, "PERFORM open: a key is a pad (1/8), no note; up: off");
+        tap(B_FX); frames(2);
+        check(ly_lock == LY_PLAY && ui.layer == LY_PLAY && cur_page()->scope == SC_TRK, "PERFORM: FX again: out, and only that (no FX page)");
+        fm1_in.notes = 1u << key_of_white(4); frame(); frame();
+        check(perf.held == 0u && trk[0].v[0].active, "out of PERFORM the keys play notes again (it never keeps them)");
+        fm1_in.notes = 0; frames(4);
+        press(B_FX); frames(3); key(key_of_white(2)); release(B_FX); frames(2);
+        check(ly_lock == LY_PLAY && ui.layer == LY_PLAY && !perf.held, "FX held + a pad, let go: momentary, nothing stays");
+        /* the screen: held white, latched with a dot, the lane's grey with a bar */
+        press(B_FX); frames(12);
+        fm1_in.notes = 1u << key_of_white(2); frame(); frame();
+        ui.force = 1; frame(); ppm("perform-held");
+        check(px_count(2 + 2 * 60, 32 + 31, 56, 21, C_WHITE) > 800u, "PERFORM: the 1/4 pad held: drawn white (the whole mix: no voice colour)");
+        check(px_count(0, 32, 240, 122, TE_COL[0]) + px_count(0, 32, 240, 122, TE_COL[1]) + px_count(0, 32, 240, 122, TE_COL[2]) +
+              px_count(0, 32, 240, 122, TE_COL[3]) == 0u, "PERFORM: no voice colour anywhere on the pads (the colour rule)");
+        /* latch: OCT+ while it is held */
+        fm1_in.buttons |= BT(B_OCTUP); edges_btn |= BT(B_OCTUP); frame(); fm1_in.buttons &= ~BT(B_OCTUP); frame();
+        fm1_in.notes = 0; frame();
+        check(perf.lat == 1u << PF_S4 && !perf.held, "LATCH: OCT+ while the 1/4 is held: it stays with the key up");
+        /* latch: a pad pressed with OCT+ held */
+        fm1_in.buttons |= BT(B_OCTUP); edges_btn |= BT(B_OCTUP); frame();
+        fm1_in.notes = 1u << key_of_white(8); frame(); fm1_in.notes = 0; frame();
+        fm1_in.buttons &= ~BT(B_OCTUP); frame();
+        check(perf.lat == (1u << PF_S4 | 1u << PF_LP), "LATCH: OCT+ held + the LP pad: latched too (2 latched)");
+        stl.ev[0] = (pev_t){PF_GATE + 1u, 0, 16, 0};    /* (the lane plays GATE: as a recorded pad shows) */
+        song.playing = 1; transport_req = 1; frames(3);
+        ui.force = 1; frame(); ppm("perform-latched");
+        check(perf.lane == 1u << PF_GATE, "PERFORM: a pad the lane plays (recorded) shows as playing");
+        check(px_count(2 + 49, 32 + 31 + 46 + 3, 4, 4, C_WHITE) == 16u, "LATCH: the latched LP pad shows its dot");
+        /* the knobs: the last pad's */
+        kn = perf.par[PF_LP][0];
+        encs[panel.enc[EN_K1]] = -4; frame();
+        check(perf.par[PF_LP][0] < (int8_t)kn && perf.last == PF_LP, "knobs: KNOB 1 turns the last pad pressed (LP: CUTOFF)");
+        fm1_in.notes = 1u << key_of_white(11); frame(); fm1_in.notes = 0; frame();
+        kn = perf.par[PF_GATE][1];
+        encs[panel.enc[EN_K2]] = 3; frame();
+        check(perf.last == PF_GATE && perf.par[PF_GATE][1] > (int8_t)kn && perf.par[PF_LP][1] == PFD[PF_LP].k[1].def,
+              "knobs: then the GATE pad: KNOB 2 its WIDTH, LP's untouched");
+        ui.force = 1; frame(); ppm("perform-knobs-gate");
+        /* exit with latches on: they stay (hands free to play), the header says FX 2; STOP lets them go */
+        release(B_FX); frames(2);
+        go_home(); ui.force = 1; frame(); ppm("home-fx-latched");
+        check(pf_count(perf.lat) == 2u && px_count(52, 2, 60, 16, C_WHITE) > 60u, "out of PERFORM, latched pads play on: the header says FX 2, in white");
+        press(B_FX); frames(12);
+        fm1_in.buttons |= BT(B_OCTDN); edges_btn |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
+        check(!perf.lat, "LATCH: OCT- in PERFORM: every latch off");
+        fm1_in.buttons |= BT(B_OCTUP); edges_btn |= BT(B_OCTUP); frame();
+        fm1_in.notes = 1u << key_of_white(9); frame(); fm1_in.notes = 0; frame(); fm1_in.buttons &= ~BT(B_OCTUP); frame();
+        release(B_FX); frames(2);
+        check(perf.lat == 1u << PF_HP, "(HP latched, PERFORM left)");
+        tap(B_PLAY); frames(3);
+        check(!song.playing && !perf.lat, "STOP: the latches go");
+        memset(stl.ev, 0, sizeof stl.ev);
+        /* every pad's dials: no value past its column (each knob at its least, middle, most) */
+        over0 = dial_over;
+        press(B_FX); frames(12);
+        for (p = 0; p < PF_NPAD; p++) {
+            perf.last = (uint8_t)p;
+            for (x = 0; x < 3u; x++) {
+                for (k = 0; k < 4u; k++) {
+                    const pk_t *d = &PFD[p].k[k];
+                    if (d->kind == KK_GLO)
+                        song.g[d->gid] = (int16_t)(x == 0u ? GP[d->gid].min : x == 1u ? (GP[d->gid].min + GP[d->gid].max) / 2 : GP[d->gid].max);
+                    else
+                        perf.par[p][k] = (int8_t)(x == 0u ? d->lo : x == 1u ? (d->lo + d->hi) / 2 : d->hi);
+                }
+                ui.force = 1; frame();
+            }
+        }
+        {
+            char b[96];
+            snprintf(b, sizeof b, "PERFORM: no knob value past its 40 px column (22 pads, each knob at its least, middle, most)");
+            check(dial_over == over0, b);
+        }
+        release(B_FX); frames(2);
+        if (ly_lock == LY_FX) { tap(B_FX); frames(2); }   /* (held that long untouched: it stayed open) */
+        perf_init();
+        song.g[G_DTIME] = GP[G_DTIME].def, song.g[G_RSIZE] = GP[G_RSIZE].def, song.g[G_RDAMP] = GP[G_RDAMP].def;
+        /* the STUTTER lane: the recorded pads drawn as spans, erased with a step held + OCT-, cleared with KNOB 3 twice */
+        song.sel = TRK_DRUM; studio_open(SC_DRUM); frames(2);
+        stl_view = 1, stl_pg = 0; ui.force = 1; frames(2);
+        check(stl_shown(), "(the STUTTER lane on the GRID)");
+        memset(&stl, 0, sizeof stl); stl.len = 16; stl.act = 1;
+        stl.ev[0] = (pev_t){PF_S8 + 1u, 4, 2, 0};
+        stl.ev[1] = (pev_t){PF_LP + 1u, 8, 6, 0};
+        stl.ev[2] = (pev_t){PF_CRUSH + 1u, 12, 3, 0};
+        stl.ev[3] = (pev_t){PF_GATE + 1u, 0, 16, 0};
+        lane_set_ui(12, 0), lane_set_ui(13, 0);
+        ui.force = 1; frame(); ppm("stut-fx");
+        check(px_count(4 * 15, 22 + 77, 2 * 15 - 1, 14, TE_G2) + px_count(4 * 15, 22 + 93, 2 * 15 - 1, 14, TE_G2) > 200u,
+              "STUTTER lane: a recorded pad drawn as a span over its steps (1/8 on 5-6)");
+        check(pev_count() == 4u && px_count(120, OP_KNOB_Y + 26, 54, 26, TE_G4) > 20u,
+              "STUTTER lane: KNOB 3 says how many are recorded (FX 4)");
+        fm1_in.notes |= 1u << key_of_white(9); frame();
+        ui.force = 1; frame(); ppm("stut-fx-held");
+        fm1_in.buttons |= BT(B_OCTDN); edges_btn |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
+        fm1_in.notes &= ~(1u << key_of_white(9)); frame();
+        check(!stl.ev[1].fx && !stl.ev[3].fx && stl.ev[0].fx && stl.ev[2].fx, "STUTTER lane: step 10 held + OCT-: the pads over it erased (LP, GATE), the rest kept");
+        check(!stl_lit(9), "STUTTER lane: ... and step 10, lit by that press, unlit again (the press was for the pads)");
+        press(B_EDIT); press(B_OCTDN); release(B_OCTDN); release(B_EDIT); frames(2);
+        check(stl.ev[1].fx && stl.ev[3].fx, "STUTTER lane: EDIT + OCT-: the erase undone");
+        frames(20);                                      /* (the knobs quiet a moment after a layer, #39) */
+        encs[panel.enc[EN_K3]] = 1; frame();
+        check(stl.ev[0].fx && !strcmp(ui.msg, "AGAIN: CLEAR FX"), "STUTTER lane: KNOB 3 turned once: asks again");
+        frames(20); encs[panel.enc[EN_K3]] = 1; frame();
+        {
+            uint32_t n = 0;
+            for (k = 0; k < PEV_N; k++) n += stl.ev[k].fx != 0u;
+            check(n == 0u && stl_lit(12), "STUTTER lane: KNOB 3 again within 1.5 s: every recorded pad cleared, the lit steps kept");
+        }
+        memset(&stl, 0, sizeof stl); stl.len = 16; stl.act = 1;
+        stl_view = 0;
+        song.playing = 0; transport_req = 2; frames(2);
+        go_home(); song.sel = 0; frames(2);
     }
     {   /* fuzz: 20000 frames of random buttons (held or tapped), knobs and keys, with the audio running
          * between frames; every draw stays on the screen (lcd_blit / lcd_fill assert it) */
