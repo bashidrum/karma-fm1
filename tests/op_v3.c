@@ -239,7 +239,7 @@ int main(int argc, char **argv)
     turn_knob(5, 200);
     part(2, 0, 10, 12, 8);                          /* 2. ELEMENTS' EDIT */
     turn_knob(3, 14); vframe();                     /* (ALGORITHM: the track) */
-    song.sel = TRK_DRUM; studio_open(SC_DRUM); drum_page = 0; drum_lane = 0; drum_cursor = 0; ui.force = 1;
+    song.sel = TRK_DRUM; studio_open(SC_DRUM); drum_keys = DK_PLAY; drum_lane = 0; drum_cursor = 0; ui.force = 1;
     vframe();
     TDRUM->p[P_MUTE] = 0;                           /* 3. the drummer, the kick comes in */
     part(2, 0, 0, 0, 0);

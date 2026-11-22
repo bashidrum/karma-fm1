@@ -165,7 +165,7 @@ int main(int argc, char **argv)
     transport_req = 1;
     part(2, 0, 0, 0, 0);                            /* 1. the mixer: the kick alone */
     let_go(B_GLO);
-    song.sel = TRK_DRUM; studio_open(SC_DRUM); drum_page = 0; drum_lane = 0; drum_cursor = 0;
+    song.sel = TRK_DRUM; studio_open(SC_DRUM); drum_keys = DK_PLAY; drum_lane = 0; drum_cursor = 0;
     part(2, 0, 0, 0, 0);                            /* 2. the drums: the drummer on his kick */
 
     mixer_in(0);                                    /* 3. the mixer: the bass comes in */
