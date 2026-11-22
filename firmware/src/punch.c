@@ -526,14 +526,14 @@ static void punch_colour(int32_t *l, int32_t *r, uint32_t n, uint32_t beat)
         return;
     if (run & 1u << PP_LP) {                            /* LP: from open down to CUTOFF in SPEED */
         int32_t to = pf_val(PF_LP, 0) << 8, sp = PL_SPEED16[clamp(pf_val(PF_LP, 2), 0, 6)];
-        int32_t d = sp ? (int32_t)((uint64_t)(127 << 8) * n * 4u / ((uint64_t)beat * (uint32_t)sp) + 1u) : 127 << 8;
+        int32_t d = sp ? (int32_t)((uint32_t)(127 << 8) * n * 4u / (beat * (uint32_t)sp) + 1u) : 127 << 8;
         if (on & 1u << PP_LP)
             punch.lcut = punch.lcut > to ? (punch.lcut - d > to ? punch.lcut - d : to) : (punch.lcut + d < to ? punch.lcut + d : to);
         tsvf_coef(&clp, punch.lcut, pf_val(PF_LP, 1) * 127 / 100);
     }
     if (run & 1u << PP_HP) {                            /* HP: from the bottom up to CUTOFF in SPEED */
         int32_t to = pf_val(PF_HP, 0) << 8, sp = PL_SPEED16[clamp(pf_val(PF_HP, 2), 0, 6)];
-        int32_t d = sp ? (int32_t)((uint64_t)(127 << 8) * n * 4u / ((uint64_t)beat * (uint32_t)sp) + 1u) : 127 << 8;
+        int32_t d = sp ? (int32_t)((uint32_t)(127 << 8) * n * 4u / (beat * (uint32_t)sp) + 1u) : 127 << 8;
         if (on & 1u << PP_HP)
             punch.hcut = punch.hcut < to ? (punch.hcut + d < to ? punch.hcut + d : to) : (punch.hcut - d > to ? punch.hcut - d : to);
         tsvf_coef(&chp, punch.hcut, pf_val(PF_HP, 1) * 127 / 100);
@@ -658,7 +658,7 @@ static void punch_process(int32_t *l, int32_t *r, uint32_t n)
         if (fx == PX_DROP && punch.pad < PF_NPAD && want == fx) {   /* PITCH DROP: DEPTH semitones down in its TIME */
             int32_t to = pf_val(punch.pad, 0) << 8;
             uint32_t span = beat * PL_TIME16[clamp(pf_val(punch.pad, 1), 0, 3)] / 4u;
-            int32_t d = (int32_t)((uint64_t)to * n / (span ? span : 1u)) + 1;
+            int32_t d = (int32_t)((uint32_t)to * n / (span ? span : 1u)) + 1;
             punch.ds = punch.ds + d < to ? punch.ds + d : to;
         }
     for (i = 0; i < n; i++) {
