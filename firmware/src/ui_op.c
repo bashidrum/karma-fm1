@@ -1238,11 +1238,13 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
             char nm[8];
             te_upper(nm, LANE_SHORT[l], sizeof nm);
             if (m || so) {                              /* (the tile yellow / ice blue, the name black; at its right end the
-                                                         * letter, M or S, in a black tab) */
+                                                         * letter, M or S, in a black tab. The drum grid: the tab flush with
+                                                         * the tile's right edge, 8 px, so a six-letter name (OP HAT, SHAKER,
+                                                         * C-BELL, 48 px) keeps a pixel clear of the tile's edge and the tab) */
                 cv_rect(x, y, 58, 18, m ? TE_MUTE : TE_SOLO);
-                te_text_c(x + 24, y + 1, nm, C_BLACK);
-                cv_rect(x + 48, y + 2, 9, 14, C_BLACK);
-                cv_text(x + 49, y + 1, &FONT_S, m ? "M" : "S", m ? TE_MUTE : TE_SOLO);
+                te_text_c(x + 25, y + 1, nm, C_BLACK);
+                cv_rect(x + 50, y + 2, 8, 14, C_BLACK);
+                cv_text(x + 51, y + 1, &FONT_S, m ? "M" : "S", m ? TE_MUTE : TE_SOLO);
             } else {
                 cv_rect(x, y, 58, 18, TE_G1);
                 te_text_c(x + 29, y + 1, nm, quiet ? TE_G2 : TE_COL[TRK_DRUM]);
