@@ -236,7 +236,7 @@ static void t_ratchet(void)
 
 static void t_roll(void)
 {
-    uint32_t i, k = 6, n;                           /* key 6 = B3 -> lane 3 (clap) */
+    uint32_t i, k = key_of_lane(3), n;              /* the clap's key (the drum grid: key 15, F5) */
     reset(120);
     song.g[G_ROLL] = 2;                              /* 1/32 (the synth tracks' rolls) */
     drt_live = 13;                                   /* (PHEBUS wave 3: the drum track's ARP + key is the Rytm's live
@@ -279,7 +279,7 @@ static void t_erase_undo(void)
     transport_req = 1;
     while (TDRUM->seq_idx != 4u)
         run_block();
-    fm1_in.notes = 1u << 7;                         /* (wave 10) the hat key (C4 = key 7) held, then OCT-: erase */
+    fm1_in.notes = 1u << key_of_lane(4);            /* (wave 10) the hat's key (the drum grid: key 1, F3) held, then OCT-: erase */
     run_block();
     fm1_in.buttons = dyn_bit[0];
     while (TDRUM->seq_idx != 7u)
@@ -309,7 +309,7 @@ static void t_erase_undo(void)
     check(left == 16u && undo.trk == TRK_DRUM, "undo: the erased hats are back");
     transport_req = 2;
     run_block();
-    fm1_in.notes = 1u << 7;                         /* stopped: every hat of the pattern */
+    fm1_in.notes = 1u << key_of_lane(4);            /* stopped: every hat of the pattern */
     run_block();
     fm1_in.buttons = dyn_bit[0];
     run_block();
@@ -331,22 +331,22 @@ static void t_levels(void)
     song.rec = 1u << TRK_DRUM;
     transport_req = 1;
     run_block();
-    drum_newvel = 42;                                /* TRIG, KNOB 1: 42 (a ghost), then a snare (A3 = key 4) */
-    fm1_in.notes = 1u << 4;
+    drum_newvel = 42;                                /* TRIG, KNOB 1: 42 (a ghost), then a snare (the drum grid: key 16) */
+    fm1_in.notes = 1u << key_of_lane(2);
     run_block();
     fm1_in.notes = 0;
     run_block();
     while (TDRUM->seq_idx != 3u)
         run_block();
-    drum_newvel = 127;                               /* 127 (hard), a kick */
-    fm1_in.notes = 1u << 0;
+    drum_newvel = 127;                               /* 127 (hard), a kick (key 4) */
+    fm1_in.notes = 1u << key_of_lane(0);
     run_block();
     fm1_in.notes = 0;
     run_block();
     fm1_in.buttons = dyn_bit[0];                     /* OCT- held, then a key: just the hit, at that velocity (no ghost) */
     while (TDRUM->seq_idx != 6u)
         run_block();
-    fm1_in.notes = 1u << 2;                          /* (G3: KICK 2) */
+    fm1_in.notes = 1u << key_of_lane(1);             /* (KICK 2: key 3) */
     run_block();
     fm1_in.notes = fm1_in.buttons = 0;
     run_block();
