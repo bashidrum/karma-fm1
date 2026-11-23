@@ -4407,6 +4407,50 @@ int main(int argc, char **argv)
         go_home(); disco = DISCO_SHOW; frames(30); lights_dump("SHOW, HOME playing"); frames(7); lights_dump("SHOW, HOME playing (a moment later)");
         disco = DISCO_NORMAL; transport_req = 2; frames(4); go_home(); frames(2);
     }
+    {   /* ---- wave 11: the new views keep in their columns and to the colour rule */
+        uint32_t over0 = dial_over, bad = 0, v, i;
+        static const char *const PG[] = {"FILT", "ENV", "FX 1", "LFO", "OSC"};
+        static const uint8_t FA[] = {FAM_FLT, FAM_ENV, FAM_FX, FAM_MOD, FAM_OSC};
+        for (v = 0; v < NPART; v++) {
+            track_select(v); go_home(); frames(2);
+            fm1_irq_off(); mx_clear_sound(v); mx_map_set(v, MS_LFO2, P_FDRV, -64); mx_map_set(v, MS_LFO2, P_FRES, 63); fm1_irq_on();
+            for (i = 0; i < NELEM(FA); i++) {
+                uint32_t o;
+                if (!chain_goto(FA[i], PG[i])) { bad++; continue; }
+                map_lfo2 = 1;
+                press(B_LFO); frames(12); ui.force = 1; frame();
+                for (o = 0; o < NPART + 1u; o++)        /* (no other voice's colour, no red) */
+                    if (o != v && (o < NPART ? 1 : 0))
+                        bad += px_count(0, 0, 240, OP_BAR_Y, TE_COL[o]) != 0u;
+                bad += px_count(0, 0, 240, OP_BAR_Y, TE_RED) != 0u;
+                release(B_LFO); frames(4);
+                ui.force = 1; frame();
+                for (o = 0; o < NPART; o++)             /* (the marks: the voice's own colour only) */
+                    if (o != v)
+                        bad += px_count(0, 0, 240, OP_BAR_Y, TE_COL[o]) != 0u;
+            }
+            fm1_irq_off(); mx_clear_sound(v); fm1_irq_on();
+        }
+        check(!bad && dial_over == over0, "w11: MAP view and the marks on every synth voice: in their columns, no other voice's colour, no red");
+        track_select(0); go_home(); frames(2);
+        {   /* the MATRIX's heads: every column's name in its 32 px, with 19 columns in use */
+            uint8_t cols[MD_N];
+            uint32_t n, j, wide = 0;
+            static const uint8_t IDS[] = {P_ATK, P_DEC, P_SUS, P_REL, P_FATK, P_FDEC, P_FSUS, P_FREL, P_FDRV, P_GLIDE, P_DETUNE,
+                                          P_DLY, P_REV, P_CHOR, P_LRATE, P_LFADE, P_L2RATE, P_SLDEPTH, P_X1TIME};
+            char nm[8];
+            fm1_irq_off(); mx_clear_sound(0);
+            for (j = 0; j < NELEM(IDS); j++) mx_map_set(0, MS_LFO2, IDS[j], 9);
+            fm1_irq_on();
+            n = mx_vis(0, cols);
+            for (j = 0; j < n; j++) { mx_col_name(0, cols[j], nm); wide += text_w(&FONT_S, nm) > 28; }
+            chain_goto(FAM_MOD, "MATRIX"); mx_col = cols[n - 1u]; frames(2); ui.force = 1; frame(); ppm("w11-matrix-full");
+            check(n == MD_NFIX + 19u && !wide && px_count(0, 0, 240, OP_BAR_Y, TE_COL[1]) + px_count(0, 0, 240, OP_BAR_Y, TE_COL[2]) == 0u,
+                  "w11: MATRIX with 19 parameter columns: each name fits its column, the view scrolls to the last, voice 1's colours only");
+            fm1_irq_off(); mx_clear_sound(0); fm1_irq_on();
+        }
+        go_home(); frames(2);
+    }
     {   /* ---- wave 11 (D1): storing a pattern has a home under SAVE: SAVE > PATTERN (the hold stays its shortcut) */
         uint32_t s0, j;
         song.sel = 0; go_home(); frames(4);

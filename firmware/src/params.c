@@ -43,7 +43,7 @@ static const char *const N_XBIG[] = {"OFF", "CHORUS", "PHASER", "FLANGER", "REVE
 _Static_assert(sizeof N_XTYPE / sizeof N_XTYPE[0] == XT_N && sizeof N_XBIG / sizeof N_XBIG[0] == XT_N, "a name an FX type");
 /* the mod matrix's rows and columns (core.h MS_*, MD_*): short in the grid, long on the knobs */
 static const char *const N_MSRC[] = {"LFO1", "LFO2", "AENV", "FENV", "PENV", "VEL", "KEY"};
-static const char *const N_MDST[] = {"PIT", "M1", "M2", "M3", "CUT", "RESO", "LVL", "PAN", "FX1", "FX2", "FX3"};
+static const char *const N_MDST[] = {"PIT", "M1", "M2", "M3", "CUT", "RES", "LVL", "PAN", "FX1", "FX2", "FX3"};
 _Static_assert(sizeof N_MSRC / sizeof N_MSRC[0] == MS_N && sizeof N_MDST / sizeof N_MDST[0] == MD_NFIX, "the grid's names");
 static const char *const N_AMODE[] = {"OFF", "UP", "DN", "UPDN", "RND", "ORD"};
 static const char *const N_MOUT[] = {"KEYS", "SEQ"};
@@ -693,16 +693,39 @@ static uint32_t mx_vis_pos(uint32_t ti, uint32_t col)  /* column col's place amo
             return i;
     return n - 1u;
 }
-/* a column's name in the grid's head (4 letters: an assignable one its parameter's, "+" an empty one) */
+/* a column's name in the grid's head: three letters, one name a parameter (wave 11: up to 19 parameter columns side by side, so
+ * the LFOs' RATEs, the two envelopes' stages and the slots' knobs need names of their own); "+" an empty column */
 static void mx_col_name(uint32_t ti, uint32_t col, char *b)
 {
-    uint32_t a = col >= MD_AS1 && col < MD_N ? mxt[ti % NPART].as[col - MD_AS1] : 0u;
-    if (col < MD_NFIX)
+    static const struct { uint8_t id; char n[4]; } SN[] = {
+        {P_ATK, "ATK"}, {P_DEC, "DEC"}, {P_SUS, "SUS"}, {P_REL, "REL"}, {P_FATK, "FAT"}, {P_FDEC, "FDC"}, {P_FSUS, "FSU"},
+        {P_FREL, "FRL"}, {P_FDRV, "DRV"}, {P_GLIDE, "GLD"}, {P_DETUNE, "DTN"}, {P_DLY, "DLY"}, {P_REV, "REV"}, {P_CHOR, "CHO"},
+        {P_LRATE, "L1R"}, {P_LPHASE, "L1P"}, {P_LFADE, "L1F"}, {P_L2RATE, "L2R"}, {P_SLDEPTH, "SLD"}, {P_FCUT, "CUT"},
+        {P_FRES, "RES"}, {P_TUNE, "TUN"}, {P_PAN, "PAN"}, {P_LEVEL, "LVL"}};
+    uint32_t a = col >= MD_AS1 && col < MD_N ? mxt[ti % NPART].as[col - MD_AS1] : 0u, i, id;
+    if (col < MD_NFIX) {
         str_cpy(b, N_MDST[col], 6);
-    else if (!a)
+        return;
+    }
+    if (!a) {
         str_cpy(b, "+", 6);
-    else
-        str_cpy(b, track_desc(&trk[ti % NPART], a - 1u)->label, 5);
+        return;
+    }
+    id = a - 1u;
+    for (i = 0; i < NELEM(SN); i++)
+        if (SN[i].id == id) {
+            str_cpy(b, SN[i].n, 4);
+            return;
+        }
+    if (id >= P_X1TYPE && id < P_X1TYPE + 4u * NXSLOT) {   /* a slot's knob: its number, T I A */
+        b[0] = (char)('1' + (id - P_X1TYPE) / 4u), b[1] = "-TIA"[(id - P_X1TYPE) % 4u], b[2] = 0;
+        return;
+    }
+    if (id >= P_E0 && id <= P_E7) {                     /* the Type's controls: E1 .. E8 */
+        b[0] = 'E', b[1] = (char)('1' + id - P_E0), b[2] = 0;
+        return;
+    }
+    str_cpy(b, track_desc(&trk[ti % NPART], id)->label, 4);
 }
 /* (wave 5) an FX page's slot (0..2) */
 static uint32_t pg_slot(const page_t *pg) { return ((uint32_t)pg->sel - P_X1TYPE) / 4u % NXSLOT; }   /* (wave 9: its TYPE is SELECT's) */
