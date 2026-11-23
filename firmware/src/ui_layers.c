@@ -506,7 +506,8 @@ static void layer_screen_draw(void)
         if (layer == LY_ERASE && is_drum(t) && !mute && !undo.valid)
             str_cpy(sub, "black = mute", sizeof sub);
         if (layer == LY_ERASE) {
-            lab[0] = "shift", lab[1] = "steps", lab[2] = is_drum(t) ? "" : "transp";   /* (STEPS: the pattern's length) */
+            lab[0] = "shift", lab[1] = "double", lab[2] = is_drum(t) ? "" : "transp";   /* (wave 8: DOUBLE, the pattern again
+                                                         * after itself or halved; STEPS is hold SEQ's, the one length knob) */
             str_cpy(v[0], "<  >", 8);
             fmt_int(v[1], t->p[P_SLEN]);
             str_cpy(v[2], is_drum(t) ? "" : "-  +", 8);
@@ -603,7 +604,7 @@ static void layer_screen_draw(void)
     }
     case LY_MIX: {                                      /* mute 1..4, solo 1..4, fill / fill bar, tap */
         col = C_WHITE;
-        str_cpy(sub, "mute  solo  fill  tap", sizeof sub);
+        str_cpy(sub, "mute  solo  fill  pan", sizeof sub);
         for (i = 0; i < 4u; i++) {
             int m = trk[i].p[P_MUTE] != 0, so = (song.solo >> i) & 1u;
             str_cpy(tl[i].lab, "mute 1", 8);
@@ -623,11 +624,9 @@ static void layer_screen_draw(void)
         tl[9].bg = fill_bar_on ? C_WHITE : TE_G1;
         tl[9].fg = fill_bar_on ? C_BLACK : TE_G4;
         tl[9].top = fill_arm ? C_WHITE : 0;
-        fmt_int(tl[15].lab, song.g[G_BPM]);
-        tl[15].bg = song.playing && clk_pos < BEAT_U / 4u ? C_WHITE : TE_G2;
-        tl[15].fg = tl[15].bg == C_WHITE ? C_BLACK : C_WHITE;
-        str_cpy(tl[14].lab, "tap>", 8);
-        tl[14].bg = C_BLACK;
+        str_cpy(tl[10].lab, "pan", 8);                  /* (wave 8: no tap tempo; key 11 the pans) */
+        tl[10].bg = mix_pan ? C_WHITE : TE_G1;
+        tl[10].fg = mix_pan ? C_BLACK : TE_G4;
         for (i = 0; i < 4u; i++) {
             uint32_t lv = trk_level(i);
             static const char *const L[4] = {"1", "2", "3", "dr"};   /* (the strip's numbers) */

@@ -20,14 +20,6 @@ static void pf_knob_str(uint32_t p, uint32_t k, char *v, int32_t *ratio)   /* a 
     v[0] = 0;
     *ratio = -1;
     switch (d->kind) {
-    case KK_GLO: {                                      /* a shared global (GLO's DLY, REV/CHO page) */
-        const char *u;
-        const param_desc_t *g = &GP[d->gid];
-        x = song.g[d->gid];
-        param_format(g, x, v, &u);
-        *ratio = g->max > g->min ? (x - g->min) * 1000 / (g->max - g->min) : 0;
-        return;
-    }
     case KK_NONE:
         return;
     case KK_LIST:
@@ -71,11 +63,6 @@ static void perf_knob(uint32_t k, int32_t s)
     int32_t x;
     if (d->kind == KK_NONE)
         return;
-    if (d->kind == KK_GLO) {
-        const param_desc_t *g = &GP[d->gid];
-        song.g[d->gid] = (int16_t)clamp(song.g[d->gid] + accel(EN_K1 + k, s, g->max - g->min), g->min, g->max);
-        return;
-    }
     x = perf.par[p][k] + (d->hi - d->lo > 20 ? accel(EN_K1 + k, s, d->hi - d->lo) : (s > 0 ? 1 : -1));
     perf.par[p][k] = (int8_t)clamp(x, d->lo, d->hi);
     if (((perf.held | perf.lat) >> p) & 1u) {           /* (recorded with the pad's span, if a take is on) */

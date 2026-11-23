@@ -548,7 +548,11 @@ static void drum_main_draw(void)
         str_cpy(info, "KEYS PLAY ", sizeof info);
         str_cpy(info + str_len(info), LANE_SHORT[l], 8);
     } else {
-        fmt_int(info, (int32_t)bank * 16 + 1);
+        if (drum_pg == DPG_FX) {                        /* (wave 8) the FX tab: which of the drum voice's own pages */
+            str_cpy(info, PAGES[dbus_page(dpg_half())].title, 10);
+            str_cpy(info + str_len(info), "  ", 3);
+        }
+        fmt_int(info + str_len(info), (int32_t)bank * 16 + 1);
         str_cpy(info + str_len(info), "-", 2);
         fmt_int(info + str_len(info), (int32_t)(bank * 16u + 16u < len ? bank * 16u + 16u : len));
         str_cpy(info + str_len(info), " OF ", 5);

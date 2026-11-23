@@ -72,7 +72,8 @@ static uint32_t up_rank(uint32_t s) { return s; }
 static uint32_t up_engine(uint32_t k) { return k ? ENGI_PRISM : ENGI_ACID; }   /* (MY LEAD on track 1, MY PAD on 3) */
 static void up_name(uint32_t k, char *b) { str_cpy(b, k ? "MY PAD" : "MY LEAD", 13); }
 static void up_slot_label(char *b, uint32_t k) { fmt_int(b, (int32_t)k + 1); }
-static void up_ui(uint32_t op, uint32_t k) { (void)op; (void)k; }
+static uint32_t up_ops[3];
+static void up_ui(uint32_t op, uint32_t k) { up_ops[op % 3u]++; (void)k; }
 static void settings_save(void) {}
 #include "../firmware/src/ui_studio.c"
 #include "../firmware/src/ui_op.c"
@@ -2763,7 +2764,10 @@ int main(int argc, char **argv)
         song.sel = 0; studio_open(SC_DRUM); frames(2);
         for (i = 0; i < 6u; i++) for (ty = 0; ty < 3u; ty++) { syn_go(i, ty % syn_halves(i)); ui.force = 1; frame(); n++; }
         song.sel = TRK_DRUM; studio_open(SC_DRUM); frames(2);
-        for (i = 0; i < 5u; i++) for (ty = 0; ty < 3u; ty++) { dpg_go(i, ty % dpg_halves(i)); ui.force = 1; frame(); n++; }
+        for (i = 0; i < 6u; i++) for (ty = 0; ty < 5u; ty++) { dpg_go(i, ty % dpg_halves(i)); ui.force = 1; frame(); n++; }   /* (wave 8: the FX tab, its five halves) */
+        TDRUM->p[P_E0] = 0; frames(2);                  /* (a HEX kit: its FLTR with the empty ENV knob) */
+        for (ty = 0; ty < 2u; ty++) { dpg_go(2, ty); ui.force = 1; frame(); n++; }
+        TDRUM->p[P_E0] = DRUM_DEFAULT_KIT; frames(2);
         dpg_go(4, 0); ui.force = 1; frame();
         {
             char b[80];
@@ -2872,18 +2876,18 @@ int main(int argc, char **argv)
                 track_select(0); frames(2);
             }
             for (p = 0; p < NPAGES; p++)
-                if (PAGES[p].fam == FAM_GLO) { go_home(); page_go(p); frames(2); ui.force = 1; frame(); n++; }
+                if (PAGES[p].fam == FAM_GLO || PAGES[p].fam == FAM_MFX) { go_home(); page_go(p); frames(2); ui.force = 1; frame(); n++; }
             go_home(); frames(2);
             song.sel = TRK_DRUM; studio_open(SC_DRUM); frames(2); stl_algo(1); ui.force = 1; frame(); n++;
             stl_algo(-1); go_home(); track_select(0); frames(2);
             over0 = dial_over;
-            snprintf(b, sizeof b, "no value past its 40 px column: HOME, PERFORM's 22 pads, every layer, GLO pages, the lane (%u)", n);
+            snprintf(b, sizeof b, "no value past its 40 px column: HOME, PERFORM's 22 pads, every layer, GLO and FX pages, the lane (%u)", n);
             check(over0 == 0u, b);
         }
         /* the colour rule, pixel by pixel: a shared screen (PERFORM, the STUTTER lane, a GLO page) has no voice colour
          * above the strip; a voice's page none of the other voices' */
         {
-            uint32_t v, bad = 0, p;
+            uint32_t v, bad = 0, p, o2;
             press(B_FX); frames(12); ui.force = 1; frame();
             for (v = 0; v < NTRK; v++) bad += px_count(0, 0, 240, OP_BAR_Y, TE_COL[v]);
             release(B_FX); frames(2);
@@ -2899,6 +2903,28 @@ int main(int argc, char **argv)
                 }
             go_home(); frames(2);
             check(bad == 0u, "colour rule: every shared GLO page has no voice colour above the strip");
+            for (v = 0; v < NTRK; v++) {                /* (wave 8) the FX button's pages, from every voice: white and grey */
+                track_select(v); frames(2);
+                for (p = 0; p < NPAGES; p++)
+                    if (PAGES[p].fam == FAM_MFX) {
+                        go_home(); page_go(p); frames(2); ui.force = 1; frame();
+                        for (o2 = 0; o2 < NTRK; o2++)
+                            bad += px_count(0, 0, 240, OP_BAR_Y, TE_COL[o2]) + px_count(0, 0, 240, OP_BAR_Y, TE_MID[o2]);
+                    }
+            }
+            go_home(); track_select(0); frames(2);
+            check(bad == 0u, "colour rule: the FX button's DELAY, REV/CHO, MASTER (the whole mix's) no voice colour, from any voice");
+            {   /* the drum screen's FX tab: the drum voice's own pages, coral (and no melodic voice's colour) */
+                uint32_t h;
+                song.sel = TRK_DRUM; studio_open(SC_DRUM); frames(2);
+                for (h = 0; h < NDBUS; h++) {
+                    dpg_go(DPG_FX, h); ui.force = 1; frame();
+                    for (o2 = 0; o2 < NPART; o2++) bad += px_count(0, 0, 240, OP_BAR_Y, TE_COL[o2]);
+                    bad += px_count(0, SG_KNOB_Y, 240, 58, TE_DRUM) < 20u;
+                }
+                dpg_go(1, 0); go_home(); track_select(0); frames(2);
+                check(bad == 0u, "colour rule: the drum FX tab's five pages in the drum voice's coral only");
+            }
             for (v = 0; v < NPART; v++) {               /* each voice's every sound page: no other voice's colour, in any
                                                          * of its shades (wave 7 found voice 1's OSC drawing dim coral) */
                 uint8_t idx[40];
@@ -2919,6 +2945,108 @@ int main(int argc, char **argv)
             }
             go_home(); track_select(0); frames(2);
         }
+    }
+    /* ---- PHEBUS wave 8 (SPEC.md, "22 Nov 2026, 23:20: the layout, in Ben's words"): one rule everywhere, same words */
+    {
+        uint32_t ok, k, j;
+        char b[120];
+        /* THE CONFIRM on every screen that asks: one turn asks (HOLD REC: ...), a second turn does nothing, REC tapped drops the
+         * question (nothing recorded), REC held until the ring fills does it */
+        static const struct { const char *page; uint8_t knob; const char *q; } AK[] = {
+            {"USER", 1, "HOLD REC: LOAD 1"}, {"USER", 2, "HOLD REC: ERASE 1"}, {"USER", 3, "HOLD REC: SAVE 1"},
+            {"TOOLS", 0, "HOLD REC: CLRSQ"}, {"TOOLS", 1, "HOLD REC: INIT"}, {"TOOLS", 3, "HOLD REC: NEW"}};
+        song.playing = 0; song.sel = 0; ui.uslot = 0;
+        for (k = 0, ok = 1; k < NELEM(AK); k++) {
+            uint32_t pg, before;
+            for (pg = 0; pg < NPAGES && strcmp(PAGES[pg].title, AK[k].page); pg++)
+                ;
+            go_home(); page_go(pg); frames(16);
+            trk[0].step[2].n = 1; trk[0].step[2].time = ST_NOTE; trk[0].step[2].note[0] = 50;
+            before = up_ops[0] + up_ops[1] + up_ops[2] + (uint32_t)step_on(&trk[0].step[2]) * 1000u + trk[0].preset * 7u;
+            encs[panel.enc[EN_K1 + AK[k].knob]] = 1; frame();
+            ok &= ui.ask != 0 && !strcmp(ui.msg, AK[k].q);
+            if (strcmp(ui.msg, AK[k].q)) printf("ui:   asked \"%s\", want \"%s\"\n", ui.msg, AK[k].q);
+            frames(10); encs[panel.enc[EN_K1 + AK[k].knob]] = 1; frame();      /* a second turn: nothing */
+            ok &= up_ops[0] + up_ops[1] + up_ops[2] + (uint32_t)step_on(&trk[0].step[2]) * 1000u + trk[0].preset * 7u == before;
+            tap(B_REC); frames(2);                                            /* tapped: no, and no recording */
+            ok &= !ui.ask && !song.rec && !rec_wait;
+            encs[panel.enc[EN_K1 + AK[k].knob]] = 1; frame();
+            if (k == 0u) { ui.force = 1; frame(); ppm("page-user-ask"); }
+            press(B_REC); frames(90); release(B_REC); frames(2);              /* held, the ring full: done */
+            ok &= !ui.ask && !song.rec && !rec_wait;
+        }
+        check(ok && up_ops[0] == 1u && up_ops[1] == 1u && up_ops[2] == 1u,
+              "confirm: USER LOAD / ERASE / SAVE and TOOLS CLRSQ / INIT / NEW ask, a second turn nothing, REC tap no, REC held yes");
+        check(!step_on(&trk[0].step[2]), "confirm: TOOLS CLRSQ, confirmed: the pattern cleared");
+        /* no action is reached by a second press: a GO turned twice in a row, quickly, does nothing */
+        {
+            uint32_t pg;
+            for (pg = 0; pg < NPAGES && strcmp(PAGES[pg].title, "USER"); pg++)
+                ;
+            go_home(); page_go(pg); frames(16); j = up_ops[2];
+            encs[panel.enc[EN_K4]] = 1; frame(); encs[panel.enc[EN_K4]] = 1; frame(); encs[panel.enc[EN_K4]] = 1; frame();
+            check(up_ops[2] == j && ui.ask == ASK_UP, "no double press: SAVE turned three times quickly: nothing saved, the question shown");
+            tap(B_ENV); frames(2);
+            check(!ui.ask, "confirm: another button drops the question");
+        }
+        /* SAME WORDS. The filter page: CUTOFF RESO ENV TYPE on the first half, DRIVE first on the second, on a synth voice and
+         * on both drum machines (the HEX machine has no filter envelope: that knob empty) */
+        {
+            uint32_t fp = 0, f2 = 0;
+            const char *SYNL[4], *HEXL[4], *SYL[4];
+            for (j = 0; j < NPAGES; j++) {
+                if (!strcmp(PAGES[j].title, "FILT")) fp = j;
+                if (!strcmp(PAGES[j].title, "FILT 2")) f2 = j;
+            }
+            for (k = 0; k < 4u; k++) {
+                uint32_t hid = dh_id(DM_HEX, DPG_FLTR, 0, k), sid = dh_id(DM_SYN, DPG_FLTR, 0, k);
+                SYNL[k] = TP[PAGES[fp].id[k]].label;
+                HEXL[k] = hid == 0xFFu ? "" : dsp_desc(DM_HEX, 0, hid)->label;
+                SYL[k] = sid == 0xFFu ? "" : dsp_desc(DM_SYN, 0, sid)->label;
+            }
+            ok = !strcmp(SYNL[0], "CUTOFF") && !strcmp(SYNL[1], "RESO") && !strcmp(SYNL[2], "ENV") && !strcmp(SYNL[3], "TYPE");
+            for (k = 0; k < 4u; k++)
+                ok &= !strcmp(SYL[k], SYNL[k]) && (k == 2u ? !HEXL[k][0] : !strcmp(HEXL[k], SYNL[k]));
+            snprintf(b, sizeof b, "same filter page: synth %s %s %s %s, 606 %s %s %s %s, HEX %s %s -- %s", SYNL[0], SYNL[1], SYNL[2],
+                     SYNL[3], SYL[0], SYL[1], SYL[2], SYL[3], HEXL[0], HEXL[1], HEXL[3]);
+            check(ok, b);
+            check(PAGES[f2].id[0] == P_FDRV && dh_id(DM_HEX, DPG_FLTR, 1, 0) == DSP_DRIVE && dh_id(DM_SYN, DPG_FLTR, 1, 0) == DSP_S0 + DS_DRIVE,
+                  "same filter page: DRIVE first on the second half, on the synth voice and both drum machines");
+            ok = 1;                                     /* one spelling: no FREQ, RES, FEEDBK as a knob's name anywhere */
+            for (j = 0; j < P_COUNT; j++) ok &= !TP[j].label || (strcmp(TP[j].label, "FREQ") && strcmp(TP[j].label, "RES") && strcmp(TP[j].label, "FEEDBK"));
+            for (j = 0; j < G_COUNT; j++) ok &= !GP[j].label || (strcmp(GP[j].label, "FREQ") && strcmp(GP[j].label, "RES") && strcmp(GP[j].label, "FEEDBK"));
+            for (j = 0; j < DS_N; j++) ok &= strcmp(DS_DESC[j].label, "FREQ") && strcmp(DS_DESC[j].label, "RES");
+            for (j = 0; j < PF_NPAD; j++) for (k = 0; k < 4u; k++) ok &= strcmp(PFD[j].k[k].lab, "FREQ") && strcmp(PFD[j].k[k].lab, "FEEDBK");
+            check(ok, "one spelling: CUTOFF, RESO, FDBK on every knob (no FREQ, RES, FEEDBK)");
+        }
+        /* one repeat word: a synth step's repeat is RETRIG, as a drum trig's */
+        {
+            const char *lab[4];
+            char v[4][12];
+            int32_t ratio[4];
+            uint32_t dim;
+            song.sel = 0;
+            trk[0].step[0].n = 1; trk[0].step[0].time = ST_NOTE;
+            syn_trig_vals(0, 1, lab, v, ratio, &dim);
+            check(!strcmp(lab[1], "RETRIG"), "one repeat word: a synth step held, TRIG 2/2 KNOB 2 is RETRIG (was RATCH)");
+        }
+        /* the throws' knobs are their own: ECHO and VERB no longer turn the delay's TIME or the reverb's SIZE and DAMP */
+        ok = 1;
+        for (k = 0; k < 4u; k++) {
+            ok &= PFD[PF_ECHO].k[k].kind != KK_GLO && PFD[PF_VERB].k[k].kind != KK_GLO;
+        }
+        check(ok && !strcmp(PFD[PF_ECHO].k[1].lab, "FDBK") && !strcmp(PFD[PF_VERB].k[3].lab, "AMOUNT"),
+              "PERFORM ECHO: FDBK and AMOUNT (its own); VERB: AMOUNT; no shared TIME SIZE DAMP on a pad");
+        /* the PATTERN page (a leftover since wave 4, unreachable) is gone; STEPS is hold SEQ's; EDIT's length knob is DOUBLE */
+        for (j = 0, ok = 1; j < NPAGES; j++) ok &= strcmp(PAGES[j].title, "PATTERN") != 0 && PAGES[j].fam != FAM_SEQ;
+        check(ok, "the leftover PATTERN page is gone (the pattern's settings: hold SEQ, GATE DIV SWING STEPS)");
+        go_home(); frames(16); press(B_EDIT); frames(12); ui.force = 1; frame();
+        check(px_count(62, OP_KNOB_Y, 58, 18, TE_COL[0]) > 10u, "EDIT held: KNOB 2 DOUBLE (drawn)");
+        release(B_EDIT); frames(16);
+        /* HOME: the screensaver's way written on it: a ">" after the FLOW band */
+        go_home(); ui.force = 1; frame();
+        check(px_count(HB_X + HB_W, OP_BODY_Y, 12, 16, TE_G3) > 6u, "HOME: a \">\" after the FLOW band (SELECT right: the screensaver)");
+        go_home(); track_select(0); frames(2);
     }
     printf("ui: %s\n", fails ? "FAILED" : "pages, layers (punch, steps, erase, roll, key, mix), layer lock, song layer, REC hold, drums, REC, 20000-frame fuzz PASS");
     return fails;

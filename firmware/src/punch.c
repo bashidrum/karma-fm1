@@ -69,11 +69,13 @@ static const struct {
     {"GATE", "TRANCE GATE", {{"RATE", PL_GRATE, KK_LIST, 0, 0, 2, 1}, {"WIDTH", 0, KK_PCT, 0, 10, 90, 50}, K_NONE, K_AMT}},
     {"STOP", "TAPE STOP", {{"TIME", PL_TIME, KK_LIST, 0, 0, 3, 1}, K_NONE, K_NONE, K_AMT}},
     {"DROP", "PITCH DROP", {{"DEPTH", 0, KK_SEMI, 0, 1, 24, 12}, {"TIME", PL_TIME, KK_LIST, 0, 0, 3, 2}, K_NONE, K_AMT}},
-    {"ECHO", "ECHO THROW", {{"TIME", 0, KK_GLO, G_DTIME, 0, 0, 0}, {"FDBK", 0, KK_PCT, 0, 0, 95, 70}, K_NONE, K_AMT}},
-    {"VERB", "REVERB THROW", {{"SIZE", 0, KK_GLO, G_RSIZE, 0, 0, 0}, {"DAMP", 0, KK_GLO, G_RDAMP, 0, 0, 0}, K_NONE, K_AMT}},
+    /* (wave 8, Ben 22 Nov 2026: "FX = whole mix only") the throws' knobs are their own: the delay's TIME and the reverb's SIZE
+     * and DAMP are the FX button's pages only (KNOB 2 FDBK stays where it was: a recorded span keeps its knob) */
+    {"ECHO", "ECHO THROW", {K_NONE, {"FDBK", 0, KK_PCT, 0, 0, 95, 70}, K_NONE, K_AMT}},
+    {"VERB", "REVERB THROW", {K_NONE, K_NONE, K_NONE, K_AMT}},
     {"-DRM", "KILL DRUMS", {K_NONE, K_NONE, K_NONE, K_NONE}},
     {"-BAS", "KILL BASS", {{"VOICE", 0, KK_INT, 0, 1, 3, 1}, K_NONE, K_NONE, K_NONE}},
-    {"LCUT", "LOW CUT", {{"FREQ", 0, KK_CUT, 0, 20, 80, 43}, K_NONE, K_NONE, K_AMT}},
+    {"LCUT", "LOW CUT", {{"CUTOFF", 0, KK_CUT, 0, 20, 80, 43}, K_NONE, K_NONE, K_AMT}},   /* (wave 8: CUTOFF, one spelling) */
     {"FLNG", "FLANGER SWEEP", {{"RATE", PL_FRATE, KK_LIST, 0, 0, 3, 1}, {"FDBK", 0, KK_PCT, 0, 0, 90, 55}, K_NONE, K_AMT}},
     {"8T", "1/8T REPEAT", {K_STUT}},
     {"16T", "1/16T REPEAT", {K_STUT}},
