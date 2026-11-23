@@ -284,3 +284,11 @@ How this is applied (Claude's reading, for Ben to confirm): the steps show only 
 So if you wanted to map cut off to the LFO, you'd navigate to the synth's filter page, then hold LFO it would probably flash up the LFO page until it realises you're doing a hold to map, jumps back to the synth's filter page and gives you the mappable controls back on the knobs etc to map to the LFO...
 
 Would be awesome if the same logic were applied to all the nice and obviously pleasantly mappable parameters"
+
+His answers by picker, 23 Nov 2026, 10:50:
+
+- Which LFO: "The one last shown". Its name shows while you hold, and SEL flips to the other.
+- Which ENV: "The one last shown". Its name shows while you hold, and SEL flips to the other.
+- Velocity and key: "Matrix page only".
+
+To be built as its own wave after wave 10.
