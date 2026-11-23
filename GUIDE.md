@@ -204,7 +204,7 @@ FX MIX, ENV LENGTH and MOD DEPTH are performance settings: not saved with the pr
 
 ### The black keys
 
-A black key does something **only where the screen draws it**, in the two-row strip under the header (F#3 to F#4 above, G#4 to F#5 below; PERFORM's splits after G#4 so its seven mutes share the top row; the STUTTER lane's after D#4, one octave a row). Elsewhere it is a note on a synth voice, or nothing. The strip shows on: PERFORM (its mutes and four extras), the STUTTER lane (its eleven repeats), hold SEQ (A B C D BAR), the mixer (the four voices on F#3 to C#4), ARP's KEY pages with a chord mode on (3RD 7TH SUS4 9TH INV, held: lit).
+A black key does something **only where the screen draws it**, in the two-row strip under the header (F#3 to F#4 above, G#4 to F#5 below; the STUTTER lane's splits after D#4, one octave a row; PERFORM puts all eleven on one row, short names). Elsewhere it is a note on a synth voice, or nothing. The strip shows on: PERFORM (its mutes and four extras), the STUTTER lane (its eleven repeats), hold SEQ (A B C D BAR), the mixer (the four voices on F#3 to C#4), ARP's KEY pages with a chord mode on (3RD 7TH SUS4 9TH INV, held: lit).
 
 ### The screen
 
@@ -546,19 +546,23 @@ PERFORM works the way the MPC's pad effects do: each key is one effect on the wh
 
 **In and out.** Hold **FX**: PERFORM shows while you hold it and the keys are pads. Let go and the keys play notes again. Hold FX for about 0.7 seconds untouched and let go, and it stays open (LOCK on the line under the header); tap FX again or any page button to leave. Tapped, FX opens this voice's own effects first (INS), then SENDS, SLICER and the whole mix's MIX pages. PLAY and REC work while it is open. Pads never play or record notes.
 
-**The pad map**, as the screen draws it and as the keys lie (the white keys four rows of four, keys 1 to 4 the top row; the black keys in the strip above, in key order):
+**The pad map**, as the screen draws it (Ben, 23 Nov 2026, 22:07: "Group them by type into columns as much as possible. With the exception of the black keys which make sense being a row"). Under the line with the last pad's name, the eleven black keys sit on **one row**, in key order, as the black keys sit above the white ones; their names are short so they all fit. Under them, the sixteen white keys are **four columns of four**, one kind of effect in each, with its name over the column. The keys run **top to bottom** in a column, as on the drum grid: column 1 is keys 1 to 4, column 2 keys 5 to 8, and so on. Every pad is on the same key as before; only the drawing changed.
 
 ```
- black keys     F#3  G#3  A#3 | C#4    D#4   F#4    G#4   | A#4      C#5   D#5     F#5
- (the strip)    V1   V2   V3  | KICKS  TOPS  SH+CL  HT+SN | REVERSE  STOP  SWP DN  SWP UP
-                purple blue coral | teal (the drum voice's mutes)  | white and grey (the whole mix)
+ black keys   F#3  G#3  A#3 | C#4    D#4    F#4    G#4   | A#4      C#5    D#5     F#5
+ on screen    1    2    3   | KIK    TOP    S+C    H+S   | REV      STP    DN      UP
+ the pad      V1   V2   V3  | KICKS  TOPS   SH+CL  HT+SN | REVERSE  STOP   SWP DN  SWP UP
+ colour       purple, blue, | teal: the drum mutes        | white and grey: the whole mix
+              coral         |                             |
 
- white keys     key 1     key 2     key 3     key 4
-   row 1        1/1       1/2       1/4       1/8        the stutters (beat repeat)
-   row 2        1/16      HALF      ECHO      VERB       half time, the throws
-   row 3        ISO LO    ISO MID   ISO HI    MOTION     isolate a band, a tempo-synced sweep
-   row 4        CRUSH     PHASER    JET       VOWEL      colour
+ white keys   REPEAT         TIME           FILTER          COLOUR
+              key 1  1/1     key 5  1/16    key 9  ISO LO   key 13 CRUSH
+              key 2  1/2     key 6  HALF    key 10 ISO MID  key 14 PHASER
+              key 3  1/4     key 7  ECHO    key 11 ISO HI   key 15 JET
+              key 4  1/8     key 8  VERB    key 12 MOTION   key 16 VOWEL
 ```
+
+REPEAT is the beat repeats, TIME the sixteenth, half time and the two throws, FILTER the isolator and the motion filter, COLOUR the crusher, phaser, flanger and vowel filter. On the black row, 1 2 3 are the three voices' mutes in their colours (as the voices are numbered in the bar at the foot of the screen), KIK TOP S+C H+S the drum mutes, REV STP DN UP reverse, tape stop and the two sweeps. A black key not pressed is drawn black, with a line under its name; pressed, it fills like a pad (latched: a white dot at its foot). The caption names the pad in full (MUTE VOICE 1, SWEEP DOWN).
 
 | Key | Pad | Does |
 | --- | --- | --- |
