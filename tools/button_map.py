@@ -4,6 +4,7 @@
 # Pillow and the Inter font). Wave 10: per button its one idea, categories, SEL pages, hold, -/+ while held, MASTER's pair, SELECT.
 # Wave 11: hold LFO / ENV to map; what lights under a hold; DISCO; SAVE > PATTERNS; the drums teal (Ben's colour code, 11:33)
 # Wave 12: SAVE > KITS; PRESETS on the drums (the slot's sound / the whole kit); hold LFO maps on the drums; QUIET dims the screen
+# The drum effects under FX: EDIT SRC FLTR KIT FLT; FX INS SENDS SLICER as a synth voice (SENDS the sound's, with KIT FX)
 # Wave 13: the PERFORM set (effects on the white keys, mutes and four extras on the black); the mixer as one map (OCT+ + key
 # solos, OCT- clears, SEL the pans); the STUTTER lane's black keys repeat
 # Wave 14: the STUTTER lane is FX's last category, STUT, after MIX (Ben, 23 Nov 2026, 15:55: "Both on FX"); PERFORM hold FX only;
@@ -27,7 +28,7 @@ f_txt = font("r", 28); f_txtb = font("s", 28); f_pill = font("s", 26); f_key = f
 MIX = "MIX"
 STUT = "STUT"                                   # (wave 14) the STUTTER lane, the whole mix's too: after MIX, no divider
 B = [
-    ("EDIT", "sound", [("OSC", "1 to 4"), ("FILT", "1 to 2")], [("SRC", "1 to 3"), ("FLTR", "1 to 2")],
+    ("EDIT", "sound", [("OSC", "1 to 4"), ("FILT", "1 to 2")], [("SRC", "1 to 3"), ("FLTR", "1 to 2"), ("KIT FLT", "the kit's")],
      "MASTER's pair only", "- CLEAR the voice (then hold SAVE)", "LEVEL", "synth: OSC the oscillator Type, FILT the filter TYPE"),
     ("ENV", "envelopes", [("AMP", ""), ("FILT", "")], [("AMP", "1 to 2")],
      "on a synth sound page: MAP the envelope last shown (SEL the other): wiggle a knob; elsewhere MASTER's pair only",
@@ -36,10 +37,10 @@ B = [
      "on a synth sound page: MAP the LFO last shown (SEL the other); on a drum sound page: MAP its LFO (one DEST a sound); wiggle a knob. Elsewhere MASTER's pair only",
      "- REMOVE this LFO's mappings here", "MOD DEPTH (drums: LFO DEPTH)", "synth: the LFO's WAVE"),
     ("FX", "effects", [("INS", "FX 1 2 3"), ("SENDS", ""), ("SLICER", ""), (MIX, "3 pages"), (STUT, "the lane")],
-     [("FILTER", ""), ("INS", "1 to 2"), ("SENDS", ""), ("SLICER", ""), (MIX, "3 pages"), (STUT, "the lane")],
+     [("INS", "kit, 1 to 2"), ("SENDS", "the sound's"), ("SLICER", "kit"), (MIX, "3 pages"), (STUT, "the lane")],
      "PERFORM (hold only, never a tap): white keys the effects (1/1 1/2 1/4 1/8 / 1/16 HALF ECHO VERB / ISO LO MID HI, MOTION / CRUSH PHASER JET VOWEL); black: mute V1 V2 V3, KICKS TOPS SH+CL HT+SN, REVERSE STOP SWP DN SWP UP",
      "- latches off, + LATCH", "FX MIX (0: dry)",
-     "synth: the insert TYPE, the SLICER's mode"),
+     "synth: the insert TYPE, the SLICER's mode; drums: the sound on SENDS, nothing on the kit's pages"),
     ("SEQ", "rhythm", [("TRIG", "1 to 2"), ("PATTERN", "1 to 2"), ("A-D", "")], [("TRIG", "1 to 2"), ("PATTERN", "1 to 2"), ("A-D", "")],
      "white keys ROLL (drums RETRIG); F#3-C#4 play A-D, D#4 fill bar; PLAY: FILL (+ latches); K1 RATE K2 SHIFT K3 SWING K4 STEPS",
      "- HALVE (asks), + DOUBLE", "SWING", "nothing on TRIG, PATTERN, A-D"),
