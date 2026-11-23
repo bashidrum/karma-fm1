@@ -365,3 +365,7 @@ His answers by picker, 23 Nov 2026, 14:25:
 - The four spare black keys in PERFORM: "Reverse, tape stop, and 2 filter sweeps - one that moves up, one that moves down and you can set the length/duration, resonance, range and slope"
 - Mutes: "Hold to mute, latch with OCT+".
 - MOTION: "Tempo-synced sweep". A band-pass that sweeps up and down in time with the beat; knobs set rate and depth.
+
+### 23 Nov 2026, 14:19: the mixer screen, in Ben's words
+
+With two simulator screenshots of the mixer (hold GLO) with the drums selected, showing "KEYS: SOLO" and "KEYS: MUTE": "This global screen is kind of hard to figure out. It also doesn't seem to work - like it says keys solo. What voice is the keys? It didn't solo anything either way."
