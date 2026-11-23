@@ -387,9 +387,9 @@ int main(int argc, char **argv)
             ok &= k == 2u ? c == 0u : c > 30u;
         }
         check(ok, "HOME knobs: CUTOFF, DECAY, LEVEL in the voice's colour; STUTTER neutral (shared)");
-        press(B_GLO); frames(10); key(key_of_lane(10)); frames(2);
+        press(B_GLO); frames(10); key(PUNCH_BLACK[1]); frames(2);
         lv = trk[0].p[P_PAN]; encs[panel.enc[EN_K1]] = 5; frame();
-        check(mix_pan && trk[0].p[P_PAN] == lv + 5, "pan: GLO held + key 11: the mixer's knobs are the pans (KNOB 1: voice 1's)");
+        check(mix_pan && trk[0].p[P_PAN] == lv + 5, "pan: GLO held + G#3 (wave 10: drawn in the strip): the mixer's knobs are the pans (KNOB 1: voice 1's)");
         ui.force = 1; frame(); ppm("layer-mix-pan");
         release(B_GLO); frames(2);
         check(!mix_pan, "pan: GLO let go: the mixer's knobs are the levels again");
@@ -533,7 +533,8 @@ int main(int argc, char **argv)
     tap(B_SCL); check(on_drum_page() && syn_tab == 0u && syn_hcur() == 0u, "SEL again: round to TRIG 1/2");
     tap(B_SEQ); check(on_drum_page() && cur_cat() == CT_PATT, "SEQ again: its next category, PATTERN (the pattern's settings)");
     ui.force = 1; frame(); ppm("grid-pattern");
-    tap(B_SCL); check(cur_cat() == CT_PATT, "SEL on PATTERN (one page): nothing");
+    tap(B_SCL); check(cur_cat() == CT_PATT && syn_hcur() == TH_PATT + 1u, "SEL on PATTERN (wave 10: two pages): PATTERN 2/2, SHIFT");
+    tap(B_SEQ); check(on_drum_page() && cur_cat() == CT_PATTS, "SEQ again (wave 10): A-D, the patterns");
     tap(B_SEQ); check(on_drum_page() && cur_cat() == CT_TRIG && syn_hcur() == 0u, "SEQ again: round to TRIG");
     go_home(); frame();
     tap(B_FX); check(cur_cat() == CT_INS && !strcmp(PAGES[ui.page].title, "FX 1"),
@@ -622,33 +623,32 @@ int main(int argc, char **argv)
     release(B_FX); frames(2); check(ui.layer == LY_PLAY, "and FX let go: back to playing");
     press(B_FX); frames(50); release(B_FX); frames(3);
     press(B_HOME); frames(50); release(B_HOME); frames(2);
-    check(ui.menu && ly_lock == LY_PLAY, "locked, HOME held: the menu, unlocked");
+    check(!ui.menu && ly_lock == LY_PLAY, "locked, HOME held (wave 10: held, nothing): unlocked, no menu");
     ui.menu = 0; ui.force = 1; frames(2);
     song.g[G_DUST] = 0;
 
-    /* ---- SEQ layer (PHEBUS, Ben 21 Nov 2026: "Remove them"): held, its keys set no step and play nothing; KNOB 2..4
-     * are DIV, SWING, STEPS; the drum steps are made on the GRID (one hold of a step key: one undo) */
+    /* ---- SEQ layer (wave 10, Ben: "SEQ is rhythm"): held, its white keys RETRIG (drums) / ROLL, its keys set no step;
+     * KNOB 1 RATE, 2 SHIFT, 3 SWING, 4 STEPS; the drum steps are made on the GRID (one hold of a step key: one undo) */
     song.sel = TRK_DRUM; go_home(); frame();
     press(B_SEQ); frames(10);
     {
-        uint32_t ac = 0, v2;
+        uint32_t ac = 0;
         key(0); key(7); key(14);
         for (i = 0; i < 16u; i++) ac |= dt_mask(i);
-        for (v2 = 0; v2 < NVOICE; v2++) ac |= TDRUM->v[v2].active;
-        check(!ac && keys_lit() == 0u && keys_guide() == 0u, "SEQ held + white keys: no step set, no sound, no key lit");
+        check(!ac, "SEQ held + white keys: no step set (they RETRIG, wave 10)");
     }
     ppm("layer-steps");
     release(B_SEQ);
-    {   /* (PHEBUS wave 5) hold SEQ on a synth voice: KNOB 1 the pattern's GATE (it had no page since wave 4) */
+    {   /* (wave 10) hold SEQ on a synth voice: KNOB 3 the pattern's SWING (GATE: its PATTERN page) */
         int16_t g0;
         song.sel = 0; go_home(); frame();
-        g0 = trk[0].p[P_SGATE];
+        g0 = trk[0].p[P_SSWING];
         press(B_SEQ); frames(10);
-        encs[panel.enc[EN_K1]] = 10; frames(2);
-        check(trk[0].p[P_SGATE] > g0, "SEQ held + KNOB 1 (a synth voice): GATE up");
+        encs[panel.enc[EN_K3]] = 10; frames(2);
+        check(trk[0].p[P_SSWING] > g0, "SEQ held + KNOB 3 (a synth voice): SWING up");
         ui.force = 1; frame(); ppm("layer-steps-gate");
         release(B_SEQ); frames(2);
-        trk[0].p[P_SGATE] = g0;
+        trk[0].p[P_SSWING] = g0;
         song.sel = TRK_DRUM; go_home(); frame();
     } check(ui.layer == LY_PLAY && !on_drum_page(), "SEQ used then let go: no page change");
     studio_open(SC_DRUM); frames(16); drum_lane = 2;   /* (the knobs quiet ~250 ms after a layer: #39) */
@@ -667,37 +667,40 @@ int main(int argc, char **argv)
     key(0); check(!dt_has(0, 2), "step 1 again: off");
     tap(B_SCL); frames(2); check(drum_pg == 0u && dpg_half() == 1u, "drum screen: SEL (PAGE): TRIG 2/2");
     tap(B_SEQ); frames(2); check(drum_pg == 0u && dpg_half() == 2u && cur_cat() == CT_PATT, "drum screen: SEQ again: PATTERN");
+    tap(B_SEQ); frames(2); check(drum_pg == 0u && dpg_half() == TH_AD && cur_cat() == CT_PATTS, "drum screen: SEQ again (wave 10): A-D");
     tap(B_SEQ); frames(2); check(drum_pg == 0u && dpg_half() == 0u, "drum screen: SEQ again: round to TRIG 1/2");
     drum_lane = 0; go_home(); frame();
 
-    /* ---- EDIT: undo / redo, erase, length */
-    press(B_EDIT); frames(10);
+    /* ---- (wave 10) SAVE: undo / redo; a sound's key + OCT-: erase; SEQ: length */
+    press(B_SAVE); frames(10);
     edges_btn |= BT(B_OCTDN); fm1_in.buttons |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
-    check(dt_has(0, 2) && dtest_lvl(4, 2) == LV_HARD, "EDIT + OCT-: undo (step 1 back)");
+    check(dt_has(0, 2) && dtest_lvl(4, 2) == LV_HARD, "SAVE + OCT-: undo (step 1 back)");
     edges_btn |= BT(B_OCTUP); fm1_in.buttons |= BT(B_OCTUP); frame(); fm1_in.buttons &= ~BT(B_OCTUP); frame();
-    check(!dt_has(0, 2) && dtest_lvl(4, 2) == LV_HARD, "EDIT + OCT+: redo (back, as left)");
+    check(!dt_has(0, 2) && dtest_lvl(4, 2) == LV_HARD, "SAVE + OCT+: redo (back, as left)");
     ppm("layer-erase");
-    key(4);                                           /* stopped: every snare goes */
-    check(!dt_has(4, 2) && !dt_has(8, 2), "EDIT + snare (stopped): every snare erased");
-    release(B_EDIT); frames(2);
+    release(B_SAVE); frames(2);
+    fm1_in.notes |= 1u << 4; frames(2);               /* stopped: the snare's key held + OCT-: every snare goes */
+    edges_btn |= BT(B_OCTDN); fm1_in.buttons |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
+    fm1_in.notes &= ~(1u << 4); frames(2);
+    check(!dt_has(4, 2) && !dt_has(8, 2), "the snare's key held + OCT- (stopped): every snare erased");
     press(B_SEQ); frames(10);                         /* (wave 9) SEQ + OCT+: the pattern doubled, a clone (DOUBLE on EDIT: gone) */
     edges_btn |= BT(B_OCTUP); fm1_in.buttons |= BT(B_OCTUP); frame(); fm1_in.buttons &= ~BT(B_OCTUP); frame();
     check(TDRUM->p[P_SLEN] == 32, "SEQ + OCT+: length x2");
     release(B_SEQ); frames(2);
-    edges_btn |= BT(B_EDIT); fm1_in.buttons |= BT(B_EDIT); frame();      /* undo the length too */
+    edges_btn |= BT(B_SAVE); fm1_in.buttons |= BT(B_SAVE); frame();      /* undo the length too */
     edges_btn |= BT(B_OCTDN); fm1_in.buttons |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
-    release(B_EDIT);
-    check(TDRUM->p[P_SLEN] == 16, "EDIT + OCT-: the length back to 16");
+    release(B_SAVE);
+    check(TDRUM->p[P_SLEN] == 16, "SAVE + OCT-: the length back to 16");
 
-    /* ---- ARP layer: a roll, rate knob */
-    press(B_ARP); frames(10);
+    /* ---- (wave 10) SEQ layer: a roll (drums RETRIG), the rate knob */
+    press(B_SEQ); frames(10);
     encs[panel.enc[EN_K1]] = 1; frame();
-    check(drt_live == 11u && song.g[G_ROLL] == 1, "ARP + KNOB 1 (the drum track, PHEBUS wave 3): the RETRIG rate a step up (1/20)");
+    check(drt_live == 11u && song.g[G_ROLL] == 1, "SEQ + KNOB 1 (the drum track): the RETRIG rate a step up (1/20)");
     drt_live = 10;
-    fm1_in.notes = 1u << 7; frames(3); check(roll[0].on, "ARP + a key: it rolls");
+    fm1_in.notes = 1u << 7; frames(3); check(roll[0].on, "SEQ + a key: it rolls");
     ppm("layer-roll");
     fm1_in.notes = 0; frame(); check(!roll[0].on, "key up: the roll ends");
-    release(B_ARP);
+    release(B_SEQ);
 
     /* ---- (wave 9, Ben 23 Nov 2026: key, scale and chord "Under ARP") ARP's KEY category; GLO: mute, solo */
     song.sel = 0; go_home(); frame();
@@ -734,14 +737,12 @@ int main(int argc, char **argv)
         check(song.g[G_BPM] == b0, "GLO + the last key: nothing (wave 8: no tap tempo; the tempo is GLO > GLOBAL's BPM only)"); }
     key(0); key(9);
     check(!trk[0].p[P_MUTE] && !song.solo, "again: unmuted, no solo");
-    /* (2.4) key 9 held: a fill; key 10: the next bar is one (again: cancelled) */
+    /* (wave 10, Ben: "Global should have midi learn. But not fill") key 9 and 10: no fill on the mixer (SEQ + PLAY) */
     fm1_in.notes = 1u << key_of_white(8); frame(); frame();
-    check(fill_held == 1u && fill_now == 1u && (keys_lit() & (1u << key_of_white(8))) != 0, "GLO + key 9 held: FILL (the key lit)");
+    check(fill_held == 0u && fill_now == 0u, "GLO + key 9 held (wave 10): no FILL (it is SEQ + PLAY)");
     ui.force = 1; frame(); ppm("layer-mix-fill");
     fm1_in.notes = 0; frame(); frame();
-    check(fill_held == 0u && fill_now == 0u, "key 9 let go: the fill ends");
-    key(key_of_white(9)); check(fill_arm == 1u && (keys_lit() & (1u << key_of_white(9))) != 0, "GLO + key 10: FILL NEXT BAR armed (the key lit)");
-    key(key_of_white(9)); check(fill_arm == 0u, "GLO + key 10 again: cancelled");
+    key(key_of_white(9)); check(fill_arm == 0u, "GLO + key 10 (wave 10): no FILL NEXT BAR (SEQ + D#4)");
     release(B_GLO);
     fm1_in.notes = 1u << key_of_white(8); frame();     /* (no layer: a plain key, no fill) */
     check(fill_held == 0u, "key 9 without GLO: no fill");
@@ -763,45 +764,30 @@ int main(int argc, char **argv)
     open_family(FAM_FX); frame();                     /* the FX page: KNOB 1 = DIST */
     encs[panel.enc[EN_K1]] = 2; frame();
     go_home(); frame();
-    {   /* SEQ held (PHEBUS): KNOB 1 nothing, 2 DIV, 3 SWING, 4 STEPS; PRESETS / ALGORITHM / OCT change nothing of the
-         * steps; the screen draws the steps in time and says how many bars they make */
-        int16_t d0 = trk[0].p[P_SDIV], s0 = trk[0].p[P_SSWING], l0 = trk[0].p[P_SLEN], n0 = (int16_t)pen_note[0];
-        uint32_t sel0 = song.sel, eng0 = trk[0].eng_req, pr0 = trk[0].preset, lit0, lit1;
+    {   /* (wave 10) SEQ held: KNOB 1 the roll's RATE, 2 SHIFT, 3 SWING, 4 STEPS; the black keys A B C D BAR drawn in the strip;
+         * PRESETS / ALGORITHM change nothing */
+        int16_t s0 = trk[0].p[P_SSWING], l0 = trk[0].p[P_SLEN], r0 = song.g[G_ROLL];
+        uint32_t sel0 = song.sel, eng0 = trk[0].eng_req, pr0 = trk[0].preset;
         steps_clear(&trk[0]); trk[0].step[0].n = 1; trk[0].step[0].note[0] = 60; trk[0].step[0].time = ST_NOTE;
         press(B_SEQ); frames(10);
         ui.force = 1; frame();
-        lit0 = px_count(0, 46, 240, 124, TE_COL[0]);
-        check(lit0 > 0 && px_count(0, 46, 240, 124, TE_G2) > 0, "SEQ held: the steps in time (a set one filled, empty ones outlined)");
-        check(!strcmp(sub_line(), "16 steps = 1 bar"), "SEQ held: the sub line says 16 steps = 1 bar");
-        encs[panel.enc[EN_K1]] = 3; frame();
-        check(trk[0].p[P_SDIV] == d0 && trk[0].p[P_SSWING] == s0 && trk[0].p[P_SLEN] == l0 && pen_note[0] == (uint8_t)n0,
-              "SEQ held + KNOB 1: nothing (no pen note any more)");
-        encs[panel.enc[EN_K2]] = -1; frame();
-        check(trk[0].p[P_SDIV] == d0 - 1, "SEQ held + KNOB 2: DIV");
-        ui.force = 1; frame(); ppm("layer-steps-div8");
-        check(!strcmp(sub_line(), "16 steps = 2 bars"), "  DIV 1/8: 16 steps = 2 bars, drawn on two rows");
+        check(bk_shown == 0x1Fu && px_count(2, BK_Y, 37 * 4 + 120, 12, TE_G1) > 200u, "SEQ held: the strip draws its black keys (A B C D BAR)");
+        check(str_eq(sub_line(), "play: fill"), "SEQ held: the sub line says what PLAY does (play: fill)");
+        encs[panel.enc[EN_K1]] = 1; frame();
+        check(song.g[G_ROLL] == r0 + 1, "SEQ held + KNOB 1: the roll's RATE");
         encs[panel.enc[EN_K2]] = 1; frame();
-        {   /* the swing moves the odd steps: step 2's left edge (one row: its middle at y 107) later than straight */
-            uint32_t x, x0 = 0, x1 = 0;
-            ui.force = 1; frame();
-            for (x = 16; x < 60u && !x0; x++) if (swap16(screen[107 * 240 + x]) == TE_G2) x0 = x;
-            encs[panel.enc[EN_K3]] = 50; frame();
-            check(trk[0].p[P_SSWING] > s0, "SEQ held + KNOB 3: SWING");
-            ui.force = 1; frame(); ppm("layer-steps-swing");
-            for (x = 16; x < 60u && !x1; x++) if (swap16(screen[107 * 240 + x]) == TE_G2) x1 = x;
-            check(x0 >= 18u && x0 <= 20u && x1 >= x0 + 3u, "  the odd steps drawn late by the swing (step 2 moves right)");
-        }
+        check(!step_on(&trk[0].step[0]) && step_on(&trk[0].step[1]), "SEQ held + KNOB 2: SHIFT, the pattern a step later");
+        ui.force = 1; frame(); ppm("layer-steps-div8");
+        encs[panel.enc[EN_K3]] = 50; frame();
+        check(trk[0].p[P_SSWING] > s0, "SEQ held + KNOB 3: SWING");
+        ui.force = 1; frame(); ppm("layer-steps-swing");
         encs[panel.enc[EN_K4]] = 16; frame();
         check(trk[0].p[P_SLEN] > l0, "SEQ held + KNOB 4: STEPS");
         ui.force = 1; frame(); ppm("layer-steps-len");
-        lit1 = px_count(0, 46, 240, 124, TE_G2);
-        check(lit1 > 0 && strstr(sub_line(), "steps = 2 bars") != 0, "  more steps: drawn on, and the bars counted");
         encs[panel.enc[EN_PRESET]] = 1; frame(); encs[panel.enc[EN_ALGO]] = 1; frame();
-        edges_btn |= BT(B_OCTUP); fm1_in.buttons |= BT(B_OCTUP); frame(); fm1_in.buttons &= ~BT(B_OCTUP); frame();
-        check(trk[0].eng_req == eng0 && trk[0].preset == pr0 && song.sel == sel0 && !step_locked(&trk[0], 0) &&
-              step_fill(&trk[0], 0) == FC_NORM, "SEQ held + PRESETS / ALGORITHM / OCT+: no sound, track, lock or condition change");
+        check(trk[0].eng_req == eng0 && trk[0].preset == pr0 && song.sel == sel0, "SEQ held + PRESETS / ALGORITHM: no sound or track change");
         release(B_SEQ); frames(2);
-        trk[0].p[P_SDIV] = d0; trk[0].p[P_SSWING] = s0; trk[0].p[P_SLEN] = l0;
+        trk[0].p[P_SSWING] = s0; trk[0].p[P_SLEN] = l0; song.g[G_ROLL] = r0;
         steps_clear(&trk[0]);
     }
     fm1_irq_off(); steps_clear(TDRUM); steps_clear(&trk[0]); fm1_irq_on();
@@ -815,45 +801,62 @@ int main(int argc, char **argv)
     ui.force = 1; frame(); ppm("live-rec-ready");
     tap(B_REC); check(rec_wait == 0, "REC again: cancelled");
     trk[0].step[3].n = 1, trk[0].step[3].note[0] = 60, trk[0].step[3].time = ST_NOTE;
-    press(B_REC); frames(50);                         /* 0.8 s: the ring */
-    check(ui.hold_kind == 1u && rec_wait == 0, "REC held: the press undone, the clear ring");
+    press(B_REC); frames(140);                        /* (wave 10, Ben: "I don't like the record button taking things away") */
+    check(ui.hold_kind == 0u && rec_wait == 1 && trk[0].step[3].n == 1, "REC held 2 s (wave 10): armed, no ring, nothing cleared");
+    release(B_REC); tap(B_REC); frames(2);
+    check(!rec_wait, "REC again: cancelled");
+    press(B_EDIT); frames(10);                        /* (wave 10) the voice cleared: EDIT + OCT-, then hold SAVE */
+    edges_btn |= BT(B_OCTDN); fm1_in.buttons |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
+    release(B_EDIT);
+    press(B_SAVE); frames(30);
+    check(ui.hold_kind == 3u, "EDIT + OCT-, SAVE held: the ring");
     ppm("hold-clear");
-    frames(90);                                       /* to the end */
-    check(!trk[0].step[3].n && ui.hold_kind == 0, "REC held to the end: track 1 cleared");
-    release(B_REC);
+    frames(70);
+    check(!trk[0].step[3].n && ui.hold_kind == 0, "SAVE held to the end: track 1 cleared");
+    release(B_SAVE);
+    press(B_SAVE); frames(10);
+    edges_btn |= BT(B_OCTDN); fm1_in.buttons |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
+    release(B_SAVE);
+    check(trk[0].step[3].n == 1, "SAVE + OCT-: the cleared track back");
     press(B_EDIT); frames(10);
     edges_btn |= BT(B_OCTDN); fm1_in.buttons |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
     release(B_EDIT);
-    check(trk[0].step[3].n == 1, "EDIT + OCT-: the cleared track back");
-    press(B_REC); frames(60); release(B_REC);         /* let go before the end: nothing */
-    check(trk[0].step[3].n == 1 && !rec_wait, "REC let go before the end: nothing cleared");
+    press(B_SAVE); frames(60); release(B_SAVE);       /* let go before the end: nothing */
+    check(trk[0].step[3].n == 1 && !rec_wait, "SAVE let go before the end: nothing cleared");
+    tap(B_HOME); frames(2); check(!ui.ask, "(another button: the question goes)");
 
     /* ---- SAVE: tap = the SAVE pages (PRESETS / USER / TOOLS) everywhere; held = the sections layer (A..D: play / store) */
     go_home(); frame();
     song.playing = 0; live_sec = -1; live_req = -1;
-    press(B_SAVE); frames(15); check(ui.layer == LY_SAVE, "SAVE held: the sections layer");
-    key(key_of_white(4)); check(sec_stores == 0 && ui.ask == ASK_STORE && !strcmp(ui.msg, "HOLD REC: STORE A"),
-                                "store over a used A: it asks (HOLD REC: STORE A)");
-    key(key_of_white(4)); check(sec_stores == 0, "the key again (wave 8: no double press): nothing stored");
-    press(B_REC); frames(40); release(B_REC);
-    check(sec_stores == 0 && ui.ask == ASK_STORE && !song.rec && !rec_wait, "REC held, let go before the ring is full: nothing, the question stays, no record");
-    press(B_REC); frames(90); release(B_REC);
-    check(sec_stores == 1 && live_sec == 0 && !ui.ask && !song.rec && !rec_wait, "REC held until the ring fills: the loop stored in A");
-    key(key_of_white(6)); check(sec_stores == 2 && live_sec == 2, "an empty C: stored at once");
-    key(key_of_white(1)); check(sec_loads == 1 && live_sec == 1, "stopped: B loaded as the loop");
-    key(key_of_white(3)); check(sec_loads == 1, "an empty D: not played");
+    press(B_SAVE); frames(15); check(ui.layer == LY_SAVE, "SAVE held: its layer (store, undo, redo)");
+    key(key_of_white(0)); frames(2);
+    check(sec_stores == 0 && ui.ask == ASK_STORE && !strcmp(ui.msg, "HOLD SAVE: STORE A") && ui.hold_kind == 3u,
+          "store over a used A: it asks (HOLD SAVE: STORE A), the ring at once (SAVE is held)");
+    release(B_SAVE); frames(2);
+    check(sec_stores == 0 && ui.ask == ASK_STORE, "SAVE let go before the ring is full: nothing, the question stays");
+    press(B_SAVE); frames(90); release(B_SAVE);
+    check(sec_stores == 1 && live_sec == 0 && !ui.ask && !song.rec && !rec_wait, "SAVE held again until the ring fills: the loop stored in A");
+    press(B_SAVE); frames(15);
+    key(key_of_white(2)); check(sec_stores == 2 && live_sec == 2, "an empty C: stored at once");
+    release(B_SAVE); frames(2);
+    press(B_SEQ); frames(12);                         /* (wave 10) playing a pattern is SEQ's: black keys 1 to 4 */
+    key(PUNCH_BLACK[1]); check(sec_loads == 1 && live_sec == 1, "SEQ + G#3, stopped: B loaded as the loop");
+    key(PUNCH_BLACK[3]); check(sec_loads == 1, "SEQ + C#4: an empty D: not played");
     song.playing = 1; clk_beat = 1; clk_pos = 0;
-    key(key_of_white(0)); check(live_req == 0, "playing: A asked for the next bar");
-    key(key_of_white(1)); check(live_req == 1, "B tapped in the same hold: B asked for instead (no chain)");
+    key(PUNCH_BLACK[0]); check(live_req == 0, "SEQ + F#3, playing: A asked for the next bar");
+    key(PUNCH_BLACK[1]); check(live_req == 1, "SEQ + G#3 in the same hold: B asked for instead (no chain)");
     ui.force = 1; frame(); ppm("layer-song");
-    check(px_count(0, 96, 240, 56, TE_G1) == 0u && px_count(0, 68, 240, 28, TE_G1) > 100u,   /* (wave 7: 28 px rows from y 40) */
-          "SAVE layer: keys 9..16 do nothing: their two rows left out (no empty outlines); SAVE A..D drawn");
+    release(B_SEQ); frames(2);
+    press(B_SAVE); frames(15);
+    ui.force = 1; frame();
+    check(px_count(0, 96, 240, 56, TE_G1) == 0u && px_count(0, 40, 240, 28, TE_G1) > 100u,   /* (wave 7: 28 px rows from y 40) */
+          "SAVE layer: keys 5..16 do nothing: their rows left out (no empty outlines); STORE A..D drawn");
     {   /* (PHEBUS wave 1: song mode, SONG REC and the SONG screen are cut) keys 13, 14, 16 do nothing */
         uint32_t st0 = sec_stores, ld0 = sec_loads, pg0 = ui.page;
         key(key_of_white(12)); key(key_of_white(13)); key(key_of_white(15));
         check(sec_stores == st0 && sec_loads == ld0 && live_req == 1 && ui.page == pg0 && ui.layer == LY_SAVE,
               "SAVE held + keys 13, 14, 16: nothing (song mode, SONG REC and the song page are gone)");
-        check(str_eq(LAYER_NAME[LY_SAVE], "pattern") && str_eq(sub_line(), "next bar"), "the layer reads \"pattern\", playing: \"next bar\"");
+        check(str_eq(LAYER_NAME[LY_SAVE], "save") && str_eq(sub_line(), "keys: store"), "the layer reads \"save\": \"keys: store\"");
     }
     release(B_SAVE); frames(2);
     check(live_req == 1 && saves == 0, "SAVE let go: B still asked for, nothing saved");
@@ -966,14 +969,14 @@ int main(int argc, char **argv)
         ppm("drum-src");
         TDRUM->p[P_E0] = DRUM_SAMPLED + 1u; frame();  /* the 909: turning makes its copy, the 606's would go: asked first */
         encs[panel.enc[EN_K1]] = 1; frame();
-        check(pkit.src == DRUM_DEFAULT_KIT && str_eq(ui.msg, "HOLD REC: REPLACE 606*") && ui.ask == ASK_KIT,
-              "drum screen: on another kit the first turn asks (HOLD REC: REPLACE 606*)");
+        check(pkit.src == DRUM_DEFAULT_KIT && str_eq(ui.msg, "HOLD SAVE: REPLACE 606*") && ui.ask == ASK_KIT,
+              "drum screen: on another kit the first turn asks (HOLD SAVE: REPLACE 606*)");
         encs[panel.enc[EN_K1]] = 1; frame();
         check(pkit.src == DRUM_DEFAULT_KIT, "drum screen: turned again (wave 8: no second turn): nothing replaced");
         ui.force = 1; frame(); ppm("drum-ask-replace");
-        press(B_REC); frames(30); ui.force = 1; frame(); ppm("hold-confirm"); frames(60); release(B_REC); frames(2);
+        press(B_SAVE); frames(30); ui.force = 1; frame(); ppm("hold-confirm"); frames(60); release(B_SAVE); frames(2);
         check(pkit.src == DRUM_SAMPLED + 1u && pkit_on() && !song.rec && !rec_wait,
-              "drum screen: REC held until the ring fills: the 909's copy replaces it (nothing recorded)");
+              "drum screen: SAVE held until the ring fills: the 909's copy replaces it (nothing recorded)");
         memset(&pkit, 0, sizeof pkit);
         TDRUM->p[P_E0] = DRUM_DEFAULT_KIT; ui.msg_t = 0; frames(2);
     }
@@ -1011,8 +1014,8 @@ int main(int argc, char **argv)
         ui.force = 1; frame(); ppm("layer-mix-drums");
         check(px_count(0, OP_BODY_Y + 96, 240, 36, TE_MUTE) > 100u && px_count(0, OP_BODY_Y + 96, 240, 36, TE_SOLO) > 40u &&
               px_count(0, 0, 240, 240, TE_RED) == 0u, "mixer, the drums selected: muted sounds yellow, the soloed one ice blue, no red");
-        fm1_in.notes = 1u << 3; frames(3); check(fill_now || fill_held, "mixer, the drums selected: G#3 held: FILL");
-        fm1_in.notes = 0; frame();
+        key(3); frames(2); check(!fill_now && !fill_held && mix_pan, "mixer, the drums selected: G#3 (wave 10): PAN, no FILL");
+        key(3); frames(2);
         release(B_GLO); frames(2);
         check(drum_mute == (1u << 5 | 1u << 11), "mixer let go: the mutes stay (performance state)");
         song.sel = 0; press(B_GLO); frames(12); key(key_of_lane(0)); release(B_GLO); frames(2);
@@ -1026,38 +1029,46 @@ int main(int argc, char **argv)
         check(drum_keys == DK_CHROM && !grid_keys_on() && on_drum_page(), "CHROMATIC mode: ARP tapped on the drum track");
         fm1_in.notes = 1u << (CHR_KEY0 + 4u); frame(); ui.force = 1; frame(); ppm("drum-chrom");
         fm1_in.notes = 0; frame();
-        tap(B_OCTUP);
-        check(drum_chr_oct == 1, "CHROMATIC mode: OCT+ the keys an octave up");
-        tap(B_OCTDN);
+        {
+            uint32_t l0 = drum_lane;
+            tap(B_OCTUP); frames(20);
+            check(drum_chr_oct == 0 && drum_lane == l0 + 1u, "CHROMATIC mode (wave 10): OCT+ tapped: the next sound, the octave unchanged");
+            tap(B_OCTDN); frames(20);
+            tap(B_OCTUP); tap(B_OCTUP); frames(20);
+            check(drum_chr_oct == 1 && drum_lane == l0, "CHROMATIC mode: OCT+ twice quickly: the keys an octave up");
+            tap(B_OCTDN); tap(B_OCTDN); frames(20);
+        }
         tap(B_ARP); frames(2);
         check(drum_keys == DK_PLAY && grid_keys_on() && drum_chr_oct == 0, "CHROMATIC mode: ARP again: the steps again");
     }
-    {   /* ARP held: RETRIG, a key retrigs its sound at the rate KNOB 1 or a black key picks */
-        press(B_ARP); frames(30);
-        key(PUNCH_BLACK[2]);                           /* A#3: 1/8 */
+    {   /* (wave 10) SEQ held: RETRIG, a key retrigs its sound at the rate KNOB 1 picks (a black key: a pattern, not a rate) */
+        uint32_t d0 = drt_live;
+        press(B_SEQ); frames(30);
+        key(PUNCH_BLACK[2]);                           /* A#3: pattern C, not a rate */
         ui.force = 1; frame(); ppm("drum-retrig");
-        check(drt_live == 7u && str_eq(layer_name(LY_ARP), "retrig"), "RETRIG: ARP held + the black key A#3: the rate 1/8");
+        check(drt_live == d0 && str_eq(layer_name(LY_SEQ), "rhythm"), "RETRIG: SEQ held + the black key A#3: no rate (pattern C)");
         encs[panel.enc[EN_K1]] = 3; frame();
-        check(drt_live == 10u, "RETRIG: KNOB 1 the rate (1/16)");
-        release(B_ARP); frames(20);
+        check(drt_live == d0 + 3u, "RETRIG: KNOB 1 the rate");
+        drt_live = 10;
+        release(B_SEQ); frames(20);
     }
-    {   /* F#5 on the drum GRID: FILL while held; (wave 8) latched as PERFORM's pads are: OCT+ with it held (either order) */
-        uint32_t pg0 = sg_page();
-        fm1_in.notes = 1u << FILL_KEY; frame();
-        check(fill_held, "FILL: F#5 held on the drum GRID: a fill");
+    {   /* (wave 10, Ben: "Maybe hold arp or seq and press play/stop") FILL: hold SEQ and PLAY; OCT+ with them latches; F#5 on
+         * the drum GRID does nothing (not drawn) */
+        uint32_t pg0 = sg_page(), pl = song.playing;
+        fm1_in.notes = 1u << 25; frame();
+        check(!fill_held, "FILL: F#5 on the drum GRID (wave 10): nothing (not drawn)");
         fm1_in.notes = 0; frame();
-        check(!fill_held && !fill_lat, "FILL: let go: no fill");
-        key(FILL_KEY); key(FILL_KEY);
-        check(!fill_lat, "FILL: F#5 twice quickly (wave 8: no double press): not latched");
-        fm1_in.notes = 1u << FILL_KEY; frame(); tap(B_OCTUP); fm1_in.notes = 0; frame();
-        check(fill_lat && sg_page() == pg0, "FILL: F#5 held + OCT+: latched (PERFORM's latch), no page turned");
+        press(B_SEQ); frames(12);
+        press(B_PLAY); frames(2);
+        check(fill_held && song.playing == pl, "FILL: SEQ held + PLAY held: a fill (no start)");
+        tap(B_OCTUP);
+        release(B_PLAY); frames(2);
+        check(fill_lat && sg_page() == pg0, "FILL: SEQ + PLAY + OCT+: latched (the one latch), no page turned");
+        release(B_SEQ); frames(2);
         ui.msg_t = 0; ui.force = 1; frame(); ppm("drum-fill");
         check(px_count(52, 2, 70, 16, C_WHITE) > 30u, "FILL: shown inverted in the header while on");
-        key(FILL_KEY);
-        check(!fill_lat, "FILL: F#5 again: off (as a latched pad)");
-        press(B_OCTUP); key(FILL_KEY); release(B_OCTUP);
-        check(fill_lat, "FILL: OCT+ held + F#5: latched too");
-        key(FILL_KEY); check(!fill_lat, "FILL: F#5: off");
+        press(B_SEQ); frames(12); tap(B_PLAY); release(B_SEQ); frames(2);
+        check(!fill_lat && song.playing == pl, "FILL: SEQ + PLAY again: off (as a latched pad)");
     }
     {   /* a HEX kit: the same pages, the HEX machine's parameters */
         TDRUM->p[P_E0] = 0; dpg_go(1, 0); frames(2); ui.msg_t = 0; ui.force = 1; frame(); ppm("drum-hex");
@@ -1201,18 +1212,20 @@ int main(int argc, char **argv)
             mxt[0].spice = 0; mxt[0].dice = d0;
         }
         tap(B_SCL); frame();                            /* (TRIG 1/2: NOTE STEP HIT VEL) */
-        key(3);                                           /* the second black key: steps 17-32 */
-        check(ui.cursor / 16u == 1u, "GRID: black key 2: the page of steps 17-32");
+        key(3);                                           /* (wave 10: a black key turns no page: not drawn) */
+        check(ui.cursor / 16u == 0u, "GRID: black key 2 (wave 10, not drawn): no page turned");
+        press(B_OCTUP); release(B_OCTUP); frames(20);     /* (wave 10) OCT+ tapped: the next page of steps */
+        check(ui.cursor / 16u == 1u, "GRID: OCT+ tapped: the page of steps 17-32");
         ui.force = 1; frame(); ppm("grid-synth-p2");
         ui.msg_t = 0;
-        press(B_OCTUP); release(B_OCTUP);                 /* REVIEW 4: past the last page, one added (a copy) */
+        press(B_OCTUP); release(B_OCTUP); frames(20);     /* REVIEW 4: past the last page, one added (a copy) */
         check(t->p[P_SLEN] == 48 && ui.cursor / 16u == 2u && !memcmp(&t->step[36], &t->step[20], sizeof(step_t)) &&
               t->step[36].n == 3u && !strcmp(ui.msg, "48 STEPS"),
               "GRID: OCT+ on the last page: a page added, a copy of the last, shown, \"48 STEPS\"");
         ui.force = 1; frame(); ppm("grid-synth-page-add");
-        press(B_OCTUP); release(B_OCTUP);
+        press(B_OCTUP); release(B_OCTUP); frames(20);
         check(t->p[P_SLEN] == 64 && ui.cursor / 16u == 3u && !strcmp(ui.msg, "64 STEPS"), "GRID: OCT+ again: 64 STEPS");
-        press(B_OCTUP); release(B_OCTUP);
+        press(B_OCTUP); release(B_OCTUP); frames(20);
         check(t->p[P_SLEN] == 64 && ui.cursor / 16u == 0u, "GRID: OCT+ at 64 steps: round to the first page");
         t->p[P_SLEN] = 32; ui.cursor = 4; frame();
         frames(16); aud_on_left = 0; pen_n = 1; pen_note[0] = 48;
@@ -1230,8 +1243,8 @@ int main(int argc, char **argv)
         check(on_drum_page() && syn_tab == 0u && cur_cat() == CT_PATT, "GRID, SEQ on TRIG: its next category, PATTERN");
         {   int16_t sw = t->p[P_SSWING]; encs[panel.enc[EN_K3]] = 5; frame();
             check(t->p[P_SSWING] == sw + 5, "GRID, PATTERN: KNOB 3 SWING (as SEQ held)"); t->p[P_SSWING] = sw; }
-        tap(B_SEQ); frames(2);
-        check(on_drum_page() && syn_tab == 0u && syn_hcur() == 0u, "GRID, SEQ again: TRIG 1/2");
+        tap(B_SEQ); frames(2); tap(B_SEQ); frames(2);
+        check(on_drum_page() && syn_tab == 0u && syn_hcur() == 0u, "GRID, SEQ again (A-D), and again: TRIG 1/2");
         open_family(FAM_ENV); frames(2);
         tap(B_SEQ); frames(2);
         check(on_drum_page() && kb_grid && song.sel == 0u, "REVIEW 2: SEQ on a sound page (ENV): back to the GRID");
@@ -1403,18 +1416,17 @@ int main(int argc, char **argv)
             check(step_on(&st0) && note_len(t, 4) == 2u && m0 == 5 && f0 == FC_FILL && nl0 == 2u, "undo: set up: note, LEN 2, NUDGE 5, FILL, 2 locks");
             key(k5);
             check(!step_on(&t->step[4]) && !t->micro[4] && !step_fill(t, 4) && !step_locked(t, 4), "undo: the step tapped: cleared, all of it");
-            press(B_EDIT); frames((SHOW_MS + 40u) / 16u); ui.force = 1; frame();
-            check(!strcmp(sub_line(), "oct- undo"), "undo: EDIT held: the screen says \"oct- undo\"");
+            press(B_SAVE); frames((SHOW_MS + 40u) / 16u); ui.force = 1; frame();
+            check(pm_lm && str_eq(pm_lm, "UNDO") && pm_lp && str_eq(pm_lp, "REDO"), "undo (wave 10): SAVE held: the legend says - UNDO + REDO");
             ppm("layer-erase-undo");
             edges_btn |= BT(B_OCTDN); fm1_in.buttons |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
             ui.force = 1; frame();
             for (j = 0; j < NLOCK; j++) nl += t->lock[j].step == 4u;
             check(!memcmp(&t->step[4], &st0, sizeof st0) && note_len(t, 4) == 2u && t->micro[4] == m0 && step_fill(t, 4) == f0 && nl == nl0,
-                  "undo: EDIT + OCT-: the whole step back (note, LEN, locks, nudge, condition)");
-            check(!strcmp(sub_line(), "oct+ redo"), "undo: then the screen says \"oct+ redo\"");
+                  "undo: SAVE + OCT-: the whole step back (note, LEN, locks, nudge, condition)");
             edges_btn |= BT(B_OCTUP); fm1_in.buttons |= BT(B_OCTUP); frame(); fm1_in.buttons &= ~BT(B_OCTUP); frame();
-            check(!step_on(&t->step[4]) && !step_locked(t, 4) && !step_fill(t, 4), "undo: EDIT + OCT+: redo, cleared again");
-            release(B_EDIT); frames(20);                   /* (past LY_QUIET_MS) */
+            check(!step_on(&t->step[4]) && !step_locked(t, 4) && !step_fill(t, 4), "undo: SAVE + OCT+: redo, cleared again");
+            release(B_SAVE); frames(20);                   /* (past LY_QUIET_MS) */
             go_home(); frames(4);
         }
         memcpy(trk, keep, sizeof keep); dpat = keep_dp; sync_reload = 1;
@@ -1434,7 +1446,7 @@ int main(int argc, char **argv)
         for (j = 0; j < 400u && t->seq_idx % 32u < 17u; j++) frame();
         check(song.playing && t->seq_idx % 32u >= 16u && ui.cursor / 16u == 1u, "GRID, playing: the view follows the playhead onto page 2");
         ui.force = 1; frame(); ppm("grid-synth-follow");
-        key(1);                                           /* (F#3: the first black key: page 1 by hand) */
+        tap(B_OCTDN);                                     /* (wave 10: -/+, page 1 by hand) */
         frames(4);
         check(t->seq_idx % 32u >= 16u && ui.cursor / 16u == 0u, "GRID, playing: page 1 picked by hand stays while the playhead is on 2");
         for (j = 0; j < 400u && t->seq_idx % 32u >= 16u; j++) frame();
@@ -1493,11 +1505,15 @@ int main(int argc, char **argv)
               "STEP REC: a key held + SEQ: written, then a rest (wave 9: SEQ always a rest; the tie is ARP's)");
         fm1_in.notes &= ~(1u << kb); frames(2);
         check(ui.cursor == 7u && !step_on(&t->step[7]), "STEP REC: ... let go: nothing more written");
-        press(B_OCTUP); release(B_OCTUP);
-        check(song.octave == 1, "STEP REC: OCT+: the octave, as on HOME");
+        press(B_OCTUP); release(B_OCTUP); frames(20);
+        check(song.octave == 0 && ui.cursor == 8u, "STEP REC (wave 10): OCT+ tapped: the step after (the cursor on 9), no octave");
+        press(B_OCTDN); release(B_OCTDN); frames(20);
+        check(ui.cursor == 7u, "STEP REC: OCT- tapped: the step before");
+        tap(B_OCTUP); tap(B_OCTUP); frames(20);
+        check(song.octave == 1 && ui.cursor == 7u, "STEP REC: OCT+ twice quickly: the octave up, the cursor where it was");
         key(ka); frames(2);
         check(t->step[7].note[0] == na + 12u && ui.cursor == 8u, "STEP REC: ... the note an octave up on step 8");
-        press(B_OCTDN); release(B_OCTDN);
+        tap(B_OCTDN); tap(B_OCTDN); frames(20);
         encs[panel.enc[EN_K2]] = 20; frame();
         check(ui.cursor == 15u, "STEP REC: KNOB 2: the cursor (to the last step, no further)");
         key(kc); frames(2);
@@ -1520,11 +1536,11 @@ int main(int argc, char **argv)
         check(t->p[P_SLEN] == 16, "STEP REC: KNOB 4: STEPS (32 -> 16)");
         sr_vel = 100;
         ui.force = 1; frame(); ppm("grid-step-rec");
-        press(B_EDIT); press(B_OCTDN); release(B_OCTDN); release(B_EDIT); frames(2);
+        press(B_SAVE); press(B_OCTDN); release(B_OCTDN); release(B_SAVE); frames(2);
         for (j = 0; j < 32u; j++) empty &= !step_on(&t->step[j]) && t->step[j].time != ST_TIE;
-        check(empty && t->p[P_SLEN] == 16 && !strcmp(ui.msg, "UNDO"), "STEP REC: EDIT + OCT-: the whole pass undone (the empty 16 steps it started from)");
-        press(B_EDIT); press(B_OCTUP); release(B_OCTUP); release(B_EDIT); frames(2);
-        check(t->step[0].note[0] == nc && t->step[5].note[0] == nb, "STEP REC: EDIT + OCT+: redone");
+        check(empty && t->p[P_SLEN] == 16 && !strcmp(ui.msg, "UNDO"), "STEP REC: SAVE + OCT-: the whole pass undone (the empty 16 steps it started from)");
+        press(B_SAVE); press(B_OCTUP); release(B_OCTUP); release(B_SAVE); frames(2);
+        check(t->step[0].note[0] == nc && t->step[5].note[0] == nb, "STEP REC: SAVE + OCT+: redone");
         ui.msg_t = 0;
         tap(B_REC); frames(2);
         check(!sr_on && kb_grid && !song.rec && !rec_wait, "STEP REC: REC again: off, the keys are steps again");
@@ -1546,8 +1562,8 @@ int main(int argc, char **argv)
         check(!sr_on && !ly_off, "STEP REC: the GRID left: STEP REC ends");
         tap(B_SEQ); frames(2);
         press(B_REC); frames(50);
-        check(!sr_on && ui.hold_kind == 1u, "STEP REC: REC held: the clear ring, STEP REC undone");
-        release(B_REC); frames(2);
+        check(sr_on && ui.hold_kind == 0u, "STEP REC: REC held (wave 10): STEP REC as a tap, no ring");
+        release(B_REC); frames(2); tap(B_REC); frames(2);
         song.octave = 0; go_home(); frames(4);
         memcpy(trk, keep, sizeof keep); dpat = keep_dp; sync_reload = 1;
         song.sel = TRK_DRUM;
@@ -1623,8 +1639,7 @@ int main(int argc, char **argv)
         }
         {   /* every screen and layer: lit where the keys are notes, a glow under the tiles */
             static const struct { uint32_t ly; int lit; const char *name; } L[] = {
-                {LY_EDIT, 1, "EDIT erase"}, {LY_ARP, 1, "ARP roll"}, {LY_SEL, 1, "SEL key"}, {LY_SAVE, 1, "SAVE song"},
-                {LY_FX, 0, "FX punch"}, {LY_GLO, 0, "GLO mix"}};
+                {LY_SEQ, 1, "SEQ roll"}, {LY_FX, 0, "FX punch"}, {LY_GLO, 0, "GLO mix"}};
             uint32_t k, ok = 1, ly0 = ui.layer;
             char what[96];
             for (k = 0; k < sizeof L / sizeof L[0]; k++) {
@@ -1636,15 +1651,13 @@ int main(int argc, char **argv)
                 snprintf(what, sizeof what, "NOTES on, %s layer: the sounding C4 %s", L[k].name, L[k].lit ? "lit" : "glows under the tiles");
                 check(ok, what);
             }
-            ui.layer = LY_SEQ;
-            check(keys_lit() == 0u && keys_notes_dim() == 0u, "NOTES on, SEQ held: no key lit or glowing (its keys do nothing)");
-            ui.layer = LY_SEL;
-            check((keys_notes_dim() & scale_keys(0)) == scale_keys(0), "NOTES on, SEL: the scale glows");
-            lights_notes = 0;
             ui.layer = LY_EDIT;
-            check((keys_lit() >> 7 & 1u) == 0 && keys_notes_dim() == 0u, "NOTES off, EDIT erase: as before (no note lights)");
-            ui.layer = LY_SEL;
-            check(keys_notes_dim() == 0u, "NOTES off, SEL: as before");
+            check(keys_lit() == 0u && keys_notes_dim() == 0u, "NOTES on, EDIT held (wave 10: MASTER's pair only): no key lit or glowing");
+            ui.layer = LY_ARP;
+            check(keys_lit() == 0u && keys_notes_dim() == 0u, "NOTES on, ARP held (wave 10: -/+ and MASTER only): no key lit");
+            lights_notes = 0;
+            ui.layer = LY_SEQ;
+            check((keys_lit() >> 7 & 1u) == 0, "NOTES off, SEQ: as before (no note lights)");
             lights_notes = 1;
             ui.layer = (uint8_t)ly0;
         }
@@ -1954,19 +1967,18 @@ int main(int argc, char **argv)
         check((keys_lit() >> key_of_white(2)) & 1u, "grid: its key lit");
         key(key_of_white(2));
         check(!dt_mask(2), "grid: the key again clears it");
-        key(3);                                                     /* (G#3: the second black key) */
-        check(drum_cursor / 16u == 1u, "grid: the black keys pick the page of steps (17-32)");
+        key(3);                                                     /* (G#3: wave 10, not drawn: nothing) */
+        check(drum_cursor / 16u == 0u, "grid: a black key (wave 10, not drawn): no page");
+        tap(B_OCTUP); frames(20);
+        check(drum_cursor / 16u == 1u, "grid: OCT+ tapped: the page of steps (17-32)");
         key(key_of_white(0));
         check(dt_has(16, 0), "grid: ... and the white keys are its steps (step 17)");
         ui.msg_t = 0;
-        key(8);                                                     /* (C#4: the fourth: steps 49-64, none) */
-        check(drum_cursor / 16u == 1u && TDRUM->p[P_SLEN] == 32 && !strcmp(ui.msg, "ADD PAGE 3"),
-              "grid: a page two past LENGTH is not picked, and says so (\"ADD PAGE 3\")");
         dtest_set(17, 6, LV_HARD, 1); TDRUM->micro[17] = 3;
-        key(5);                                                     /* (A#3: the third: the slot after the last) */
+        tap(B_OCTUP); frames(20);                                   /* (OCT+ on the last page: a page added) */
         check(drum_cursor / 16u == 2u && TDRUM->p[P_SLEN] == 48 && dt_has(33, 6) &&
               dtest_lvl(33, 6) == LV_HARD && TDRUM->micro[33] == 3 && dt_has(32, 0),
-              "grid: the page key after the last: a page added, a copy of the last (hits, levels, nudges)");
+              "grid: OCT+ on the last page: a page added, a copy of the last (hits, levels, nudges)");
         ui.force = 1; frame(); ppm("grid-drum-page-add");
         dtest_clear(17); TDRUM->micro[17] = 0; TDRUM->micro[33] = 0;
         TDRUM->p[P_SLEN] = 32; drum_cursor = 16; frame();
@@ -2010,10 +2022,10 @@ int main(int argc, char **argv)
             fm1_in.notes &= ~(1u << key_of_white(14)); frame();
             check(stl_lit(14) && stl_code(14) == 2u && stl_code(13) == 0u, "STUTTER: hold step 15 + KNOB 1: that step 1/16, the others kept");
             check(stl_new == 0u, "STUTTER: ... the length for new steps unchanged");
-            press(B_EDIT); press(B_OCTDN); release(B_OCTDN); release(B_EDIT); frames(2);
-            check(stl_code(14) == 0u, "STUTTER: EDIT + OCT-: undo (step 15 back to 1/4)");
-            press(B_EDIT); press(B_OCTUP); release(B_OCTUP); release(B_EDIT); frames(2);
-            check(stl_code(14) == 2u, "STUTTER: EDIT + OCT+: redo");
+            press(B_SAVE); press(B_OCTDN); release(B_OCTDN); release(B_SAVE); frames(2);
+            check(stl_code(14) == 0u, "STUTTER: SAVE + OCT-: undo (step 15 back to 1/4)");
+            press(B_SAVE); press(B_OCTUP); release(B_OCTUP); release(B_SAVE); frames(2);
+            check(stl_code(14) == 2u, "STUTTER: SAVE + OCT+: redo");
             {   /* (PHEBUS, picker "Replay the steps") six lengths, KNOB 1 right shorter, left longer: 1/1 1/2 1/4 1/8 1/16 1/32 */
                 static const char *const ORD[6] = {"1/1", "1/2", "1/4", "1/8", "1/16", "1/32"};
                 uint32_t q, ok = 1;
@@ -2035,8 +2047,10 @@ int main(int argc, char **argv)
             j = (uint32_t)TDRUM->p[P_SLEN];
             for (i = 0; i < 64u && stl.len < 32u; i++) { encs[panel.enc[EN_K4]] = 1; frame(); }
             check(stl.len == 32u && TDRUM->p[P_SLEN] == (int16_t)j, "STUTTER: KNOB 4: its own length, 32 steps (the drums keep theirs)");
-            key(3);                                      /* (A3, the second black key: steps 17-32) */
-            check(stl_pg == 1u, "STUTTER: black key 2: steps 17-32");
+            key(3);                                      /* (wave 10: a black key, not drawn: nothing) */
+            check(stl_pg == 0u, "STUTTER: a black key (not drawn): no page");
+            tap(B_OCTUP); frames(20);
+            check(stl_pg == 1u, "STUTTER: OCT+ tapped: steps 17-32");
             encs[panel.enc[EN_K1]] = 1; frame();         /* (1/8) */
             key(kw12);
             check(stl_lit(28) && stl_code(28) == 1u, "STUTTER: on page 2 the keys are steps 17-32 (step 29 lit, 1/8)");
@@ -2077,14 +2091,15 @@ int main(int argc, char **argv)
         memset(pad_lit, 0, sizeof pad_lit);
         press(B_SEQ); frames(3);
         encs[panel.enc[EN_K1]] = 2; frames(2);
-        check(!pad_lit[2] && !pad_lit[1], "SEQ layer, drum track: KNOB 1 does nothing (no sound picked or played)");
+        check(!pad_lit[2] && !pad_lit[1], "SEQ layer, drum track: KNOB 1 (the RETRIG rate) picks or plays no sound");
         release(B_SEQ); frames(2);
+        drt_live = 10;
         song.sel = 1; go_home(); frame();
         trk[1].p[P_SDIV] = 5;
-        press(B_SEQ); frames(3);
+        tap(B_SEQ); tap(B_SEQ); frames(16);              /* (wave 10: DIV on SEQ's PATTERN page, not the hold) */
         for (i = 0; i < 5u; i++) { encs[panel.enc[EN_K2]] = 1; frame(); }
-        check(trk[1].p[P_SDIV] == (int16_t)(NDIV_STEP - 1u), "SEQ layer: KNOB 2 DIV goes on to 1/2, 1BAR, 2BAR");
-        release(B_SEQ); frames(2);
+        check(trk[1].p[P_SDIV] == (int16_t)(NDIV_STEP - 1u), "SEQ > PATTERN: KNOB 2 DIV goes on to 1/2, 1BAR, 2BAR");
+        go_home(); frames(2);
         trk[1].p[P_SDIV] = 2; TDRUM->p[P_SLEN] = 16; dpat_clear(&dpat);
         song.sel = 0; go_home(); frame();
     }
@@ -2219,11 +2234,11 @@ int main(int argc, char **argv)
               trk[0].step[5].note[0] == 64u, "LEN shorter over a TIE holding a note: a REST, the note kept (as TIME)");
         fm1_in.notes = 0; frames(2);
         go_home(); frames(16);
-        press(B_EDIT); frames(10);
+        press(B_SAVE); frames(10);
         edges_btn |= BT(B_OCTDN); fm1_in.buttons |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
-        release(B_EDIT); frames(16);
+        release(B_SAVE); frames(16);
         check(note_len(&trk[0], 4) == 1u && trk[0].step[5].n == 0u && trk[0].step[4].n == 1u,
-              "EDIT + OCT-: the LEN turns of that hold undone at once (the steps as before the step was held)");
+              "SAVE + OCT-: the LEN turns of that hold undone at once (the steps as before the step was held)");
         {   /* 2.6: a MIDI keyboard's notes (CH 1 = track 1, selected) set the GRID's pen, the chord held together; a
              * note for another track while recording says which track it plays */
             #define MIN(c, n, v) (midi_in_q[mi_w++ % MQ] = ((v) ? 0x09u | (0x90u | (c)) << 8 : 0x08u | (0x80u | (c)) << 8) | \
@@ -2299,11 +2314,14 @@ int main(int argc, char **argv)
         song.sel = TRK_DRUM; go_home(); frames(16);
         dtest_set(0, 0, LV_NORM, 0);
         press(B_EDIT); frames(10);
-        key(1);                                           /* a black key: (wave 9) nothing: the mutes are the mixer's */
-        check(er_mute == 0u && drum_mute == 0u && dt_has(0, 0), "EDIT + a black key (drum track): nothing (wave 9: no MUTE mode; the mixer mutes)");
-        key(0);                                           /* the kick's key: erased, as ever */
-        check(!dt_has(0, 0) && drum_mute == 0u, "EDIT + the kick's key: its steps erased (not muted)");
+        key(1);                                           /* a black key: nothing */
+        key(0);                                           /* (wave 10) EDIT erases nothing */
+        check(er_mute == 0u && drum_mute == 0u && dt_has(0, 0), "EDIT + a key (drum track, wave 10): nothing erased or muted");
         release(B_EDIT); frames(2);
+        fm1_in.notes |= 1u << 0; frames(2);              /* the kick's key held + OCT-: erased */
+        edges_btn |= BT(B_OCTDN); fm1_in.buttons |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
+        fm1_in.notes &= ~(1u << 0); frames(2);
+        check(!dt_has(0, 0) && drum_mute == 0u, "the kick's key held + OCT-: its steps erased (not muted)");
         drum_mute = 0;
         dtest_clear(0);
         drum_open(FAM_EDIT); dpg_go(DPG_FX, 1); frame();   /* (wave 8: the drum voice's own pages, its drum screen's FX tab) */
@@ -2507,19 +2525,19 @@ int main(int argc, char **argv)
         fm1_in.notes &= ~(1u << key_of_white(9)); frame();
         check(!stl.ev[1].fx && !stl.ev[3].fx && stl.ev[0].fx && stl.ev[2].fx, "STUTTER lane: step 10 held + OCT-: the pads over it erased (LP, GATE), the rest kept");
         check(!stl_lit(9), "STUTTER lane: ... and step 10, lit by that press, unlit again (the press was for the pads)");
-        press(B_EDIT); press(B_OCTDN); release(B_OCTDN); release(B_EDIT); frames(2);
-        check(stl.ev[1].fx && stl.ev[3].fx, "STUTTER lane: EDIT + OCT-: the erase undone");
+        press(B_SAVE); press(B_OCTDN); release(B_OCTDN); release(B_SAVE); frames(2);
+        check(stl.ev[1].fx && stl.ev[3].fx, "STUTTER lane: SAVE + OCT-: the erase undone");
         frames(20);                                      /* (the knobs quiet a moment after a layer, #39) */
         encs[panel.enc[EN_K3]] = 1; frame();
-        check(stl.ev[0].fx && !strcmp(ui.msg, "HOLD REC: CLEAR PADS"), "STUTTER lane: KNOB 3 turned: it asks (HOLD REC: CLEAR PADS)");
+        check(stl.ev[0].fx && !strcmp(ui.msg, "HOLD SAVE: CLEAR PADS"), "STUTTER lane: KNOB 3 turned: it asks (HOLD SAVE: CLEAR PADS)");
         frames(20); encs[panel.enc[EN_K3]] = 1; frame();
         check(stl.ev[0].fx, "STUTTER lane: KNOB 3 again (wave 8: no second turn): nothing cleared");
         ui.force = 1; frame(); ppm("stut-ask");
         {
             uint32_t n = 0, r0 = song.rec;
-            press(B_REC); frames(90); release(B_REC);
+            press(B_SAVE); frames(90); release(B_SAVE);
             for (k = 0; k < PEV_N; k++) n += stl.ev[k].fx != 0u;
-            check(n == 0u && stl_lit(12) && song.rec == r0, "STUTTER lane: REC held until the ring fills: every recorded pad cleared, the lit steps kept");
+            check(n == 0u && stl_lit(12) && song.rec == r0, "STUTTER lane: SAVE held until the ring fills: every recorded pad cleared, the lit steps kept");
         }
         memset(&stl, 0, sizeof stl); stl.len = 16; stl.act = 1;
         stl_view = 0;
@@ -3024,8 +3042,8 @@ int main(int argc, char **argv)
         /* THE CONFIRM on every screen that asks: one turn asks (HOLD REC: ...), a second turn does nothing, REC tapped drops the
          * question (nothing recorded), REC held until the ring fills does it */
         static const struct { const char *page; uint8_t knob; const char *q; } AK[] = {
-            {"USER", 1, "HOLD REC: LOAD 1"}, {"USER", 2, "HOLD REC: ERASE 1"}, {"USER", 3, "HOLD REC: SAVE 1"},
-            {"TOOLS", 0, "HOLD REC: CLRSQ"}, {"TOOLS", 1, "HOLD REC: INIT"}, {"TOOLS", 3, "HOLD REC: NEW"}};
+            {"USER", 1, "HOLD SAVE: LOAD 1"}, {"USER", 2, "HOLD SAVE: ERASE 1"}, {"USER", 3, "HOLD SAVE: SAVE 1"},
+            {"TOOLS", 0, "HOLD SAVE: CLRSQ"}, {"TOOLS", 1, "HOLD SAVE: INIT"}, {"TOOLS", 3, "HOLD SAVE: NEW"}};
         song.playing = 0; song.sel = 0; ui.uslot = 0;
         for (k = 0, ok = 1; k < NELEM(AK); k++) {
             uint32_t pg, before;
@@ -3039,15 +3057,15 @@ int main(int argc, char **argv)
             if (strcmp(ui.msg, AK[k].q)) printf("ui:   asked \"%s\", want \"%s\"\n", ui.msg, AK[k].q);
             frames(10); encs[panel.enc[EN_K1 + AK[k].knob]] = 1; frame();      /* a second turn: nothing */
             ok &= up_ops[0] + up_ops[1] + up_ops[2] + (uint32_t)step_on(&trk[0].step[2]) * 1000u + trk[0].preset * 7u == before;
-            tap(B_REC); frames(2);                                            /* tapped: no, and no recording */
-            ok &= !ui.ask && !song.rec && !rec_wait;
+            tap(B_SAVE); frames(2);                                           /* tapped: no (wave 10: SAVE is the confirm) */
+            ok &= !ui.ask && !song.rec && !rec_wait && cur_page() == &PAGES[pg];
             encs[panel.enc[EN_K1 + AK[k].knob]] = 1; frame();
             if (k == 0u) { ui.force = 1; frame(); ppm("page-user-ask"); }
-            press(B_REC); frames(90); release(B_REC); frames(2);              /* held, the ring full: done */
+            press(B_SAVE); frames(90); release(B_SAVE); frames(2);            /* held, the ring full: done */
             ok &= !ui.ask && !song.rec && !rec_wait;
         }
         check(ok && up_ops[0] == 1u && up_ops[1] == 1u && up_ops[2] == 1u,
-              "confirm: USER LOAD / ERASE / SAVE and TOOLS CLRSQ / INIT / NEW ask, a second turn nothing, REC tap no, REC held yes");
+              "confirm: USER LOAD / ERASE / SAVE and TOOLS CLRSQ / INIT / NEW ask, a second turn nothing, SAVE tap no, SAVE held yes");
         check(!step_on(&trk[0].step[2]), "confirm: TOOLS CLRSQ, confirmed: the pattern cleared");
         /* no action is reached by a second press: a GO turned twice in a row, quickly, does nothing */
         {
@@ -3114,10 +3132,10 @@ int main(int argc, char **argv)
         /* the PATTERN page (a leftover since wave 4, unreachable) is gone; STEPS is hold SEQ's; EDIT's length knob is DOUBLE */
         for (j = 0, ok = 1; j < NPAGES; j++) ok &= strcmp(PAGES[j].title, "PATTERN") != 0 && PAGES[j].fam != FAM_SEQ;
         check(ok, "the leftover PATTERN page is gone (the pattern's settings: hold SEQ, GATE DIV SWING STEPS)");
-        go_home(); frames(16); press(B_EDIT); frames(12); ui.force = 1; frame();
-        check(px_count(62, OP_KNOB_Y, 58, 18, TE_COL[0]) == 0u && px_count(2, OP_KNOB_Y, 58, 18, TE_COL[0]) > 10u,
-              "EDIT held: KNOB 1 SHIFT, KNOB 2 empty (wave 9: DOUBLE gone, SEQ + OCT- / OCT+ halve and clone)");
-        release(B_EDIT); frames(16);
+        go_home(); frames(16); press(B_SEQ); frames(12); ui.force = 1; frame();
+        check(px_count(2, OP_KNOB_Y, 58, 18, TE_COL[0]) > 10u && px_count(62, OP_KNOB_Y, 58, 18, TE_COL[0]) > 10u,
+              "SEQ held (wave 10): KNOB 1 RATE, KNOB 2 SHIFT (it was EDIT held's)");
+        release(B_SEQ); frames(16);
         /* HOME: the screensaver's way written on it: a ">" after the FLOW band */
         go_home(); ui.force = 1; frame();
         check(px_count(HB_X + HB_W, OP_BODY_Y, 12, 16, TE_G3) > 6u, "HOME: a \">\" after the FLOW band (SELECT right: the screensaver)");
@@ -3294,16 +3312,16 @@ int main(int argc, char **argv)
             check(t->p[P_SLEN] == 32 && step_on(&t->step[18]) && t->step[18].note[0] == 60 && lock_find(t, 18, P_FCUT, 0) >= 0 &&
                   t->micro[18] == 4 && step_fill(t, 18) == FC_FILL, "SEQ + OCT+: doubled as a clone (the note, its lock, nudge, condition on 19)");
             press(B_OCTDN); release(B_OCTDN);
-            check(t->p[P_SLEN] == 32 && ui.ask == ASK_HALVE && str_eq(ui.msg, "HOLD REC: HALVE TO 16"),
-                  "SEQ + OCT-: the second half holds steps: it asks (HOLD REC: HALVE TO 16), nothing dropped yet");
-            press(B_REC); frames(110); release(B_REC); frames(2);
+            check(t->p[P_SLEN] == 32 && ui.ask == ASK_HALVE && str_eq(ui.msg, "HOLD SAVE: HALVE TO 16"),
+                  "SEQ + OCT-: the second half holds steps: it asks (HOLD SAVE: HALVE TO 16), nothing dropped yet");
+            press(B_SAVE); frames(110); release(B_SAVE); frames(2);
             check(t->p[P_SLEN] == 16 && !step_on(&t->step[18]) && lock_find(t, 18, P_FCUT, 0) < 0 && !t->micro[18] && step_on(&t->step[2]),
-                  "... SEQ kept held, REC held until the ring fills: halved, the second half dropped, the first kept");
+                  "... SEQ kept held, SAVE held until the ring fills: halved, the second half dropped, the first kept");
             press(B_OCTDN); release(B_OCTDN);
             check(t->p[P_SLEN] == 8 && !ui.ask, "SEQ + OCT- again (steps 9-16 empty): halved at once, nothing to ask");
             release(B_SEQ); frames(2);
-            press(B_EDIT); press(B_OCTDN); release(B_OCTDN); release(B_EDIT); frames(2);
-            check(t->p[P_SLEN] == 16, "EDIT + OCT-: undo brings the length back");
+            press(B_SAVE); press(B_OCTDN); release(B_OCTDN); release(B_SAVE); frames(2);
+            check(t->p[P_SLEN] == 16, "SAVE + OCT-: undo brings the length back");
             t->p[P_SLEN] = 64; press(B_SEQ); frames(10); press(B_OCTUP); release(B_OCTUP);
             check(t->p[P_SLEN] == 64 && str_eq(ui.msg, "64 STEPS: FULL"), "SEQ + OCT+ at 64 steps: nothing (64 STEPS: FULL)");
             release(B_SEQ); frames(2);
@@ -3387,6 +3405,497 @@ int main(int argc, char **argv)
             }
             check(h[0] == h[1], "no sound changes: FILT TYPE, LFO WAVE, FX 1 TYPE (SELECT), SWING (PATTERN), ROOT (KEY), SEQ + OCT+ = the same audio as written straight");
         }
+    }
+    {   /* ==== (wave 10, Ben 23 Nov 2026, 09:08 and 09:20: "every control has ONE idea") ==== */
+        track_t *t = &trk[0];
+        uint32_t k, n0, i;
+        int8_t o0;
+        #define PMT(b) do { tap(b); frames(20); } while (0)     /* a single tap of -/+, then past the double tap's window */
+        #define DTAP(b) do { tap(b); tap(b); frames(20); } while (0)
+        ly_lock = LY_PLAY; song.playing = 0; transport_req = 2; ui.ask = 0; ui.msg_t = 0; frames(2);
+        track_select(0); go_home(); frames(2);
+        /* -- 1. OCT- / OCT+: a single tap is the screen's minus / plus, never the octave; a double tap the octave -- */
+        steps_clear(t); t->p[P_SLEN] = 32;
+        for (k = 0; k < 32u; k += 4u) { t->step[k].n = 1; t->step[k].note[0] = 60; t->step[k].time = ST_NOTE; t->step[k].vel = 100; }
+        song.octave = 0; o0 = song.octave;
+        tap(B_SEQ); frames(2);
+        check(on_drum_page() && !is_drum(TSEL) && sg_page() == 0u, "w10: SEQ: the GRID, steps 1-16");
+        ui.force = 1; frame();
+        check(pm_shown_m && str_eq(pm_shown_m, "STEPS") && pm_shown_p && str_eq(pm_shown_p, "STEPS"),
+              "w10: GRID: the -/+ legend says STEPS (the pages of steps)");
+        ppm("w10-grid-legend");
+        PMT(B_OCTUP);
+        check(sg_page() == 1u && song.octave == o0, "w10: GRID: OCT+ tapped once: the next page of steps, the octave unchanged");
+        PMT(B_OCTDN);
+        check(sg_page() == 0u && song.octave == o0, "w10: GRID: OCT- tapped once: the page before, the octave unchanged");
+        DTAP(B_OCTUP);
+        check(sg_page() == 0u && song.octave == o0 + 1 && t->p[P_SLEN] == 32, "w10: GRID: OCT+ twice quickly: the octave up, the first tap's page taken back");
+        DTAP(B_OCTDN);
+        check(song.octave == o0 && sg_page() == 0u, "w10: GRID: OCT- twice quickly: the octave down again, the page as it was");
+        PMT(B_OCTUP); PMT(B_OCTUP);
+        check(t->p[P_SLEN] == 48 && song.octave == o0, "w10: GRID: OCT+ on the last page: a page added (as before), no octave");
+        t->p[P_SLEN] = 32; sg_cur_set(0); frames(2);
+        /* a sound page: nothing touched, nothing done and no legend; then the touched knob, finely */
+        tap(B_EDIT); frames(2); go_home(); frames(2);
+        tap(B_EDIT); frames(2); tap(B_EDIT); frames(2);
+        check(!on_drum_page() && cur_page()->cat == CT_FILT, "w10: EDIT twice: FILT");
+        ui.force = 1; frame();
+        check(!pm_shown_m && !pm_shown_p, "w10: FILT, nothing touched yet: no -/+ legend");
+        n0 = (uint32_t)t->p[P_FRES];
+        PMT(B_OCTUP);
+        check(t->p[P_FRES] == (int16_t)n0 && song.octave == o0, "w10: FILT, nothing touched: OCT+ does nothing (not the octave)");
+        encs[panel.enc[EN_K2]] = 1; frame(); frames(10);
+        n0 = (uint32_t)t->p[P_FRES];
+        ui.force = 1; frame();
+        check(pm_shown_m && str_eq(pm_shown_m, "RESO"), "w10: FILT, RESO turned: the legend says RESO");
+        ppm("w10-page-legend");
+        PMT(B_OCTUP);
+        check(t->p[P_FRES] == (int16_t)n0 + 1 && song.octave == o0, "w10: FILT: OCT+ RESO one fine step up");
+        PMT(B_OCTDN);
+        check(t->p[P_FRES] == (int16_t)n0, "w10: FILT: OCT- RESO one fine step down");
+        DTAP(B_OCTDN);
+        check(t->p[P_FRES] == (int16_t)n0 && song.octave == o0 - 1, "w10: FILT: OCT- twice quickly: the octave down, RESO as it was");
+        DTAP(B_OCTUP);
+        check(song.octave == o0, "w10: ... OCT+ twice quickly: the octave back");
+        {   /* GLO > GLOBAL: BPM, the tempo a beat at a time */
+            int16_t b0;
+            tap(B_GLO); frames(2);
+            encs[panel.enc[EN_K1]] = 1; frame(); frames(10);
+            b0 = song.g[G_BPM];
+            PMT(B_OCTUP);
+            check(song.g[G_BPM] == b0 + 1, "w10: GLO > GLOBAL, BPM touched: OCT+ the tempo up one");
+            PMT(B_OCTDN);
+            check(song.g[G_BPM] == b0, "w10: ... OCT- down one");
+        }
+        {   /* SAVE > PRESETS: the sound before / after */
+            uint32_t tot, p0;
+            go_home(); tap(B_SAVE); frames(2);
+            ui.force = 1; frame();
+            check(cur_page()->graph == GR_BROWSE && pm_shown_m && str_eq(pm_shown_m, "SOUND"), "w10: SAVE > PRESETS: the legend says SOUND");
+            p0 = preset_pos(&tot);
+            PMT(B_OCTUP);
+            check(preset_pos(&tot) == (p0 + 1u) % tot && song.octave == o0, "w10: SAVE > PRESETS: OCT+ the next sound");
+            PMT(B_OCTDN);
+            check(preset_pos(&tot) == p0, "w10: ... OCT- the one before");
+        }
+        go_home(); frames(2);
+        {
+            const char *m, *p;
+            pm_words(&m, &p);
+            check(!m && !p, "w10: HOME: no -/+ legend (nothing to do)");
+        }
+        {   /* SEQ's third category, A-D: the patterns; -/+ the one before / after */
+            uint32_t l0 = sec_loads;
+            tap(B_SEQ); frames(2); tap(B_SEQ); frames(2); tap(B_SEQ); frames(2);
+            {
+                uint32_t kk, nn;
+                check(nav_cat(&kk, &nn) == CT_PATTS, "w10: SEQ three times: A-D, the patterns (a SEQ category)");
+            }
+            ui.force = 1; frame();
+            check(pm_shown_m && str_eq(pm_shown_m, "PATT"), "w10: A-D: the legend says PATT");
+            ppm("w10-seq-patterns");
+            live_sec = 0;
+            PMT(B_OCTUP);
+            check(sec_loads == l0 + 1u && live_sec == 1, "w10: A-D, stopped: OCT+ loads B");
+            encs[panel.enc[EN_K1]] = -1; frame(); frames(4);
+            check(live_sec == 0, "w10: A-D: KNOB 1 back to A");
+        }
+        go_home(); frames(2);
+        /* -- 2. MINUS REMOVES -- */
+        {   /* a GRID step held + OCT- (TRIG): the step itself goes */
+            tap(B_SEQ); frames(2);
+            fm1_in.notes |= 1u << key_of_white(4); frame(); frames(2);
+            tap(B_OCTDN);
+            fm1_in.notes &= ~(1u << key_of_white(4)); frames(22);
+            check(!step_on(&t->step[4]) && song.octave == o0, "w10: GRID, TRIG: a step held + OCT-: its note erased (no octave)");
+        }
+        go_home(); frames(2);
+        {   /* a key held + OCT- (a synth voice, stopped): that note goes from every step */
+            uint32_t kk = key_of_white(4), note = kb_map(t, kk), j, left = 0;
+            steps_clear(t); t->p[P_SLEN] = 16;
+            for (j = 0; j < 16u; j += 2u) { t->step[j].n = 1; t->step[j].note[0] = (uint8_t)note; t->step[j].time = ST_NOTE; t->step[j].vel = 100; }
+            t->step[1].n = 1; t->step[1].note[0] = (uint8_t)(note + 2u); t->step[1].time = ST_NOTE;
+            fm1_in.notes |= 1u << kk; frames(2);
+            tap(B_OCTDN);
+            fm1_in.notes &= ~(1u << kk); frames(22);
+            for (j = 0; j < 16u; j += 2u) left += step_on(&t->step[j]);
+            check(!left && step_on(&t->step[1]) && song.octave == o0, "w10: a key held + OCT-: its note erased from the pattern, another note kept, no octave");
+            press(B_SAVE); tap(B_OCTDN); release(B_SAVE); frames(2);
+            check(step_on(&t->step[0]), "w10: SAVE + OCT-: the erase undone");
+        }
+        {   /* the drums: a sound's key held + OCT-: its hits go (OCT- first, then the key: a ghost hit, as ever) */
+            uint32_t j, left = 0;
+            track_select(TRK_DRUM); go_home(); frames(2);
+            steps_clear(TDRUM); TDRUM->p[P_SLEN] = 16;
+            for (j = 0; j < 16u; j += 4u) { dtest_set(j, 0, LV_NORM, 0); dtest_set(j, 2, LV_NORM, 0); }
+            fm1_in.notes |= 1u << key_of_white(0); frames(2);
+            tap(B_OCTDN);
+            fm1_in.notes &= ~(1u << key_of_white(0)); frames(22);
+            for (j = 0; j < 16u; j++) left += dt_has(j, 0);
+            check(!left && dt_has(0, 2), "w10: drums: the kick's key held + OCT-: every kick erased, the snares kept");
+            track_select(0); go_home(); frames(2);
+        }
+        {   /* PERFORM: a latched pad held + OCT-: its latch only */
+            press(B_FX); frames(12);
+            press(B_OCTUP); key(key_of_white(2)); key(key_of_white(3)); release(B_OCTUP); frames(2);
+            check((perf.lat >> 2) & (perf.lat >> 3) & 1u, "w10: PERFORM: OCT+ held + two pads: both latched");
+            ui.force = 1; frame(); ppm("w10-perform");
+            tap(B_OCTDN);
+            check(!perf.lat, "w10: PERFORM: OCT- with no pad held: every latch off");
+            release(B_FX); frames(4);
+        }
+        {   /* EDIT + OCT-: the whole voice, after the confirm (hold SAVE); EDIT held erases nothing */
+            uint32_t j, on = 0;
+            steps_clear(t); t->p[P_SLEN] = 16;
+            for (j = 0; j < 16u; j += 2u) { t->step[j].n = 1; t->step[j].note[0] = 60; t->step[j].time = ST_NOTE; t->step[j].vel = 100; }
+            press(B_EDIT); frames(12);
+            ui.force = 1; frame(); ppm("w10-hold-edit");
+            check(pm_lm && str_eq(pm_lm, "CLEAR") && !pm_lp, "w10: EDIT held: the legend says - CLEAR");
+            key(key_of_white(7)); frames(2);
+            for (j = 0; j < 16u; j += 2u) on += step_on(&t->step[j]);
+            check(on == 8u, "w10: EDIT held + a key: nothing erased (EDIT erases nothing now)");
+            tap(B_OCTDN); release(B_EDIT); frames(2);
+            check(ui.ask == ASK_CLEAR && !strncmp(ui.msg, "HOLD SAVE: CLEAR VOICE 1", 24), "w10: EDIT + OCT-: it asks (HOLD SAVE: CLEAR VOICE 1)");
+            check(step_on(&t->step[0]), "w10: ... nothing cleared yet; the question stays after EDIT is let go");
+            ui.force = 1; frame(); ppm("w10-ask-clear");
+            press(B_SAVE); frames(30);
+            ui.force = 1; frame(); ppm("w10-confirm-ring");
+            check(ui.hold_kind == 3u, "w10: SAVE held with the question: the ring");
+            frames(70); release(B_SAVE); frames(2);
+            check(!step_on(&t->step[0]) && !ui.ask, "w10: SAVE held until the ring fills: the voice cleared");
+            press(B_SAVE); tap(B_OCTDN); release(B_SAVE); frames(2);
+            check(step_on(&t->step[0]), "w10: SAVE + OCT-: undo (the voice back)");
+            press(B_SAVE); tap(B_OCTUP); release(B_SAVE); frames(2);
+            check(!step_on(&t->step[0]), "w10: SAVE + OCT+: redo (cleared again)");
+            press(B_SAVE); tap(B_OCTDN); release(B_SAVE); frames(2);
+        }
+        {   /* REC only records: held, it clears nothing and confirms nothing */
+            uint32_t r0 = song.rec;
+            press(B_REC); frames(160); release(B_REC); frames(2);
+            check(step_on(&t->step[0]), "w10: REC held 2.5 s: nothing cleared");
+            if (song.rec != r0 || rec_wait) { tap(B_REC); frames(2); }
+            if (sr_on) { tap(B_REC); frames(2); }
+            go_home(); frames(2);
+            press(B_EDIT); tap(B_OCTDN); release(B_EDIT); frames(2);
+            check(ui.ask == ASK_CLEAR, "w10: (asked again)");
+            press(B_REC); frames(120); release(B_REC); frames(2);
+            check(!ui.ask && step_on(&t->step[0]), "w10: REC held with a question: no confirm (the question goes, nothing cleared)");
+            if (song.rec || rec_wait) { tap(B_REC); frames(2); }
+            if (sr_on) { tap(B_REC); frames(2); }
+            go_home(); frames(2);
+        }
+        {   /* the confirm is SAVE's everywhere: TOOLS NEW asks HOLD SAVE */
+            tap(B_SAVE); tap(B_SAVE); tap(B_SAVE); frames(2);
+            check(cur_page()->cat == CT_TOOLS, "w10: SAVE three times: TOOLS");
+            encs[panel.enc[EN_K4]] = 1; frame();
+            check(ui.ask == ASK_GO && !strncmp(ui.msg, "HOLD SAVE: NEW", 14), "w10: TOOLS NEW asks HOLD SAVE: NEW");
+            tap(B_SAVE); frames(2);
+            check(!ui.ask, "w10: SAVE tapped: no (the question goes)");
+            go_home(); frames(2);
+        }
+        {   /* storing stays SAVE's: hold SAVE + key 2 (B, used): asks, the ring at once as SAVE is held */
+            uint32_t st = sec_stores;
+            press(B_SAVE); frames(12);
+            ui.force = 1; frame(); ppm("w10-hold-save");
+            check(pm_lm && str_eq(pm_lm, "UNDO") && pm_lp && str_eq(pm_lp, "REDO"), "w10: SAVE held: the legend says - UNDO + REDO");
+            key(key_of_white(1)); frames(90);
+            check(sec_stores == st + 1u, "w10: SAVE held + key 2: B (used) stored once the ring filled, SAVE kept held");
+            release(B_SAVE); frames(2);
+            press(B_SAVE); frames(12); key(key_of_white(2)); release(B_SAVE); frames(2);
+            check(sec_stores == st + 2u, "w10: SAVE held + key 3: an empty C stored at once");
+        }
+        /* -- 4. SEQ is RHYTHM -- */
+        {
+            uint32_t l0 = sec_loads, r;
+            int ro = 0;
+            press(B_SEQ); frames(12);
+            ui.force = 1; frame(); ppm("w10-hold-seq");
+            check(bk_shown == 0x1Fu, "w10: SEQ held: the strip draws A B C D BAR on the black keys");
+            check(pm_lm && str_eq(pm_lm, "HALVE") && pm_lp && str_eq(pm_lp, "DOUBLE"), "w10: SEQ held: the legend says - HALVE + DOUBLE");
+            check(hdr_mchip == 0 && px_count(52, 2, 70, 16, TE_COL[0]) > 20u, "w10: SEQ held: MASTER's chip in the header (SWING, the voice's colour)");
+            key(PUNCH_BLACK[1]); frames(2);
+            check(sec_loads == l0 + 1u && live_sec == 1, "w10: SEQ held + black key 2 (G#3): pattern B (stopped: loaded)");
+            fm1_in.notes |= 1u << key_of_white(5); frames(3);
+            for (r = 0; r < NROLL; r++) ro |= roll[r].on;
+            fm1_in.notes &= ~(1u << key_of_white(5)); frames(2);
+            check(ro, "w10: SEQ held + a white key: it rolls (ROLL is SEQ's)");
+            {
+                uint32_t pl = song.playing;
+                fm1_in.buttons |= BT(B_PLAY); edges_btn |= BT(B_PLAY); frames(3);
+                check(fill_held && song.playing == pl, "w10: SEQ held + PLAY held: FILL, the transport untouched");
+                tap(B_OCTUP);
+                fm1_in.buttons &= ~BT(B_PLAY); frames(3);
+                check(fill_lat && !fill_held, "w10: SEQ + PLAY + OCT+: the FILL latched");
+                fm1_in.buttons |= BT(B_PLAY); edges_btn |= BT(B_PLAY); frames(2); fm1_in.buttons &= ~BT(B_PLAY); frames(2);
+                check(!fill_lat && song.playing == pl, "w10: SEQ + PLAY again: the latched FILL off");
+            }
+            release(B_SEQ); frames(4);
+            press(B_ARP); frames(12);
+            fm1_in.notes |= 1u << key_of_white(5); frames(3);
+            ro = 0;
+            for (r = 0; r < NROLL; r++) ro |= roll[r].on;
+            fm1_in.notes &= ~(1u << key_of_white(5)); frames(2);
+            check(!ro, "w10: ARP held + a key: no roll (nothing rhythmic on ARP)");
+            release(B_ARP); frames(4);
+        }
+        {   /* the drums: SEQ held + a key RETRIGs; the black keys are the patterns, not rates */
+            int ro = 0;
+            uint32_t r, d0;
+            track_select(TRK_DRUM); go_home(); frames(2);
+            d0 = drt_live;
+            press(B_SEQ); frames(12);
+            fm1_in.notes |= 1u << key_of_white(0); frames(3);
+            for (r = 0; r < NROLL; r++) ro |= roll[r].on;
+            fm1_in.notes &= ~(1u << key_of_white(0)); frames(2);
+            key(PUNCH_BLACK[2]); frames(2);
+            check(ro && drt_live == d0, "w10: drums: SEQ held + a key: RETRIG; a black key no rate (it is a pattern)");
+            encs[panel.enc[EN_K1]] = 1; frame();
+            check(drt_live == d0 + 1u, "w10: drums: SEQ held + KNOB 1: the RETRIG rate");
+            release(B_SEQ); frames(4);
+            track_select(0); go_home(); frames(2);
+        }
+        /* -- 5. ARP is NOTES: + OCT- / OCT+ the pattern a semitone -- */
+        {
+            uint32_t j;
+            steps_clear(t); t->p[P_SLEN] = 16;
+            t->step[0].n = 1; t->step[0].note[0] = 60; t->step[0].time = ST_NOTE; t->step[0].vel = 100;
+            press(B_ARP); frames(12);
+            ui.force = 1; frame(); ppm("w10-hold-arp");
+            check(pm_lm && str_eq(pm_lm, "SEMITONE") && pm_lp && str_eq(pm_lp, "SEMITONE"), "w10: ARP held: the legend says - SEMITONE +");
+            tap(B_OCTUP); tap(B_OCTUP);
+            release(B_ARP); frames(2);
+            check(t->step[0].note[0] == 62 && song.octave == o0, "w10: ARP + OCT+ twice (a double tap there is two semitones): the pattern +2, no octave");
+            press(B_ARP); tap(B_OCTDN); release(B_ARP); frames(2);
+            check(t->step[0].note[0] == 61, "w10: ARP + OCT-: a semitone down");
+            for (j = 0; j < 1u; j++) (void)j;
+        }
+        /* -- 6. GLO: MIDI LEARN is a GLO page; the mixer: no fill; SOLO and PAN on the drawn black keys -- */
+        {
+            uint32_t i2, learn = 0;
+            for (i2 = 0; i2 < NPAGES; i2++)
+                learn |= PAGES[i2].fam == FAM_GLO && (PAGES[i2].id[0] == V_LEARN || PAGES[i2].id[1] == V_LEARN);
+            check(learn, "w10: MIDI LEARN is a GLO page (MIDI 3)");
+            press(B_GLO); frames(12);
+            fm1_in.notes |= 1u << key_of_white(8); frames(2);
+            check(!fill_held && !fill_now, "w10: the mixer: key 9 is no FILL");
+            fm1_in.notes &= ~(1u << key_of_white(8)); frames(2);
+            key(PUNCH_BLACK[1]); frames(2);
+            check(mix_pan && (bk_shown & 2u), "w10: the mixer: G#3 PAN (drawn in the strip): the knobs the pans");
+            ui.force = 1; frame(); ppm("w10-mixer");
+            key(PUNCH_BLACK[1]);
+            release(B_GLO); frames(4);
+            track_select(TRK_DRUM); frames(2);
+            press(B_GLO); frames(12);
+            key(PUNCH_BLACK[0]); frames(2);
+            check(mix_dsolo && (bk_shown & 1u), "w10: the mixer, drums: F#3 SOLO (drawn): the keys solo");
+            ui.force = 1; frame(); ppm("w10-mixer-drums");
+            key(PUNCH_BLACK[0]);
+            key(PUNCH_BLACK[2]); frames(2);
+            check(!fill_held && !fill_arm, "w10: the mixer, drums: A#3 (not drawn): nothing (no fill bar)");
+            release(B_GLO); frames(4);
+            track_select(0); go_home(); frames(2);
+        }
+        /* -- 7. MASTER with a button held: its pair, relatively; the volume never jumps -- */
+        {
+            uint32_t mq;
+            int16_t sw0, b0;
+            master_in(512); master_in(600); frames(2);
+            mq = song.master_q12;
+            check(mq == (600u * 600u >> 8) || (mq > 1300u && mq < 1450u), "w10: MASTER, nothing held: the volume follows the pot");
+            sw0 = t->p[P_SSWING];
+            press(B_SEQ); frames(2);
+            master_in(700); frames(2);
+            check(t->p[P_SSWING] > sw0 && song.master_q12 == mq, "w10: SEQ + MASTER: SWING up, the volume unchanged");
+            ui.force = 1; frame(); ppm("w10-master-swing");
+            check(!strncmp(ui.msg, "SWING ", 6), "w10: SEQ + MASTER: the readout says SWING n");
+            n0 = (uint32_t)t->p[P_SSWING];
+            master_in(650); frames(2);
+            check(t->p[P_SSWING] < (int16_t)n0 && t->p[P_SSWING] >= sw0, "w10: SEQ + MASTER turned back: SWING down again (relative)");
+            master_in(900); frames(2);
+            release(B_SEQ); frames(4);
+            check(song.master_q12 == mq, "w10: SEQ held while the pot went to 900, then let go: the volume where it was");
+            master_in(950); frames(2);
+            check(song.master_q12 > mq && song.master_q12 < (950u * 950u >> 8) - 400u,
+                  "w10: MASTER after a pair: the volume moves from where it was, no jump to the pot");
+            master_in(1023); frames(2);
+            check(song.master_q12 == (1023u * 1023u >> 8), "w10: MASTER at its end stop: the volume at its top too (they meet)");
+            t->p[P_SSWING] = sw0;
+            mq = song.master_q12;
+            /* every pair */
+            press(B_GLO); frames(2); b0 = song.g[G_BPM];
+            master_in(800); frames(2);
+            check(song.g[G_BPM] < b0 && song.master_q12 == mq, "w10: GLO + MASTER: TEMPO, relative (down)");
+            release(B_GLO); frames(4);
+            press(B_EDIT); frames(2); n0 = (uint32_t)t->p[P_LEVEL];
+            master_in(600); frames(2);
+            check(t->p[P_LEVEL] < (int16_t)n0 && song.master_q12 == mq, "w10: EDIT + MASTER: the voice's LEVEL");
+            release(B_EDIT); frames(4);
+            press(B_ARP); frames(2); n0 = (uint32_t)(t->p[P_TRANS] + 100);
+            master_in(800); frames(2);
+            check(t->p[P_TRANS] + 100 > (int32_t)n0 && song.master_q12 == mq, "w10: ARP + MASTER: TRANSP up");
+            ui.force = 1; frame(); ppm("w10-master-transp");
+            release(B_ARP); frames(4);
+            press(B_ENV); frames(2);
+            master_in(1000); frames(2);
+            check(mac_env[0] > 0 && song.master_q12 == mq, "w10: ENV + MASTER: the amp envelope longer (a scale, nothing stored changed)");
+            ui.force = 1; frame(); ppm("w10-hold-env");
+            check(pm_lm == 0 && pm_lp == 0, "w10: ENV held: no -/+ (the MASTER pair only)");
+            release(B_ENV); frames(4);
+            press(B_LFO); frames(2);
+            master_in(500); frames(2);
+            check(mac_dep[0] < 0 && song.master_q12 == mq, "w10: LFO + MASTER: the modulation depth down");
+            ui.force = 1; frame(); ppm("w10-hold-lfo");
+            release(B_LFO); frames(4);
+            press(B_FX); frames(2);
+            master_in(200); frames(2);
+            check(fx_wet < 100u && song.master_q12 == mq, "w10: FX + MASTER: FX MIX down");
+            ui.force = 1; frame(); ppm("w10-master-fxmix");
+            master_in(0); frames(2);
+            check(fx_wet == 0u, "w10: FX + MASTER to its end stop: FX MIX 0");
+            release(B_FX); frames(4);
+            check(song.master_q12 == mq, "w10: FX let go with the pot at 0: the volume still at the top (no jump)");
+            master_in(500); frames(2);
+            check(song.master_q12 == mq, "w10: MASTER alone, turned up: the volume already at its top stays there");
+            master_in(250); frames(2);
+            check(song.master_q12 > 900u && song.master_q12 < 1150u, "w10: ... turned down half way: the volume half way (they meet again)");
+            fx_wet = 100; mac_env[0] = 0; mac_dep[0] = 0; frames(2);
+        }
+        /* -- 8. black keys only where drawn -- */
+        {
+            uint32_t pg0, j, any = 0;
+            tap(B_SEQ); frames(2);
+            t->p[P_SLEN] = 32; pg0 = sg_page();
+            key(PUNCH_BLACK[1]); frames(2);
+            check(sg_page() == pg0, "w10: GRID: a black key (not drawn) turns no page");
+            go_home(); track_select(TRK_DRUM); go_home(); frames(2);
+            memset((void *)pad_lit, 0, sizeof pad_lit);
+            fm1_in.notes |= 1u << PUNCH_BLACK[0]; frames(2);
+            for (j = 0; j < 16u; j++) any |= pad_lit[j];
+            fm1_in.notes &= ~(1u << PUNCH_BLACK[0]); frames(2);
+            check(!any, "w10: drums on HOME: a black key plays nothing (it played the kick)");
+            track_select(0); go_home(); frames(2);
+            t->p[P_CHORD] = 1;
+            fm1_in.notes |= 1u << PUNCH_BLACK[0]; frames(2);
+            check(kb_kind[PUNCH_BLACK[0]] != KS_MOD, "w10: chord mode on HOME: F#3 is no chord modifier (not drawn there)");
+            fm1_in.notes &= ~(1u << PUNCH_BLACK[0]); frames(2);
+            tap(B_ARP); tap(B_ARP); frames(2);
+            check(cur_page()->cat == CT_KEY, "w10: ARP twice: KEY");
+            fm1_in.notes |= 1u << PUNCH_BLACK[0]; frames(2);
+            check(kb_kind[PUNCH_BLACK[0]] == KS_MOD, "w10: chord mode on ARP > KEY: F#3 the 3RD modifier (drawn in the strip)");
+            ui.force = 1; frame(); ppm("w10-key-chord");
+            check(px_count(2, BK_Y, 37, 12, C_WHITE) > 100u, "w10: KEY page: the held modifier lit in the strip");
+            fm1_in.notes &= ~(1u << PUNCH_BLACK[0]); frames(2);
+            t->p[P_CHORD] = 0;
+            go_home(); frames(2);
+        }
+        /* -- 9. every hold shows its jobs; HOME, SEL, REC held: none -- */
+        {
+            static const uint8_t HB[7] = {B_FX, B_SEQ, B_ARP, B_GLO, B_SAVE, B_EDIT, B_ENV};
+            uint32_t j;
+            for (j = 0; j < 7u; j++) {
+                press(HB[j]); frames(12);
+                ui.force = 1; frame();
+                check(ui.layer != LY_PLAY, HB[j] == B_FX ? "w10: FX held: a layer shows (PERFORM)" : HB[j] == B_SEQ ? "w10: SEQ held: its layer shows" :
+                      HB[j] == B_ARP ? "w10: ARP held: its layer shows" : HB[j] == B_GLO ? "w10: GLO held: the mixer shows" :
+                      HB[j] == B_SAVE ? "w10: SAVE held: its layer shows" : HB[j] == B_EDIT ? "w10: EDIT held: its layer (MASTER LEVEL, - CLEAR)" :
+                      "w10: ENV held: its layer (MASTER LENGTH)");
+                if (HB[j] != B_SAVE)
+                    check(px_count(52, 2, 70, 16, C_BLACK) < 70u * 16u - 40u, "w10: ... the header names MASTER's pair (its chip)");
+                release(HB[j]); frames(4);
+            }
+            press(B_HOME); frames(60);
+            check(ui.layer == LY_PLAY && !ui.menu, "w10: HOME held: nothing (the menu is GLO's DEVICE only)");
+            release(B_HOME); frames(4);
+            press(B_SCL); frames(30);
+            check(ui.layer == LY_PLAY, "w10: SEL held: no layer");
+            release(B_SCL); frames(4);
+            go_home(); frames(2);
+        }
+        /* -- column overflow and the colour rule: the tab row's names never run into the legend; the legend and the
+         *    strip white and grey only -- */
+        {
+            uint32_t j, bad = 0, col = 0, x, y;
+            track_select(TRK_DRUM); tap(B_FX); frames(2);
+            ui.force = 1; frame(); ppm("w10-drum-fx-tabs");
+            for (y = 131; y < 154; y++)                 /* (the legend's zone, right of the names: white and grey only) */
+                for (x = 236 - 60; x < 236; x++) {
+                    uint16_t c = swap16(screen[y * 240u + x]);
+                    col += c == TE_COL[0] || c == TE_COL[1] || c == TE_COL[2];
+                }
+            check(nav_tabs_fit, "w10: the drum FX tab row fits beside the legend (names shortened, none run over)");
+            check(!col, "w10: colour rule: the -/+ legend has no voice colour");
+            for (j = 0; j < 4u; j++) {
+                track_select(j); go_home(); frames(2);
+                tap(B_FX); frames(2); ui.force = 1; frame(); bad += !nav_tabs_fit;
+                tap(B_SEQ); frames(2); ui.force = 1; frame(); bad += !nav_tabs_fit;
+                tap(B_SEQ); frames(2); ui.force = 1; frame(); bad += !nav_tabs_fit;
+                tap(B_SEQ); frames(2); ui.force = 1; frame(); bad += !nav_tabs_fit;
+                tap(B_LFO); frames(2); ui.force = 1; frame(); bad += !nav_tabs_fit;
+                tap(B_GLO); frames(2); ui.force = 1; frame(); bad += !nav_tabs_fit;
+            }
+            check(!bad, "w10: every tab row (FX, SEQ, LFO, GLO on each voice, the GRID's too) fits beside its legend");
+            track_select(TRK_DRUM); go_home(); frames(2);
+            press(B_GLO); frames(12); ui.force = 1; frame();
+            col = 0;
+            for (y = BK_Y; y < BK_Y + BK_H; y++)
+                for (x = 0; x < 240u; x++) {
+                    uint16_t c = swap16(screen[y * 240u + x]);
+                    col += c == TE_COL[0] || c == TE_COL[1] || c == TE_COL[2] || c == TE_COL[3];
+                }
+            check(!col, "w10: colour rule: the black-key strip white and grey only");
+            release(B_GLO); frames(4);
+            track_select(0); go_home(); frames(2);
+        }
+        /* -- the sound: FX MIX at 0 is the dry mix exactly; ENV LENGTH and MOD DEPTH back at 0: as stored -- */
+        {
+            uint32_t h[3] = {0, 1, 2}, r;
+            for (r = 0; r < 3u; r++) {
+                int fd[2];
+                pid_t pid;
+                if (pipe(fd)) break;
+                pid = fork();
+                if (!pid) {
+                    uint32_t hh = 2166136261u, q, j;
+                    static int32_t o3[CTL * 2];
+                    close(fd[0]);
+                    steps_clear(t); t->p[P_SLEN] = 16;
+                    for (j = 0; j < 16u; j += 2u) { t->step[j].n = 1; t->step[j].note[0] = (uint8_t)(48 + j); t->step[j].time = ST_NOTE; t->step[j].vel = 100; }
+                    for (j = 0; j < NPART; j++) trk[j].p[P_DLY] = trk[j].p[P_REV] = trk[j].p[P_CHOR] = 0;
+                    memset(drum_send, 0, sizeof drum_send);
+                    song.g[G_DRDLY] = song.g[G_DRREV] = 0; TDRUM->p[P_DLY] = TDRUM->p[P_REV] = TDRUM->p[P_CHOR] = 0;
+                    perf_unlatch(); dpat_clear(&dpat);
+                    memset(&stl, 0, sizeof stl); stl.len = 16;
+                    if (r != 1u) { t->p[P_DLY] = 110; t->p[P_REV] = 110; t->p[P_CHOR] = 90; }
+                    fx_wet = r == 2u ? 100u : 0u;           /* (0: sends on, FX MIX 0; 1: no send at all; 2: sends on, 100) */
+                    for (q = 0; q < 40u; q++) mix_block(o3, CTL);   /* (the return's ease settled) */
+                    transport_req = 1;
+                    for (q = 0; q < 900u; q++) {
+                        mix_block(o3, CTL);
+                        if (q == 0u) ui_input();
+                        for (j = 0; j < CTL * 2u; j++) hh = (hh ^ (uint32_t)o3[j]) * 16777619u;
+                    }
+                    if (write(fd[1], &hh, sizeof hh) != (ssize_t)sizeof hh) _exit(1);
+                    _exit(0);
+                }
+                close(fd[1]);
+                if (read(fd[0], &h[r], sizeof h[r]) != (ssize_t)sizeof h[r]) h[r] = r + 7u;
+                close(fd[0]);
+                waitpid(pid, 0, 0);
+            }
+            check(h[0] == h[1] && h[0] != h[2], "w10: FX + MASTER at 0 (FX MIX 0 %): the output is the dry mix exactly (the sends change nothing; at 100 % they do)");
+        }
+        {
+            uint32_t k0 = 0, k1 = 0, k2 = 0;
+            mac_env[0] = 0; esync_coef(t); k0 = esync_k[0][2];
+            mac_env[0] = 32; esync_coef(t); k1 = esync_k[0][2];
+            mac_env[0] = 0; esync_coef(t); k2 = esync_k[0][2];
+            check(k1 < k0 && k1 * 2u > k0 - k0 / 8u && k1 * 2u < k0 + k0 / 8u && k2 == k0,
+                  "w10: ENV LENGTH +32: the release twice as long; back at 0: exactly as stored");
+        }
+        #undef PMT
+        #undef DTAP
+        song.octave = 0; fx_wet = 100;
+        go_home(); frames(2);
     }
     printf("ui: %s\n", fails ? "FAILED" : "pages, layers (punch, steps, erase, roll, key, mix), layer lock, song layer, REC hold, drums, REC, 20000-frame fuzz PASS");
     return fails;

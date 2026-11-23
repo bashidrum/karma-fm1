@@ -143,7 +143,11 @@ static uint32_t scale_mask(const track_t *t)
 }
 
 /* ---------------------------------------------------------- layers --- */
-enum { LY_PLAY, LY_FX, LY_EDIT, LY_ARP, LY_SEQ, LY_SEL, LY_GLO, LY_SAVE, LY_COUNT };
+/* (wave 10, Ben 23 Nov 2026: "every control has ONE idea") the layers, by the button held: FX PERFORM; EDIT, ENV, LFO only
+ * MASTER's pair (the keys do nothing); ARP the notes (OCT- / OCT+ transpose: the UI); SEQ the rhythm (the white keys ROLL,
+ * drums RETRIG; black keys 1 to 4 the patterns A to D and D#4 the fill bar: the UI); SEL none (its bit 0); GLO the mixer; SAVE
+ * store a pattern, undo, redo (the UI) */
+enum { LY_PLAY, LY_FX, LY_EDIT, LY_ARP, LY_SEQ, LY_SEL, LY_GLO, LY_SAVE, LY_ENV, LY_LFO, LY_COUNT };
 static uint32_t ly_bit[LY_COUNT];        /* the button (fm1_in.buttons bit) of each layer: the UI sets them */
 static uint32_t dyn_bit[2];              /* OCT- / OCT+: ghost / hard on the drum track */
 /* a layer locked open (its button held + HOME tapped: ui_input.c), LY_PLAY = none: the keys and knobs
@@ -169,6 +173,9 @@ static uint32_t layer_now(void)
  * (KB_GRID events of lk_q, ui_grid.c grid_key) and play nothing */
 #define KB_GRID LY_COUNT
 static volatile uint8_t kb_grid;
+/* (wave 10, Ben: black keys "Only live when drawn") the chord modifiers (CHORD+, below) live only where the screen draws them
+ * (ARP's KEY pages: the UI sets it every frame); elsewhere a black key in chord mode does nothing */
+static volatile uint8_t chord_mods_drawn;
 /* the keys of the layers the UI handles (steps, key, mix): key k down / up, in order */
 #define LKQ 16u
 static volatile uint16_t lk_q[LKQ];
@@ -1432,41 +1439,26 @@ static void key_down(uint32_t k)
         }
         return;
     }
-    case LY_SEQ:
-    case LY_SEL:
     case LY_GLO:
-    case LY_SAVE:                                     /* the UI's: steps, the key, the mix, the sections */
+    case LY_SAVE:                                     /* the UI's: the mixer, the patterns' store */
         kb_kind[k] = KS_UI;
         kb_nt[k][0] = (uint8_t)layer;                 /* (its key-up goes to the same layer) */
         lk_push(layer, k, 1);
         return;
-    case LY_EDIT:
-        if (is_drum(t) && punch_key(k) < 0)          /* (wave 9: EDIT + a black key no longer turns its keys into mutes:
-                                                       * a combo with no obvious link; the sounds' mutes are the mixer's) */
+    case LY_SEQ:                                      /* (wave 10) SEQ, the rhythm: a black key is the UI's (A to D, the fill
+                                                       * bar: drawn in its strip); a white key ROLLs below */
+        if (punch_key(k) < 0) {
+            kb_kind[k] = KS_UI;
+            kb_nt[k][0] = (uint8_t)layer;
+            lk_push(layer, k, 1);
             return;
-        kb_kind[k] = KS_ERASE;
-        if (!erasing(t) || er_trk != sel)
-            undo_erase_sess = (undo_sess += 4u) | 2u;  /* a new erase: one undo */
-        if (er_trk != sel) {
-            er_lanes = 0;
-            er_notes[0] = er_notes[1] = er_notes[2] = er_notes[3] = 0;
-            er_trk = (uint8_t)sel;
         }
-        if (is_drum(t)) {
-            kb_nt[k][0] = (uint8_t)lane_of_key(k);
-            kb_n[k] = 1;
-            er_lanes |= (uint16_t)(1u << kb_nt[k][0]);
-        } else {
-            uint32_t n = kb_map(t, k);
-            if (n == KB_SILENT)
-                return;
-            kb_n[k] = (uint8_t)(t->p[P_CHORD] ? chord_notes(t, n, kb_nt[k]) : 1u);
-            if (!t->p[P_CHORD])
-                kb_nt[k][0] = (uint8_t)n;
-            for (i = 0; i < kb_n[k]; i++)
-                er_notes[(kb_nt[k][i] >> 5) & 3u] |= 1u << (kb_nt[k][i] & 31u);
-        }
-        erase_now(t);
+        break;
+    case LY_EDIT:
+    case LY_ARP:
+    case LY_ENV:
+    case LY_LFO:
+    case LY_SEL:                                      /* (wave 10) holds with no keys: MASTER's pair (and -/+) only */
         return;
     default:
         break;
@@ -1481,16 +1473,11 @@ static void key_down(uint32_t k)
         uint32_t lane = lane_of_key(k), lvl = key_lvl();
         kb_nt[k][0] = (uint8_t)lane;
         kb_n[k] = 1;
-        if (layer == LY_ARP) {
-            if (punch_key(k) < 0) {                   /* (PHEBUS wave 3) RETRIG: a black key picks the rate */
-                static const uint8_t RATE_OF_BLACK[11] = {4, 6, 7, 9, 10, 12, 13, 14, 15, 16, 17};   /* 1/4 .. 1/80 */
-                uint32_t b;
-                for (b = 0; b < 11u && PUNCH_BLACK[b] != k; b++)
-                    ;
-                if (b < 11u)
-                    drt_live = RATE_OF_BLACK[b];
-                return;
-            }
+        if (drum_keys != DK_CHROM && punch_key(k) < 0)   /* (wave 10, "Only live when drawn") a black key on the drum
+                                                       * voice: no sound of its own (it played the white key's below) */
+            return;
+        if (layer == LY_SEQ) {                        /* (wave 10) SEQ held: RETRIG, the rate SEQ's KNOB 1 (drt_live); the
+                                                       * black keys' rates are gone (a black key only where it is drawn) */
             kb_kind[k] = KS_ROLL;
             roll_start(k, t, lane, lvl);
             return;
@@ -1518,13 +1505,14 @@ static void key_down(uint32_t k)
     {
         uint32_t n = kb_map(t, k);
         if (n == KB_SILENT) {
-            if (t->p[P_CHORD] && layer == LY_PLAY && chord_mod_of_key(k)) {   /* CHORD+: a modifier key */
+            if (t->p[P_CHORD] && layer == LY_PLAY && chord_mod_of_key(k) && chord_mods_drawn) {   /* CHORD+: a modifier key
+                                                       * (wave 10: where the KEY page draws it) */
                 kb_kind[k] = KS_MOD;
                 chord_revoice(sel);
             }
             return;
         }
-        if (layer == LY_ARP) {
+        if (layer == LY_SEQ) {                        /* (wave 10) SEQ held: ROLL (it was ARP's) */
             kb_kind[k] = KS_ROLL;
             kb_nt[k][0] = (uint8_t)n;
             kb_n[k] = 1;
@@ -1666,13 +1654,56 @@ static void audition_block(void)
             trk_note_on(TDRUM, LANE_NOTE[l], st < NSTEP && dt_vel(st, l) ? dt_vel(st, l) : 100u);
 }
 
+/* (wave 10, Ben 23 Nov 2026: "Oct - should be" the erase) MINUS REMOVES: a key held (a note of a synth voice, a drum sound),
+ * then OCT- pressed: what that key plays is erased from the selected voice's pattern, as EDIT + key did (playing: from each
+ * step the playhead enters while the key stays down; stopped: from every step), one undo. The key stops sounding and erases
+ * until it comes up. Pressed the other way round (OCT- held, then a drum key) it is the ghost hit, as ever. Not on the GRID
+ * (the keys are steps: the UI's step + OCT-), not with a layer held */
+static void oct_erase(uint32_t sel)
+{
+    track_t *t = &trk[sel % NTRK];
+    uint32_t k, i, any = 0;
+    for (k = 0; k < 27u; k++) {
+        uint32_t kind = kb_kind[k];
+        if (!((kb_prev >> k) & 1u) || kb_trk[k] != sel || (kind != KS_NOTE && kind != KS_DRUM))
+            continue;
+        if (!any) {
+            if (!erasing(t) || er_trk != sel)
+                undo_erase_sess = (undo_sess += 4u) | 2u;  /* a new erase: one undo */
+            if (er_trk != sel) {
+                er_lanes = 0;
+                er_notes[0] = er_notes[1] = er_notes[2] = er_notes[3] = 0;
+                er_trk = (uint8_t)sel;
+            }
+            any = 1;
+        }
+        if (kind == KS_DRUM) {
+            midi_out_note(trk_midi_ch(TRK_DRUM), (uint32_t)LANE_NOTE[kb_nt[k][0] & 15u], 0);
+            er_lanes |= (uint16_t)(1u << (kb_nt[k][0] & 15u));
+        } else {
+            for (i = 0; i < kb_n[k]; i++) {
+                input_off(t, kb_nt[k][i]);
+                midi_out_note(trk_midi_ch(sel), (uint32_t)kb_nt[k][i], 0);
+                er_notes[(kb_nt[k][i] >> 5) & 3u] |= 1u << (kb_nt[k][i] & 31u);
+            }
+        }
+        kb_kind[k] = KS_ERASE;
+    }
+    if (any)
+        erase_now(t);
+}
 static void keyboard_block(void)
 {
     uint32_t cur = fm1_in.notes, ch = cur ^ kb_prev, k, r;
+    static uint32_t oct_prev;
+    uint32_t ob = fm1_in.buttons & dyn_bit[0];
     audition_block();
+    if (ob && !oct_prev && layer_now() == LY_PLAY && !kb_grid && !sr_on)
+        oct_erase(song.sel % NTRK);
+    oct_prev = ob;
     if (er_mute && layer_now() != LY_EDIT)
         er_mute = 0;                                  /* EDIT let go: its keys erase again (2.6) */
-    if (!(layer_buttons() & ly_bit[LY_ARP]))         /* ARP up (and not locked): the rolls end (the keys stay silent) */
+    if (!(layer_buttons() & ly_bit[LY_SEQ]))         /* SEQ up (and not locked): the rolls end (the keys stay silent) */
         for (r = 0; r < NROLL; r++)
             if (roll[r].on)
                 roll_end(r);

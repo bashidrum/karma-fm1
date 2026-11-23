@@ -34,7 +34,6 @@ static uint8_t drum_pg_last = 1;                        /* the sound page last s
 static uint8_t drum_newvel = DT_VEL_DEF;                /* the velocity a new trig takes (TRIG, nothing held: KNOB 1) */
 static uint8_t dk_touch = 0xFF;                         /* a trig held: the id of the knob last turned in this hold */
 static const char *const DPG_NAME[DPG_TABS] = {"TRIG", "SRC", "FLTR", "AMP", "LFO", "FX"};
-#define FILL_KEY 25u                                    /* F#5: the last black key */
 /* (wave 8) the FX tab's halves: the drum voice's own pages (params.c PAGES: FILTER, INSERT, INSERT 2 and SENDS of FAM_DRM, the
  * SLICER every voice has), by name once */
 #define NDBUS 8u                                        /* (wave 9: then the whole mix's, the FX group's MIX) */
@@ -56,7 +55,7 @@ static uint32_t dbus_page(uint32_t h)                   /* the FX tab's half h: 
 static uint32_t dpg_halves(uint32_t pg)
 {
     uint32_t f;
-    return pg == 0u ? 3u : pg == DPG_FX ? NDBUS : dh_count(drum_model(), pg - 1u, &f);
+    return pg == 0u ? TH_N : pg == DPG_FX ? NDBUS : dh_count(drum_model(), pg - 1u, &f);
 }
 static uint32_t dpg_half(void)
 {
@@ -100,14 +99,19 @@ static void kit_replace(void)                           /* (the question confirm
     pkit_make();
     ui_message("YOUR COPY OF THE KIT");
 }
+static void drum_param_set(uint32_t id, int32_t v);
 static void drum_param_turn(uint32_t id, int32_t s, uint32_t role)
 {
     uint32_t l = drum_lane & 15u, model = drum_model();
     const param_desc_t *d = dsp_desc(model, lane_snd(l), id);
-    int32_t v;
     if (!d)
         return;
-    v = clamp(snd_val(l, id) + accel(role, s, d->max - d->min), d->min, d->max);
+    drum_param_set(id, clamp(snd_val(l, id) + accel(role, s, d->max - d->min), d->min, d->max));
+}
+/* the selected sound's id set to v (in range): a send, or the kit's own copy (made on the first edit) */
+static void drum_param_set(uint32_t id, int32_t v)
+{
+    uint32_t l = drum_lane & 15u;
     if (id == DSP_REV || id == DSP_DEL) {
         drum_send[l][id - DSP_REV] = (uint8_t)v;
         return;
@@ -208,7 +212,11 @@ static void drum_held_oct(uint32_t up)
         sg_lpage = 0xFF;
         return;
     }
-    if (up || !drum_pg || sg_lpage < NPAGES) {
+    if (!drum_pg) {                                     /* (wave 10) TRIG: the hit itself goes, with all it holds */
+        sg_held_erase();
+        return;
+    }
+    if (sg_lpage < NPAGES) {
         sg_held_oct(up);
         return;
     }
@@ -222,6 +230,10 @@ static void drum_held_oct(uint32_t up)
     }
     fm1_irq_on();
     sync_reload = 1;
+    if (!n && !one) {                                   /* (wave 10) no lock left: the hit itself goes */
+        sg_held_erase();
+        return;
+    }
     if (one && n) {
         const param_desc_t *d = dsp_desc(drum_model(), lane_snd(l), dk_touch);
         str_cpy(b, d ? d->label : "", 8);
@@ -597,8 +609,8 @@ static void drum_main_draw(void)
                 dval_fit(v[k]);
                 ratio[k] = (vv - d->min) * 1000 / (d->max > d->min ? d->max - d->min : 1);
             }
-        } else if (!drum_pg && dpg_half() >= 2u) {      /* (wave 9) PATTERN: GATE (--) DIV SWING STEPS */
-            patt_vals(TDRUM, lab, v, ratio, &dim);
+        } else if (!drum_pg && dpg_half() >= TH_PATT) { /* (wave 9) PATTERN: GATE (--) DIV SWING STEPS (wave 10: SHIFT, A-D) */
+            patt_vals(TDRUM, dpg_half() - TH_PATT, lab, v, ratio, &dim);
         } else if (!drum_pg) {                          /* TRIG: the held trig's own values (nothing held: VEL for new) */
             static const char *const TL[8] = {"VEL", "RETRIG", "NUDGE", "COND", "CHANCE", "LENGTH", "CURVE", "NOTE"};
             uint32_t h = dpg_half();
@@ -730,50 +742,24 @@ static void drum_keys_fix(void)                         /* once a frame: the mod
         ui_message("SOUND LOCKS FULL: 128");
     }
 }
-/* a key of the drum GRID that is not a step (black keys 5 .. 11): F#5 the FILL, held (the Rytm: hold PAGE). (Wave 8, Ben
- * 22 Nov 2026: one latch gesture, PERFORM's) pressed with OCT+ held it latches (as OCT+ pressed while it is held: drum_grid_input);
- * a latched FILL: F#5 again lets it go (as a latched pad), STOP too. 1: taken */
-static void fill_latch(uint32_t on)
-{
-    fill_lat = (uint8_t)on;
-    ui_message(on ? "FILL LATCHED" : "FILL OFF");
-    ui.force = 1;
-}
-static int drum_grid_black(uint32_t k, uint32_t down)
-{
-    if (k != FILL_KEY || song.sel != TRK_DRUM)
-        return 0;
-    if (down) {
-        if (fill_lat)
-            fill_latch(0);                              /* (a latched FILL: off; held, it plays while held) */
-        else if (fm1_in.buttons & (1u << panel.btn[B_OCTUP]))
-            fill_latch(1);
-        fill_held = 1;
-    } else {
-        fill_held = 0;
-    }
-    ui.force = 1;
-    return 1;
-}
 static void drum_grid_input(uint32_t pressed)
 {
     uint32_t k, ob = 1u << panel.btn[B_OCTDN], pb = 1u << panel.btn[B_OCTUP];
     int32_t s;
-    if (drum_keys == DK_CHROM) {                        /* chromatic: OCT- / OCT+ the keys' octave (both: 0) */
+    if (drum_keys == DK_CHROM) {                        /* (wave 10) chromatic: -/+ the sound before / after (its octave: a
+                                                         * double tap, ui_input.c pm_input) */
         if (pressed & (ob | pb)) {
-            if ((fm1_in.buttons & (ob | pb)) == (ob | pb))
-                drum_chr_oct = 0;
-            else
-                drum_chr_oct = (int8_t)clamp(drum_chr_oct + ((pressed & pb) ? 1 : -1), -2, 2);
+            int32_t l = clamp((int32_t)(drum_lane & 15u) + ((pressed & pb) ? 1 : -1), 0, DRUM_LANES - 1);
+            drum_lane = (uint8_t)l;
             ui.force = 1;
         }
-    } else if (drum_keys == DK_PLAY && (pressed & pb) && fill_held && !sg_held) {
-        if (!fill_lat)                                  /* (wave 8) OCT+ with F#5 held: the FILL latched (PERFORM's latch) */
-            fill_latch(1);
     } else if (drum_keys == DK_PLAY && (pressed & (ob | pb))) {
         uint32_t up = (pressed & pb) != 0u, pages = (trk_len(TDRUM) + 15u) / 16u, pg;
         if (sg_held) {
             drum_held_oct(up);
+        } else if (!drum_pg && dpg_half() == TH_AD) {   /* (wave 10) SEQ > A-D: the pattern before / after */
+            int32_t p = patt_shown();
+            patt_pick(clamp((p < 0 ? 0 : p) + (up ? 1 : -1), 0, 3));
         } else if (up && sg_page() + 1u == pages && pages < 4u) {
             sg_page_add(TDRUM);
         } else {
@@ -804,11 +790,11 @@ static void drum_grid_input(uint32_t pressed)
                 sg_lock_turn(pg->id[k], s, EN_K1 + k);
             else
                 edit_param_pg(pg, k, s);
-        } else if (!drum_pg && dpg_half() >= 2u) {      /* (wave 9) PATTERN: the pattern's settings */
+        } else if (!drum_pg && dpg_half() >= TH_PATT) { /* (wave 9) PATTERN: the pattern's settings */
             if (sg_held)
                 ui_message("NOT LOCKABLE");
             else
-                patt_turn(TDRUM, k, s);
+                patt_turn(TDRUM, dpg_half() - TH_PATT, k, s);
         } else if (!drum_pg) {
             if (sg_held)
                 drum_trig_turn(k, s);

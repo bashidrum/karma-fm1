@@ -60,7 +60,7 @@ static struct {
     uint8_t bpm_t;               /* frames the BPM stays highlighted after a SELECT turn */
     uint8_t arm, arm_t;          /* (unused since wave 8: the timed second turn is gone, see ask) */
     uint8_t ask, ask_arg;        /* (wave 8, Ben 22 Nov 2026: "One rule everywhere") a destructive or GO action asked for and
-                                  * waiting: ASK_* and its argument. The one confirm: hold REC until the ring fills (ui_input.c) */
+                                  * waiting: ASK_* and its argument. The one confirm: hold SAVE until the ring fills (ui_input.c, wave 10) */
     uint32_t rec_t0;             /* REC press time (btn_hold) */
     uint8_t confirm;             /* 1 = "clear the sequence?" (REC held on SEQ / ARP), 2 = "clear track n?" (TRACKS) */
     uint8_t confirm_trk;         /* the track the dialog clears */
@@ -71,12 +71,12 @@ static struct {
     uint8_t layer_used;          /* a key / knob / OCT was used while it was held: no tap on release */
     uint32_t layer_t0;           /* its press time (ms) */
     uint32_t step_sess;          /* SEQ layer: the undo session of this hold */
-    uint8_t hold_kind;           /* a hold to confirm: 1 = clear the track (REC), 2 = save (SAVE) */
+    uint8_t hold_kind;           /* a hold to confirm: 3 = the confirm's ring (SAVE held with a question showing, wave 10) */
     uint32_t hold_t0;            /* (ms) */
     uint8_t hold_trk;
     uint32_t tap_ms[4];          /* tap tempo: the last taps */
     uint8_t tap_n;
-    char msg[24];
+    char msg[30];                /* (wave 10: 29 letters, the screen's width: "HOLD SAVE: " is one longer than "HOLD REC: ") */
     uint32_t enc_t[NE];
     /* drawn-state cache */
     char col[4][32];
@@ -88,7 +88,7 @@ static struct {
 } ui;
 
 static const page_t *cur_page(void) { return &PAGES[ui.page]; }
-enum { ASK_NONE, ASK_GO, ASK_UP, ASK_KIT, ASK_PADS, ASK_STORE, ASK_HALVE };
+enum { ASK_NONE, ASK_GO, ASK_UP, ASK_KIT, ASK_PADS, ASK_STORE, ASK_HALVE, ASK_CLEAR };
 static void ask_set(uint32_t kind, uint32_t arg, const char *what);   /* (ui_input.c, wave 8: the one confirm) */
 static int32_t accel(uint32_t role, int32_t s, int32_t range);   /* ui_input.c */
 static void layer_screen_draw(void);                            /* ui_layers.c */

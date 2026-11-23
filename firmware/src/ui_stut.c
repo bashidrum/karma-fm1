@@ -115,16 +115,10 @@ static int stl_algo(int32_t s)
 /* a key on the lane (ui_grid.c grid_key) */
 static void stl_key(uint32_t k, uint32_t down)
 {
-    static const int8_t PG[12] = {-1, 0, -1, 1, -1, 2, -1, -1, 3, -1, -1, -1};
     int32_t w = punch_key(k);
     uint32_t s, b;
-    if (w < 0) {                                        /* the first four black keys: the page */
-        if (down && !stl_held && k < 12u && PG[k] >= 0 && (uint32_t)PG[k] < stl_pages()) {
-            stl_pg = (uint8_t)PG[k];
-            ui.force = 1;
-        }
+    if (w < 0)                                          /* (wave 10: black keys only where drawn; the page: -/+) */
         return;
-    }
     b = 1u << w;
     s = stl_pg * 16u + (uint32_t)w;
     if (!down) {
@@ -295,15 +289,15 @@ static void stl_draw(void)
             cv_text(4, 59, &FONT_S, t, C_WHITE);
             for (j = 0; j < PEV_N && !pev_covers(&stl.ev[j], hs); j++)
                 ;
-            if (j < PEV_N)                              /* (pads recorded over it: OCT- erases them) */
-                cv_text(236 - text_w(&FONT_S, "OCT-: ERASE"), 59, &FONT_S, "OCT-: ERASE", TE_G3);
+            (void)j;                                    /* (pads recorded over it: OCT- erases them; wave 10: the -/+ legend
+                                                         * in the tab row says so) */
         } else {                                        /* what the lit steps do; the length new steps take */
             cv_text(4, 59, &FONT_S, !stl.act ? "OFF: KEPT, SILENT" : c >= 4u ? "THE STEPS REPLAY" : "LIT STEPS REPEAT",
                     stl.act ? TE_G4 : TE_G3);
         }
         {   /* (wave 6) the recorded pads over the page's steps: a bar a span, named, two rows (more: "+n"); the ones
              * playing now light, the ones over a held step white (OCT- erases them) */
-            uint32_t rows[3] = {0, 0, 0}, more = 0, i, any = 0;
+            uint32_t rows[2] = {0, 0}, more = 0, i, any = 0;   /* (wave 10: two rows, the tab row under them) */
             for (i = 0; i < PEV_N; i++) {
                 const pev_t *e = &stl.ev[i];
                 uint32_t m = 0, r, w, held = 0;
@@ -317,9 +311,9 @@ static void stl_draw(void)
                     }
                 if (!m)
                     continue;
-                for (r = 0; r < 3u && (rows[r] & m); r++)
+                for (r = 0; r < 2u && (rows[r] & m); r++)
                     ;
-                if (r == 3u) {
+                if (r == 2u) {
                     more++;
                     continue;
                 }
@@ -354,11 +348,12 @@ static void stl_draw(void)
             if (!any)
                 cv_text(4, 92, &FONT_S, "REC + PERFORM PADS: HERE", TE_G3);
         }
+        cv_h = 131 - SG_BODY_Y;                        /* (wave 10: down to the tab row) */
         cv_blit(0, SG_BODY_Y);
-        if (ui.force) {                                 /* (the rows under it, to the knobs) */
-            cv_begin(240, SG_KNOB_Y - SG_BODY_Y - 124u, C_BLACK);
-            cv_blit(0, SG_BODY_Y + 124u);
-        }
+    }
+    {
+        static uint32_t tabs;
+        nav_tabs(TE_G4, 0, &tabs);                     /* (wave 10: no categories; the -/+ legend) */
     }
     str_cpy(v[0], STL_LEN[c % 6u], 8);
     ratio[0] = (int32_t)STL_RANK[c % 6u] * 200;

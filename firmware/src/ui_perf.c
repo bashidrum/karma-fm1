@@ -117,7 +117,13 @@ static void perf_screen_draw(void)
     uint32_t i, p = perf.last % PF_NPAD, nl = pf_count(perf.lat), locked = ly_lock == LY_FX, sig;
     char t[16];
     (void)nl;
-    op_header("FX", C_WHITE, "PERFORM", &head);
+    {   /* (wave 10) MASTER's chip: FX MIX */
+        mpair_t mp;
+        if (master_pair(LY_FX, &mp))
+            hdr_mchip = mp.chip, hdr_mcol = mp.col, hdr_mratio = (mp.v - mp.lo) * 1000 / (mp.hi - mp.lo);
+        op_header("FX", C_WHITE, "PERFORM", &head);
+        hdr_mchip = 0;
+    }
     /* the chips (black keys) and the pads (white keys) */
     sig = perf_shown_sig();
     if (ui.force || sig != body) {
@@ -155,6 +161,7 @@ static void perf_screen_draw(void)
                     cv_text(x - w + 3, 0, &FONT_S, "LOCK", C_BLACK);
                     x -= w + 6;
                 }
+                x = pm_draw(x, 0, "OFF", "LATCH") - 8;   /* (wave 10) -/+: every latch off (the held pads' only), latch */
                 cv_text(4, 0, &FONT_S, PFD[p].name, TE_G4);
                 if (x - text_w(&FONT_S, st) > 8 + text_w(&FONT_S, PFD[p].name))
                     cv_text(x - text_w(&FONT_S, st), 0, &FONT_S, st, TE_G3);

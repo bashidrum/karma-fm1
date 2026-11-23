@@ -1099,6 +1099,8 @@ static void mx_part_begin(track_t *t, mxpart_t *x)
         if (!at || at > MS_N * MD_N || !a)
             continue;
         s = (at - 1u) / MD_N, d = (at - 1u) % MD_N;
+        if (mac_dep[ti] && s <= MS_PENV)                /* (wave 10) LFO + MASTER: the modulators' depth */
+            a = (a * (64 + mac_dep[ti])) >> 6;
         if (d == MD_PAN)
             x->pm[0] += (src[s] * a) >> 9;              /* +-64 at full */
         else if (d >= MD_FX1 && d <= MD_FX3)
@@ -1473,9 +1475,22 @@ static void mix_block(int32_t *out, uint32_t n)
 #endif
     if (!fx_done)                                       /* (3.1.3) one core, CPU0's effects, or no CPU1 this block */
         fx_prev();
-    for (i = 0; i < n; i++) {                           /* the effects' return */
-        mix_l[i] += wet_l[i];
-        mix_r[i] += wet_r[i];
+    {   /* the effects' return; (wave 10) FX + MASTER: at fx_wet %, eased over the block (100 %: added as it is; 0: nothing) */
+        static int32_t wq_cur = 4096;
+        int32_t w1 = (int32_t)(fx_wet > 100u ? 100u : fx_wet) * 4096 / 100, w0 = wq_cur;
+        wq_cur = w1;
+        if (w0 == 4096 && w1 == 4096) {
+            for (i = 0; i < n; i++) {
+                mix_l[i] += wet_l[i];
+                mix_r[i] += wet_r[i];
+            }
+        } else if (w0 || w1) {
+            for (i = 0; i < n; i++) {
+                int32_t w = w0 + (int32_t)(((int64_t)(w1 - w0) * (int32_t)i) >> CTL_LOG2);
+                mix_l[i] += (int32_t)(((int64_t)wet_l[i] * w) >> 12);
+                mix_r[i] += (int32_t)(((int64_t)wet_r[i] * w) >> 12);
+            }
+        }
     }
     PROF(PF_BUSES);
 #if KARMA_DUAL_CORE && (KARMA_CPU1_FX || KARMA_FX_WAIT)
