@@ -69,7 +69,7 @@ static int32_t dsp_get(uint32_t model, const uint8_t *snd, const dlfo_t *lf, uin
     if (id < DSP_COUNT)
         return model != DM_HEX ? 0 : id == DSP_FINE ? (int32_t)(int8_t)snd[id] : (int32_t)snd[id];
     if (id == DSP_REV || id == DSP_DEL)
-        return drum_send[l & 15u][id - DSP_REV];
+        return (int32_t)sl_send(l, id - DSP_REV);
     switch (id) {
     case DSP_LSPD: return lf->spd;
     case DSP_LDEP: return lf->dep;

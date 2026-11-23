@@ -1,6 +1,6 @@
 render 606-default=bb4ce4af
-render hex-metal-locks=85fabe0f
-render 606-edited-locks=8d1cd09c
-render 808-locks=869bc35e
-render myhex2-locks=63bdc012
-render 606-copy-808-plays=a13b56fd
+render hex-metal-locks=97585d67
+render 606-edited-locks=8fb13138
+render 808-locks=cb4ebe5c
+render myhex2-locks=2bc4a03f
+render 606-copy-808-plays=55b7774f

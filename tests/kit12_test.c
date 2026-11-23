@@ -90,6 +90,29 @@ static uint32_t render_hash(void)                 /* two bars of the pattern, th
     return h;
 }
 
+/* the same, in a fork of this process as it is (every render from the same state the process had before any render: what a
+ * render leaves behind, the sequencer's clock and the effects' running state, never reaches the next one) */
+static uint32_t render_iso(void)
+{
+    int fd[2];
+    uint32_t h = 0;
+    pid_t pid;
+    if (pipe(fd))
+        return 0;
+    if (!(pid = fork())) {
+        h = render_hash();
+        if (write(fd[1], &h, sizeof h) != (ssize_t)sizeof h)
+            _exit(1);
+        _exit(0);
+    }
+    close(fd[1]);
+    if (read(fd[0], &h, sizeof h) != (ssize_t)sizeof h)
+        h = 0;
+    close(fd[0]);
+    waitpid(pid, 0, 0);
+    return h;
+}
+
 #ifdef W11
 /* ---- wave 11: the projects, as its UI and sequencer make them */
 static void pattern(void)                         /* every sound: hats, chokes (PEDAL after the open hat), velocities */
@@ -190,19 +213,9 @@ static void make(uint32_t sc)
 #endif
 
 static project_t blob;
-static int load(const char *dir, uint32_t sc)     /* the working project from its file, as at power-on */
+static int load_mem(void)                         /* blob as the working project, as at power-on */
 {
-    char path[512];
-    FILE *f;
-    size_t n;
     proj_core_t *q = (proj_core_t *)proj_tmp.raw;
-    snprintf(path, sizeof path, "%s/%s.fun8", dir, NAMES[sc]);
-    if (!(f = fopen(path, "rb")))
-        return 0;
-    n = fread(&blob, 1, sizeof blob, f);
-    fclose(f);
-    if (n != sizeof blob)
-        return 0;
     base();
     dpat_clear(&dpat);
     memcpy(proj_tmp.raw, &blob, sizeof blob);
@@ -215,6 +228,18 @@ static int load(const char *dir, uint32_t sc)     /* the working project from it
 #endif
     proj_apply(q, 1);
     return 1;
+}
+static int load(const char *dir, uint32_t sc)     /* the working project from its file */
+{
+    char path[512];
+    FILE *f;
+    size_t n;
+    snprintf(path, sizeof path, "%s/%s.fun8", dir, NAMES[sc]);
+    if (!(f = fopen(path, "rb")))
+        return 0;
+    n = fread(&blob, 1, sizeof blob, f);
+    fclose(f);
+    return n == sizeof blob && load_mem();
 }
 
 int main(int argc, char **argv)
@@ -252,7 +277,7 @@ int main(int argc, char **argv)
             check(0, NAMES[sc]);
             continue;
         }
-        h[sc] = render_hash();
+        h[sc] = render_iso();
         snprintf(got, sizeof got, "%s=%08x", NAMES[sc], h[sc]);
         printf("render %s\n", got);
         if (nref) {
@@ -260,6 +285,23 @@ int main(int argc, char **argv)
             snprintf(what, sizeof what, "a wave 11 project sounds as wave 11 played it: %s", NAMES[sc]);
             check(sc < (uint32_t)nref && !strcmp(want[sc], got), what);
         }
+#ifndef W11
+        {   /* saved again (wave 12's format: the 16 slots in the ext) and loaded: the same sound, the same locks */
+            static dpat_t keep;
+            char what[128];
+            uint32_t h2;
+            keep = dpat;
+            proj_capture(&blob);
+            check(((const pkit_t *)blob.x.kit)->magic == PK_MAGIC, "saved: the ext holds the 16 slots (PKT2)");
+            load_mem();
+            h2 = render_iso();
+            snprintf(what, sizeof what, "saved as wave 12 and loaded again: the same sound and locks: %s", NAMES[sc]);
+            check(h2 == h[sc] && !memcmp(&keep, &dpat, sizeof keep), what);
+            if (sc == 5u)
+                check(pkit_old_kept == 5u && ukit_state(4) == UK_STORED && uk_ram[4].s[2].snd[7] == 100u,
+                      "a copy of a kit that did not play (606*, the 808 playing): kept as MY KIT 5, its edit in it");
+        }
+#endif
     }
     return fails != 0;
 }

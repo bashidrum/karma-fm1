@@ -31,6 +31,9 @@ static struct { volatile uint32_t notes, buttons; } fm1_in;
 static void fm1_irq_off(void) {}                 /* (the host: one thread) */
 static void fm1_irq_on(void) {}
 #include "../firmware/src/core.h"
+#ifndef UKIT_FLASH_TEST
+#define UKIT_RAM 1                          /* (wave 12: the user kits in RAM; the FM-1 keeps them in flash, ukit_flash.c) */
+#endif
 #include "../firmware/src/engines.c"
 #include "../firmware/src/drums.c"
 #include "../firmware/src/params.c"
@@ -91,6 +94,7 @@ static void host_tracks_init(void)                /* as felucca_init: defaults, 
         }
     }
     song.master_q12 = 4096;
+    pkit_load_kit(DRUM_DEFAULT_KIT);             /* (wave 12: the project's kit, the 606's 16 sounds, as at power-on) */
     memset(mxt, 0, sizeof mxt);                  /* (PHEBUS wave 5: no matrix cell, LFO 2 free, no Spice) */
     for (k = 0; k < NPART; k++)
         mx_clear_sound(k);
