@@ -7,7 +7,7 @@
  *   tap a step       an empty one is set and heard (synth: the pen, the note / chord played last or KNOB 1 picks;
  *                    drums: the sound KNOB 1 picks), a set one is cleared when its key comes up (unless a knob
  *                    changed it meanwhile). A synth note is heard whenever it changes (the pen, a step's NOTE)
- *   hold a step      KNOB 1..4 edit it (synth: NOTE in the scale, LEN, VEL, COND; SELECT: FLAG, RATCH, NUDGE;
+ *   hold a step      KNOB 1..4 edit it (synth: NOTE in the scale, LEN, VEL, COND; SELECT: FLAG, RETRIG, NUDGE;
  *                    drums, the picked sound's trig (PHEBUS wave 2): VEL, RETRIG, NUDGE, COND; SELECT: CHANCE, LENGTH,
  *                    CURVE, the last two the retrig's); ENV / LFO / FX / EDIT tapped: that button's page on the
  *                    knobs, and each knob turned LOCKS its parameter on the step (again: the next page; the drum track:
@@ -25,7 +25,7 @@
 #define SG_SCENE_H 96u
 static uint16_t sg_held;                                /* the white keys held on the grid (steps of the page shown) */
 static uint16_t sg_pend;                                /* of those, the set steps that clear when let go (untouched) */
-static uint8_t sg_alt;                                  /* a synth step held: 0 NOTE LEN VEL COND, 1 FLAG RATCH NUDGE */
+static uint8_t sg_alt;                                  /* a synth step held: 0 NOTE LEN VEL COND, 1 FLAG RETRIG NUDGE */
 static uint8_t sg_lpage = 0xFF;                         /* a step held + ENV / LFO / FX / EDIT: the page that locks */
 static uint8_t sg_trk;                                  /* the track the steps held are on (from the first key down) */
 static void stl_key(uint32_t k, uint32_t down);         /* (ui_stut.c) */
@@ -98,12 +98,14 @@ static void syn_open(uint32_t fam)
     else
         syn_go(tab, 0);
 }
-static void syn_seq_tap(void)                           /* SEQ on the synth GRID: TRIG, again the stage before it */
+static void syn_seq_tap(void)                           /* SEQ on the synth GRID: TRIG; again its next half (wave 8: as every
+                                                         * page button walks its pages; it went back to the tab before, a
+                                                         * second meaning for a second tap) */
 {
     if (syn_tab)
-        syn_go(0, syn_half[0]);
+        syn_go(0, 0);
     else
-        syn_go(syn_tab_last, syn_half[syn_tab_last % 6u]);
+        syn_go(0, (syn_hcur() + 1u) % syn_halves(0));
 }
 /* SEQ on a synth's sound page: its GRID, on the same page's tab (the knobs stay where they were; the keys become steps) */
 static void syn_grid_from_page(void)
@@ -554,7 +556,7 @@ static void sg_held_knob(uint32_t k, int32_t s)
         }
         {
             step_t *st = &t->step[idx];
-            uint32_t sl = sg_alt ? 4u + k : k;          /* 0 NOTE 1 LEN 2 VEL 3 COND 4 FLAG 5 RATCH 6 NUDGE */
+            uint32_t sl = sg_alt ? 4u + k : k;          /* 0 NOTE 1 LEN 2 VEL 3 COND 4 FLAG 5 RETRIG 6 NUDGE */
             if (sl == 3u) {
                 step_fill_set(t, idx, (uint32_t)clamp((int32_t)step_fill(t, idx) + (s > 0 ? 1 : -1), 0, 3));
                 continue;
@@ -584,7 +586,7 @@ static void sg_held_knob(uint32_t k, int32_t s)
                 uint32_t f = (st->flags & SF_ACCENT ? 1u : 0u) | (st->flags & SF_SLIDE ? 2u : 0u);
                 f = (uint32_t)clamp((int32_t)f + (s > 0 ? 1 : -1), 0, 3);
                 st->flags = (uint8_t)((st->flags & ~(SF_ACCENT | SF_SLIDE)) | (f & 1u ? SF_ACCENT : 0u) | (f & 2u ? SF_SLIDE : 0u));
-            } else if (sl == 5u) {                      /* RATCH x1..x4, every note */
+            } else if (sl == 5u) {                      /* RETRIG x1..x4 (a synth step repeated in its time), every note */
                 uint32_t r = (uint32_t)clamp((int32_t)(st->rat & 3u) + (s > 0 ? 1 : -1), 0, 3);
                 st->rat = (uint8_t)(r * 0x55u);
             }
@@ -744,7 +746,7 @@ static int sg_input(uint32_t pressed)
     (void)panel_enc(EN_PRESET);
     (void)panel_enc(EN_ALGO);
     if ((s = panel_enc(EN_SELECT)) != 0) {
-        sg_alt = (uint8_t)(s > 0);                      /* NOTE LEN VEL COND <-> FLAG RATCH NUDGE; drums: VEL RETRIG NUDGE
+        sg_alt = (uint8_t)(s > 0);                      /* NOTE LEN VEL COND <-> FLAG RETRIG NUDGE; drums: VEL RETRIG NUDGE
                                                          * COND <-> CHANCE LENGTH CURVE */
         ui.force = 1;
     }
@@ -1004,7 +1006,7 @@ static void sg_synth_input(uint32_t pressed)
         (void)panel_enc(EN_ALGO);
     if ((s = panel_enc(EN_SELECT)) != 0)                /* every half of every tab (the tempo: HOME, the pages) */
         syn_walk(s);
-    sg_alt = (uint8_t)(syn_tab ? 0u : syn_hcur());      /* (TRIG's halves: NOTE LEN VEL COND, FLAG RATCH NUDGE) */
+    sg_alt = (uint8_t)(syn_tab ? 0u : syn_hcur());      /* (TRIG's halves: NOTE LEN VEL COND, FLAG RETRIG NUDGE) */
     for (k = 0; k < 4u; k++) {
         if ((s = panel_enc(EN_K1 + k)) == 0)
             continue;

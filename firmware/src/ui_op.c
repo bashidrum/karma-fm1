@@ -1049,12 +1049,13 @@ static void op_sound(const track_t *t, const page_t *pg)
 /* GLO held: a track a column (as the knobs and the track bar under it). A bar as high as the track's level, its
  * meter inside (the characters that danced on top are cut: the bars are taller). Muted: dashed and grey, a yellow
  * M; soloed: an S. Under the stage the 16 white keys and what they do here:
- * M mute 1..4, S solo 1..4, F a fill while held, B fill the next bar, T tap the tempo (lit on the beat).
+ * M mute 1..4, S solo 1..4, F a fill while held, B fill the next bar, P the knobs are the pans (wave 8: no tap tempo, the
+ * tempo is GLO > GLOBAL's BPM only).
  * flags: 1 a fill now, 2 the next bar is one, 4 it is asked for, 8 the beat. */
 static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32_t flags)
 {
     static const char *const LAB[4] = {"1", "2", "3", "DR"};   /* (the tracks by number, as the strip: review 21) */
-    static const char KEYS[17] = "123D123DFBP    T";   /* (PHEBUS: P, key 11, the knobs are the pans) */
+    static const char KEYS[17] = "123D123DFBP     ";   /* (PHEBUS: P, key 11, the knobs are the pans) */
     static uint32_t head, scene, keys, knobs, bar;
     const uint8_t *mx = op_mx;
     uint32_t i, sig = 7u;
@@ -1095,14 +1096,14 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
         sig = sig * 2u + (trk[i].p[P_MUTE] != 0);
     if (ui.force || sig != keys) {                      /* the 16 white keys: the track's number on its mute and solo
                                                          * keys, what each group does under it (review 21) */
-        static const char *const GRP[4] = {"MUTE", "SOLO", "FILL", "TAP"};
-        static const uint8_t GX[4] = {0, 4, 8, 15};
+        static const char *const GRP[3] = {"MUTE", "SOLO", "FILL"};
+        static const uint8_t GX[3] = {0, 4, 8};
         keys = sig;
         cv_begin(240, 36, C_BLACK);
         for (i = 0; i < 16u; i++) {
             int32_t x = 4 + (int32_t)i * 14 + (int32_t)(i / 4u) * 2;
             uint32_t on = i < 4u ? trk[i].p[P_MUTE] != 0 : i < 8u ? (song.solo >> (i - 4u)) & 1u : i == 8u ? flags & 1u :
-                          i == 9u ? (flags >> 1) & 1u : i == 10u ? (flags >> 4) & 1u : i == 15u ? (flags >> 3) & 1u : 0u;
+                          i == 9u ? (flags >> 1) & 1u : i == 10u ? (flags >> 4) & 1u : 0u;
             uint16_t c = i < 4u ? TE_COL[i] : i < 8u ? TE_MID[i - 4u] : KEYS[i] == ' ' ? OP_PUR_D : TE_G4;
             char ch[2] = {KEYS[i], 0};
             if (on)
@@ -1113,9 +1114,9 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
                 cv_rect(x, 2, 12, 2, C_WHITE);
             cv_text(x + 2, 4, &FONT_S, ch, on ? C_BLACK : c);
         }
-        for (i = 0; i < 4u; i++) {
+        for (i = 0; i < 3u; i++) {
             int32_t x = 4 + (int32_t)GX[i] * 14 + (int32_t)(GX[i] / 4u) * 2;
-            cv_text(i == 3u ? 236 - text_w(&FONT_S, GRP[i]) : x, 21, &FONT_S, GRP[i], TE_G3);
+            cv_text(x, 21, &FONT_S, GRP[i], TE_G3);
         }
         cv_blit(0, OP_BODY_Y + 96);
     }
@@ -1150,7 +1151,8 @@ static void home_band(int32_t x0, int32_t y0, uint32_t w, uint32_t h);
  * The colour rule: a voice's colour only on that voice's things; the deck, PERFORM and the zone names white and grey. */
 #define HB_X 64                                         /* the FLOW strip: x, y in the deck, its size (2 x 2 blocks) */
 #define HB_Y 2
-#define HB_W 116u
+#define HB_W 104u                                       /* (wave 8: 12 px less, for the ">" after it: SELECT right opens the
+                                                         * screensaver, HOME's next page) */
 #define HB_H 14u
 #define HZ_DECK 18                                      /* the deck's height, then three zones of HZ_H rows */
 #define HZ_H 38
@@ -1208,6 +1210,7 @@ static void op_home_body(void)
         b[0] = (char)('0' + bar / 10u % 10u), b[1] = (char)('0' + bar % 10u), b[2] = 0;
         cv_text(4 + text_w(&FONT_S, "BAR") + 4, 1, &FONT_S, b, playing ? C_WHITE : TE_G3);
         home_band(HB_X, HB_Y, HB_W, HB_H);
+        cv_text(HB_X + (int32_t)HB_W + 2, 1, &FONT_S, ">", TE_G3);   /* (SELECT right: this band full screen) */
         for (i = 0; i < 4u; i++) {                      /* the patterns */
             char ch[2] = {(char)('A' + i), 0};
             int32_t x = 188 + (int32_t)i * 12;

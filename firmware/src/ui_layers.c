@@ -30,10 +30,16 @@ static const char *const LAYER_BTN_NAME[LY_COUNT] = {"", "fx:", "edit:", "arp:",
 static void section_store(uint32_t s);                  /* project.c */
 static void perf_knob(uint32_t k, int32_t s);           /* ui_perf.c (wave 6: PERFORM) */
 static void section_load(uint32_t s);
-static uint8_t sec_armed;                               /* store over a used section: the key again within 3 s */
-static uint32_t sec_armed_ms;
+/* (wave 8, Ben 22 Nov 2026: "keep them few and consistent") THE TIMES, all of them, in one place (GUIDE.md section 2):
+ *   TAP_MS         a press shorter than this, nothing else touched: a tap (a button's pages)
+ *   SHOW_MS        a layer shows after this, so a tap does not flash it
+ *   LONG_MS        the long press: a layer button let go after it, untouched, stays open; HOME held this long opens the
+ *                  menu; REC held this long becomes "clear the voice"
+ *   HOLD_CLEAR_MS  the ring of the confirm: REC held this long more (or, with a question showing, this long from its press)
+ * No action waits for a second press: nothing is reached by pressing twice quickly */
 #define TAP_MS 450u                                     /* a press shorter than this, untouched: a tap */
 #define SHOW_MS 140u                                    /* the layer shows after this (a tap does not flash it) */
+#define LONG_MS 700u                                    /* the long press */
 static uint8_t mix_pan;                                 /* (PHEBUS) GLO + key 11: the mixer's knobs are the pans, until it
                                                          * closes (HOME's KNOB 4 was PAN; VOICE 2 has it too) */
 
@@ -135,25 +141,6 @@ static void pattern_transpose(track_t *t, int32_t d)    /* every note a semitone
 }
 
 /* ------------------------------------------------------------- GLO --- */
-static void tap_tempo(void)
-{
-    uint32_t now = fm1_ms, i, sum = 0;
-    if (ui.tap_n && now - ui.tap_ms[(ui.tap_n - 1u) & 3u] > 2000u)
-        ui.tap_n = 0;                                   /* a pause: a new count */
-    ui.tap_ms[ui.tap_n & 3u] = now;
-    ui.tap_n++;
-    if (ui.tap_n < 2u)
-        return;
-    {
-        uint32_t n = ui.tap_n - 1u > 3u ? 3u : ui.tap_n - 1u;
-        for (i = 0; i < n; i++)
-            sum += ui.tap_ms[(ui.tap_n - 1u - i) & 3u] - ui.tap_ms[(ui.tap_n - 2u - i) & 3u];
-        if (sum)
-            song.g[G_BPM] = (int16_t)clamp((int32_t)((60000u * n + sum / 2u) / sum), 40, 240);
-        ui.bpm_t = 40;
-    }
-}
-
 /* a key of the layers the UI runs (seq.c lk_q): SEL key, GLO mix (SEQ's: taken, nothing done) */
 static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
 {
@@ -210,12 +197,11 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
             }
         } else if (w < 8) {
             uint32_t s = (uint32_t)w - 4u;
-            if (((arrangement_ready() >> s) & 1u) && !(sec_armed == s + 1u && fm1_ms - sec_armed_ms < 3000u)) {
-                sec_armed = (uint8_t)(s + 1u);
-                sec_armed_ms = fm1_ms;
-                ui_say("AGAIN: ", b);
+            if ((arrangement_ready() >> s) & 1u) {      /* (wave 8) over a used one it asks: hold REC until the ring fills */
+                char q[8] = "STORE A";
+                q[6] = b[0];
+                ask_set(ASK_STORE, s, q);
             } else {
-                sec_armed = 0;
                 section_store(s);
                 ui_say("SAVED ", b);
             }
@@ -237,9 +223,7 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
         } else if (w == 10) {
             mix_pan = (uint8_t)!mix_pan;                    /* (PHEBUS) key 11: the knobs are the pans (again: levels) */
             ui.force = 1;
-        } else if (w == 15) {
-            tap_tempo();
-        }
+        }                                               /* (wave 8: the tempo is GLO > GLOBAL's BPM only: no tap) */
         return;
     default:
         return;
@@ -395,7 +379,7 @@ static uint32_t row_px(uint32_t r, uint32_t per)
 static void seq_time_draw(const track_t *t, uint16_t col, uint32_t *cache)
 {
     uint32_t len = trk_len(t), div = trk_div(t), u = div_units(div), i, k;
-    uint32_t sw = swings(div) ? swing_units(t->p[P_SSWING] + song.g[G_SWING], u) : 0u;
+    uint32_t sw = swings(div) ? swing_units(t->p[P_SSWING], u) : 0u;
     uint32_t bars = (len * u + BAR_U - 1u) / BAR_U, per = 1, rows, sig = len * 977u + div * 31u + sw;
     int32_t play = song.playing ? (int32_t)t->seq_idx : -1;
     while (bars > per * 4u)                             /* bars a row: 1, 2, 4 .. so that four rows hold them */
@@ -522,7 +506,8 @@ static void layer_screen_draw(void)
         if (layer == LY_ERASE && is_drum(t) && !mute && !undo.valid)
             str_cpy(sub, "black = mute", sizeof sub);
         if (layer == LY_ERASE) {
-            lab[0] = "shift", lab[1] = "steps", lab[2] = is_drum(t) ? "" : "transp";   /* (STEPS: the pattern's length) */
+            lab[0] = "shift", lab[1] = "double", lab[2] = is_drum(t) ? "" : "transp";   /* (wave 8: DOUBLE, the pattern again
+                                                         * after itself or halved; STEPS is hold SEQ's, the one length knob) */
             str_cpy(v[0], "<  >", 8);
             fmt_int(v[1], t->p[P_SLEN]);
             str_cpy(v[2], is_drum(t) ? "" : "-  +", 8);
@@ -619,7 +604,7 @@ static void layer_screen_draw(void)
     }
     case LY_MIX: {                                      /* mute 1..4, solo 1..4, fill / fill bar, tap */
         col = C_WHITE;
-        str_cpy(sub, "mute  solo  fill  tap", sizeof sub);
+        str_cpy(sub, "mute  solo  fill  pan", sizeof sub);
         for (i = 0; i < 4u; i++) {
             int m = trk[i].p[P_MUTE] != 0, so = (song.solo >> i) & 1u;
             str_cpy(tl[i].lab, "mute 1", 8);
@@ -639,11 +624,9 @@ static void layer_screen_draw(void)
         tl[9].bg = fill_bar_on ? C_WHITE : TE_G1;
         tl[9].fg = fill_bar_on ? C_BLACK : TE_G4;
         tl[9].top = fill_arm ? C_WHITE : 0;
-        fmt_int(tl[15].lab, song.g[G_BPM]);
-        tl[15].bg = song.playing && clk_pos < BEAT_U / 4u ? C_WHITE : TE_G2;
-        tl[15].fg = tl[15].bg == C_WHITE ? C_BLACK : C_WHITE;
-        str_cpy(tl[14].lab, "tap>", 8);
-        tl[14].bg = C_BLACK;
+        str_cpy(tl[10].lab, "pan", 8);                  /* (wave 8: no tap tempo; key 11 the pans) */
+        tl[10].bg = mix_pan ? C_WHITE : TE_G1;
+        tl[10].fg = mix_pan ? C_BLACK : TE_G4;
         for (i = 0; i < 4u; i++) {
             uint32_t lv = trk_level(i);
             static const char *const L[4] = {"1", "2", "3", "dr"};   /* (the strip's numbers) */
@@ -676,8 +659,8 @@ static void layer_screen_draw(void)
             tl[i].top = next ? C_WHITE : 0;
             str_cpy(tl[4 + i].lab, "save A", 8);
             tl[4 + i].lab[5] = (char)('A' + i);
-            tl[4 + i].bg = sec_armed == i + 1u ? TE_RED : TE_G1;
-            tl[4 + i].fg = sec_armed == i + 1u ? C_BLACK : TE_G4;
+            tl[4 + i].bg = ui.ask == ASK_STORE && ui.ask_arg == i ? TE_RED : TE_G1;
+            tl[4 + i].fg = ui.ask == ASK_STORE && ui.ask_arg == i ? C_BLACK : TE_G4;
             tl[4 + i].top = 0;
         }
         for (i = 8; i < 16u; i++) {                     /* (PHEBUS wave 2) keys 9..16 do nothing here since the song cut:
@@ -719,15 +702,18 @@ static void layer_screen_draw(void)
     op_trackbar(&bar);
 }
 
-/* HOLD to confirm: a ring fills while REC (clear the track) or SAVE (save the project) is held */
+/* HOLD to confirm: a ring fills while REC is held: clear the track (1), or (wave 8) yes to the question showing (3) */
 #define HOLD_CLEAR_MS 1300u                             /* after the 0.7 s that make REC a hold */
 #define HOLD_SAVE_MS 1000u
 static void hold_screen_draw(void)
 {
     static uint32_t cache;
-    uint32_t span = ui.hold_kind == 1u ? HOLD_CLEAR_MS : HOLD_SAVE_MS, el = fm1_ms - ui.hold_t0;
+    uint32_t span = ui.hold_kind == 2u ? HOLD_SAVE_MS : HOLD_CLEAR_MS, el = fm1_ms - ui.hold_t0;
+    const char *what = ui.hold_kind == 1u ? "clear" : ui.hold_kind == 3u ? ui.msg + 10 : "save";   /* (3: the question's
+                                                         * action, after "HOLD REC: ") */
+    uint16_t rc = ui.hold_kind == 2u ? C_WHITE : TE_RED;
     int32_t ratio = el >= span ? 1000 : (int32_t)(el * 1000u / span);
-    uint32_t sig = ui.hold_kind * 7u + (uint32_t)ratio / 20u + ui.hold_trk * 131u;
+    uint32_t sig = studio_hash(ui.hold_kind * 7u + (uint32_t)ratio / 20u + ui.hold_trk * 131u, what);
     char b[24];
     if (!layer_shown) {
         lcd_fill(0, 0, 240, 240, C_BLACK);
@@ -738,20 +724,24 @@ static void hold_screen_draw(void)
         return;
     cache = sig;
     cv_begin(240, 124, C_BLACK);
-    cv_text(120 - text_w(&FONT_L, ui.hold_kind == 1u ? "clear" : "save") / 2, 4, &FONT_L,
-            ui.hold_kind == 1u ? "clear" : "save", ui.hold_kind == 1u ? TE_RED : C_WHITE);
+    if (text_w(&FONT_L, what) <= 236)
+        cv_text(120 - text_w(&FONT_L, what) / 2, 4, &FONT_L, what, rc);
+    else
+        te_text_c(120, 12, what, rc);
     {   /* the ring: 36 px, 7 thick, filling clockwise from the top */
         int32_t a, rr, end = ratio * 1024 / 1000;
         for (a = 0; a < 1024; a += 2) {
             int32_t co = SINE[((uint32_t)a + 768u) & 1023u], si = SINE[(uint32_t)a & 1023u];   /* from 12 o'clock */
-            uint16_t c = a <= end ? (ui.hold_kind == 1u ? TE_RED : C_WHITE) : TE_G2;
+            uint16_t c = a <= end ? rc : TE_G2;
             for (rr = 30; rr <= 36; rr++)
                 cv_pset(120 + ((si * rr) >> 15), 80 + ((co * rr) >> 15), c);
         }
     }
     cv_blit(0, 20);
     cv_begin(240, 60, C_BLACK);
-    if (ui.hold_kind == 1u) {
+    if (ui.hold_kind == 3u) {
+        str_cpy(b, "let go: no", sizeof b);
+    } else if (ui.hold_kind == 1u) {
         str_cpy(b, "track 1", sizeof b);
         b[6] = (char)('1' + ui.hold_trk);
         if (ui.hold_trk == TRK_DRUM)
@@ -761,6 +751,6 @@ static void hold_screen_draw(void)
         b[13] = (char)('A' - 1 + clamp(song.g[G_SLOT], 1, 4));
     }
     te_text_c(120, 4, b, TE_G4);
-    te_text_c(120, 30, "keep holding", TE_G3);
+    te_text_c(120, 30, "keep holding rec", TE_G3);
     cv_blit(0, 160);
 }

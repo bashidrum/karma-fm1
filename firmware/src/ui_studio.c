@@ -523,7 +523,7 @@ static void rec_screen_draw(void)
     rec_rows(rt, 22u + 56u, &rows);
     {   /* the dials: how it records */
         static char v[3][10];
-        static const char *const LAB_N[4] = {"", "steps", "start", ""};   /* (STEPS: the pattern's length, review 21) */
+        static const char *const LAB_N[4] = {"", "", "start", ""};   /* (wave 8: the length is hold SEQ's STEPS only) */
         static const char *const LAB_0[4] = {"", "", "", ""};
         const char *val[4] = {v[0], v[1], v[2], ""};
         int32_t ratio[4] = {0, 0, 0, 0};

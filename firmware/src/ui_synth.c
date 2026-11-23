@@ -16,7 +16,7 @@
  *                  (again: the next stage), ENV, FX, LFO (MOD) their own (again: the next half), SEQ TRIG (again: back),
  *                  SELECT every half; with a step held too. Nothing held, the knobs edit the sound (TRIG: NOTE STEP HIT VEL,
  *                  the pen); a step held, a knob LOCKS what it shows on the step (TRIG: the step's NOTE LEN VEL COND, FLAG
- *                  RATCH NUDGE), the locked value inverted; OCT- the lock of the knob last turned, again every lock */
+ *                  RETRIG NUDGE), the locked value inverted; OCT- the lock of the knob last turned, again every lock */
 /* ---- the values */
 static void syn_fmt_type(char *b, uint32_t ty) { str_cpy(b, ty < NVTYPE ? VTYPES[ty].name : "--", 8); }
 /* page pg's four knobs on the selected synth track: labels, values (a step held, first: its lock, inverted), dials */
@@ -46,8 +46,6 @@ static void syn_vals(const page_t *pg, int32_t first, const char *lab[4], char v
                 *dim |= 1u << k;                        /* (not lockable: the Rytm's machine, grey with a step held) */
             continue;
         }
-        if (pg->id[k] >= V_XA && pg->id[k] <= V_XC && id >= V_XA)   /* (wave 5) a shared effect's own: GLO's, shared */
-            *dim |= 16u << k;
         if (id == V_MK4) {                              /* (wave 5) TARGET: the parameter's name; CLEAR: the cell */
             if (mx_col >= MD_AS1) {
                 uint32_t a = mxt[song.sel % NPART].as[mx_col - MD_AS1];
@@ -82,10 +80,10 @@ static void syn_vals(const page_t *pg, int32_t first, const char *lab[4], char v
         ratio[k] = d->max > d->min ? (x - d->min) * 1000 / (d->max - d->min) : -1;
     }
 }
-/* TRIG's knobs: a step held, its NOTE LEN VEL COND (half 2: FLAG RATCH NUDGE); nothing held, NOTE (the pen) STEP HIT VEL */
+/* TRIG's knobs: a step held, its NOTE LEN VEL COND (half 2: FLAG RETRIG NUDGE); nothing held, NOTE (the pen) STEP HIT VEL */
 static void syn_trig_vals(int32_t first, uint32_t half, const char *lab[4], char v[4][12], int32_t ratio[4], uint32_t *dim)
 {
-    static const char *const LA[4] = {"NOTE", "LEN", "VEL", "COND"}, *const LB[4] = {"FLAG", "RATCH", "NUDGE", ""};
+    static const char *const LA[4] = {"NOTE", "LEN", "VEL", "COND"}, *const LB[4] = {"FLAG", "RETRIG", "NUDGE", ""};   /* (wave 8: one repeat word, RETRIG, as the drum trig's) */
     static const char *const LF[4] = {"NOTE", "STEP", "HIT", "VEL"};
     const track_t *t = TSEL;
     uint32_t k, len = trk_len(t), c = first >= 0 ? (uint32_t)first : sg_cur();
@@ -96,7 +94,7 @@ static void syn_trig_vals(int32_t first, uint32_t half, const char *lab[4], char
         v[k][0] = 0;
         ratio[k] = -1;
     }
-    if (half) {                                         /* FLAG RATCH NUDGE */
+    if (half) {                                         /* FLAG RETRIG NUDGE */
         uint32_t f = (st->flags & SF_ACCENT ? 1u : 0u) | (st->flags & SF_SLIDE ? 2u : 0u);
         if (first < 0) {                                /* (wave 5) nothing held: Spice and Dice, the MiniFreak's */
             const mxt_t *m = &mxt[song.sel % NPART];
@@ -293,6 +291,8 @@ static void syn_fx_slots(const track_t *t, uint32_t cur, uint16_t c, uint16_t cd
     uint32_t k;
     for (k = 0; k < NXSLOT; k++) {
         int32_t x = 2 + (int32_t)k * 79, ty = clamp(t->p[P_XS(k, 0)], 0, XT_N - 1);
+        if (xt_send(ty))
+            ty = XT_OFF;                                /* (wave 8: no slot type: shown as it plays, OFF) */
         char lb[4] = {'F', 'X', (char)('1' + k), 0};
         uint16_t fg = ty ? (k == cur ? C_WHITE : c) : TE_G3;
         if (k == cur)
@@ -309,36 +309,11 @@ static void syn_fx_pic(const track_t *t, uint32_t k, uint16_t c)
     int32_t ty = clamp(t->p[P_XS(k, 0)], 0, XT_N - 1), x, i;
     int32_t tm = t->p[P_XS(k, 1)], in = t->p[P_XS(k, 2)], am = t->p[P_XS(k, 3)];
     switch (ty) {
-    case XT_DELAY: {                                     /* the taps: the send, then FDBK down each echo */
-        int32_t h = (SP_B - SP_T) * clamp(t->p[P_DLY], 8, 127) / 127, fb = song.g[G_DFDBK], step = 18 + song.g[G_DTIME] * 4;
-        for (x = SP_L + 4, i = 0; x < SP_R && h > 1 && i < 12; x += step, i++) {
-            cv_rect(x, SP_B - h, 7, h, i ? TE_MID[song.sel & 3u] : c);
-            h = h * clamp(fb, 0, 110) / 127;
-        }
-        break;
-    }
-    case XT_REVERB:                                      /* a dense tail, SIZE long, DAMP darker */
-        for (x = SP_L; x < SP_R; x += 2) {
-            int32_t len = 30 + song.g[G_RSIZE] * 150 / 127, e = x - SP_L < len ? (len - (x - SP_L)) : 0;
-            int32_t h = (SP_B - SP_T) * e / len * clamp(t->p[P_REV], 8, 127) / 127 * (int32_t)((rng() >> 24) + 128) / 384;
-            if (h > 0)
-                cv_rect(x, SP_B - h, 1, h, x & 2 ? c : TE_MID[song.sel & 3u]);
-        }
-        break;
-    case XT_CHORUS: case XT_PHASER: case XT_FLANGER: {   /* the sweep: two lines moving apart (chorus), notches (the others) */
-        int32_t py = SP_M, py2 = SP_M, rate = 1 + (ty == XT_CHORUS ? song.g[G_CRATE] : tm) / 16;
+    case XT_PHASER: case XT_FLANGER: {                   /* the sweep: its notches moving (wave 8: no shared effect here) */
+        int32_t py = SP_M, rate = 1 + tm / 16;
         for (x = SP_L; x <= SP_R; x++) {
-            int32_t ph = (x * 6 + (int32_t)ui.frame * rate) & 255, w = ph < 128 ? ph : 255 - ph;
-            int32_t y = SP_M - (w - 64) * (SP_B - SP_T) / 300, y2;
-            if (ty == XT_CHORUS) {
-                y2 = SP_M + (w - 64) * (SP_B - SP_T) / 300;
-                if (x > SP_L)
-                    cv_line(x - 1, py2, x, y2, TE_MID[song.sel & 3u]);
-                py2 = y2;
-            } else {
-                int32_t n = ty == XT_PHASER ? 2 : 6, q = ((x - SP_L) * n * 256 / (SP_R - SP_L) + (int32_t)ui.frame * rate) & 255;
-                y = SP_T + 4 + (q < 128 ? q : 255 - q) * (SP_B - SP_T - 8) * clamp(in + 30, 0, 127) / 127 / 128;
-            }
+            int32_t n = ty == XT_PHASER ? 2 : 6, q = ((x - SP_L) * n * 256 / (SP_R - SP_L) + (int32_t)ui.frame * rate) & 255;
+            int32_t y = SP_T + 4 + (q < 128 ? q : 255 - q) * (SP_B - SP_T - 8) * clamp(in + 30, 0, 127) / 127 / 128;
             if (x > SP_L)
                 cv_line(x - 1, py, x, y, c);
             py = y;
@@ -377,6 +352,40 @@ static void syn_fx_pic(const track_t *t, uint32_t k, uint16_t c)
     default:
         gp_dots(SP_M);
         break;
+    }
+}
+/* (wave 8) SENDS: how much of this voice goes to the whole mix's DELAY, REVERB and CHORUS, three boxes over the knobs: the
+ * echoes, the tail, the doubled wave, each as tall as its send (their settings are the FX button's pages: not drawn here) */
+static void syn_sends(const track_t *t, uint16_t c, uint16_t cd)
+{
+    static const uint8_t ID[3] = {P_DLY, P_REV, P_CHOR};
+    uint32_t k;
+    int32_t i, x;
+    for (k = 0; k < 3u; k++) {
+        int32_t x0 = 4 + (int32_t)k * 60, a = clamp(t->p[ID[k]], 0, 127), hh = SP_B - SP_T - 4, h = hh * a / 127;
+        op_box(x0, SP_T, 52, SP_B - SP_T + 1, a ? cd : TE_G2);
+        if (!a) {
+            cv_rect(x0 + 4, SP_B - 3, 44, 1, TE_G2);
+            continue;
+        }
+        if (k == 0u)                                    /* DELAY: the sound, then its echoes */
+            for (i = 0, x = h; i < 5 && x > 0; i++, x = x * 2 / 3)
+                cv_rect(x0 + 5 + i * 9, SP_B - 2 - x, 4, x, i ? cd : c);
+        else if (k == 1u)                               /* REVERB: a tail */
+            for (i = 0; i < 44; i += 2)
+                cv_rect(x0 + 4 + i, SP_B - 2 - h * (44 - i) / 44, 1, h * (44 - i) / 44 + 1, c);
+        else {                                          /* CHORUS: the wave and its second voice */
+            int32_t py = SP_M, py2 = SP_M;
+            for (i = 0; i <= 44; i++) {
+                int32_t v = SINE[((uint32_t)i * 23u) & 1023u], v2 = SINE[((uint32_t)i * 23u + 90u) & 1023u];
+                int32_t y = SP_M - ((v * (h / 2)) >> 15), y2 = SP_M - ((v2 * (h / 2)) >> 15);
+                if (i) {
+                    cv_line(x0 + 3 + i, py2, x0 + 4 + i, y2, cd);
+                    cv_line(x0 + 3 + i, py, x0 + 4 + i, y, c);
+                }
+                py = y, py2 = y2;
+            }
+        }
     }
 }
 /* (wave 5) the grid (mock-synth-mod-A): the sources down, the destinations across (seven at a time, the cursor's half), a dot
@@ -426,11 +435,9 @@ static void syn_body(track_t *t, const page_t *pg, uint32_t half, uint32_t *cach
         for (i = 0; i < MX_NCELL; i++)
             sig = (sig ^ ((uint32_t)m->c[i].at << 8 | (uint8_t)m->c[i].amt)) * 16777619u;
         sig ^= (uint32_t)m->l2sync * 77u + (uint32_t)m->l2trig * 999u + (uint32_t)m->as[0] * 13u + (uint32_t)m->as[1] * 131u;
-        for (i = G_DTIME; i <= G_CDEPTH; i++)
-            sig = (sig ^ (uint32_t)(uint16_t)song.g[i]) * 16777619u;
     }
     if (pg->graph == GR_LFO || pg->graph == GR_LFO2 || (pg->graph == GR_SLCR && t->p[P_SLCR]) ||
-        (pg->graph == GR_XSLOT && t->p[pg->id[0]] && t->p[pg->id[0]] <= XT_REVERB))
+        (pg->graph == GR_XSLOT && (t->p[pg->id[0]] == XT_PHASER || t->p[pg->id[0]] == XT_FLANGER)))
         sig ^= (ui.frame / 2u + 1u) * 40503u;           /* (the LFO runs, the SLICER's step) */
     if (pg->graph == GR_INS && t->p[P_ITYPE] >= IT_PHASER)
         sig ^= (ui.frame + 1u) * 40503u;
@@ -510,9 +517,6 @@ static void syn_body(track_t *t, const page_t *pg, uint32_t half, uint32_t *cach
             syn_fx_pic(t, k, c);
             if (!ty)
                 str_cpy(sub, "EMPTY: KNOB 1 PICKS A TYPE", 40);
-            else if (xt_send(ty))
-                str_cpy(sub, ty == XT_CHORUS ? "SEND TO THE CHORUS" : ty == XT_REVERB ? "SEND TO THE REVERB" : "SEND TO THE DELAY",
-                        40);
             else
                 str_cpy(sub, "IN SERIES", 40);
             cv_text(4, 45, &FONT_S, sub, TE_G4);
@@ -526,6 +530,9 @@ static void syn_body(track_t *t, const page_t *pg, uint32_t half, uint32_t *cach
         } else if (pg->graph == GR_SLCR) {
             str_cpy(sub, N_SLCR[clamp(t->p[P_SLCR], 0, 2)], 12);
             syn_slicer(t, c);
+        } else if (pg->graph == GR_SENDS) {             /* (wave 8) the voice's own sends to the whole mix's effects */
+            str_cpy(sub, "TO THE MIX'S FX", 40);
+            syn_sends(t, c, TE_DIM[v]);
         } else {
             str_cpy(sub, "DIST CHORUS DELAY REVERB", 40);
             gp_sends(t, c);

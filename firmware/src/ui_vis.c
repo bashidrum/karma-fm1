@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The screensavers (PHEBUS, Ben, 21 Nov 2026: "Drop all 11, new only"). On HOME (the TRACKS screen), HOME tapped
- * opens one; HOME again or any page closes it; SELECT steps through them (the name shows a second); a layer held
- * shows its screen as ever, then the screensaver comes back. The keys, PLAY and REC work as always.
+/* The screensavers (PHEBUS, Ben, 21 Nov 2026: "Drop all 11, new only"). (Wave 8, Ben 22 Nov 2026: no double presses; HOME
+ * tapped on HOME opened one) They are HOME's pages: on HOME, SELECT right opens FLOW, then EYES, DESERT, THIRD EYE; SELECT
+ * left from FLOW is HOME again, as SELECT walks every screen's pages (the name shows a second). HOME or any page closes it;
+ * a layer held shows its screen as ever, then the screensaver comes back. The keys, PLAY and REC work as always.
  *   1 FLOW    liquid marble, wavy stripes and glitch tears, a band per voice
  *   2 EYES    four watching eyes in a turning lattice, an eye per voice
  *   3 DESERT  dunes in four strata under a ringed sun, a stratum per voice
@@ -520,9 +521,15 @@ static void vis_draw(void)
         vis_name_t--;
 }
 /* SELECT on the screensaver: the next / previous one (round) */
-static void vis_select(int32_t s)
+static void vis_select(int32_t s)                       /* SELECT on a screensaver: the next, the one before; before FLOW: HOME */
 {
-    vis_style = (uint8_t)((vis_style + (s > 0 ? 1u : VIS_N - 1u)) % VIS_N);
+    int32_t v = (int32_t)vis_style + (s > 0 ? 1 : -1);
+    if (v < 0) {
+        vis_on = 0;
+        ui.force = 1;
+        return;
+    }
+    vis_style = (uint8_t)(v < (int32_t)VIS_N ? v : (int32_t)VIS_N - 1);
     vis_name_t = 30;
     ui.force = 1;
     settings_later = 1;                                 /* (kept with the settings, once stopped) */

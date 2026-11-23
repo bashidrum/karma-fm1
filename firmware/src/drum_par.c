@@ -5,7 +5,7 @@
 static const char *const N_DSWAVE[] = {"OFF", "SINE", "TRI", "SQR", "FM", "BELL"};
 static const char *const N_DSNOISE[] = {"OFF", "WHITE", "METAL", "CYM", "CHIP", "CLAP"};
 static const char *const N_DSFT[] = {"OFF", "LP", "BP", "HP", "LP+", "BP+", "HP+"};   /* + : the tone through it too */
-static const char *const N_DLDST[] = {"PITCH", "CUT", "RES", "LEVEL"};
+static const char *const N_DLDST[] = {"PITCH", "CUT", "RESO", "LEVEL"};   /* (wave 8: RESO, one spelling) */
 static const char *const N_DLMOD[] = {"TRIG", "FREE", "ONE"};
 #define DD(l, f, mn, mx, df) {l, f, mn, mx, df, 0, 0}
 #define DE(l, n, df) {l, F_ENUM, 0, (int16_t)(sizeof(n) / sizeof(n[0]) - 1), df, n, 0}
@@ -18,7 +18,7 @@ static const param_desc_t DS_DESC[DS_N] = {
     [DS_P2LVL] = DD("P2 LVL", F_INT, 0, 127, 0), [DS_CLICK] = DD("CLICK", F_INT, 0, 127, 0),
     [DS_NLVL] = DD("N.LVL", F_INT, 0, 127, 0), [DS_NHOLD] = DD("N.HOLD", F_INT, 0, 127, 0),
     [DS_NDEC] = DD("N.DEC", F_INT, 0, 127, 40), [DS_FTYPE] = DE("TYPE", N_DSFT, 0),
-    [DS_RES] = DD("RES", F_INT, 0, 31, 0), [DS_FREQ] = DD("FREQ", F_INT, 0, 127, 127),
+    [DS_RES] = DD("RESO", F_INT, 0, 31, 0), [DS_FREQ] = DD("CUTOFF", F_INT, 0, 127, 127),   /* (wave 8: the synth FILT's words) */
     [DS_FENV] = DD("ENV", F_INT, -64, 63, 0), [DS_HPF] = DD("HPF", F_INT, 0, 127, 0),
     [DS_CHIP] = DD("CHIP", F_INT, 0, 127, 0), [DS_DRIVE] = DD("DRIVE", F_INT, 0, 127, 0),
     [DS_LEVEL] = {"LEVEL", F_INT, -32, 31, 0, 0, "dB"},
@@ -175,7 +175,9 @@ static void dsp_format(uint32_t id, const param_desc_t *d, int32_t v, char *val,
     param_format(d, v, val, unit);
 }
 
-/* ---- the pages: each machine's parameters in the Rytm's order, four a half (0xFF: an empty knob) */
+/* ---- the pages: each machine's parameters in the Rytm's order, four a half (0xFF: an empty knob). (Wave 8, Ben 22 Nov 2026:
+ * "same filter page on drums and synths") FLTR is the synth voice's FILT on both machines: CUTOFF RESO ENV TYPE on its first
+ * half (the HEX machine has no filter envelope: that knob empty), DRIVE first on its second half */
 enum { DPG_SRC, DPG_FLTR, DPG_AMP, DPG_LFO, DPG_N };
 typedef struct { uint8_t pg, id[4]; } dhalf_t;
 #define S_(k) (DSP_S0 + DS_##k)
@@ -183,7 +185,8 @@ static const dhalf_t DH_HEX[] = {
     {DPG_SRC, {DSP_COARSE, DSP_PAMT, DSP_PDEC, DSP_WAVE}},          /* TUNE, the pitch sweep, the oscillator */
     {DPG_SRC, {DSP_MODEL, DSP_AUX1, DSP_RATIO, DSP_FM}},            /* the machine, its modulator */
     {DPG_SRC, {DSP_CLICK, DSP_CLVL, DSP_CTONE, DSP_FINE}},          /* the transient; PSLOPE (DRUM, SNARE) / FINE */
-    {DPG_FLTR, {DSP_CUT, DSP_RES, DSP_FTYPE, DSP_DRIVE}},
+    {DPG_FLTR, {DSP_CUT, DSP_RES, 0xFF, DSP_FTYPE}},
+    {DPG_FLTR, {DSP_DRIVE, 0xFF, 0xFF, 0xFF}},
     {DPG_AMP, {DSP_ATK, DSP_DEC, DSP_SLOPE, DSP_AUX2}},             /* the envelope, DIST (the Rytm's OVR) */
     {DPG_AMP, {DSP_CRUSH, DSP_DEL, DSP_REV, DSP_LEVEL}},
     {DPG_LFO, {DSP_LSPD, DSP_LDEP, DSP_LDST, DSP_LWAV}},
@@ -193,10 +196,10 @@ static const dhalf_t DH_SYN[] = {
     {DPG_SRC, {S_(TUNE), S_(FINE), S_(WAVE), S_(TONE)}},
     {DPG_SRC, {S_(SWEEP), S_(SWTIME), S_(PART2), S_(P2LVL)}},
     {DPG_SRC, {S_(NOISE), S_(NLVL), S_(CLICK), S_(CHIP)}},
-    {DPG_FLTR, {S_(FREQ), S_(RES), S_(FTYPE), S_(FENV)}},
-    {DPG_FLTR, {S_(HPF), 0xFF, 0xFF, 0xFF}},                        /* (the noise's own high-pass) */
+    {DPG_FLTR, {S_(FREQ), S_(RES), S_(FENV), S_(FTYPE)}},
+    {DPG_FLTR, {S_(DRIVE), S_(HPF), 0xFF, 0xFF}},                   /* (DRIVE, then the noise's own high-pass) */
     {DPG_AMP, {S_(HOLD), S_(DECAY), S_(NHOLD), S_(NDEC)}},
-    {DPG_AMP, {S_(DRIVE), DSP_DEL, DSP_REV, S_(LEVEL)}},
+    {DPG_AMP, {0xFF, DSP_DEL, DSP_REV, S_(LEVEL)}},                  /* (DEL REV LEVEL where the HEX machine has them) */
     {DPG_LFO, {DSP_LSPD, DSP_LDEP, DSP_LDST, DSP_LWAV}},
     {DPG_LFO, {DSP_LSYN, DSP_LFAD, DSP_LSPH, DSP_LMOD}},
 };

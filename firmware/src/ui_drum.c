@@ -7,12 +7,16 @@
  *   the screen     the selected sound's name, large; the 4 x 4 sound map (a tile a sound: dim with trigs, lit as it
  *                  plays, framed white when selected, a yellow M muted, an ice-blue S soloed); its 16 trigs of the page
  *                  (a lock: a square in it; a retrig: lines; a condition: a notch; held: framed white; the playhead
- *                  under); what the held trig holds; the tabs TRIG SRC FLTR AMP LFO and the half (1/2); four dials,
+ *                  under); what the held trig holds; the tabs TRIG SRC FLTR AMP LFO FX and the half (1/2); four dials,
  *                  each over its knob: its name and its value, one size in fixed columns, a locked value inverted
  *   the keys       the 16 steps of the page of the selected sound (as every GRID); black keys 1 .. 4 the page of steps,
- *                  F#5 FILL (held; twice quickly: latched)
- *   the pages      EDIT: SRC, again the next page (FLTR AMP LFO); ENV: AMP, LFO: LFO (again: the page's next half); SEQ:
- *                  TRIG (again: back); SELECT walks every half of every page; they change the page with a trig held too
+ *                  F#5 FILL while held; OCT+ with F#5 held (or F#5 with OCT+ held) latches it, F#5 again lets it go
+ *                  (wave 8: PERFORM's latch, one gesture; it was a double press)
+ *   the pages      EDIT: SRC, again the next page (FLTR AMP LFO FX); ENV: AMP, LFO: LFO (again: the page's next half); SEQ:
+ *                  TRIG (again: its next half); SELECT walks every half of every page; they change the page with a trig
+ *                  held too. FX (wave 8, Ben 22 Nov 2026: "FX = whole mix only"; the drum voice's bus insert "stays its
+ *                  own"): the drum voice's own FILTER, INSERT, INSERT 2, SENDS, SLICER, the Rytm's FX track; a trig held,
+ *                  its knobs lock them on the step as any tab's (it was the FX button with a trig held)
  *   the knobs      nothing held: the sound's value (the first turn on a built-in kit makes the project's own copy,
  *                  drum_snd.c); a trig held: the value LOCKED on that trig (TRIG: the trig's own VEL RETRIG NUDGE COND,
  *                  CHANCE LENGTH CURVE NOTE). OCT- with a trig held: the lock of the knob last turned goes, again (or
@@ -22,34 +26,49 @@
  *   ARP tapped     CHROMATIC mode: the 27 keys play the selected sound at their pitches, OCT- / OCT+ the octave; recorded
  *                  live, each trig keeps its pitch (a NOTE lock). Again: back
  *   ARP held       RETRIG: a key retrigs its sound at the rate KNOB 1 or a black key picks (1/4 .. 1/80) */
-static uint8_t drum_pg = 1;                             /* 0 TRIG, 1 SRC, 2 FLTR, 3 AMP, 4 LFO (drum_snd.c DPG_* + 1) */
-static uint8_t drum_half[5];                            /* each page's half shown */
-static uint8_t drum_pg_last = 1;                        /* the sound page before TRIG (SEQ again goes back) */
+#define DPG_TABS 6u                                     /* TRIG SRC FLTR AMP LFO FX */
+#define DPG_FX 5u
+static uint8_t drum_pg = 1;                             /* 0 TRIG, 1 SRC, 2 FLTR, 3 AMP, 4 LFO (drum_snd.c DPG_* + 1), 5 FX */
+static uint8_t drum_half[DPG_TABS];                     /* each page's half shown */
+static uint8_t drum_pg_last = 1;                        /* the sound page last shown (EDIT, ENV, LFO come back to it) */
 static uint8_t drum_newvel = DT_VEL_DEF;                /* the velocity a new trig takes (TRIG, nothing held: KNOB 1) */
 static uint8_t dk_touch = 0xFF;                         /* a trig held: the id of the knob last turned in this hold */
-static uint32_t pk_arm_ms;                              /* the project's copy of another kit is to be replaced: the turn
-                                                         * again within GO_MS does it */
-static uint32_t fill_tap_ms;                            /* F#5 on the drum GRID: its last press (twice: latched) */
-static const char *const DPG_NAME[5] = {"TRIG", "SRC", "FLTR", "AMP", "LFO"};
-#define GO_MS 1500u
+static const char *const DPG_NAME[DPG_TABS] = {"TRIG", "SRC", "FLTR", "AMP", "LFO", "FX"};
 #define FILL_KEY 25u                                    /* F#5: the last black key */
+/* (wave 8) the FX tab's halves: the drum voice's own pages (params.c PAGES: FILTER, INSERT, INSERT 2 and SENDS of FAM_DRM, the
+ * SLICER every voice has), by name once */
+#define NDBUS 5u
+static uint8_t dbus_pg[NDBUS];
+static uint32_t dbus_page(uint32_t h)                   /* the FX tab's half h: its PAGES index */
+{
+    static const char *const T[NDBUS] = {"FILTER", "INSERT", "INSERT 2", "SENDS", "SLICER"};
+    static const uint8_t F[NDBUS] = {FAM_DRM, FAM_DRM, FAM_DRM, FAM_DRM, FAM_FX};
+    if (!dbus_pg[0] && !dbus_pg[1]) {
+        uint32_t i, k;
+        for (k = 0; k < NDBUS; k++)
+            for (i = 0; i < NPAGES; i++)
+                if (PAGES[i].fam == F[k] && str_eq(PAGES[i].title, T[k]))
+                    dbus_pg[k] = (uint8_t)i;
+    }
+    return dbus_pg[h % NDBUS];
+}
 
 static uint32_t dpg_halves(uint32_t pg)
 {
     uint32_t f;
-    return pg == 0u ? 2u : dh_count(drum_model(), pg - 1u, &f);
+    return pg == 0u ? 2u : pg == DPG_FX ? NDBUS : dh_count(drum_model(), pg - 1u, &f);
 }
 static uint32_t dpg_half(void)
 {
     uint32_t n = dpg_halves(drum_pg);
-    return drum_half[drum_pg % 5u] < n ? drum_half[drum_pg % 5u] : 0u;
+    return drum_half[drum_pg % DPG_TABS] < n ? drum_half[drum_pg % DPG_TABS] : 0u;
 }
-static uint32_t dpg_id(uint32_t k) { return drum_pg ? dh_id(drum_model(), drum_pg - 1u, dpg_half(), k) : 0xFFu; }
+static uint32_t dpg_id(uint32_t k) { return drum_pg && drum_pg < DPG_FX ? dh_id(drum_model(), drum_pg - 1u, dpg_half(), k) : 0xFFu; }
 static void dpg_go(uint32_t pg, uint32_t half)
 {
     if (pg)
         drum_pg_last = (uint8_t)pg;
-    drum_pg = (uint8_t)(pg % 5u);
+    drum_pg = (uint8_t)(pg % DPG_TABS);
     drum_half[drum_pg] = (uint8_t)half;
     ui.force = 1;
 }
@@ -61,7 +80,7 @@ static void dpg_walk(int32_t s)
         if (s > 0) {
             if (h + 1 < (int32_t)dpg_halves((uint32_t)pg))
                 h++;
-            else if (pg < 4)
+            else if (pg < (int32_t)DPG_FX)
                 pg++, h = 0;
         } else {
             if (h > 0)
@@ -78,27 +97,27 @@ static void drum_screen_open(void)                      /* the drum screen (from
         studio_open(SC_DRUM);
     stl_view = 0;
 }
-/* EDIT, ENV, LFO on the drum track (from anywhere: ui.c open_family): the drum screen at SRC (EDIT again: the next page),
- * AMP, LFO (again: the page's next half) */
+/* EDIT, ENV, LFO on the drum track (from anywhere: ui.c open_family): the drum screen at SRC (EDIT again: the next page, FX
+ * after LFO, SRC after FX), AMP, LFO (again: the page's next half) */
 static void drum_open(uint32_t fam)
 {
     uint32_t on = on_drum_page() && song.sel == TRK_DRUM && !stl_shown(), pg = fam == FAM_ENV ? 3u : fam == FAM_LFO ? 4u : 1u;
     if (drum_keys == DK_MUTE)
         drum_keys = DK_PLAY;                            /* (a page: the GRID's keys again) */
     if (on && fam == FAM_EDIT && drum_pg >= 1u)
-        pg = drum_pg % 4u + 1u;                          /* SRC > FLTR > AMP > LFO > SRC */
+        pg = drum_pg % DPG_FX + 1u;                      /* SRC > FLTR > AMP > LFO > FX > SRC */
     if (on && pg == drum_pg && fam != FAM_EDIT)
         dpg_go(pg, (dpg_half() + 1u) % dpg_halves(pg));
     else
         dpg_go(pg, 0);
     drum_screen_open();
 }
-/* SEQ on the drum screen: TRIG, again the sound page before it */
+/* SEQ on the drum screen: TRIG, again its next half (wave 8: as every page button; it went back to the page before) */
 static void drum_seq_tap(void)
 {
     if (drum_keys == DK_MUTE)
         drum_keys = DK_PLAY;
-    dpg_go(drum_pg ? 0u : drum_pg_last, drum_pg ? 0u : drum_half[drum_pg_last % 5u]);
+    dpg_go(0u, drum_pg ? 0u : (dpg_half() + 1u) % 2u);
     ui.msg_t = 0;
 }
 
@@ -113,7 +132,15 @@ static int32_t lk_val(uint32_t id, uint32_t v)           /* a lock's byte as the
            id == DSP_S0 + DS_LEVEL ? (int32_t)(int8_t)v : (int32_t)v;
 }
 /* the knob of id turned s, nothing held: the selected sound's value. A built-in kit: its project copy made first (a copy
- * of another kit there: the turn again within GO_MS replaces it). The sends are the sound's (not the kit's) */
+ * of another kit there: it asks, wave 8: hold REC until the ring fills replaces it). The sends are the sound's (not the
+ * kit's) */
+static void kit_replace(void)                           /* (the question confirmed: ui_input.c ask_do) */
+{
+    if (pkit_on() || !pkit_other())
+        return;
+    pkit_make();
+    ui_message("YOUR COPY OF THE KIT");
+}
 static void drum_param_turn(uint32_t id, int32_t s, uint32_t role)
 {
     uint32_t l = drum_lane & 15u, model = drum_model();
@@ -127,15 +154,14 @@ static void drum_param_turn(uint32_t id, int32_t s, uint32_t role)
         return;
     }
     if (!pkit_on()) {
-        if (pkit_other() && (!pk_arm_ms || fm1_ms - pk_arm_ms > GO_MS)) {
-            char b[16];
-            str_cpy(b, DRUM_KIT_NAMES[pkit.src % DRUM_KITS], 10);
+        if (pkit_other()) {
+            char b[20] = "REPLACE ";
+            str_cpy(b + 8, DRUM_KIT_NAMES[pkit.src % DRUM_KITS], 10);
             str_cpy(b + str_len(b), "*", 2);
-            pk_arm_ms = fm1_ms | 1u;
-            ui_say("AGAIN: REPLACE ", b);               /* (one kit's copy a project: the other one's edits would go) */
+            if (ui.ask != ASK_KIT)
+                ask_set(ASK_KIT, 0, b);                 /* (one kit's copy a project: the other one's edits would go) */
             return;
         }
-        pk_arm_ms = 0;
         pkit_make();                                    /* the project's own copy of this kit, then the edit in it */
         ui_message("YOUR COPY OF THE KIT");
     }
@@ -209,6 +235,17 @@ static void drum_held_oct(uint32_t up)
 {
     uint32_t w, len = trk_len(TDRUM), l = drum_lane & 15u, n = 0, one = drum_pg && dk_touch != 0xFFu;
     char b[24];
+    if (drum_pg == DPG_FX) {                            /* (wave 8) the FX tab: the drum voice's own locks of the half shown */
+        const page_t *pg = &PAGES[dbus_page(dpg_half())];
+        if (!up && pg->scope != SC_TRACK) {
+            ui_message("NO LOCK ON THIS PAGE");
+            return;
+        }
+        sg_lpage = (uint8_t)(pg - PAGES);
+        sg_held_oct(up);
+        sg_lpage = 0xFF;
+        return;
+    }
     if (up || !drum_pg || sg_lpage < NPAGES) {
         sg_held_oct(up);
         return;
@@ -511,7 +548,11 @@ static void drum_main_draw(void)
         str_cpy(info, "KEYS PLAY ", sizeof info);
         str_cpy(info + str_len(info), LANE_SHORT[l], 8);
     } else {
-        fmt_int(info, (int32_t)bank * 16 + 1);
+        if (drum_pg == DPG_FX) {                        /* (wave 8) the FX tab: which of the drum voice's own pages */
+            str_cpy(info, PAGES[dbus_page(dpg_half())].title, 10);
+            str_cpy(info + str_len(info), "  ", 3);
+        }
+        fmt_int(info + str_len(info), (int32_t)bank * 16 + 1);
         str_cpy(info + str_len(info), "-", 2);
         fmt_int(info + str_len(info), (int32_t)(bank * 16u + 16u < len ? bank * 16u + 16u : len));
         str_cpy(info + str_len(info), " OF ", 5);
@@ -558,19 +599,14 @@ static void drum_main_draw(void)
     /* the tabs: TRIG SRC FLTR AMP LFO (a bus page locking: its name), the half */
     {
         uint32_t nh = dpg_halves(drum_pg), h = dpg_half();
-        sig = drum_pg * 31u + h * 7u + nh + (sg_lpage < NPAGES ? sg_lpage + 1u : 0u) * 1009u;
+        sig = drum_pg * 31u + h * 7u + nh;
         if (ui.force || sig != sc) {
             int32_t x = 4;
             sc = sig;
             cv_begin(240, 23, C_BLACK);
             cv_rect(0, 0, 240, 1, TE_G1);
-            if (sg_lpage < NPAGES) {                    /* (a trig held + FX: the drum voice's own page locks, as wave 2) */
-                char b[20] = "LOCK ";
-                str_cpy(b + 5, PAGES[sg_lpage].title, 12);
-                cv_rect(2, 4, text_w(&FONT_S, b) + 4, 17, TE_DRUM);
-                cv_text(4, 5, &FONT_S, b, C_BLACK);
-            } else {
-                for (i = 0; i < 5u; i++) {
+            {                                           /* (wave 8: six tabs, FX the drum voice's own pages) */
+                for (i = 0; i < DPG_TABS; i++) {
                     int32_t w = text_w(&FONT_S, DPG_NAME[i]);
                     if (i == drum_pg) {
                         cv_rect(x - 2, 4, w + 4, 17, TE_DRUM);
@@ -578,7 +614,7 @@ static void drum_main_draw(void)
                     } else {
                         cv_text(x, 5, &FONT_S, DPG_NAME[i], i ? TE_G4 : TE_G3);
                     }
-                    x += w + (i ? 12 : 16);
+                    x += w + (i ? 9 : 12);
                 }
                 if (nh > 1u) {
                     char b[6];
@@ -599,18 +635,23 @@ static void drum_main_draw(void)
         uint32_t k, locked = 0, dim = 0;
         for (k = 0; k < 4u; k++)
             v[k][0] = 0;
-        if (sg_lpage < NPAGES) {                        /* the drum voice's own page, locking on the step (wave 2's) */
+        if (drum_pg == DPG_FX) {                        /* (wave 8) the FX tab: the drum voice's own pages; a trig held, the
+                                                         * values locked on its step (its sends: not lockable, grey) */
+            const page_t *pg = &PAGES[dbus_page(dpg_half())];
             for (k = 0; k < 4u; k++) {
-                uint32_t id = PAGES[sg_lpage].id[k];
+                uint32_t id = pg->id[k];
                 int16_t *hv;
-                const param_desc_t *d = page_desc(&PAGES[sg_lpage], k, &hv);
-                int32_t x, vv;
-                if (!d || id >= P_COUNT)
+                const param_desc_t *d = page_desc(pg, k, &hv);
+                int32_t x = -1, vv;
+                if (!d || !hv || id == 0xFFu)
                     continue;
                 lab[k] = d->label;
-                x = first >= 0 ? lock_find(TDRUM, (uint32_t)first, id, 0) : -1;
-                vv = x >= 0 ? TDRUM->lock[x].val : TDRUM->p[id];
+                if (pg->scope == SC_TRACK && first >= 0)
+                    x = lock_find(TDRUM, (uint32_t)first, id, 0);
+                vv = x >= 0 ? TDRUM->lock[x].val : *hv;
                 locked |= (uint32_t)(x >= 0) << k;
+                if (pg->scope != SC_TRACK && first >= 0)
+                    dim |= 1u << k;
                 param_format(d, vv, v[k], &u);
                 dval_fit(v[k]);
                 ratio[k] = (vv - d->min) * 1000 / (d->max > d->min ? d->max - d->min : 1);
@@ -743,20 +784,24 @@ static void drum_keys_fix(void)                         /* once a frame: the mod
         ui_message("SOUND LOCKS FULL: 128");
     }
 }
-/* a key of the drum GRID that is not a step (black keys 5 .. 11): F#5 the FILL, held; pressed twice within 0.4 s it
- * latches (again twice: off) (the Rytm: hold PAGE; latched). 1: taken */
+/* a key of the drum GRID that is not a step (black keys 5 .. 11): F#5 the FILL, held (the Rytm: hold PAGE). (Wave 8, Ben
+ * 22 Nov 2026: one latch gesture, PERFORM's) pressed with OCT+ held it latches (as OCT+ pressed while it is held: drum_grid_input);
+ * a latched FILL: F#5 again lets it go (as a latched pad), STOP too. 1: taken */
+static void fill_latch(uint32_t on)
+{
+    fill_lat = (uint8_t)on;
+    ui_message(on ? "FILL LATCHED" : "FILL OFF");
+    ui.force = 1;
+}
 static int drum_grid_black(uint32_t k, uint32_t down)
 {
     if (k != FILL_KEY || song.sel != TRK_DRUM)
         return 0;
     if (down) {
-        if (fill_tap_ms && fm1_ms - fill_tap_ms < 400u) {
-            fill_lat = (uint8_t)!fill_lat;
-            ui_message(fill_lat ? "FILL LATCHED" : "FILL OFF");
-            fill_tap_ms = 0;
-        } else {
-            fill_tap_ms = fm1_ms | 1u;
-        }
+        if (fill_lat)
+            fill_latch(0);                              /* (a latched FILL: off; held, it plays while held) */
+        else if (fm1_in.buttons & (1u << panel.btn[B_OCTUP]))
+            fill_latch(1);
         fill_held = 1;
     } else {
         fill_held = 0;
@@ -776,6 +821,9 @@ static void drum_grid_input(uint32_t pressed)
                 drum_chr_oct = (int8_t)clamp(drum_chr_oct + ((pressed & pb) ? 1 : -1), -2, 2);
             ui.force = 1;
         }
+    } else if (drum_keys == DK_PLAY && (pressed & pb) && fill_held && !sg_held) {
+        if (!fill_lat)                                  /* (wave 8) OCT+ with F#5 held: the FILL latched (PERFORM's latch) */
+            fill_latch(1);
     } else if (drum_keys == DK_PLAY && (pressed & (ob | pb))) {
         uint32_t up = (pressed & pb) != 0u, pages = (trk_len(TDRUM) + 15u) / 16u, pg;
         if (sg_held) {
@@ -800,12 +848,8 @@ static void drum_grid_input(uint32_t pressed)
         drum_open(FAM_ENV);
     if (pressed & (1u << panel.btn[B_LFO]))
         drum_open(FAM_LFO);
-    if ((s = panel_enc(EN_SELECT)) != 0) {
-        if (sg_lpage < NPAGES)
-            sg_lpage = 0xFF;                            /* (off the drum voice's own page: back to the sound's) */
-        else
-            dpg_walk(s);
-    }
+    if ((s = panel_enc(EN_SELECT)) != 0)
+        dpg_walk(s);
     if ((s = panel_enc(EN_PRESET)) != 0 && !sg_held)
         TDRUM->p[P_E0] = drum_kit_step(TDRUM->p[P_E0], s);
     if (sg_held)
@@ -816,8 +860,16 @@ static void drum_grid_input(uint32_t pressed)
             continue;
         ui.hot_col = (uint8_t)k;
         ui.hot_t = 40;
-        if (sg_lpage < NPAGES && sg_held) {
-            sg_lock_turn(PAGES[sg_lpage].id[k], s, EN_K1 + k);
+        if (drum_pg == DPG_FX) {                        /* (wave 8) the FX tab: the drum voice's own pages */
+            const page_t *pg = &PAGES[dbus_page(dpg_half())];
+            if (pg->id[k] == 0xFFu)
+                continue;
+            if (sg_held && pg->scope != SC_TRACK)
+                ui_message("NOT LOCKABLE");
+            else if (sg_held)
+                sg_lock_turn(pg->id[k], s, EN_K1 + k);
+            else
+                edit_param_pg(pg, k, s);
         } else if (!drum_pg) {
             if (sg_held)
                 drum_trig_turn(k, s);

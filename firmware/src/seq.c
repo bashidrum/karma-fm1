@@ -426,7 +426,7 @@ static uint32_t trk_div(const track_t *t) { return (uint32_t)t->p[P_SDIV] % NDIV
 static uint32_t trk_grid(const track_t *t, uint32_t *into, uint32_t *len)
 {
     uint32_t div = trk_div(t);
-    return grid_at(div, swings(div) ? swing_units(t->p[P_SSWING] + song.g[G_SWING], div_units(div)) : 0u, into, len);
+    return grid_at(div, swings(div) ? swing_units(t->p[P_SSWING], div_units(div))   /* (wave 8: the pattern's swing only, hold SEQ) */ : 0u, into, len);
 }
 static uint32_t trk_len(const track_t *t) { return t->p[P_SLEN] > 0 ? (uint32_t)t->p[P_SLEN] : 1u; }
 
@@ -2414,12 +2414,13 @@ static void midi_bend(uint32_t ch, track_t *t, uint32_t d1, uint32_t d2)
  * A CC acts on the track its channel plays, as the notes do (1-3 the synths, the drum channel the drum
  * track, 4-16 the selected track), and sets its parameter as a knob would: 0..127 over the parameter's
  * range, 64 the middle of a bipolar one. 5 GLIDE, 7 LEVEL, 10 PAN, 71 the engine's resonance (RES or Q;
- * an engine without one ignores it), 72 / 73 / 75 release / attack / decay, 74 the track's FILTER (64 off,
- * below a low-pass, above a high-pass: on every engine and the drums), 91 / 93 / 94 the reverb, chorus and
- * delay sends. The drum track takes 7, 91 and 94 as GLO > DRUMS LVL, REV and DLY (2.5), and 10 and 74. */
+ * an engine without one ignores it), 72 / 73 / 75 release / attack / decay, 74 the voice filter's CUTOFF (wave 8, Ben 22 Nov
+ * 2026: "cut the spare filters": it set a hidden DJ filter that had no page), 91 / 93 / 94 the reverb, chorus and
+ * delay sends (the SENDS page's). The drum track takes 7 as its level, 91 and 94 as its FX tab's REV and DLY (2.5), 10, and
+ * 74 as its FILTER (64 off, below a low-pass, above a high-pass). */
 #define MCC_RES 0xFFu
 static const uint8_t MIDI_CC_MAP[][2] = {
-    {5, P_GLIDE}, {7, P_LEVEL}, {10, P_PAN}, {71, MCC_RES}, {72, P_REL}, {73, P_ATK}, {74, P_TFLT}, {75, P_DEC},
+    {5, P_GLIDE}, {7, P_LEVEL}, {10, P_PAN}, {71, MCC_RES}, {72, P_REL}, {73, P_ATK}, {74, P_FCUT}, {75, P_DEC},
     {91, P_REV}, {93, P_CHOR}, {94, P_DLY},
 };
 /* MIDI LEARN (SLOOP 2.6, after Felucca 1.5 by Leo Kuroshita, Discussion #170): up to ML_N CCs, each set to one
@@ -2469,6 +2470,8 @@ static void midi_cc_set(track_t *t, uint32_t id, uint32_t value)
                             : id >= P_E0 && id <= P_E7 ? &ENGINES[t->eng_req % NENGINES]->edit[(id - P_E0) & 7u] : &TP[id % P_COUNT];
     if (d->max > d->min)
         t->p[id % P_COUNT] = (int16_t)(d->min + ((int32_t)(value & 127u) * (d->max - d->min) + 63) / 127);
+    if ((id == P_X1TYPE || id == P_X2TYPE || id == P_X3TYPE) && xt_send(t->p[id]))
+        t->p[id] = XT_OFF;                              /* (wave 8: the old send types are no slot types) */
 }
 /* 1: cc is learned (set here) or taken by MIDI LEARN waiting for one */
 static int __attribute__((noinline)) midi_learned(uint32_t cc, uint32_t value)
@@ -2567,7 +2570,8 @@ static void __attribute__((noinline)) midi_cc(track_t *t, uint32_t cc, uint32_t 
             id = id == P_LEVEL ? G_DRLVL : id == P_REV ? G_DRREV : G_DRDLY;
             d = &GP[id];
             slot = &song.g[id];
-        } else if (id == P_PAN || id == P_TFLT) {
+        } else if (id == P_PAN || id == P_FCUT) {
+            id = id == P_FCUT ? P_TFLT : id;            /* (CC 74: the drum voice's FILTER, its CUTOFF) */
             d = &TP[id];
             slot = &t->p[id];
         }
@@ -2580,21 +2584,7 @@ static void __attribute__((noinline)) midi_cc(track_t *t, uint32_t cc, uint32_t 
             }
     } else {
         d = &TP[id];
-        slot = &t->p[id];
-        if (id == P_REV || id == P_CHOR || id == P_DLY) {   /* (wave 5) a send: heard through its FX slot. None yet: one put
-                                                         * in the first slot that is OFF (none OFF: the CC does nothing) */
-            int32_t ty = id == P_REV ? XT_REVERB : id == P_CHOR ? XT_CHORUS : XT_DELAY, k, fr = -1;
-            for (k = (int32_t)NXSLOT - 1; k >= 0; k--) {
-                if (t->p[P_XS(k, 0)] == ty)
-                    break;
-                if (t->p[P_XS(k, 0)] == XT_OFF)
-                    fr = k;
-            }
-            if (k < 0 && fr < 0)
-                return;
-            if (k < 0)
-                xs_defaults(t->p, (uint32_t)fr, ty);
-        }
+        slot = &t->p[id];                               /* (wave 8: a send is always heard, the SENDS page's) */
     }
     if (!d || d->max <= d->min)
         return;

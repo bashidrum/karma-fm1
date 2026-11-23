@@ -363,16 +363,17 @@ static void duck_block(uint32_t adv)
 }
 
 /* ---- the DJ filter: v < 0 a low-pass closing, > 0 a high-pass opening, 0 off. The cutoff glides
- * to the knob (no zipper); at 0 it opens fully, then the filter is bypassed. On the master (G_FILT)
- * and, SLOOP 2.4, on each track (P_TFLT: a synth part's mono signal, the drum track's left, right,
- * reverb send and, 2.5, delay send) */
+ * to the knob (no zipper); at 0 it opens fully, then the filter is bypassed. (Wave 8, Ben 22 Nov 2026: "cut the spare
+ * filters": the master's (GLO > MASTER FILT) and the synth tracks' hidden one (MIDI CC 74, now the voice filter's CUTOFF) are
+ * gone; PERFORM's LP and HP do that job.) The drum track's FILTER (P_TFLT, its FX tab): its left, right, reverb send and,
+ * 2.5, delay send */
 typedef struct {
     int32_t cut;                                        /* now, 0..127 << 8 (CUTOFF_HZ index) */
     int8_t mode;                                        /* -1 LP, 1 HP, 0 off */
     uint8_t seed;                                       /* (2.6) bit per channel: the LP's state from its next sample */
     int32_t z[4][2];                                    /* the SVF states, per channel */
 } djf_t;
-static djf_t djf, tflt[NTRK];
+static djf_t tflt_dr;                                  /* (the drum track's; wave 8: one, was one a track and the master's) */
 
 /* the knob v -> this block's coefficients in *c; 0 = bypassed (nothing to do) */
 static int djf_block(djf_t *f, int32_t v, tsvf_t *c)
@@ -723,11 +724,10 @@ static int ins_run(ins_t *s, const int16_t *p, int32_t *b, uint32_t n)
  *   CRUSH                RATE BITS MIX (the INSERT's; its LPF as its default)
  *   PHASER FLANGER       RATE FDBK MIX (the INSERT's; DEPTH as its default; one FLANGER a voice: its line)
  *   EQ                   LOW MID HIGH (three bands)
- * and the shared effects, CHORUS REVERB DELAY (GLO's: one chorus, one reverb, one delay line for every voice, as the
- * MiniFreak has one reverb and one delay): their slot is the voice's send to them (AMOUNT, P_CHOR P_REV P_DLY, taken after
- * the voice's level and pan as always), its TIME and INTENS the shared effect's own (GLO > REV/CHO, DLY: the same for every
- * voice, shown white). One of each a voice. With no slot of its type a voice sends nothing to a shared effect. A slot OFF, or
- * at MIX 0, costs nothing and is the voice bit for bit */
+ * (Wave 8, Ben 22 Nov 2026: "FX = whole mix only") the shared effects, CHORUS REVERB DELAY (one of each for every voice, their
+ * settings the FX button's pages), are no slot types: each voice sends to all three at once, its SENDS page (P_DLY P_REV
+ * P_CHOR, taken after the voice's level and pan as always). A slot OFF, or at MIX 0, costs nothing and is the voice bit for
+ * bit */
 static const uint8_t XT_IT[XT_N] = {IT_OFF, IT_OFF, IT_PHASER, IT_FLANGER, IT_OFF, IT_OFF, IT_DIST, IT_SOFT, IT_HARD,
                                     IT_FOLD, IT_FUZZ, IT_CRUSH, IT_EQ};
 /* slot k of track t: its effect's IT_* type (shared, OFF: IT_OFF) and its values A B C as the INSERT's code takes them, mix */
@@ -765,16 +765,9 @@ static int xs_any(const track_t *t)
 {
     return xs_insert(t, 0) || xs_insert(t, 1) || xs_insert(t, 2);
 }
-/* the voice's send to a shared effect: its slot's (ty: XT_CHORUS, XT_REVERB, XT_DELAY) AMOUNT, + amod (the matrix's FX column on
- * that slot), 0 with no slot of that type */
-static int32_t xs_send(const track_t *t, int32_t ty, const int32_t *amod)
-{
-    uint32_t k;
-    for (k = 0; k < NXSLOT; k++)
-        if (t->p[P_XS(k, 0)] == ty)
-            return clamp(t->p[xs_send_id(ty)] + amod[k], 0, 127);
-    return 0;
-}
+/* the voice's send to a shared effect (ty: XT_CHORUS, XT_REVERB, XT_DELAY): its SENDS page's value (wave 8: always heard; an
+ * assignable matrix column moves it as it moves any parameter) */
+static int32_t xs_send(const track_t *t, int32_t ty) { return clamp(t->p[xs_send_id(ty)], 0, 127); }
 /* the slots on a part's block b; amod: the matrix's FX1 FX2 FX3 now. 1 while one runs or fades out */
 static int xs_run(track_t *t, int32_t *b, uint32_t n, const int32_t *amod)
 {
@@ -1183,8 +1176,8 @@ static void mix_part_run2(track_t *t, uint32_t n, const mixbus_t *o, const int32
         int32_t lvl = LEVEL_Q12[t->p[P_LEVEL] ? clamp(t->p[P_LEVEL] + t->p[P_ED_FX], 1, 127) : 0];   /* (+ the sound's trim: 1/2 dB steps, as LEVEL's) */
         int32_t pan = clamp(t->p[P_PAN] + pm[0], -64, 64);   /* (wave 5: + the matrix's PAN) */
         int32_t gl = 4096 - (pan > 0 ? pan * 64 : 0), gr = 4096 + (pan < 0 ? pan * 64 : 0);
-        int32_t c = xs_send(t, XT_CHORUS, pm + 1) * 258, d = send_thr(xs_send(t, XT_DELAY, pm + 1) * 258, thr_dly),   /* (wave 5: */
-                r = send_thr(xs_send(t, XT_REVERB, pm + 1) * 258, thr_rev);   /* a send with its slot only) */
+        int32_t c = xs_send(t, XT_CHORUS) * 258, d = send_thr(xs_send(t, XT_DELAY) * 258, thr_dly),   /* (wave 8: */
+                r = send_thr(xs_send(t, XT_REVERB) * 258, thr_rev);   /* the SENDS page's, always heard) */
         int32_t pk = t->peak;
         int32_t xmax = c > d ? c : d;
         int32_t ga = mulq15(g0, duck.g0), gb = mulq15(g1, duck.g1);   /* mute x duck, ramped over the block */
@@ -1195,12 +1188,6 @@ static void mix_part_run2(track_t *t, uint32_t n, const mixbus_t *o, const int32
                                                   : (b[n - 1u] > 65535 ? 65535 : b[n - 1u]));   /* (its tail's end) */
         }
         slicer_track(t, b, n);                          /* slicer.c: before the level, pan and sends */
-        {
-            tsvf_t fc;                                  /* the track's FILTER (P_TFLT), after the SLICER */
-            djf_t *f = &tflt[(uint32_t)(t - trk) % NTRK];
-            if (djf_block(f, t->p[P_TFLT], &fc))
-                tflt_run(f, &fc, b, n, 0);
-        }
         int32_t lvl0 = t->lvl ? t->lvl : lvl, dl = (lvl - lvl0) >> CTL_LOG2;   /* a new sound's trim: ramped */
         t->lvl = lvl;
         for (i = 0; i < n; i++) {
@@ -1287,14 +1274,6 @@ static void dust_process(int32_t *l, int32_t *r, uint32_t n)
     }
 }
 
-static void djf_process(int32_t *l, int32_t *r, uint32_t n)
-{
-    tsvf_t c;
-    if (!djf_block(&djf, song.g[G_FILT], &c))
-        return;
-    djf_run(&djf, &c, l, n, 0);
-    djf_run(&djf, &c, r, n, 1);
-}
 
 #include "punch.c"            /* PUNCH-IN FX on the whole mix (FX held + a white key) */
 static int32_t master_cur = -1;                        /* the volume knob, ramped per sample (no zipper) */
@@ -1448,7 +1427,7 @@ static void mix_block(int32_t *out, uint32_t n)
     {
         static int32_t dl[CTL], dr[CTL], dv[CTL], dd[CTL];
         tsvf_t fc;
-        djf_t *f = &tflt[TRK_DRUM];
+        djf_t *f = &tflt_dr;
         if (n <= CTL && djf_block(f, TDRUM->p[P_TFLT], &fc)) {   /* the drum track's FILTER: left, right, the sends */
             for (i = 0; i < n; i++)
                 dl[i] = dr[i] = dv[i] = dd[i] = 0;
@@ -1513,7 +1492,6 @@ static void mix_block(int32_t *out, uint32_t n)
             stem_fx[0][i] = STEM_OF(2 * (mix_l[i] - stem_fx[0][i])), stem_fx[1][i] = STEM_OF(2 * (mix_r[i] - stem_fx[1][i]));   /* (as far down) */
     dust_process(mix_l, mix_r, n);
     punch_process(mix_l, mix_r, n);
-    djf_process(mix_l, mix_r, n);
     m1 = (int32_t)song.master_q12;
     m0 = master_cur < 0 ? m1 : master_cur;
     master_cur = m1;

@@ -1828,12 +1828,12 @@ static void t_midicc(void)
     cc_push(0, 7, 0); cc_push(0, 10, 127); cc_push(0, 74, 64); cc_push(0, 72, 127); cc_push(0, 73, 0);
     cc_push(0, 75, 64); cc_push(0, 5, 127); cc_push(0, 91, 127); cc_push(0, 93, 64); cc_push(0, 94, 1);
     run_block(); run_block();
-    check(a->p[P_LEVEL] == 0 && a->p[P_PAN] == 63 && a->p[P_TFLT] == 0 && a->p[P_REL] == 127 && a->p[P_ATK] == 0
+    check(a->p[P_LEVEL] == 0 && a->p[P_PAN] == 63 && a->p[P_FCUT] == 64 && a->p[P_REL] == 127 && a->p[P_ATK] == 0
           && a->p[P_DEC] == 64 && a->p[P_GLIDE] == 127 && a->p[P_REV] == 127 && a->p[P_CHOR] == 64 && a->p[P_DLY] == 1,
-          "2.5: CC 7 10 74 72 73 75 5 91 93 94 on ch 1 set track 1 (64 = the middle of PAN / FILTER)");
+          "2.5: CC 7 10 74 72 73 75 5 91 93 94 on ch 1 set track 1 (64 = the middle of PAN; wave 8: 74 the voice filter's CUTOFF)");
     cc_push(0, 10, 0); cc_push(0, 74, 0); cc_push(0, 7, 127);
     run_block(); run_block();
-    check(a->p[P_PAN] == -64 && a->p[P_TFLT] == -64 && a->p[P_LEVEL] == 127, "2.5: CC 0 / 127: the ends of the range");
+    check(a->p[P_PAN] == -64 && a->p[P_FCUT] == 0 && !a->p[P_TFLT] && a->p[P_LEVEL] == 127, "2.5: CC 0 / 127: the ends of the range");
     cc_push(0, 71, 127);
     for (i = 0; i < P_COUNT; i++) before[i] = b->p[i];
     cc_push(1, 71, 127); cc_push(1, 1, 99); cc_push(1, 64, 127);   /* ELEMENTS has no RES; mod wheel, sustain: not mapped */
@@ -1970,9 +1970,10 @@ static void t_tflt(void)
     hf_lp = tf_hf;
     trk[0].p[P_TFLT] = 50; tf_measure(150); tf_measure(200);
     rms_hp = tf_rms;
-    check(hf_lp < hf0 * 0.5 && rms_hp < rms0 * 0.5, "track FILTER: LP -50 darkens a part (HF / 2), HP +50 thins it (level / 2)");
+    /* (PHEBUS wave 8, Ben 22 Nov 2026: "cut the spare filters": a synth track's hidden DJ filter is gone; MIDI CC 74 moves its
+     * voice filter's CUTOFF, PERFORM's LP and HP sweep the mix) */
+    check(hf_lp > hf0 * 0.8 && rms_hp > rms0 * 0.8, "track FILTER: gone from the synth tracks (wave 8): FILT -50 / +50 change nothing");
     trk[0].p[P_TFLT] = 0; tf_measure(200);
-    check(tflt[0].mode == 0, "track FILTER: back to 0, it opens and is bypassed again");
     for (k = 0; k < 4u; k++) trk_note_off(&trk[0], 36u + k * 7u);
     tf_measure(400);
     {   /* the drum track: hats and snares through the filter */
@@ -1984,15 +1985,15 @@ static void t_tflt(void)
             for (k = 0; k < 120u; k++) { if (!(k % 12u)) trk_note_on(TDRUM, 42u, 110); tf_measure(1); }
             for (k = 0; k < 240u; k++) { if (!(k % 12u)) trk_note_on(TDRUM, 42u, 110); tf_measure(1); e1 += tf_hf; }
             dhf0 = e0; dhf_lp = e1;
-            check(dhf_lp < dhf0 * 0.5 && tflt[TRK_DRUM].mode == -1, "track FILTER on the drum track: LP darkens the hats");
+            check(dhf_lp < dhf0 * 0.5 && tflt_dr.mode == -1, "track FILTER on the drum track: LP darkens the hats");
             TDRUM->p[P_TFLT] = 0;
             tf_measure(300);
-            check(tflt[TRK_DRUM].mode == 0, "track FILTER on the drum track: open again, bypassed");
+            check(tflt_dr.mode == 0, "track FILTER on the drum track: open again, bypassed");
         }
     }
-    check(p_lockable(P_TFLT) && lock_set(&trk[1], 3, P_TFLT, -40) && lock_find(&trk[1], 3, P_TFLT, 0) >= 0,
-          "track FILTER: a step can lock it");
-    lock_del(&trk[1], 3, P_COUNT);
+    check(p_lockable(P_TFLT) && lock_set(TDRUM, 3, P_TFLT, -40) && lock_find(TDRUM, 3, P_TFLT, 0) >= 0,
+          "the drum track's FILTER: a step can lock it");
+    lock_del(TDRUM, 3, P_COUNT);
 }
 
 /* SLOOP 2.5: GLO > DRUMS > DLY sends the drums to the tempo delay: echoes after a hit has died; 0 none

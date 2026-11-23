@@ -493,6 +493,14 @@ static uint32_t proj_sum(const proj_core_t *c) { return proj_hash(c, sizeof *c -
  * 2's SYNC and TRIG, Spice and Dice in mod[46] (mx_pack). Below 2: the sound's DIST, INSERT and sends are made slots, its
  * LFO > SHP and ENV > SHP cells, when it is applied (modmx.c fx_from_legacy, mx_from_legacy) */
 #define PROJ_FX_V 2u
+/* (PHEBUS wave 8, Ben 22 Nov 2026: "FX = whole mix only"; "cut the spare filters"; "tempo in one place") 3 = the sends are the
+ * SENDS page's, always heard, and every FX slot is an insert; no hidden DJ filter on a synth track, none on the master; the
+ * swing is each pattern's only. Below 3, when it is applied: a CHORUS / REVERB / DELAY slot becomes OFF with its send kept, a
+ * send with no slot 0 (modmx.c fx_sends_from_slots); a synth track's FILT (CC 74's DJ filter) onto its voice filter; GLO >
+ * MASTER FILT dropped; GLO > GLOBAL SWING added to every track's own (proj_apply) */
+#define PROJ_SEND_V 3u
+static int16_t proj_old_swing;                 /* (wave 8) the GLOBAL SWING of the last project of before loaded: a section
+                                                * stored then borrowed it, so it is added to such a section's tracks too */
 _Static_assert(8u + 2u * MX_NCELL == 46u, "the matrix fits mod[46]");
 static void mx_pack(uint8_t *b, uint32_t ti)       /* track ti's matrix, LFO 2, Spice and Dice -> mod[46] */
 {
@@ -695,8 +703,8 @@ static void proj_capture_core(proj_core_t *c)  /* what is playing now, as a proj
         c->g[i] = song.g[i];
     c->sel = song.sel;
     c->drdly = (uint8_t)song.g[G_DRDLY];
-    c->rsv[0] = PROJ_FX_V;                              /* (wave 4: the voice filter's values are in it; wave 5: the FX
-                                                         * slots and the matrix) */
+    c->rsv[0] = PROJ_SEND_V;                            /* (wave 4: the voice filter's values are in it; wave 5: the FX
+                                                         * slots and the matrix; wave 8: the sends their own) */
     memcpy(c->perf.on, stl.on, sizeof c->perf.on);
     memcpy(c->perf.lc, stl.lc, sizeof c->perf.lc);
     memcpy(c->perf.lx, stl.lx, sizeof c->perf.lx);
@@ -762,6 +770,12 @@ static void proj_apply(const proj_core_t *p, int all)
                                                                  * its slot and G_INFO's held KARMA's TEXTURE) */
             song.g[i] = (int16_t)clamp(p->g[i], GP[i].min, GP[i].max);
     song.g[G_DRDLY] = (int16_t)clamp(p->drdly, GP[G_DRDLY].min, GP[G_DRDLY].max);   /* (a load and a section, as REV) */
+    if (all && p->rsv[0] < PROJ_SEND_V)                 /* (wave 8) the old GLOBAL SWING, onto every track's (below) */
+        proj_old_swing = (int16_t)clamp(song.g[G_SWING], 0, 100);
+    else if (all)
+        proj_old_swing = 0;
+    song.g[G_SWING] = 0;                                /* (no page: the pattern's swing is the one) */
+    song.g[G_FILT] = 0;                                 /* (wave 8: the master DJ filter is gone, PERFORM's LP / HP) */
     for (k = 0; k < DRUM_LANES; k++) {                  /* each drum sound's own sends: a load and a section */
         drum_send[k][0] = (uint8_t)(p->d.dsend[k] & 15u);
         drum_send[k][1] = (uint8_t)((p->d.dsend[k] >> 4) & 7u);
@@ -792,6 +806,10 @@ static void proj_apply(const proj_core_t *p, int all)
         }
         if (!drum && p->rsv[0] < PROJ_VOICE_V)          /* (wave 4) saved before the voice filter: mapped onto it */
             voice_from_engine(t->p, e, 1);
+        else if (!drum && p->rsv[0] < PROJ_SEND_V)      /* (wave 8) CC 74's hidden DJ filter: onto the voice filter */
+            tflt_onto_voice(t->p, e);
+        if (p->rsv[0] < PROJ_SEND_V && proj_old_swing)  /* (wave 8) the GLOBAL SWING it played with, now the pattern's */
+            t->p[P_SSWING] = (int16_t)clamp(t->p[P_SSWING] + proj_old_swing, 0, 100);
         if (drum) {
             t->preset = 0;
             memset(t->step, 0, sizeof t->step);         /* (its pattern: dpat; no step, nudge or condition of its own) */
@@ -838,8 +856,15 @@ static void proj_apply(const proj_core_t *p, int all)
         }
         if (!drum && p->rsv[0] < PROJ_VOICE_V)          /* (wave 4) its filter's locks onto the voice filter's */
             voice_locks_from_engine(t, e);
+        if (!drum && p->rsv[0] < PROJ_SEND_V)           /* (wave 8) a lock of the old FILT: the filter is gone (it had no
+                                                         * page to lock it from: only a lock the editor made) */
+            for (i = 0; i < NLOCK; i++)
+                if (t->lock[i].step != LOCK_FREE && t->lock[i].param == P_TFLT)
+                    t->lock[i].step = LOCK_FREE, t->lock[i].param = 0, t->lock[i].val = 0;
         if (!drum && p->rsv[0] >= PROJ_FX_V) {          /* (wave 5) its matrix, LFO 2, Spice and Dice */
             mx_unpack(p->t[k].mod, k);
+            if (p->rsv[0] < PROJ_SEND_V)                /* (wave 8) its send slots: OFF, the sends their own */
+                fx_sends_from_slots(t->p, t->lock, (int32_t)k);
         } else if (!drum) {                             /* saved before: its DIST, INSERT and sends as FX slots (their
                                                          * locks with them), LFO > SHP and ENV > SHP as cells */
             mx_clear_sound(k);
