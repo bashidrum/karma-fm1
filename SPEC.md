@@ -233,3 +233,27 @@ His answers by picker, 23 Nov 2026, 08:50:
 - Drum sound pick: "SELECT knob". On the drum screen, turning SELECT steps through the 16 sounds. The sound's wave or model goes on a normal knob. (On synth pages SELECT is the type, as answered at 08:25.)
 - Key, scale and chord: "Under ARP". ARP steps through: arpeggiator, then key/scale/chord.
 - Drum mutes: "On the mixer". Hold GLO: with the drums selected, the keys mute the 16 sounds; voice mutes stay on keys 1 to 4 otherwise.
+
+### 23 Nov 2026, 09:08: what each control is for, in Ben's words
+
+"I don't mind the octave button working as + and - that's actually pretty logical and maybe we should double down on that. Same with arp working as a more general notes / scales key. Or a performance button that controls notey or scaley perfomance controls. Same with Seq being the equivalent for rhythmic controls.
+
+Global should be the place for any and all global settings where there isn't a more obvious place; such as global fx living under the fx tab.
+
+Algorithm is fine selecting voice.
+
+I feel the master knob is underused as I won't be changing master volume very often. Would make sense if it was bound to the other controls as a button press and twist master and it changes a broad / master like parameter that's related to the button you're pressing. Like it could be a global fx dry wet? If the fx button is held and master pot is turned.
+
+Couldn't you free up a lot of the oct + and - bindings by making the actully oct +- keys require a double tap to change octave. Then have the + and - function according to whatever is on screen?
+
+I don't like the record button taking things away. It's ok to have it as a confirm button. Though wouldn't save be the logical confirm button. Or select?
+
+The sequence button should be in charge of patterns somehow.
+
+Holding - and edit should clear the whole voice. Edit shouldn't be the clear or erase button. Oct - should be. Transpose should be something like arp and octave + -.
+
+Global should have midi learn. But not fill. Fill should be arp, seq. Maybe hold arp or seq and press play/stop
+
+How can we make the black keys un hidden?"
+
+Also, at 08:47: "To my mind, the select button had no business having control of the mutes."
