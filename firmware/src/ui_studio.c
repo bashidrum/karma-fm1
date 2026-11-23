@@ -372,7 +372,7 @@ static void pads_tick(void)                             /* once a frame: the hit
 }
 
 #include "ui_grid.c"               /* the step GRID on every track (Elektron style) */
-#include "ui_stut.c"               /* (PHEBUS) the GRID's STUTTER lane, after DRUM */
+#include "ui_stut.c"               /* (PHEBUS) the STUTTER lane (wave 14: FX's STUT, after MIX) */
 #include "ui_drum.c"               /* (PHEBUS wave 3) the drum screen, the Rytm's way */
 #include "ui_kit.c"                /* (wave 12) changing a drum sound, a whole kit; SAVE > KITS */
 

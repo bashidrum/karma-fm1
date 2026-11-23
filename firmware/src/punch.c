@@ -210,7 +210,7 @@ static volatile int8_t stl_want = -1;   /* the loop the lane asks for now, -1 no
 static int8_t stl_was = -1;             /* .. in the block before (punch_process: a run of lit steps starts) */
 static uint32_t stl_t;                  /* samples since that run began */
 static uint8_t stl_pos;                 /* the lane's step under the playhead (the screen) */
-static uint8_t stl_view;                /* the GRID shows the lane (ui_stut.c; ui.c track_select: off) */
+static uint8_t stl_view;                /* the lane is on screen: FX's STUT (wave 14, ui_stut.c stl_open; any voice) */
 static int stl_lit(uint32_t s) { return (stl.on[(s >> 3) & 7u] >> (s & 7u)) & 1u; }
 static uint32_t stl_code(uint32_t s)    /* 0..3: 1/4 1/8 1/16 1/32 (the ring's loops); 4: 1/2, 5: 1/1 (the sequencer's) */
 {
