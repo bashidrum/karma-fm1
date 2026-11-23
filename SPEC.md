@@ -270,3 +270,9 @@ Proposed by Claude from his 09:08 words and not objected to (to be built, for hi
 ### 23 Nov 2026, 10:16: the filter page on drums and synths
 
 Asked whether the fourth filter knob should match (DRIVE on synths with TYPE on SELECT; TYPE on drums), Ben said: "Keep it as is, drums will always feel a little different and that's ok".
+
+### 23 Nov 2026, 10:33: the sequence staying on screen, in Ben's words
+
+With two simulator screenshots (the GRID still showing after pressing EDIT, with only the OSC knobs under it): "Kind of annoying that the sequence stays on screen even when you go to the edit page? Means you're editing with none of the edit view controls"
+
+How this is applied (Claude's reading, for Ben to confirm): the steps show only on SEQ. Pressing EDIT, ENV, LFO or FX with nothing held always opens that button's real page, with its picture and the keys playing notes. Only while a step is held do those buttons bring their knobs under the steps, for a lock; letting go of the step returns to the SEQ screen.
