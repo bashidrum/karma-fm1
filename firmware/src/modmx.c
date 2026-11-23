@@ -94,7 +94,7 @@ static void mx_clear_sound(uint32_t ti)
     if (ti >= NPART)
         return;
     memset(mxt[ti].c, 0, sizeof mxt[ti].c);
-    mxt[ti].as[0] = mxt[ti].as[1] = 0;
+    memset(mxt[ti].as, 0, sizeof mxt[ti].as);
     mxt[ti].l2sync = 0;
     mxt[ti].l2trig = 1;                               /* (FREE: the MiniFreak's LFO 2 runs free unless asked) */
 }
@@ -110,6 +110,124 @@ static int mx_as_ok(uint32_t id)
         if (MX_ALIAS[i][2] == id)
             return 0;
     return 1;
+}
+
+/* ---- (wave 11, Ben 23 Nov 2026, 10:41: "holding the LFO button and then it jumps back into the page you were just on, gives
+ * you the same controls and you simply wiggle what you want mapped to the lfo. same for the ENV button") HOLD TO MAP. A knob's
+ * parameter as a destination of the grid: one source of truth, the knob's cell IS the MATRIX page's cell.
+ *   the voice filter's CUTOFF and RESO, the OSC page's three macros, an FX slot's AMOUNT: their fixed columns (CUT RES M1 M2
+ *   M3 FX1..3), acting on each note (PIT, M, CUT, RES) or the voice (FX); TUNE: PIT (a semitone a step of the amount, +-12 at
+ *   full, each note: vibrato, the way a synth's pitch destination is); every other knob: an assignable column for its
+ *   parameter (made on the first mapping, freed when its last cell goes), acting on the whole voice once a block.
+ * Not mappable (a switch: named positions or fewer than 25; or a modulation amount itself; or nothing to move): TYPE, OCT,
+ * GLMODE, VOICE, PRIOR, ALLOC, the filter's ENV and KEY and LINK, the LFO's POL SYNC TRIG ESYNC, LFO 2's SYNC TRIG, the
+ * SLICER's PAT and RATE, the MATRIX page's knobs. An envelope does not map to its own times and level (AENV: ATTACK ..
+ * RELEASE; FENV: the filter envelope's): "the amp envelope's own attack from itself is not useful". An LFO may move its own
+ * RATE, PHASE and FADE (synths allow it: a rate that wobbles) */
+#define MX_FULL_MSG "MATRIX FULL: 19 CELLS"   /* (MX_NCELL: the one limit, said where it is met) */
+#define MX_NAS_MSG "MAP FULL: ALL COLUMNS USED"  /* (MX_NAS below MX_NCELL only: a device build's limit) */
+static int32_t mx_as_find(uint32_t ti, uint32_t id)    /* the assignable column of parameter id, -1 none */
+{
+    uint32_t c;
+    for (c = 0; c < MX_NAS && ti < NPART; c++)
+        if (mxt[ti].as[c] == id + 1u)
+            return (int32_t)(MD_AS1 + c);
+    return -1;
+}
+static uint32_t mx_col_cells(uint32_t ti, uint32_t d)  /* the cells on column d (the fixed ones' parameters not counted) */
+{
+    uint32_t i, n = 0;
+    for (i = 0; i < MX_NCELL && ti < NPART; i++)
+        n += mxt[ti].c[i].at && (mxt[ti].c[i].at - 1u) % MD_N == d;
+    return n;
+}
+static const param_desc_t *track_desc(const track_t *t, uint32_t id);   /* (params.c) */
+/* the column parameter id (a knob's, pg_id resolved) maps to on synth track t; -1: not mappable (a switch, see above),
+ * -2: mappable on an assignable column that is not there yet */
+static int32_t mx_knob_col(const track_t *t, uint32_t id)
+{
+    uint32_t ti = (uint32_t)(t - trk), k;
+    const param_desc_t *d;
+    int32_t c;
+    if (ti >= NPART || id >= P_COUNT)
+        return -1;
+    if (id == P_FCUT)
+        return MD_CUT;
+    if (id == P_FRES)
+        return MD_RES;
+    if (id == P_TUNE)
+        return MD_PIT;
+    for (k = 0; k < 3u; k++)
+        if (vtype_macro(t, k) < 8u && id == P_E0 + vtype_macro(t, k))
+            return (int32_t)(MD_M1 + k);
+    for (k = 0; k < NXSLOT; k++)
+        if (id == P_XS(k, 3))
+            return (int32_t)(MD_FX1 + k);
+    if (!mx_as_ok(id))
+        return -1;
+    d = track_desc(t, id);
+    if (!d || d->names || d->max - d->min < 24)
+        return -1;
+    c = mx_as_find(ti, id);
+    return c >= 0 ? c : -2;
+}
+static int mx_self(uint32_t s, uint32_t id)            /* an envelope onto its own stages: refused */
+{
+    return (s == MS_AENV && id >= P_ATK && id <= P_REL) || (s == MS_FENV && id >= P_FATK && id <= P_FREL);
+}
+/* the amount source s gives knob parameter id on synth track ti (0: none or not mappable) */
+static int32_t mx_map_get(uint32_t ti, uint32_t s, uint32_t id)
+{
+    int32_t c = mx_knob_col(&trk[ti % NTRK], id);
+    return c >= 0 ? mx_get(ti, s, (uint32_t)c) : 0;
+}
+/* source s onto knob parameter id at v (-64..63, 0 removes; an assignable column with no cell left is freed). 0 done, -1 the
+ * matrix full (MX_NCELL cells), -2 every assignable column taken (MX_NAS), -3 not mappable. Callers hold the audio IRQ off */
+static int mx_map_set(uint32_t ti, uint32_t s, uint32_t id, int32_t v)
+{
+    int32_t c, e;
+    uint32_t k;
+    if (ti >= NPART || s >= MS_N || mx_self(s, id))
+        return -3;
+    c = mx_knob_col(&trk[ti], id);
+    if (c == -1)
+        return -3;
+    if (c == -2) {
+        if (!v)
+            return 0;
+        for (k = 0; k < MX_NAS && mxt[ti].as[k]; k++)
+            ;
+        if (k == MX_NAS)
+            return -2;
+        if (mx_used(ti) >= MX_NCELL)
+            return -1;
+        mxt[ti].as[k] = (uint8_t)(id + 1u);
+        c = (int32_t)(MD_AS1 + k);
+    }
+    e = mx_set(ti, s, (uint32_t)c, v);
+    if (c >= MD_AS1 && !mx_col_cells(ti, (uint32_t)c))
+        mxt[ti].as[c - MD_AS1] = 0;                   /* (its last cell gone: the column too) */
+    return e;
+}
+/* every mapping from source s onto the parameters ids[0..n) (a page's knobs): removed (hold ENV / LFO + OCT-). Returns how many */
+static uint32_t mx_map_clear(uint32_t ti, uint32_t s, const uint32_t *ids, uint32_t n)
+{
+    uint32_t k, r = 0;
+    for (k = 0; k < n; k++)
+        if (ids[k] < P_COUNT && !mx_self(s, ids[k]) && mx_map_get(ti, s, ids[k])) {
+            mx_map_set(ti, s, ids[k], 0);
+            r++;
+        }
+    return r;
+}
+/* is anything mapped onto knob parameter id of track ti (the mark on its dial): a bit a source */
+static uint32_t mx_map_srcs(uint32_t ti, uint32_t id)
+{
+    uint32_t s, m = 0;
+    for (s = 0; s < MS_N; s++)
+        if (mx_map_get(ti, s, id))
+            m |= 1u << s;
+    return m;
 }
 
 /* ---- the second LFO (the audio ISR, once a block a part: voice.c track_render) */
@@ -157,7 +275,9 @@ static void mx_from_legacy(uint32_t ti, int16_t *p, uint32_t e)
             if ((int32_t)VTYPES[ty].m[k] == shp)
                 col = MD_M1 + k;
         if (col < 0) {                                /* (not on the page: an assignable column, at its scale) */
-            uint32_t a = mxt[ti].as[0] ? 1u : 0u;
+            uint32_t a = 0;
+            while (a + 1u < MX_NAS && mxt[ti].as[a] && mxt[ti].as[a] != P_E0 + (uint32_t)shp + 1u)
+                a++;
             mxt[ti].as[a] = (uint8_t)(P_E0 + (uint32_t)shp + 1u);
             col = (int32_t)(MD_AS1 + a);
         }
@@ -229,11 +349,11 @@ static void fx_sends_from_slots(int16_t *p, plock_t *lk, int32_t ti)
                 uint32_t c;
                 if (!a)
                     continue;
-                for (c = 0; c < 2u; c++)
+                for (c = 0; c < MX_NAS; c++)
                     if (!mxt[ti].as[c] || mxt[ti].as[c] == sid + 1u)
                         break;
                 mx_set((uint32_t)ti, i, MD_FX1 + k, 0);
-                if (c < 2u) {
+                if (c < MX_NAS) {
                     mxt[ti].as[c] = (uint8_t)(sid + 1u);
                     if (mx_set((uint32_t)ti, i, MD_AS1 + c, a) < 0)
                         fx8_lost++;

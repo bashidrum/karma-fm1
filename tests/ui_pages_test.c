@@ -92,11 +92,12 @@ static void ppm(const char *name) {
     fclose(f);
 }
 /* one UI frame (~16 ms): the audio between (as the ISR does), then input, LEDs, draw */
+static uint32_t frame_blocks = 22u;                /* (wave 11: the lights' trials run fewer audio blocks a frame) */
 static void frame(void)
 {
     uint32_t q;
     static int32_t o[CTL * 2];
-    for (q = 0; q < 22u; q++) {
+    for (q = 0; q < frame_blocks; q++) {
         uint32_t i;
         mix_block(o, CTL);
         for (i = 1; i < CTL; i += 2u) {             /* the scope, as audio.c fills it (the visualiser) */
@@ -201,6 +202,204 @@ static void lane_set_ui(uint32_t s, uint32_t code)   /* a STUTTER lane step lit 
     stl.lc[s >> 2] = (uint8_t)((stl.lc[s >> 2] & ~(3u << 2u * (s & 3u))) | (code & 3u) << 2u * (s & 3u));
 }
 #ifndef UI_PAGES_HARNESS_ONLY                       /* (tests/stress_test.c: the harness, its own main) */
+
+/* ---- (wave 11) the lights against the behaviour: what a control does, as state (UI, sequencer, matrix, mixer, the keys'
+ * jobs, the voices sounding) */
+static uint32_t h32(uint32_t h, const void *p, uint32_t n)
+{
+    const uint8_t *b = p;
+    while (n--) h = (h ^ *b++) * 16777619u;
+    return h;
+}
+static uint32_t st_part[6];
+static uint32_t lt_hold_k = 99u;                    /* (the lights' trials: the key held, its own job not counted) */                         /* (the parts of the last hash: which one differs) */
+static uint32_t st_hash(void)
+{
+    uint32_t h = 2166136261u, i, v[24];
+    uint8_t kk[27];
+    v[0] = (uint32_t)song.octave + 7u, v[1] = song.playing | transport_req << 2, v[2] = fill_held | fill_lat << 1 | fill_arm << 2;
+    v[3] = perf.held, v[4] = perf.lat, v[5] = ui.page | ui.home << 8 | ui.ask << 9 | ui.menu << 12, v[6] = (uint32_t)live_req + 3u;
+    v[7] = (uint32_t)live_sec + 3u, v[8] = sec_stores, v[9] = undo.valid | undo.undone << 1 | undo.trk << 2;
+    v[10] = drum_mute | (uint32_t)drum_solo << 16, v[11] = song.solo | mix_pan << 8 | mix_dsolo << 9, v[12] = map_lfo2 | map_fenv << 1;
+    v[13] = ly_lock, v[14] = fx_wet, v[15] = (uint32_t)(mac_env[0] + 100) | (uint32_t)(mac_dep[0] + 100) << 8;
+    v[16] = syn_tab | syn_pg << 8, v[17] = drum_lane, v[18] = sg_held, v[19] = (uint32_t)song.sel | drum_keys << 4;
+    v[20] = cur_cat(), v[21] = sr_on, v[22] = syn_half[0] | (uint32_t)syn_hcur() << 8, v[23] = drum_pg | dpg_half() << 8;
+    st_part[0] = h32(h, v, sizeof v);
+    h = 2166136261u;
+    for (i = 0; i < NTRK; i++) {
+        h = h32(h, trk[i].p, sizeof trk[i].p);
+        h = h32(h, trk[i].step, sizeof trk[i].step);
+        h = h32(h, trk[i].lock, sizeof trk[i].lock);
+    }
+    h = h32(h, &dpat, sizeof dpat);
+    for (i = 0; i < NPART; i++)                     /* (the stored part: not LFO 2's phase, the last voice's sources) */
+        h = h32(h, &mxt[i], (uint32_t)((const uint8_t *)&mxt[0].l2ph - (const uint8_t *)&mxt[0]));
+    st_part[1] = h;
+    for (i = 0; i < 27u; i++)                       /* (a key the UI took and did nothing with: none) */
+        kk[i] = kb_kind[i] == KS_UI || (kb_kind[i] == KS_FX && !kb_n[i]) || i + 14u == lt_hold_k ? KS_NONE : kb_kind[i];   /* (FX: a key
+                                                    * with no pad; the key held itself: not what is pressed) */
+    h = h32(2166136261u, kk, sizeof kk);
+    for (i = 0; i < NROLL; i++)
+        h = h32(h, &roll[i].on, 1);
+    st_part[2] = h;
+    h = 2166136261u;
+    for (i = 0; i < NPART; i++) {
+        uint32_t j;
+        for (j = 0; j < NVOICE; j++)
+            if (trk[i].v[j].active)
+                h = h32(h, &trk[i].v[j].note, 1), h = h32(h, &trk[i].v[j].vel, sizeof trk[i].v[j].vel);
+    }
+    st_part[3] = h;
+    st_part[4] = h32(2166136261u, &drums, sizeof drums);
+    st_part[5] = ui.msg_t ? h32(2166136261u, ui.msg, (uint32_t)strlen(ui.msg)) : 0u;
+    for (i = 0, h = 0; i < 6u; i++)
+        h = h * 31u + st_part[i];
+    return h;
+}
+static void ctl_down(uint32_t c) { if (c < 14u) { edges_btn |= BT(c); fm1_in.buttons |= BT(c); } else fm1_in.notes |= 1u << (c - 14u); frame(); }
+static void ctl_up(uint32_t c) { if (c < 14u) fm1_in.buttons &= ~BT(c); else fm1_in.notes &= ~(1u << (c - 14u)); frame(); }
+static void (*lt_setup)(void);                     /* a screen, a sound, a pattern: before the hold */
+static uint32_t lt_hold;                           /* what is held: a control (0..40) */
+static uint32_t lt_nosound, lt_step;
+/* mode 0: the hold alone; 1: the hold, then c pressed and let go, then the hold let go; 2: the hold let go, then c (at the same
+ * moment as 1). Returns the state's hash (at c's press and at the end); *lv: c's light while the hold is on (mode 1) */
+static uint32_t lt_trial(uint32_t c, uint32_t mode, uint32_t *lv, uint32_t *ctx)
+{
+    int fd[2];
+    pid_t pid;
+    uint32_t r[3] = {0, 0, 0};
+    fflush(stdout);
+    if (pipe(fd))
+        return 0;
+    pid = fork();
+    if (!pid) {
+        uint32_t h1, i;
+        close(fd[0]);
+        frame_blocks = 3u;
+        lt_setup();
+        ctl_down(lt_hold);
+        frames(12);
+        r[1] = led_lv[c], r[2] = led_ctx;
+        if (mode == 2u)
+            ctl_up(lt_hold);
+        else
+            frame();
+        if (mode)
+            ctl_down(c);
+        else
+            frame();
+        frame();
+        st_hash();
+        h1 = ((st_part[0] * 31u + st_part[1]) * 31u + st_part[2]) * 31u + st_part[5];   /* (at the press: no sound yet) */
+        if (getenv("LT_DEBUG"))
+            printf("    press parts %08x %08x %08x %08x kinds", st_part[0], st_part[1], st_part[2], st_part[5]);
+        if (getenv("LT_DEBUG")) { for (i = 0; i < 27u; i++) printf(" %u", kb_kind[i]); printf(" page %u cat %u\n", ui.page, cur_cat()); fflush(stdout); }
+        if (mode)
+            ctl_up(c);
+        else
+            frame();
+        frames(3);
+        st_hash();                                     /* (c let go, the hold still on: what a tap of c did) */
+        h1 = h1 * 31u + ((st_part[0] * 31u + st_part[1]) * 31u + st_part[2]) * 31u + st_part[5];
+        if (getenv("LT_DEBUG"))
+            printf("    after parts %08x %08x %08x %08x\n", st_part[0], st_part[1], st_part[2], st_part[5]), fflush(stdout);
+        if (mode != 2u)
+            ctl_up(lt_hold);
+        else
+            frame();
+        frames(6);
+        for (i = 0; i < 6u; i++)
+            if (fm1_in.buttons || fm1_in.notes) break;
+        st_hash();
+        if (lt_nosound)                                /* (a key held: its own note sounds differently long; not compared) */
+            st_part[3] = st_part[4] = 0;
+        r[0] = h1 * 31u + ((((st_part[0] * 31u + st_part[1]) * 31u + st_part[2]) * 31u + st_part[3]) * 31u + st_part[4]) * 31u + st_part[5];
+        if (getenv("LT_DEBUG")) {
+            uint32_t q;
+            for (q = 0; q < NTRK; q++)
+                printf("    trk%u p %08x st %08x lk %08x\n", (unsigned)q, h32(1, trk[q].p, sizeof trk[q].p), h32(1, trk[q].step, sizeof trk[q].step), h32(1, trk[q].lock, sizeof trk[q].lock));
+            printf("    dpat %08x mxt %08x\n", h32(1, &dpat, sizeof dpat), h32(1, mxt, sizeof mxt));
+        }
+        if (getenv("LT_DEBUG"))
+            printf("    [%u %u] parts %08x %08x %08x %08x %08x %08x msg '%s'\n", (unsigned)c, (unsigned)mode, st_part[0], st_part[1], st_part[2], st_part[3], st_part[4], st_part[5], ui.msg_t ? ui.msg : ""), fflush(stdout);
+        if (write(fd[1], r, sizeof r) != (ssize_t)sizeof r) _exit(1);
+        _exit(0);
+    }
+    close(fd[1]);
+    if (read(fd[0], r, sizeof r) != (ssize_t)sizeof r) r[0] = 1u;
+    close(fd[0]);
+    waitpid(pid, 0, 0);
+    if (lv) *lv = r[1];
+    if (ctx) *ctx = r[2];
+    return r[0];
+}
+
+static void lt_pattern(void)                       /* voice 1: notes on C4 E4 G4; the drums: kick, snare, hat */
+{
+    uint32_t j;
+    track_t *t = &trk[0];
+    steps_clear(t);
+    t->p[P_SLEN] = 16;
+    for (j = 0; j < 16u; j += 2u) { t->step[j].n = 1; t->step[j].note[0] = (uint8_t)(60 + (j % 3u) * 4u); t->step[j].time = ST_NOTE; t->step[j].vel = 100; }
+    dpat_clear(&dpat);
+    for (j = 0; j < 16u; j += 4u) { dt_set(j, 0, 100); dt_set(j + 2u, 2, 90); }
+    ly_lock = LY_PLAY; perf_unlatch(); fill_lat = 0; song.octave = 0; ui.ask = 0; ui.msg_t = 0;
+}
+static void su_filt(void) { lt_pattern(); song.sel = 0; go_home(); frames(2); chain_goto(FAM_FLT, "FILT"); frames(2); }
+static void su_lfo2(void) { lt_pattern(); song.sel = 0; go_home(); frames(2); chain_goto(FAM_MOD, "LFO 2"); frames(2); }
+static void su_home(void) { lt_pattern(); song.sel = 0; go_home(); frames(4); }
+static void su_home_drum(void) { lt_pattern(); song.sel = TRK_DRUM; go_home(); frames(4); }
+static void su_grid(void) { lt_pattern(); song.sel = 0; go_home(); frames(2); tap(B_SEQ); frames(3); }
+static void su_dscreen(void) { lt_pattern(); song.sel = TRK_DRUM; go_home(); frames(2); drum_screen_open(); frames(3); }
+static void su_perf_lat(void) { lt_pattern(); song.sel = 0; go_home(); frames(2); perf.lat = 1u; }
+static uint32_t lt_bad;
+static void lights_dump(const char *name)          /* (wave 11) a scenario's 41 levels into DIR/lights.txt (tools/lights_sheet.py) */
+{
+    char path[512];
+    uint32_t c;
+    FILE *f;
+    snprintf(path, sizeof path, "%s/lights.txt", outdir);
+    f = fopen(path, "a");
+    if (!f) return;
+    fprintf(f, "%s:", name);
+    for (c = 0; c <= 40u; c++) fprintf(f, "%u", led_lv[c]);
+    fprintf(f, ":%u\n", (unsigned)disco);
+    fclose(f);
+}
+/* every control under the hold of setup su, held control hc: lit <=> it does something with it (not what it does alone) */
+static uint32_t lt_check(const char *name, void (*su)(void), uint32_t hc, uint32_t *litset)
+{
+    uint32_t c, h0, bad = 0, nlit = 0, ctx = 0;
+    lt_setup = su, lt_hold = hc, lt_nosound = hc >= 14u, lt_hold_k = hc, lt_step = su == su_grid || su == su_dscreen;
+    if (getenv("LT_ONLY") && !strstr(name, getenv("LT_ONLY")))
+        return 0;
+    h0 = lt_trial(0, 0, 0, &ctx);
+    if (getenv("LT_DEBUG")) printf("  ^ none\n");
+    for (c = 0; c <= 40u; c++) {
+        uint32_t lv, hw, ha, did, lit;
+        if (c == hc || c == B_HOME)                    /* (the held one; HOME: acts on its release, never under a hold) */
+            continue;
+        if (getenv("LT_CTL") && (uint32_t)atoi(getenv("LT_CTL")) != c)
+            continue;
+        if ((c == B_PLAY && hc != B_SEQ) || (c == B_REC && lt_step))   /* (PLAY is the transport under every hold but SEQ's, REC
+                                                       * records: what they do alone, not combos) */
+            continue;
+        hw = lt_trial(c, 1, &lv, 0);
+        ha = lt_step ? 0u : lt_trial(c, 2, 0, 0);     /* (a step held: what a button does is its lock page; against none) */
+        did = hw != h0 && (lt_step || hw != ha);
+        lit = lv == LL_LIT;
+        nlit += lit;
+        if (lit)
+            litset[c >> 5] |= 1u << (c & 31u);
+        if (did != lit) {
+            printf("  %s: %s%s %s\n", name, c < 14u ? B_NAME[c] : "key ", c < 14u ? "" : (char[3]){(char)('0' + (c - 14u) / 10u), (char)('0' + (c - 14u) % 10u), 0},
+                   lit ? "lit but does nothing with it" : "does something with it but dark");
+            bad++;
+        }
+    }
+    lt_bad += bad;
+    return nlit;
+}
 int main(int argc, char **argv)
 {
     uint32_t i;
@@ -1307,13 +1506,13 @@ int main(int argc, char **argv)
             dpg_go(DPG_FX, 3); frame(); ui.force = 1; frame(); ppm("drum-fx-sends");
             encs[panel.enc[EN_K1]] = 4; frame();
             check(TDRUM->p[P_TFLT] < f0 && song.g[G_DRDLY] > d0 && px_count(0, SG_KNOB_Y, 240, 58, TE_DRUM) > 40u,
-                  "DRUM FX tab: FILTER turns the drum voice's filter; SENDS its delay send (drawn in the drum voice's coral)");
+                  "DRUM FX tab: FILTER turns the drum voice's filter; SENDS its delay send (drawn in the drum voice's teal)");
             TDRUM->p[P_TFLT] = f0, song.g[G_DRDLY] = d0;
         }
         for (i = 0; i < 6u && cur_cat() != CT_MIX; i++) tap(B_FX);
         ui.force = 1; frames(2);
         check(on_drum_page() && cur_cat() == CT_MIX && px_count(0, SG_KNOB_Y, 240, 58, TE_DRUM) == 0u,
-              "DRUM: FX, four more: MIX on the drum screen, its dials white-grey (no coral)");
+              "DRUM: FX, four more: MIX on the drum screen, its dials white-grey (no teal)");
         tap(B_SEQ); frames(2);
         check(on_drum_page() && drum_keys == DK_PLAY && grid_keys_on(), "DRUM: SEQ from them: back to the drum screen");
         encs[panel.enc[EN_ALGO]] = -1; frames(2);
@@ -1742,16 +1941,18 @@ int main(int argc, char **argv)
         encs[panel.enc[EN_SELECT]] = 1; frame();
         check(mi_sec(ui.menu_sel) == MS_SCREEN, "menu: SELECT does nothing (wave 9: the sections are SEL's)");
         tap(B_SCL);
-        check(mi_sec(ui.menu_sel) == MS_LIGHTS && ui.menu_sel == MI_LIGHTS, "menu: SEL (PAGE): LIGHTS, the cursor on its first row");
-        encs[panel.enc[EN_K2]] = 1; frame(); encs[panel.enc[EN_K2]] = 1; frame();
-        check(lights_keys == KEYS_WHITE && ui.menu_sel == MI_KEYS, "menu LIGHTS: KNOB 2 sets KEYS (row 2), the cursor follows");
-        encs[panel.enc[EN_K3]] = 1; frame();
-        check(lights_notes == 1u && ui.menu_sel == MI_NOTES, "menu LIGHTS: KNOB 3 sets NOTES (row 3)");
+        check(mi_sec(ui.menu_sel) == MS_LIGHTS && ui.menu_sel == MI_DISCO, "menu: SEL (PAGE): LIGHTS, the cursor on its first row (wave 11: DISCO)");
+        encs[panel.enc[EN_K1]] = -1; frame();
+        check(disco == DISCO_QUIET && ui.menu_sel == MI_DISCO, "menu LIGHTS: KNOB 1 sets DISCO (wave 11): left, QUIET");
+        encs[panel.enc[EN_K1]] = 1; frame();
+        check(disco == DISCO_NORMAL, "menu LIGHTS: ... right, NORMAL");
+        encs[panel.enc[EN_K3]] = 1; frame(); encs[panel.enc[EN_K3]] = 1; frame();
+        check(lights_keys == KEYS_WHITE && ui.menu_sel == MI_KEYS, "menu LIGHTS: KNOB 3 sets KEYS (row 3), the cursor follows");
         encs[panel.enc[EN_K4]] = 1; frame();
-        check(ui.menu_sel == MI_NOTES, "menu: KNOB 4 on a section of three rows does nothing");
+        check(lights_notes == 1u && ui.menu_sel == MI_NOTES, "menu LIGHTS: KNOB 4 sets NOTES (row 4)");
         ui.force = 1; frame(); ppm("menu-lights");
         encs[panel.enc[EN_PRESET]] = 1; frame();
-        check(ui.menu_sel == MI_LIGHTS, "menu: PRESETS moves the cursor round the section's rows");
+        check(ui.menu_sel == MI_DISCO, "menu: PRESETS moves the cursor round the section's rows");
         tap(B_SCL); ui.force = 1; frame(); ppm("menu-audio");
         check(mi_sec(ui.menu_sel) == MS_AUDIO, "menu: SEL: AUDIO (LOWCUT, USB AUDIO, USB SERIAL)");
         tap(B_SCL);
@@ -2889,7 +3090,7 @@ int main(int argc, char **argv)
         for (i = 0; i < NTRK; i++) trk[i].p[P_MUTE] = 0;
         song.solo = 0; drum_mute = drum_solo = 0; perf.lat = 0; stl.act = 1; live_sec = -1; live_req = -1;
         ui.force = 1; frame(); ppm("home-zones");
-        /* the zones: each voice's colour in SYNTH only on its own column; coral in DRUM; PERFORM white and grey only */
+        /* the zones: each voice's colour in SYNTH only on its own column; teal in DRUM; PERFORM white and grey only */
         ok = 1;
         for (i = 0; i < NPART; i++) {
             uint32_t v, x0 = 4 + i * 79;
@@ -2900,7 +3101,7 @@ int main(int argc, char **argv)
         }
         check(ok, "HOME SYNTH: three voices, each in its own colour in its own column, no other voice's colour there");
         check(px_count(0, ZY[1], 240, 38, TE_DRUM) > 100u && px_count(0, ZY[1], 240, 38, TE_COL[0]) + px_count(0, ZY[1], 240, 38, TE_COL[1]) +
-              px_count(0, ZY[1], 240, 38, TE_COL[2]) == 0u, "HOME DRUM: the drum voice's coral, no melodic voice's colour");
+              px_count(0, ZY[1], 240, 38, TE_COL[2]) == 0u, "HOME DRUM: the drum voice's teal, no melodic voice's colour");
         for (i = 0; i < NTRK; i++) vcols += px_count(0, ZY[2], 240, 38, TE_COL[i]);
         check(vcols == 0u, "HOME PERFORM: white and grey only (everyone's: the colour rule)");
         check(px_count(4, ZY[0] + 17, 70, 16, TE_COL[0]) > 300u && px_count(83, ZY[0] + 17, 70, 16, TE_COL[1]) < 300u,
@@ -3000,7 +3201,7 @@ int main(int argc, char **argv)
             }
             go_home(); track_select(0); frames(2);
             check(bad == 0u, "colour rule: the FX button's DELAY, REV/CHO, MASTER (the whole mix's) no voice colour, from any voice");
-            {   /* the drum screen's FX tab: the drum voice's own pages, coral (and no melodic voice's colour) */
+            {   /* the drum screen's FX tab: the drum voice's own pages, teal (and no melodic voice's colour) */
                 uint32_t h;
                 song.sel = TRK_DRUM; studio_open(SC_DRUM); frames(2);
                 for (h = 0; h < NDBUS; h++) {
@@ -3008,11 +3209,11 @@ int main(int argc, char **argv)
                     for (o2 = 0; o2 < NPART; o2++) bad += px_count(0, 0, 240, OP_BAR_Y, TE_COL[o2]);
                     if (h < 5u)
                         bad += px_count(0, SG_KNOB_Y, 240, 58, TE_DRUM) < 20u;
-                    else                                 /* (wave 9) MIX: the whole mix's, white-grey dials, no coral */
+                    else                                 /* (wave 9) MIX: the whole mix's, white-grey dials, no teal */
                         bad += px_count(0, SG_KNOB_Y, 240, 58, TE_DRUM) != 0u;
                 }
                 dpg_go(1, 0); go_home(); track_select(0); frames(2);
-                check(bad == 0u, "colour rule: the drum FX tab's five own pages in coral only, its three MIX pages in white-grey");
+                check(bad == 0u, "colour rule: the drum FX tab's five own pages in teal only, its three MIX pages in white-grey");
             }
             for (v = 0; v < NPART; v++) {               /* each voice's every sound page: no other voice's colour, in any
                                                          * of its shades (wave 7 found voice 1's OSC drawing dim coral) */
@@ -3295,7 +3496,7 @@ int main(int argc, char **argv)
             check(!sel_chip(cv, &cr, &cc) && px_count(50, 0, 90, 20, TE_DIM[0]) == 0u, "ENV (no type): no chip, the sound's name");
             track_select(TRK_DRUM); go_home(); tap(B_SEQ); frames(2); ui.force = 1; frame(); ppm("sel-chip-drum");
             check(sel_chip(cv, &cr, &cc) && cc == TE_DRUM && str_eq(cv, LANE_SHORT[drum_lane & 15u]),
-                  "drum screen: the chip names the selected sound (SELECT's), in coral");
+                  "drum screen: the chip names the selected sound (SELECT's), in teal");
             track_select(0); go_home(); frames(2);
         }
         {   /* SEQ + OCT- halves (asks when it would drop something: the one confirm), SEQ + OCT+ clones (steps, locks, nudges,
@@ -3362,6 +3563,7 @@ int main(int argc, char **argv)
                 int fd[2];
                 pid_t pid;
                 if (pipe(fd)) { h[r] = r; continue; }
+                fflush(stdout);
                 pid = fork();
                 if (!pid) {
                     uint32_t hh = 2166136261u, q, j, t0 = fm1_ms;
@@ -3369,23 +3571,34 @@ int main(int argc, char **argv)
                     track_t *t = &trk[0];
                     close(fd[0]);
                     song.sel = 0; go_home(); frames(2);
+                    dpat_clear(&dpat);                  /* (wave 11: the drums silent, what earlier tests left there out) */
+                    for (q = 0; q < NTRK; q++) { memset(trk[q].v, 0, sizeof trk[q].v); trk[q].p[P_MUTE] = 0; trk[q].nheld = 0; trk[q].arp_phys = 0; }
+                    for (q = 0; q < NROLL; q++) roll[q].on = 0;
+                    memset(kb_kind, 0, sizeof kb_kind); song.solo = 0; perf_unlatch(); fill_lat = fill_arm = 0;
+                    for (q = 0; q < NXSLOT; q++)        /* (the slots as a fresh sound's: what earlier tests set there out) */
+                        xs_type_set(t->p, q, XT_OFF);
+                    t->p[P_SLCR] = 0;
+                    memset(xst, 0, sizeof xst);
+                    for (q = 0; q < NTRK; q++) trk[q].ins_run = trk[q].tail = 0;
                     steps_clear(t); t->p[P_SLEN] = 16;
                     for (j = 0; j < 16u; j += 2u) { t->step[j].n = 1; t->step[j].note[0] = (uint8_t)(48 + j); t->step[j].time = ST_NOTE; t->step[j].vel = 100; }
                     if (!r) {                           /* straight */
-                        t->p[P_FTYPE] = (int16_t)(t->p[P_FTYPE] + 1); t->p[P_LWAVE] = (int16_t)(t->p[P_LWAVE] + 1);
-                        xs_type_set(t->p, 0, XT_DIST); t->p[P_SSWING] = (int16_t)(t->p[P_SSWING] + 3);
+                        t->p[P_FTYPE] = (int16_t)(t->p[P_FTYPE] + 1);
+                        t->p[P_LWAVE] = (int16_t)(t->p[P_LWAVE] + 1);
+                        xs_type_set(t->p, 0, XT_DIST);
+                        t->p[P_SSWING] = (int16_t)(t->p[P_SSWING] + 3);
                         for (q = 0; q < NPART; q++) trk[q].p[P_ROOT] = 2;
-                        for (j = 0; j < 16u; j++) { t->step[16 + j] = t->step[j]; }
-                        t->p[P_SLEN] = 32;
+                        { for (j = 0; j < 16u; j++) { t->step[16 + j] = t->step[j]; }
+                        t->p[P_SLEN] = 32; }
                     } else {                            /* by the new routes */
                         for (q = 0; q < NPART; q++) trk[q].p[P_ROOT] = 0;
-                        tap(B_EDIT); tap(B_EDIT); frames(16); encs[panel.enc[EN_SELECT]] = 1; frames(2);   /* FILT TYPE */
-                        tap(B_LFO); frames(2); encs[panel.enc[EN_SELECT]] = 1; frames(2);                 /* LFO WAVE */
-                        go_home(); tap(B_FX); frames(2);
-                        while (t->p[P_X1TYPE] != XT_DIST) { encs[panel.enc[EN_SELECT]] = 1; frames(2); }  /* FX 1 TYPE */
-                        tap(B_SEQ); tap(B_SEQ); frames(16); encs[panel.enc[EN_K3]] = 3; frames(2);       /* PATTERN SWING */
-                        go_home(); tap(B_ARP); tap(B_ARP); frames(16); encs[panel.enc[EN_K1]] = 2; frames(2);   /* KEY ROOT */
-                        go_home(); press(B_SEQ); frames(10); press(B_OCTUP); release(B_OCTUP); release(B_SEQ); frames(2);
+                        { tap(B_EDIT); tap(B_EDIT); frames(16); encs[panel.enc[EN_SELECT]] = 1; frames(2); }   /* FILT TYPE */
+                        { tap(B_LFO); frames(2); encs[panel.enc[EN_SELECT]] = 1; frames(2); }                 /* LFO WAVE */
+                        { go_home(); tap(B_FX); frames(2);
+                        while (t->p[P_X1TYPE] != XT_DIST) { encs[panel.enc[EN_SELECT]] = 1; frames(2); } }  /* FX 1 TYPE */
+                        { tap(B_SEQ); tap(B_SEQ); frames(16); encs[panel.enc[EN_K3]] = 3; frames(2); }       /* PATTERN SWING */
+                        { go_home(); tap(B_ARP); tap(B_ARP); frames(16); encs[panel.enc[EN_K1]] = 2; frames(2); }   /* KEY ROOT */
+                        { go_home(); press(B_SEQ); frames(10); press(B_OCTUP); release(B_OCTUP); release(B_SEQ); frames(2); }
                     }
                     go_home(); frames(2);
                     while (fm1_ms < t0 + 8000u) frame();     /* (the same time passed on both: free LFOs, tails) */
@@ -3613,8 +3826,8 @@ int main(int argc, char **argv)
             go_home(); frames(2);
         }
         {   /* the confirm is SAVE's everywhere: TOOLS NEW asks HOLD SAVE */
-            tap(B_SAVE); tap(B_SAVE); tap(B_SAVE); frames(2);
-            check(cur_page()->cat == CT_TOOLS, "w10: SAVE three times: TOOLS");
+            tap(B_SAVE); tap(B_SAVE); tap(B_SAVE); tap(B_SAVE); frames(2);
+            check(cur_page()->cat == CT_TOOLS, "w10: SAVE four times (wave 11: PATTERNS before it): TOOLS");
             encs[panel.enc[EN_K4]] = 1; frame();
             check(ui.ask == ASK_GO && !strncmp(ui.msg, "HOLD SAVE: NEW", 14), "w10: TOOLS NEW asks HOLD SAVE: NEW");
             tap(B_SAVE); frames(2);
@@ -3713,6 +3926,7 @@ int main(int argc, char **argv)
             key(PUNCH_BLACK[1]);
             release(B_GLO); frames(4);
             track_select(TRK_DRUM); frames(2);
+            mix_dsolo = 0;                              /* (wave 11: as the earlier tests may have left it) */
             press(B_GLO); frames(12);
             key(PUNCH_BLACK[0]); frames(2);
             check(mix_dsolo && (bk_shown & 1u), "w10: the mixer, drums: F#3 SOLO (drawn): the keys solo");
@@ -3924,6 +4138,454 @@ int main(int argc, char **argv)
         #undef DTAP
         song.octave = 0; fx_wet = 100;
         go_home(); frames(2);
+    }
+    {   /* ---- PHEBUS wave 11 (SPEC.md, "23 Nov 2026, 10:41: hold to map", the answers at 10:50): HOLD LFO / ENV TO MAP */
+        track_t *t = &trk[0];
+        uint32_t pg0, k, nmap = 0, nref = 0, bad = 0;
+        #define KT(n, v) do { encs[panel.enc[n]] = (v); frame(); } while (0)
+        song.sel = 0; ly_lock = LY_PLAY; go_home(); frames(8);
+        fm1_irq_off(); mx_clear_sound(0); t->p[P_LD_FLT] = t->p[P_LD_PIT] = t->p[P_ED_FLT] = t->p[P_LD_AMP] = 0; fm1_irq_on();
+        map_lfo2 = map_fenv = 0;
+        check(chain_goto(FAM_FLT, "FILT"), "w11: the FILT page");
+        pg0 = ui.page;
+        press(B_LFO); frames(3);
+        check(map_lyr == LY_LFO && ui.page == pg0 && ui.layer == LY_PLAY && map_src() == MS_LFO1,
+              "w11: hold LFO on FILT: the page stays (no layer, no other page), mapping LFO 1 (none shown yet)");
+        ui.force = 1; frame(); ppm("w11-map-empty");
+        KT(EN_K1, 3);
+        check(t->p[P_LD_FLT] > 0 && mx_get(0, MS_LFO1, MD_CUT) == t->p[P_LD_FLT],
+              "w11: LFO held, CUTOFF turned right: LFO 1 > CUT positive (the matrix's own cell, P_LD_FLT)");
+        KT(EN_K2, -4);
+        check(mx_get(0, MS_LFO1, MD_RES) < 0, "w11: ... RESO turned left: LFO 1 > RES negative (bipolar)");
+        KT(EN_K4, 5);
+        check(mx_as_find(0, P_FDRV) >= 0 && mx_get(0, MS_LFO1, (uint32_t)mx_as_find(0, P_FDRV)) > 0,
+              "w11: ... DRIVE: an assignable column for DRIVE, LFO 1 on it");
+        {
+            int16_t e0 = t->p[P_ED_FLT];
+            KT(EN_K3, 4);
+            check(t->p[P_ED_FLT] == e0 && strstr(ui.msg, "NOT MAPPABLE") != 0,
+                  "w11: ... ENV (a modulation amount): refused, and it says so (ENV: NOT MAPPABLE)");
+        }
+        ui.msg_t = 0; ui.force = 1; frame(); ppm("w11-map-filt");
+        check(pm_shown_m && !strcmp(pm_shown_m, "REMOVE") && !pm_shown_p, "w11: mapping: the legend says - REMOVE");
+        release(B_LFO); frames(3);
+        check(map_lyr == 0 && ui.page == pg0 && ui.layer == LY_PLAY, "w11: LFO let go: the page, as it was (a hold never navigates)");
+        check(map_marks(cur_page()) == 0xBu, "w11: outside the hold: CUTOFF, RESO and DRIVE carry the mark (ENV, a fixed cell's own: no)");
+        ui.force = 1; frame(); ppm("w11-filt-marks");
+        check(chain_goto(FAM_MOD, "MATRIX"), "w11: the MATRIX page");
+        {
+            uint8_t cols[MD_N];
+            uint32_t n = mx_vis(0, cols);
+            check(n == MD_NFIX + 2u && cols[MD_NFIX] == (uint8_t)mx_as_find(0, P_FDRV) && cols[MD_NFIX + 1u] >= MD_AS1,
+                  "w11: MATRIX: the fixed columns, DRIVE's column, then + (one empty)");
+            mx_row = MS_LFO2; mx_col = (int16_t)mx_as_find(0, P_FDRV);
+            frames(20);
+            KT(EN_K3, 4);
+            check(mx_get(0, MS_LFO2, (uint32_t)mx_col) > 0, "w11: MATRIX: LFO2 > DRIVE set on the grid");
+            mx_row = MS_LFO1;
+        }
+        ui.force = 1; frame(); ppm("w11-matrix");
+        check(chain_goto(FAM_FLT, "FILT"), "w11: back to FILT");
+        map_lfo2 = 1;
+        press(B_LFO); frames(3);
+        {
+            int32_t a, st;
+            uint32_t id;
+            st = (int32_t)map_knob(cur_page(), 3, MS_LFO2, &a, &id);
+            check(map_src() == MS_LFO2 && st == 2 && a > 0, "w11: the grid's LFO2 > DRIVE shows on the FILT page held with LFO 2 (both ways)");
+        }
+        tap(B_SCL); frames(2);
+        check(map_src() == MS_LFO1 && ui.page == pg0 && map_lyr, "w11: SEL while held: LFO 2 > LFO 1 (the page stays)");
+        tap(B_SCL); frames(2);
+        check(map_src() == MS_LFO2, "w11: SEL again: LFO 2");
+        ui.force = 1; frame(); ppm("w11-map-lfo2");
+        tap(B_SCL); frames(2);
+        while (mx_get(0, MS_LFO1, MD_RES) < 0) KT(EN_K2, 1);
+        while (mx_get(0, MS_LFO1, MD_RES) > 0) KT(EN_K2, -1);
+        check(mx_get(0, MS_LFO1, MD_RES) == 0 && mx_col_cells(0, MD_RES) == 0, "w11: back to 0: the mapping gone (the cell freed)");
+        release(B_LFO); frames(3);
+        check(ui.page == pg0, "w11: let go after SEL: no page walked");
+        /* the one last shown */
+        check(chain_goto(FAM_MOD, "LFO 2"), "w11: LFO 2 shown");
+        check(chain_goto(FAM_FLT, "FILT") && map_lfo2 == 1, "w11: ... then FILT: LFO 2 is the one last shown");
+        check(chain_goto(FAM_MOD, "LFO"), "w11: LFO 1 shown");
+        check(chain_goto(FAM_FLT, "FILT") && map_lfo2 == 0, "w11: ... then FILT: LFO 1");
+        /* ENV: the amp envelope (last shown) cannot move its own times; the filter's can */
+        check(chain_goto(FAM_ENV, "ENV"), "w11: ENV (AMP)");
+        press(B_ENV); frames(3);
+        check(map_lyr == LY_ENV && map_src() == MS_AENV && ui.layer == LY_PLAY, "w11: hold ENV on AMP: mapping the amp envelope");
+        {
+            int16_t a0 = t->p[P_ATK];
+            KT(EN_K1, 3);
+            check(mx_map_get(0, MS_AENV, P_ATK) == 0 && t->p[P_ATK] == a0 && strstr(ui.msg, "ITSELF") != 0,
+                  "w11: ... ATTACK from the amp envelope: refused (NOT FROM ITSELF)");
+        }
+        ui.msg_t = 0;
+        tap(B_SCL); frames(2);
+        KT(EN_K1, 3);
+        check(map_src() == MS_FENV && mx_map_get(0, MS_FENV, P_ATK) > 0, "w11: SEL: the filter envelope; ATTACK from it: mapped");
+        ui.force = 1; frame(); ppm("w11-map-env");
+        master_in(512); master_in(700); frames(2);
+        check(mac_env[0] != 0, "w11: ENV held while mapping: MASTER still ENV LENGTH (wave 10's pair)");
+        mac_env[0] = 0;
+        release(B_ENV); frames(3);
+        /* OCT- removes this source's mappings on this page; SAVE + OCT- brings them back */
+        check(chain_goto(FAM_FLT, "FILT"), "w11: FILT again");
+        map_lfo2 = 0;
+        press(B_LFO); frames(2);
+        {
+            int16_t f0 = t->p[P_LD_FLT];
+            int32_t dr = mx_map_get(0, MS_LFO1, P_FDRV);
+            tap(B_OCTDN); frames(2);
+            check(f0 && dr && !t->p[P_LD_FLT] && !mx_map_get(0, MS_LFO1, P_FDRV) && mx_map_get(0, MS_LFO2, P_FDRV) > 0,
+                  "w11: LFO + OCT-: LFO 1's mappings on FILT gone (CUTOFF, DRIVE); LFO 2's stay");
+            release(B_LFO); frames(3);
+            press(B_SAVE); frames(2); tap(B_OCTDN); frames(2); release(B_SAVE); frames(4);
+            check(t->p[P_LD_FLT] == f0 && mx_map_get(0, MS_LFO1, P_FDRV) == dr, "w11: SAVE + OCT-: they come back (undo)");
+        }
+        /* every synth page: each knob mappable maps onto its own column, one cell and only one changes; the rest refuse */
+        {
+            static const char *const TI[][2] = {{"OSC", 0}, {"OSC 2", 0}, {"OSC 3", 0}, {"OSC 4", 0}, {"FILT", 0}, {"FILT 2", 0},
+                                                 {"ENV", 0}, {"FILT ENV", 0}, {"FX 1", 0}, {"FX 2", 0}, {"FX 3", 0}, {"SENDS", 0},
+                                                 {"SLICER", 0}, {"LFO", 0}, {"LFO SYNC", 0}, {"LFO 2", 0}, {"MATRIX", 0}};
+            static const uint8_t FA[] = {FAM_OSC, FAM_OSC, FAM_OSC, FAM_OSC, FAM_FLT, FAM_FLT, FAM_ENV, FAM_ENV, FAM_FX, FAM_FX,
+                                         FAM_FX, FAM_FX, FAM_FX, FAM_MOD, FAM_MOD, FAM_MOD, FAM_MOD};
+            uint32_t i;
+            fm1_irq_off(); mx_clear_sound(0); t->p[P_LD_FLT] = t->p[P_LD_PIT] = t->p[P_ED_FLT] = 0;
+            xs_type_set(t->p, 0, XT_PHASER); xs_type_set(t->p, 1, XT_DIST); xs_type_set(t->p, 2, XT_CRUSH);
+            t->p[P_SLCR] = 1; fm1_irq_on();
+            for (i = 0; i < NELEM(FA); i++) {
+                if (!chain_goto(FA[i], TI[i][0])) { printf("  (no page %s)\n", TI[i][0]); bad++; continue; }
+                press(B_LFO); frames(2);
+                if (map_lyr != LY_LFO) { printf("  %s: no map\n", TI[i][0]); bad++; }
+                for (k = 0; k < 4u; k++) {
+                    int32_t a;
+                    uint32_t id, st = map_knob(cur_page(), k, map_src(), &a, &id), j, ch = 0;
+                    mxt_t m0 = mxt[0];
+                    int16_t p0[P_COUNT];
+                    memcpy(p0, t->p, sizeof p0);
+                    if (!st)
+                        continue;
+                    KT(EN_K1 + k, 2);
+                    for (j = 0; j < MX_NCELL; j++)
+                        ch += m0.c[j].at != mxt[0].c[j].at || m0.c[j].amt != mxt[0].c[j].amt;
+                    for (j = 0; j < P_COUNT; j++)
+                        ch += p0[j] != t->p[j];
+                    if (st == 2u) {
+                        nmap++;
+                        if (ch != 1u || !mx_map_get(0, map_src(), id)) { printf("  %s knob %u: %u changes\n", TI[i][0], (unsigned)k + 1, (unsigned)ch); bad++; }
+                        KT(EN_K1 + k, -40); KT(EN_K1 + k, -40);
+                        if (mx_map_get(0, map_src(), id) >= 0) { printf("  %s knob %u: not negative\n", TI[i][0], (unsigned)k + 1); bad++; }
+                        fm1_irq_off(); mx_map_set(0, map_src(), id, 0); fm1_irq_on();
+                        if (mx_map_get(0, map_src(), id) || mx_used(0)) bad++;
+                    } else {
+                        nref++;
+                        if (ch || !strstr(ui.msg, "NOT")) { printf("  %s knob %u: refused but %u changes\n", TI[i][0], (unsigned)k + 1, (unsigned)ch); bad++; }
+                    }
+                    ui.msg_t = 0;
+                }
+                if (i == 8u) { ui.force = 1; frame(); ppm("w11-map-fx1"); }
+                if (i == 0u) { ui.force = 1; frame(); ppm("w11-map-osc"); }
+                release(B_LFO); frames(3);
+            }
+            printf("  %u knobs mapped, %u refused\n", (unsigned)nmap, (unsigned)nref);
+            check(!bad && nmap >= 20u && nref >= 10u, "w11: every synth page: each mappable knob maps (one cell, its own), each other one refuses visibly");
+        }
+        /* the limit: 19 cells */
+        {
+            uint32_t j;
+            static const uint8_t IDS[] = {P_ATK, P_DEC, P_SUS, P_REL, P_FATK, P_FDEC, P_FSUS, P_FREL, P_FDRV, P_GLIDE, P_DETUNE,
+                                          P_DLY, P_REV, P_CHOR, P_LRATE, P_LFADE, P_L2RATE, P_SLDEPTH, P_X1TIME};
+            fm1_irq_off(); mx_clear_sound(0);
+            for (j = 0; j < NELEM(IDS); j++) mx_map_set(0, MS_LFO2, IDS[j], 9);
+            fm1_irq_on();
+            check(chain_goto(FAM_FLT, "FILT"), "w11: FILT for the limit");
+            map_lfo2 = 1;
+            press(B_LFO); frames(2);
+            KT(EN_K2, 3);
+            check(!mx_get(0, MS_LFO2, MD_RES) && strstr(ui.msg, "MATRIX FULL") != 0, "w11: the 20th cell: MATRIX FULL: 19 CELLS, said (nothing changed)");
+            ui.force = 1; frame(); ppm("w11-map-full");
+            release(B_LFO); frames(3);
+            fm1_irq_off(); mx_clear_sound(0); fm1_irq_on();
+        }
+        /* where there is no map: HOME, the GRID, the drums: wave 10's pair layer as it was */
+        go_home(); frames(4);
+        press(B_LFO); frames(SHOW_MS / 16u + 4u);
+        check(!map_lyr && ui.layer == LY_LFO, "w11: hold LFO on HOME: the MASTER pair layer (wave 10), no map");
+        release(B_LFO); frames(4);
+        song.sel = TRK_DRUM; drum_screen_open(); frames(4);
+        press(B_LFO); frames(SHOW_MS / 16u + 4u);
+        check(!map_lyr && ui.layer == LY_LFO, "w11: hold LFO on the drums: the pair only (the drum question is Ben's)");
+        release(B_LFO); frames(4);
+        song.sel = 0; go_home(); frames(4);
+        /* the sound: a mapping made by the hold plays exactly as the same cell set on the grid, and differs from none */
+        {
+            uint32_t h[3], r;
+            fm1_irq_off(); mx_clear_sound(0); fm1_irq_on();
+            t->p[P_FDRV] = 30;
+            for (r = 0; r < 3u; r++) {
+                int fd[2];
+                pid_t pid;
+                if (pipe(fd)) break;
+                pid = fork();
+                if (!pid) {
+                    uint32_t hh = 2166136261u, q, j;
+                    static int32_t o3[CTL * 2];
+                    close(fd[0]);
+                    if (r == 1u) {                       /* (the hold: FILT, LFO held, DRIVE right) */
+                        chain_goto(FAM_FLT, "FILT"); map_lfo2 = 0;
+                        press(B_LFO); frames(2); KT(EN_K4, 6); release(B_LFO); frames(2);
+                    } else if (r == 2u) {                /* (the grid: the same amount on DRIVE's column) */
+                        int32_t a = 0;
+                        chain_goto(FAM_FLT, "FILT"); map_lfo2 = 0;
+                        press(B_LFO); frames(2); KT(EN_K4, 6); a = mx_map_get(0, MS_LFO1, P_FDRV); release(B_LFO); frames(2);
+                        fm1_irq_off(); mx_clear_sound(0); mxt[0].as[0] = P_FDRV + 1u; mx_set(0, MS_LFO1, MD_AS1, a); fm1_irq_on();
+                    } else {
+                        chain_goto(FAM_FLT, "FILT");
+                    }
+                    for (j = 0; j < NPART; j++) trk[j].p[P_DLY] = trk[j].p[P_REV] = trk[j].p[P_CHOR] = 0;
+                    t->p[P_LRATE] = 100;
+                    trk_note_on(t, 48, 110);
+                    for (q = 0; q < 600u; q++) {
+                        mix_block(o3, CTL);
+                        for (j = 0; j < CTL * 2u; j++) hh = (hh ^ (uint32_t)o3[j]) * 16777619u;
+                    }
+                    if (write(fd[1], &hh, sizeof hh) != (ssize_t)sizeof hh) _exit(1);
+                    _exit(0);
+                }
+                close(fd[1]);
+                if (read(fd[0], &h[r], sizeof h[r]) != (ssize_t)sizeof h[r]) h[r] = r + 7u;
+                close(fd[0]);
+                waitpid(pid, 0, 0);
+            }
+            check(h[1] == h[2] && h[0] != h[1], "w11: the sound: LFO 1 > DRIVE by the hold = the same cell set on the grid; differs from none");
+        }
+        #undef KT
+        go_home(); frames(2);
+    }
+    check(TE_COL[0] == RGB(140, 118, 240) && TE_COL[1] == RGB(40, 160, 245) && TE_COL[2] == RGB(255, 128, 108) &&
+          TE_DRUM == RGB(20, 196, 170) && TE_DRUM == TE_COL[TRK_DRUM],
+          "w11: the colour code (Ben, 11:33): voice 1 purple, 2 blue, 3 coral, the drums teal (one place: TE_COL)");
+    {   /* ---- wave 11 (E): voice 3 coral beside the record red: the screens to look at (screenshots for Ben) */
+        track_select(2); go_home(); frames(3);
+        rec_wait = 1; ui.force = 1; frame(); ppm("w11-v3-rec-armed"); rec_wait = 0; frames(2);
+        transport_req = 1; frames(6); song.rec = 1u << 2; ui.force = 1; frames(3); ppm("w11-v3-home-rec");
+        chain_goto(FAM_FLT, "FILT"); frames(3); ui.force = 1; frame(); ppm("w11-v3-filt-rec");
+        song.rec = 0; transport_req = 2; frames(4);
+        go_home(); frames(2); press(B_EDIT); frames(2); tap(B_OCTDN); release(B_EDIT); frames(2);
+        press(B_SAVE); frames(40); ui.force = 1; frame(); ppm("w11-v3-confirm-ring"); release(B_SAVE); frames(3);
+        tap(B_HOME); ui.ask = 0; ui.msg_t = 0; frames(3);
+        track_select(TRK_DRUM); drum_screen_open(); frames(3); ui.force = 1; frame(); ppm("w11-drum-teal");
+        track_select(0); go_home(); frames(3);
+    }
+    {   /* ---- wave 11: the lights sheet (review/wave11/lights.png): the panel under each hold, QUIET NORMAL SHOW */
+        char path[512];
+        static const struct { const char *n; uint32_t b; } H[] = {{"hold FX (PERFORM)", B_FX}, {"hold SEQ", B_SEQ}, {"hold ARP", B_ARP},
+            {"hold EDIT", B_EDIT}, {"hold GLO (mixer)", B_GLO}, {"hold SAVE", B_SAVE}, {"hold ENV (map)", B_ENV}, {"hold LFO (map)", B_LFO},
+            {"hold OCT-", B_OCTDN}};
+        uint32_t i;
+        snprintf(path, sizeof path, "%s/lights.txt", outdir); remove(path);
+        lt_pattern(); song.sel = 0; go_home(); frames(3); lights_dump("NORMAL, HOME, nothing held");
+        chain_goto(FAM_FLT, "FILT"); frames(3);
+        for (i = 0; i < NELEM(H); i++) {
+            char n[64];
+            press(H[i].b); frames(12);
+            snprintf(n, sizeof n, "%s, FILT page", H[i].n); lights_dump(n);
+            release(H[i].b); frames(4);
+        }
+        song.sel = TRK_DRUM; go_home(); frames(2);
+        press(B_GLO); frames(12); lights_dump("hold GLO, drums (mixer)"); release(B_GLO); frames(3);
+        press(B_OCTDN); frames(12); lights_dump("hold OCT-, drums (ghost keys)"); release(B_OCTDN); frames(3);
+        song.sel = 0; go_home(); frames(2); tap(B_SEQ); frames(3);
+        fm1_in.notes |= 1u << key_of_white(2); frames(4); lights_dump("a step held (GRID)"); fm1_in.notes = 0; frames(3);
+        go_home(); frames(2); press(B_EDIT); frames(2); tap(B_OCTDN); release(B_EDIT); frames(3); lights_dump("a question waiting");
+        tap(B_HOME); ui.ask = 0; ui.msg_t = 0; frames(3);
+        tap(B_SEQ); frames(3); transport_req = 1; frames(10);
+        lights_dump("NORMAL, GRID playing"); frame(); frame(); frame(); lights_dump("NORMAL, GRID playing (a moment later)");
+        disco = DISCO_QUIET; frames(3); lights_dump("QUIET, GRID playing");
+        press(B_SEQ); frames(12); lights_dump("QUIET, hold SEQ"); release(B_SEQ); frames(3);
+        go_home(); disco = DISCO_SHOW; frames(30); lights_dump("SHOW, HOME playing"); frames(7); lights_dump("SHOW, HOME playing (a moment later)");
+        disco = DISCO_NORMAL; transport_req = 2; frames(4); go_home(); frames(2);
+    }
+    {   /* ---- wave 11: the new views keep in their columns and to the colour rule */
+        uint32_t over0 = dial_over, bad = 0, v, i;
+        static const char *const PG[] = {"FILT", "ENV", "FX 1", "LFO", "OSC"};
+        static const uint8_t FA[] = {FAM_FLT, FAM_ENV, FAM_FX, FAM_MOD, FAM_OSC};
+        for (v = 0; v < NPART; v++) {
+            track_select(v); go_home(); frames(2);
+            fm1_irq_off(); mx_clear_sound(v); mx_map_set(v, MS_LFO2, P_FDRV, -64); mx_map_set(v, MS_LFO2, P_FRES, 63); fm1_irq_on();
+            for (i = 0; i < NELEM(FA); i++) {
+                uint32_t o;
+                if (!chain_goto(FA[i], PG[i])) { bad++; continue; }
+                map_lfo2 = 1;
+                press(B_LFO); frames(12); ui.force = 1; frame();
+                for (o = 0; o < NPART + 1u; o++)        /* (no other voice's colour, no red) */
+                    if (o != v && (o < NPART ? 1 : 0))
+                        bad += px_count(0, 0, 240, OP_BAR_Y, TE_COL[o]) != 0u;
+                bad += px_count(0, 0, 240, OP_BAR_Y, TE_RED) != 0u;
+                release(B_LFO); frames(4);
+                ui.force = 1; frame();
+                for (o = 0; o < NPART; o++)             /* (the marks: the voice's own colour only) */
+                    if (o != v)
+                        bad += px_count(0, 0, 240, OP_BAR_Y, TE_COL[o]) != 0u;
+            }
+            fm1_irq_off(); mx_clear_sound(v); fm1_irq_on();
+        }
+        check(!bad && dial_over == over0, "w11: MAP view and the marks on every synth voice: in their columns, no other voice's colour, no red");
+        track_select(0); go_home(); frames(2);
+        {   /* the MATRIX's heads: every column's name in its 32 px, with 19 columns in use */
+            uint8_t cols[MD_N];
+            uint32_t n, j, wide = 0;
+            static const uint8_t IDS[] = {P_ATK, P_DEC, P_SUS, P_REL, P_FATK, P_FDEC, P_FSUS, P_FREL, P_FDRV, P_GLIDE, P_DETUNE,
+                                          P_DLY, P_REV, P_CHOR, P_LRATE, P_LFADE, P_L2RATE, P_SLDEPTH, P_X1TIME};
+            char nm[8];
+            fm1_irq_off(); mx_clear_sound(0);
+            for (j = 0; j < NELEM(IDS); j++) mx_map_set(0, MS_LFO2, IDS[j], 9);
+            fm1_irq_on();
+            n = mx_vis(0, cols);
+            for (j = 0; j < n; j++) { mx_col_name(0, cols[j], nm); wide += text_w(&FONT_S, nm) > 28; }
+            chain_goto(FAM_MOD, "MATRIX"); mx_col = cols[n - 1u]; frames(2); ui.force = 1; frame(); ppm("w11-matrix-full");
+            check(n == MD_NFIX + 19u && !wide && px_count(0, 0, 240, OP_BAR_Y, TE_COL[1]) + px_count(0, 0, 240, OP_BAR_Y, TE_COL[2]) == 0u,
+                  "w11: MATRIX with 19 parameter columns: each name fits its column, the view scrolls to the last, voice 1's colours only");
+            fm1_irq_off(); mx_clear_sound(0); fm1_irq_on();
+        }
+        go_home(); frames(2);
+    }
+    {   /* ---- wave 11 (D1): storing a pattern has a home under SAVE: SAVE > PATTERN (the hold stays its shortcut) */
+        uint32_t s0, j;
+        song.sel = 0; go_home(); frames(4);
+        for (j = 0; j < 6u && cur_cat() != CT_SPATT; j++) tap(B_SAVE);
+        check(cur_cat() == CT_SPATT && j == 3u, "w11: SAVE pressed three times: PRESETS, USER, PATTERN");
+        encs[panel.enc[EN_K1]] = 2; frames(3);
+        check(spatt_sel == 2u, "w11: SAVE > PATTERN: KNOB 1 picks the pattern (C)");
+        ui.force = 1; frame(); ppm("w11-save-pattern");
+        s0 = sec_stores;
+        encs[panel.enc[EN_K2]] = 1; frames(3);
+        check(sec_stores == s0 + 1u && live_sec == 2, "w11: SAVE > PATTERN: KNOB 2 STORE into an empty pattern: stored at once (as SAVE + key 3)");
+        encs[panel.enc[EN_K1]] = -5; frames(3);
+        encs[panel.enc[EN_K2]] = 1; frames(3);
+        check(ui.ask == ASK_STORE && sec_stores == s0 + 1u && strstr(ui.msg, "STORE A") != 0,
+              "w11: SAVE > PATTERN: STORE over a stored pattern (A) asks: HOLD SAVE: STORE A");
+        ui.force = 1; frame(); ppm("w11-save-pattern-ask");
+        press(B_SAVE); frames(HOLD_CLEAR_MS / 16u + 6u); release(B_SAVE); frames(3);
+        check(sec_stores == s0 + 2u && live_sec == 0, "w11: ... SAVE held until the ring fills: stored");
+        check(pm_shown_m && !strcmp(pm_shown_m, "PATT"), "w11: SAVE > PATTERN: -/+ the pattern before / after");
+        go_home(); frames(4);
+    }
+    {   /* ---- wave 11: the confirm, the black keys and the strip, the DISCO setting */
+        uint32_t c, ok, f, i;
+        static uint8_t snap[3][FM1_NCOL];
+        song.sel = 0; ly_lock = LY_PLAY; go_home(); frames(4);
+        lt_pattern();
+        press(B_EDIT); frames(2); tap(B_OCTDN); release(B_EDIT); frames(3);
+        for (c = 0, ok = ui.ask != 0; c <= 40u; c++)
+            ok &= c == B_SAVE ? led_lv[c] != LL_OFF : led_lv[c] == LL_OFF;
+        check(ok, "w11: a question waiting: SAVE alone lit (it pulses), every other button and key dark");
+        ui.force = 1; frame(); ppm("w11-lights-ask");
+        tap(B_HOME); frames(4); ui.ask = 0; ui.msg_t = 0; frames(2);
+        /* the black keys' lights are the strip drawn, on every screen that draws one; elsewhere only a note's */
+        {
+            uint32_t bad = 0, n = 0;
+            #define BKCHK(what) do { uint32_t q_, live_ = 0; frames(2); \
+                for (q_ = 0; q_ < 11u; q_++) live_ |= (uint32_t)(led_lv[14u + PUNCH_BLACK[q_]] != LL_OFF) << q_; \
+                if (bk_drawn_f + 2u >= ui.frame) { n++; if (live_ != bk_drawn) { printf("  %s: lights %03x strip %03x\n", what, live_, bk_drawn); bad++; } } \
+                else if (live_) { printf("  %s: black keys lit, no strip\n", what); bad++; } } while (0)
+            go_home(); frames(2); BKCHK("HOME, nothing held");
+            press(B_SEQ); frames(12); BKCHK("SEQ held"); release(B_SEQ); frames(3);
+            press(B_GLO); frames(12); BKCHK("GLO held (voice 1)"); release(B_GLO); frames(3);
+            press(B_FX); frames(12); BKCHK("PERFORM"); release(B_FX); frames(3);
+            song.sel = TRK_DRUM; go_home(); frames(2);
+            press(B_GLO); frames(12); BKCHK("GLO held (drums)"); release(B_GLO); frames(3);
+            fm1_in.notes |= 1u << PUNCH_BLACK[2]; BKCHK("the drums, a black key pressed (no job)");
+            printf("  lv %u keys %u lk %u\n", led_lv[14 + PUNCH_BLACK[2]], drum_keys, lights_keys); fm1_in.notes = 0; frames(2);
+            drum_screen_open(); frames(3); fm1_in.notes |= 1u << PUNCH_BLACK[2]; BKCHK("the drum screen, a black key pressed"); fm1_in.notes = 0; frames(2);
+            song.sel = 0; go_home(); frames(2); tap(B_SEQ); frames(3);
+            fm1_in.notes |= 1u << PUNCH_BLACK[1]; BKCHK("the GRID, a black key pressed"); fm1_in.notes = 0; frames(2);
+            go_home(); frames(2); trk[0].p[P_CHORD] = 1; chain_goto(FAM_SCL, "KEY"); frames(3);
+            BKCHK("ARP > KEY, chord mode (the modifiers drawn)");
+            trk[0].p[P_CHORD] = 0; go_home(); frames(3);
+            #undef BKCHK
+            check(!bad && n >= 5u, "w11: the black keys' lights are the strip drawn (SEQ, the mixers, PERFORM, KEY), dark where none is drawn");
+        }
+        /* QUIET: nothing changes while a pattern plays (HOME, the GRID); SHOW: the keys move; the level persists */
+        song.sel = 0; go_home(); frames(2);
+        for (i = 0; i < 2u; i++) {
+            disco = DISCO_QUIET;
+            if (i) { tap(B_SEQ); frames(3); }
+            transport_req = 1; frames(6);
+            memcpy(snap[0], fm1_led, FM1_NCOL); memcpy(snap[1], fm1_led_dim, FM1_NCOL); memcpy(snap[2], fm1_led_bg, FM1_NCOL);
+            for (f = 0, ok = song.playing != 0u; f < 120u; f++) {
+                frame();
+                ok &= !memcmp(snap[0], fm1_led, FM1_NCOL) && !memcmp(snap[1], fm1_led_dim, FM1_NCOL) && !memcmp(snap[2], fm1_led_bg, FM1_NCOL);
+            }
+            check(ok, i ? "w11: QUIET, the GRID playing: no light changes in 2 s (no play head, no beat, no blink)"
+                        : "w11: QUIET, HOME playing: no light changes in 2 s (no hits, no notes, no beat)");
+            transport_req = 2; frames(4); go_home(); frames(2);
+        }
+        {
+            uint32_t sn = 0, sh = 0, ch = 0;
+            uint8_t prev[41];
+            disco = DISCO_NORMAL; transport_req = 1; frames(4);
+            for (f = 0; f < 120u; f++) { frame(); for (c = 14; c <= 40u; c++) sn += led_lv[c] != LL_OFF; }
+            disco = DISCO_SHOW; memcpy(prev, led_lv, 41);
+            for (f = 0; f < 120u; f++) {
+                frame();
+                for (c = 14; c <= 40u; c++) sh += led_lv[c] != LL_OFF;
+                ch += memcmp(prev, led_lv, 41) != 0;
+                memcpy(prev, led_lv, 41);
+                if (f == 60u) { ui.force = 1; ppm("w11-show-home"); }
+            }
+            check(sh > sn * 2u && ch > 10u && fm1_led_bg_ns == LIGHTS_NS[LIGHTS_HIGH],
+                  "w11: SHOW, HOME playing: the keys dance (far more lit than NORMAL, changing), every button's backlight HIGH");
+            press(B_SEQ); frames(12);
+            for (c = 14, ok = 1; c <= 40u; c++)
+                ok &= (led_lv[c] == LL_LIT) == (uint32_t)combo_live(led_ctx, c) || (led_lv[c] != LL_OFF) == 0;
+            check(ok && led_ctx == HC_LY0 + LY_SEQ, "w11: SHOW: a hold wins, its hints and nothing else");
+            release(B_SEQ); frames(3);
+            transport_req = 2; frames(4);
+        }
+        {
+            uint32_t w;
+            disco = DISCO_SHOW; w = lights_word(); disco = DISCO_NORMAL; lights_from_word(w);
+            ok = disco == DISCO_SHOW;
+            disco = DISCO_QUIET; w = lights_word(); disco = DISCO_NORMAL; lights_from_word(w);
+            ok &= disco == DISCO_QUIET;
+            lights_from_word(w & 0x3FFFFFFFu);
+            check(ok && disco == DISCO_NORMAL, "w11: DISCO kept in the settings word (SHOW, QUIET read back; a word from before: NORMAL)");
+        }
+        disco = DISCO_NORMAL; go_home(); frames(4);
+    }
+    {   /* ---- PHEBUS wave 11 (SPEC.md, "23 Nov 2026, 10:45: the lights"): every control under every hold: lit <=> it does something
+         * together with what is held (what it does alone, as PLAY's transport under GLO, does not count); dark <=> nothing */
+        static const struct { const char *n; void (*su)(void); uint32_t hc; } LT[] = {
+            {"FILT: FX", su_filt, B_FX}, {"FILT: SEQ", su_filt, B_SEQ}, {"FILT: ARP", su_filt, B_ARP}, {"FILT: EDIT", su_filt, B_EDIT},
+            {"FILT: GLO", su_filt, B_GLO}, {"FILT: SAVE", su_filt, B_SAVE}, {"FILT: ENV (map)", su_filt, B_ENV},
+            {"FILT: LFO (map)", su_filt, B_LFO}, {"LFO 2: LFO (map)", su_lfo2, B_LFO}, {"FILT: OCT-", su_filt, B_OCTDN},
+            {"FILT: OCT+", su_filt, B_OCTUP}, {"FILT: a key (C4) held", su_filt, 14u + 7u},
+            {"HOME: LFO (pair)", su_home, B_LFO}, {"HOME: ENV (pair)", su_home, B_ENV}, {"HOME: SEQ", su_home, B_SEQ},
+            {"HOME, drums: SEQ", su_home_drum, B_SEQ}, {"HOME, drums: GLO", su_home_drum, B_GLO},
+            {"HOME, drums: ARP", su_home_drum, B_ARP}, {"HOME, drums: OCT-", su_home_drum, B_OCTDN},
+            {"HOME, drums: OCT+", su_home_drum, B_OCTUP}, {"HOME, drums: FX", su_home_drum, B_FX},
+            {"HOME, drums: a key held", su_home_drum, 14u + 2u},
+            {"PERFORM, a pad latched: FX", su_perf_lat, B_FX},
+            {"GRID: a step held", su_grid, 14u + 2u}, {"drum screen: a step held", su_dscreen, 14u + 2u},
+        };
+        uint32_t i, c;
+        static uint32_t litset[NELEM(LT)][2];
+        lt_bad = 0;
+        for (i = 0; i < NELEM(LT); i++) {
+            char b[200];
+            uint32_t n = lt_check(LT[i].n, LT[i].su, LT[i].hc, litset[i]), o = 0;
+            o += (uint32_t)snprintf(b + o, sizeof b - o, "  lit: %s:", LT[i].n);
+            for (c = 0; c <= 40u && o < 180u; c++)
+                if ((litset[i][c >> 5] >> (c & 31u)) & 1u) {
+                    if (c < 14u) o += (uint32_t)snprintf(b + o, sizeof b - o, " %s", B_NAME[c]);
+                    else o += (uint32_t)snprintf(b + o, sizeof b - o, " k%u", (unsigned)(c - 14u));
+                }
+            printf("%s (%u)\n", b, (unsigned)n);
+        }
+        check(!lt_bad, "w11: the lights under every hold (25 holds x 40 controls): each lit control does something with it, each dark one nothing");
+        go_home(); frames(4);
     }
     printf("ui: %s\n", fails ? "FAILED" : "pages, layers (punch, steps, erase, roll, key, mix), layer lock, song layer, REC hold, drums, REC, 20000-frame fuzz PASS");
     return fails;

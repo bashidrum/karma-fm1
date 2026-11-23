@@ -37,8 +37,8 @@ PHEBUS has four **voices**: three melodic voices and one drum voice. Each voice 
 | --- | --- | --- | --- |
 | **1** | robot | purple | ACID INIT: a plain saw through the 303 filter, mono, an octave down. A bass |
 | **2** | alien | blue | JUNO INIT: a plain saw, polyphonic. Chords |
-| **3** | crocodile | teal | PLAITS VA: a plain saw, mono, about 6 dB quieter. A lead |
-| **DR** | snake | coral | the 606 kit, 16 sounds |
+| **3** | crocodile | coral | PLAITS VA: a plain saw, mono, about 6 dB quieter. A lead |
+| **DR** | snake | teal | the 606 kit, 16 sounds |
 
 Every voice starts with no effects on and an empty mod matrix. **SAVE > TOOLS > NEW** puts a project back to this start.
 
@@ -46,7 +46,7 @@ Every voice starts with no effects on and an empty mod matrix. **SAVE > TOOLS > 
 
 Colour always means something:
 
-- A voice's colour (purple, blue, teal, coral) means "this acts on that voice". On a voice's own pages everything is in its colour.
+- A voice's colour means "this acts on that voice": voice 1 purple, voice 2 blue, voice 3 coral, the drums teal (Ben's own colour code: teal is drums). On a voice's own pages everything is in its colour.
 - White and grey mean shared: the screen acts on everything (the FX button's pages, PERFORM, the STUTTER lane, the GLO pages, the patterns).
 - A yellow **M** means muted. An ice-blue **S** means soloed.
 - Red is only for recording and erasing.
@@ -102,14 +102,14 @@ The tab row above the dials always shows **the categories of the button you pres
 | Button | Idea | Tap (again: its next category, round) | SEL (the next page inside) | Hold | -/+ while held | MASTER while held | SELECT turns |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | **EDIT** | sound | synth: **OSC**, FILT. Drums: **SRC**, FLTR | OSC: OSC 2, 3, 4. FILT: FILT 2. SRC: 2/3, 3/3. FLTR: 2/2 (synthesised kits) | MASTER's pair | - CLEAR the voice (asks: hold SAVE) | LEVEL | synth: OSC the Type, FILT the filter TYPE. Drums: the sound |
-| **ENV** | envelopes | synth: **AMP**, FILT envelope. Drums: **AMP** | drums: AMP 2/2 | MASTER's pair | | ENV LENGTH (drums: the sound's decay) | nothing (synth); the sound (drums) |
-| **LFO** | modulation | synth: **LFO 1**, LFO 2, MATRIX. Drums: **LFO** | LFO 1: its sync page. Drums: LFO 2/2 | MASTER's pair | | MOD DEPTH (drums: the sound's LFO DEPTH) | synth: the WAVE. Drums: the sound |
+| **ENV** | envelopes | synth: **AMP**, FILT envelope. Drums: **AMP** | drums: AMP 2/2 | on a synth sound page: **MAP** the envelope last shown (SEL: the other); elsewhere MASTER's pair | - REMOVE its mappings on this page | ENV LENGTH (drums: the sound's decay) | nothing (synth); the sound (drums) |
+| **LFO** | modulation | synth: **LFO 1**, LFO 2, MATRIX. Drums: **LFO** | LFO 1: its sync page. Drums: LFO 2/2 | on a synth sound page: **MAP** the LFO last shown (SEL: the other); elsewhere MASTER's pair | - REMOVE its mappings on this page | MOD DEPTH (drums: the sound's LFO DEPTH) | synth: the WAVE. Drums: the sound |
 | **FX** | effects | synth: **INS**, SENDS, SLICER, **MIX**. Drums: **FILTER**, INS, SENDS, SLICER, **MIX** | INS: FX 1, 2, 3. Drums INS: INSERT 2. MIX: DELAY, REV/CHO, MASTER | PERFORM (the pads) | - every latch off, + LATCH | FX MIX | synth: FX 1 to 3 the insert TYPE, SLICER its mode. Drums: the sound |
 | **SEQ** | rhythm | the steps on **TRIG**, PATTERN, **A-D** (the patterns) | TRIG: 2/2. PATTERN: 2/2 (SHIFT) | white keys ROLL (drums RETRIG); F#3 G#3 A#3 C#4 play A B C D; D#4 fill bar; PLAY: FILL; K1 RATE, K2 SHIFT, K3 SWING, K4 STEPS | - HALVE (asks), + DOUBLE; with PLAY held: + latch the fill, - let it go | SWING | nothing (synth); the sound (drums) |
 | **ARP** | notes | synth: **ARP**, KEY (key, scale, chord). Drums: **CHROMATIC** (again: off) | ARP: ARP 2. KEY: KEY 2 | -/+ and MASTER only | - / + the pattern a semitone (twice quickly: two) | TRANSP | nothing |
 | **SEL** | page | **PAGE**: the next page of the category shown | | nothing | | | |
 | **GLO** | global | **GLOBAL**, SYSTEM, MIDI, DEVICE (the menu) | MIDI: MIDI 2, MIDI 3. DEVICE: its sections | the mixer | | TEMPO | nothing |
-| **SAVE** | keep, confirm | **PRESETS**, USER, TOOLS | | keys 1 to 4 store A to D; with a question showing: the ring | - UNDO, + REDO | | nothing |
+| **SAVE** | keep, confirm | **PRESETS**, USER, PATTERNS (store A to D), TOOLS | | keys 1 to 4 store A to D; with a question showing: the ring | - UNDO, + REDO | | nothing |
 | **HOME** | home | **HOME**, the screensaver | screensaver: the next one | nothing | | | nothing |
 | **REC** | record | record / arm (synth steps, stopped: STEP REC); again: stop | | nothing more | | | |
 | **PLAY** | play | start / stop (with SEQ held: the FILL) | | | | | |
@@ -176,11 +176,13 @@ Tap a button for its categories. Hold it and the keys, knobs, OCT- / OCT+ and MA
 | **SEQ** | RHYTHM | white: ROLL (drums RETRIG); F#3 to C#4: play A to D; D#4: fill bar; PLAY: FILL | RATE, SHIFT, SWING, STEPS | - halve, + double | SWING | SEQ's PATTERN and A-D pages |
 | **ARP** | NOTES | nothing | nothing | the pattern a semitone | TRANSP | KEY 2's TRANS |
 | **GLO** | MIX | mutes, solos; F#3 SOLO (drums), G#3 PAN | levels (pans) | | TEMPO | performance |
-| **SAVE** | SAVE | keys 1 to 4: store A to D | | undo, redo | | the confirm |
+| **SAVE** | SAVE | keys 1 to 4: store A to D | | undo, redo | | SAVE > PATTERNS; the confirm |
 | **EDIT** | VOICE | nothing | nothing | - clear the voice (asks) | LEVEL | the mixer's levels |
-| **ENV** | ENVELOPE | nothing | nothing | | ENV LENGTH | ENV's pages |
-| **LFO** | MODULATION | nothing | nothing | | MOD DEPTH | the matrix |
+| **ENV** | MAP (on a synth sound page; elsewhere ENVELOPE, MASTER only) | nothing | the envelope's amounts onto them | - remove; SEL the other envelope | ENV LENGTH | the MATRIX |
+| **LFO** | MAP (on a synth sound page; elsewhere MODULATION, MASTER only) | nothing | the LFO's amounts onto them | - remove; SEL the other LFO | MOD DEPTH | the MATRIX |
 | **SEL**, **HOME**, **REC** | none | | | | | |
+
+While you hold a button (a layer, OCT- or OCT+), a step, a key or a pad, **every button and key that does something with it lights, and every other one goes dark** (the backlight too): the lights show the hidden controls. A button that is dark does nothing with what you hold. A question waiting for the confirm lights SAVE alone (it pulses). See "The lights" below.
 
 A layer shows after about 0.14 seconds, so a tap does not flash it. To keep a layer open without holding it, hold its button about 0.7 seconds without touching anything, then let go: the line under the header says **LOCK**. Any other button lets it go, the same button too, except PLAY, REC, OCT- and OCT+.
 
@@ -222,7 +224,7 @@ Tap **HOME**. The header says **PATTERN A** (to D) while a pattern plays, otherw
 | --- | --- |
 | **deck** | BAR and the bar of the selected voice's loop; a strip of the **FLOW** backdrop, a band per voice in its colour that swells as that voice gets louder (it flows while something plays and stands still otherwise), with a **>** after it: HOME again opens it full screen; the patterns **A B C D**: the one playing filled white, the one asked for next outlined white, the stored ones outlined grey |
 | **SYNTH** | the three melodic voices side by side: each sound's name in its voice's colour, with **M**, **S** or a red dot, and under it the 16 steps in view (a note in the voice's colour, a tie dim, the step playing white). **The selected voice's name is inverted.** A muted voice's name is grey |
-| **DRUM** | DRUM (inverted when the drums are selected), M or S for the drum voice, the kit (a * after the name when your copy plays), how many sounds the mixer has muted (yellow M and a number) or soloed (ice-blue S), the selected sound's name, and the 16 steps in view: a step with the selected sound's hit in coral, with other sounds' hits dim coral, with only muted sounds grey, the step playing underlined white |
+| **DRUM** | DRUM (inverted when the drums are selected), M or S for the drum voice, the kit (a * after the name when your copy plays), how many sounds the mixer has muted (yellow M and a number) or soloed (ice-blue S), the selected sound's name, and the 16 steps in view: a step with the selected sound's hit in teal, with other sounds' hits dim teal, with only muted sounds grey, the step playing underlined white |
 | **PERFORM** | **LANE ON** or **LANE OFF** for the STUTTER lane, the latched pads by name at the right (or "3 LATCHED" when the names do not fit), and the lane's 16 steps in view: lit steps grey, a run of lit steps of one length drawn as one bar, the step playing underlined |
 
 The HOME knobs play the selected voice while it plays:
@@ -337,12 +339,24 @@ A voice can have one FLANGER; SELECT skips it when another slot has it.
 
 ### The mod matrix
 
-MOD's last page is a grid of 7 sources by 13 destinations, six columns in view at a time.
+LFO's last category is a grid of 7 sources (rows) by the destinations (columns), six columns in view at a time; the view slides with the cursor.
 
 - **Sources**: LFO1, LFO2, AENV (amp envelope), FENV (the filter's envelope), PENV (a fast pitch fall at each note's start), VEL, KEY.
-- **Destinations**: PIT, M1 M2 M3 (the macros), CUT, RESO, LVL (only ever down), PAN, FX1 FX2 FX3 (each insert slot's AMOUNT), AS1 AS2 (any lockable sound value, chosen with KNOB 4 TARGET: a send too).
+- **Destinations**: PIT, M1 M2 M3 (the macros), CUT, RES, LVL (only ever down), PAN, FX1 FX2 FX3 (each insert slot's AMOUNT), then one column for **each parameter mapped** (three letters: ATK, FAT for the filter envelope's attack, DRV, L1R and L2R the LFOs' rates, 1T for FX 1's first knob, E4 for the Type's fourth control ...) and a last **+** column to make another (KNOB 4 TARGET picks its parameter, any lockable sound value; one column a parameter).
 
-A filled square is a positive amount, an empty one negative, bigger for more. Six cells are the routings shown on other pages too: LFO1 > PIT, LFO1 > CUT, LFO1 > LVL, FENV > CUT (FILT's ENV), PENV > PIT, KEY > CUT (FILT 2's KEY). Besides them a voice holds 19 cells; one more says MATRIX FULL: 19 CELLS.
+A filled square is a positive amount, an empty one negative, bigger for more. Six cells are the routings shown on other pages too: LFO1 > PIT, LFO1 > CUT, LFO1 > LVL, FENV > CUT (FILT's ENV), PENV > PIT, KEY > CUT (FILT 2's KEY). Besides them a voice holds **19 cells**, on any columns; one more says **MATRIX FULL: 19 CELLS** and nothing changes. A voice can map up to 19 different parameters (every cell on its own). PIT, M1 to M3, CUT and RESO move each note with its own envelopes; every other column moves the whole voice, with the envelopes and velocity of the note started last.
+
+### Mapping: hold LFO or ENV
+
+On any of a synth voice's sound pages (OSC, FILT, ENV, FX, SENDS, SLICER, LFO, MATRIX), **hold LFO** (or **ENV**) and turn a knob: the page stays where it is, and the knob's dial now shows how much the LFO moves it.
+
+- **Which LFO, which envelope**: the one you looked at last (LFO 1 if none yet; the amp envelope if none yet). The tab row says **MAP LFO 1** (outlined), and what **SEL** flips to: tap SEL while holding for the other one.
+- **The dials**: each knob's amount from that source, right +, left -, back to 0 removes it. A set amount is **boxed** in the voice's colour (a lock is inverted; a map is boxed); 0 is grey; a knob that cannot be mapped is dark grey "--" and a turn says so (CUTOFF: NOT MAPPABLE, ATTACK: NOT FROM ITSELF).
+- **OCT-** while holding removes every mapping from that source on this page (SAVE + OCT- brings them back). MASTER is still LFO's MOD DEPTH and ENV's ENV LENGTH.
+- **One source of truth**: each amount is a cell of the MATRIX. CUTOFF and RESO are the CUT and RESO columns, the OSC page's three macros M1 to M3, TUNE the PIT column (vibrato), an insert's AMOUNT its FX column; every other knob gets a column of its own. LFO 1 on CUTOFF is the same value as LFO1 > CUT on the grid; the FILT envelope on CUTOFF is FILT's ENV knob.
+- **Not mappable**: TYPE, OCT, GLMODE, VOICE, PRIOR, ALLOC, the filter's ENV, KEY and LINK (modulation amounts and switches), the LFO's POL, SYNC, TRIG, ESYNC, LFO 2's SYNC and TRIG, the SLICER's PAT and RATE, the MATRIX page's knobs. An envelope cannot move its own times and level. An LFO may move its own RATE, PHASE and FADE.
+- **Outside the hold** a knob something moves has a small **wave** under its dial.
+- Velocity and key: on the MATRIX page only. On the drums, HOME, the steps and every other page, holding LFO or ENV is MASTER's pair, as before.
 
 ### The GRID: steps on the keys
 
@@ -407,7 +421,7 @@ The closed hat cuts the open hat. Holding OCT- while you hit a drum key gives a 
 
 ### The drum screen
 
-Tap **SEQ** or **EDIT** with DRUM selected. The header shows DRUM and the **SELECT chip: the selected sound** (SELECT picks it). The body shows the **selected sound's name** large, the kit and how many steps it plays on (or STEP n HELD), the **sound map** top right (16 tiles; a sound with hits dim coral, lit as it plays, the selected one framed white, a yellow bar muted, ice blue soloed), the selected sound's **16 steps** (a hit filled, its shade its velocity; a black square: locks; three lines: a retrig; a notch: a condition), a line about the held step (RETRIG 1/32, LOCK DECAY ...) or which steps are shown with four page slots, the tab row (the categories of the button pressed: SRC FLTR for EDIT, AMP for ENV, LFO, the FX group, TRIG PATTERN for SEQ) and the dials in coral.
+Tap **SEQ** or **EDIT** with DRUM selected. The header shows DRUM and the **SELECT chip: the selected sound** (SELECT picks it). The body shows the **selected sound's name** large, the kit and how many steps it plays on (or STEP n HELD), the **sound map** top right (16 tiles; a sound with hits dim teal, lit as it plays, the selected one framed white, a yellow bar muted, ice blue soloed), the selected sound's **16 steps** (a hit filled, its shade its velocity; a black square: locks; three lines: a retrig; a notch: a condition), a line about the held step (RETRIG 1/32, LOCK DECAY ...) or which steps are shown with four page slots, the tab row (the categories of the button pressed: SRC FLTR for EDIT, AMP for ENV, LFO, the FX group, TRIG PATTERN for SEQ) and the dials in teal.
 
 | You do | Result |
 | --- | --- |
@@ -458,7 +472,7 @@ With nothing held, TRIG's KNOB 1 is the velocity new hits get (100 to start); th
 - **CHROMATIC mode**: tap **ARP** (the drum voice's ARP group has this one category). The 27 keys play the selected sound (SELECT changes it) at pitches, C4 (key 5) its own; OCT- and OCT+ tapped step the sound, twice quickly move the keys an octave (-2 to +2). Recorded live, each hit keeps its pitch as a NOTE lock. ARP again, or any other page button, leaves it.
 - **RETRIG**: hold **SEQ** and press a key: the sound repeats while held, at the rate KNOB 1 sets (all 17, 1/1 to 1/80). (Until wave 10 this was ARP's, with the rates on the black keys.)
 - **FILL**: hold **SEQ** and **PLAY**: a fill while PLAY is held (the transport is not touched); **OCT+** with them latches it, SEQ + PLAY again (or STOP) ends it. **SEQ + D#4** (BAR) fills the next bar. FILL shows in every header.
-- **FX, the drum voice's own pages**: tap **FX**: its **FILTER** (LP / HP, HOME's KNOB 1 on the drums), **INSERT** (TYPE and three values), **INSERT 2** (MIX), **SENDS** (DELAY, REVERB: the whole drum voice's, on top of each sound's DEL and REV) and **SLICER**, acting on the whole drum voice, in coral, one category a press (INS's second page, INSERT 2, by SEL); one more press is **MIX**, the whole mix's pages in white. The line above the tabs names the page. Hold a step and turn a knob there to lock it per step, as on any tab (SENDS cannot be locked).
+- **FX, the drum voice's own pages**: tap **FX**: its **FILTER** (LP / HP, HOME's KNOB 1 on the drums), **INSERT** (TYPE and three values), **INSERT 2** (MIX), **SENDS** (DELAY, REVERB: the whole drum voice's, on top of each sound's DEL and REV) and **SLICER**, acting on the whole drum voice, in teal, one category a press (INS's second page, INSERT 2, by SEL); one more press is **MIX**, the whole mix's pages in white. The line above the tabs names the page. Hold a step and turn a knob there to lock it per step, as on any tab (SENDS cannot be locked).
 
 ### Kits
 
@@ -560,7 +574,8 @@ A **pattern** holds all four voices' sounds and steps, the kit and the STUTTER l
 | --- | --- |
 | **SEQ, SEQ, SEQ** (the A-D category) | KNOB 1 the pattern to play; **OCT- / OCT+** the one before / after. Playing: on the next bar (NEXT: A). Stopped: loaded (LOADED A). Empty: EMPTY A |
 | **hold SEQ + F#3, G#3, A#3, C#4** | play A, B, C, D (drawn A B C D in the strip; the one playing lit), the quick way |
-| **hold SAVE + key 1 to 4** | store into A to D. Over a used pattern it asks (HOLD SAVE: STORE A): SAVE is already held, so the ring fills at once; let go before and nothing is stored |
+| **SAVE, SAVE, SAVE** (the PATTERNS category) | the four patterns, STORED or EMPTY, the one playing marked. KNOB 1 picks one (OCT- / OCT+ too), **KNOB 2 STORE** turned right stores into it; over a stored one it asks (HOLD SAVE: STORE A): hold SAVE until the ring fills |
+| **hold SAVE + key 1 to 4** | the shortcut: store into A to D. Over a used pattern it asks (HOLD SAVE: STORE A): SAVE is already held, so the ring fills at once; let go before and nothing is stored |
 
 While a pattern plays, what you change in it is kept in it. **Tap SAVE** on its own for the SAVE pages.
 
@@ -654,11 +669,53 @@ GLO's last category, **DEVICE** (tap GLO until it shows; wave 10: no hold-HOME s
 | Section | Rows |
 | --- | --- |
 | **SCREEN** | COLOR, ZOOM |
-| **LIGHTS** | LIGHTS, KEYS, NOTES |
+| **LIGHTS** | DISCO, LIGHTS, KEYS, NOTES (KNOB 1 to 4) |
 | **AUDIO** | SPEAKER LOWCUT, USB AUDIO (MASTER, FULL, STEMS), USB SERIAL |
 | **SYSTEM** | HARDWARE CALIBRATION, MIDI LEARN CLEAR, ABOUT |
 
 USB AUDIO and USB SERIAL take effect at the next start. ABOUT shows PHEBUS, "BASED ON KARMA 3.1.5" and the credits.
+
+### The lights and DISCO
+
+Every button and key has an LED with three levels: **lit**, a **glow** (about a twenty-fourth as bright) and a **backlight** (fainter still; the menu's LIGHTS sets it). The knobs have none.
+
+**While you hold something** (a button, OCT- or OCT+, a step, a key, a pad), every button and key that does something together with it is lit and everything else is dark, the backlight too; the button you hold stays lit. A dark button does nothing with what you hold (pressed, it is ignored). A question waiting (HOLD SAVE: ...) lights SAVE alone, pulsing. Black keys light only where the screen's strip draws them (and as notes where the keys play notes); a black key with no job stays dark even pressed.
+
+| Hold | Lit |
+| --- | --- |
+| **SEQ** | PLAY (fill), OCT- OCT+ (halve, double; with PLAY held: unlatch, latch), the white keys (roll / retrig), F#3 G#3 A#3 C#4 D#4 (A B C D BAR) |
+| **SAVE** | OCT- OCT+ (undo, redo), keys 1 to 4 (store) |
+| **EDIT** | OCT- (clear the voice) |
+| **ARP** | OCT- OCT+ (a semitone; synth voices) |
+| **GLO** | the mixer's keys: 1 to 4 mutes, 5 to 8 solos, G#3 PAN; drums: the 16 sounds, F#3 SOLO, G#3 PAN |
+| **FX** | every pad (white and black keys with a pad); OCT+ while a pad is held (latch), OCT- while something is latched |
+| **LFO / ENV** (mapping) | SEL (the other source), OCT- (remove) |
+| **OCT- / OCT+** | the other (octave 0); on the drums, where the keys play sounds: the white keys (ghost / hard) |
+| **a step** | the page buttons with another page to show (EDIT ENV LFO FX SEQ), SEL, OCT- (erase), the other steps |
+| **a key (a note, a sound)** | OCT- (erase it from the pattern) |
+
+**DISCO** (GLO > DEVICE > LIGHTS, KNOB 1; kept with the device's settings, not the project; NORMAL to start): how much the lights move.
+
+| Light | QUIET | NORMAL | SHOW |
+| --- | --- | --- | --- |
+| the page's button, the held button, REC recording, the octave, OCT- / OCT+ held on the drums | glow | lit | lit |
+| the hints of a hold (above) | backlight | lit | lit (they win over the show) |
+| the confirm's SAVE | glow, still | pulses | pulses |
+| a layer kept open (LOCK) | glow, still | blinks | blinks |
+| PERFORM: pads held / latched | glow, still | lit / blinking | lit / blinking |
+| the steps (GRID, drum screen, lane), the step held, the keys held | glow | lit | lit |
+| the play head over the steps, the lane's blinking steps | off | blinks | blinks |
+| PLAY on each beat, the count-in's beats | off (PLAY glows while playing) | flashes | flashes |
+| REC armed | glow, still | blinks | blinks |
+| drum hits on the keys, NOTES (the synth's notes) | off | lit | lit |
+| the landmarks (keys 1 5 9 13), the KEY page's chord keys | backlight | glow | glow |
+| menu LIGHTS, KEYS backlight | at most LOW | as set | as set; every button's backlight HIGH |
+| the keys dancing: every voice's notes, the drum hits, the step running along the white keys, the mix's level up from the lowest key | off | off | on (nothing held, keys playing notes) |
+| HOME's FLOW band | stands still | flows | flows |
+| the screensavers | only when opened | only when opened | open by themselves after a minute untouched on HOME while playing |
+| the boot screen (3 s) | as always | as always | as always |
+
+DISCO is a ceiling over LIGHTS, KEYS and NOTES: they still set what they set, but QUIET holds the backlight at LOW at most and turns NOTES off whatever it says (the menu shows NOTES grey then). It does not change the screen's brightness.
 
 ### Screensavers
 
@@ -781,6 +838,7 @@ The four ways ([section 2](#2-the-controls-and-the-screen)): a labelled button (
 | steps: tap REC | stopped: STEP REC; playing: LIVE REC |
 | STEP REC: keys, SEQ, ARP, KNOB 2, OCT- / OCT+ | note or chord, rest, tie, the cursor, the step before / after |
 | KEY pages, chord mode: black keys held | 3RD, 7TH, SUS4, 9TH, INV (drawn) |
+| a sound page: hold LFO / ENV + a knob | map that LFO / envelope onto the knob (bipolar; 0 removes); SEL the other source; OCT- remove them here |
 
 ### Drum screen
 
@@ -830,6 +888,8 @@ The four ways ([section 2](#2-the-controls-and-the-screen)): a labelled button (
 | SAVE | keys 1 to 4 / OCT- OCT+ | store A to D / undo, redo |
 | EDIT | OCT- / MASTER | clear the voice (asks) / LEVEL |
 | ENV, LFO | MASTER | ENV LENGTH, MOD DEPTH |
+| ENV, LFO (a synth sound page) | KNOB 1 to 4 / SEL / OCT- | the source's amount onto the knob (MAP) / the other LFO, envelope / remove its mappings on the page |
+| any (a layer, a step, a key) | another button | lit: does something with it; dark: nothing (pressed, ignored) |
 | SEL, HOME, REC | | nothing |
 | any | hold 0.7 s untouched, let go | keep it open (LOCK) |
 
@@ -917,7 +977,7 @@ The screen font is Terminus. The PHEBUS wordmark is drawn from TeX Gyre Adventor
 | **category** | what a labelled button opens, one a press: EDIT's OSC and FILT, FX's INS SENDS SLICER MIX ... The tab row names them |
 | **page** (of a category) | one screen of it: "2/4" at the right of the tabs; **SEL** walks them. (A page of steps: 16 steps, OCT- / OCT+) |
 | **SEL (PAGE)** | the button that walks the pages of the category shown. Held: nothing |
-| **SAVE** | keep and confirm: the SAVE pages; held, store a pattern, undo, redo, the confirm's ring |
+| **SAVE** | keep and confirm: the SAVE pages (PRESETS, USER, PATTERNS, TOOLS); held, store a pattern, undo, redo, the confirm's ring |
 | **SELECT** | the knob: knob 5, the type of a synth page (named in the header's chip); on the drum screen the sound |
 | **type** | what SELECT turns: the oscillator Type, the filter's TYPE, an insert's TYPE, the LFO's WAVE, the SLICER's mode |
 | **tab** | the row naming the categories of the last button pressed, the one shown filled |
@@ -946,5 +1006,11 @@ The screen font is Terminus. The PHEBUS wordmark is drawn from TeX Gyre Adventor
 | **Type** | the oscillator model, SELECT on OSC, 31 of them |
 | **macro** | one of a Type's three knobs, M1 M2 M3 in the matrix |
 | **mute**, **solo** | yellow M, ice-blue S |
+| **map**, **mapping** | a source (LFO 1, LFO 2, the amp or filter envelope) moving a knob: hold LFO or ENV on a sound page and turn the knob; a cell of the MATRIX. Boxed while held, a small wave under the dial otherwise |
+| **cell** | one source-to-destination amount in the MATRIX; 19 a voice besides the six fixed ones |
+| **hint** | a button or key lit while you hold something: it does something with it |
+| **DISCO** | GLO > DEVICE > LIGHTS: QUIET (dim, nothing moves), NORMAL, SHOW (the keys dance) |
+| **glow**, **backlight** | the LEDs' two dim levels under lit |
+| **voice colours** | 1 purple, 2 blue, 3 coral, drums teal |
 | **GLO** | everything global (GLOBAL with the tempo, SYSTEM, MIDI with LEARN, DEVICE the menu) and, held, the mixer |
 | **KEY** | ARP's second category: the key, scale and chords of the synth voices |

@@ -224,8 +224,11 @@ static uint32_t led_keys(const uint8_t *l)
 }
 EXPORT uint32_t web_lit_buttons(void) { return led_buttons(fm1_led); }
 EXPORT uint32_t web_lit_keys(void) { return led_keys(fm1_led); }
-EXPORT uint32_t web_dim_buttons(void) { return led_buttons(fm1_led_dim) | led_buttons(fm1_led_bg); }
-EXPORT uint32_t web_dim_keys(void) { return led_keys(fm1_led_dim) | led_keys(fm1_led_bg); }
+EXPORT uint32_t web_dim_buttons(void) { return led_buttons(fm1_led_dim); }   /* the glow */
+EXPORT uint32_t web_dim_keys(void) { return led_keys(fm1_led_dim); }
+/* (wave 11) the backlight, a third level (the lights of a hold in QUIET, the menu's LIGHTS and KEYS), 0 when its pulse is 0 */
+EXPORT uint32_t web_bg_buttons(void) { return fm1_led_bg_ns ? led_buttons(fm1_led_bg) : 0u; }
+EXPORT uint32_t web_bg_keys(void) { return fm1_led_bg_ns ? led_keys(fm1_led_bg) : 0u; }
 EXPORT uint32_t web_dim_level(void) { return 0; }
 EXPORT uint32_t web_breath_buttons(void) { return 0; }
 EXPORT uint32_t web_breath_keys(void) { return 0; }

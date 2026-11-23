@@ -539,6 +539,55 @@ Memory, measured on an rv32 -Os stand-in (clang, the inline asm emptied, felucca
 Not checked
 - No device build. The long tests (soak, stress, regress, web) were not run. Golden renders: FX MIX 100 %, ENV LENGTH and MOD DEPTH 0 leave every render as before (the old paths run unchanged).
 
+## Rebuild wave 11, mapping and lights (23 Nov): calls made that Ben did not specify
+Ben's words: SPEC.md "23 Nov 2026, 10:41: hold to map" with his 10:50 answers, "10:45: the lights", "10:46: how much of a disco", "11:33: the colour code". Where they left a choice, the call that best fits his four ways and "one idea per control" was taken.
+
+Hold to map (ui_map.c)
+- Where: a synth voice's sound pages (OSC 1-4, FILT 1-2, ENV AMP and FILT, FX 1-3, SENDS, SLICER, LFO 1 and its sync page, LFO 2, MATRIX). Elsewhere (HOME, the steps, the drums, ARP, KEY, GLO, SAVE, the MIX pages) holding LFO or ENV is wave 10's MASTER pair layer, unchanged. With a step held a page button opens that page's locks (as wave 10): no mapping.
+- A tap still acts on release (its category); a hold never navigates. The MAP view appears once it is a hold (a knob or SEL used, or 0.14 s held: the layers' time), so a tap does not flash it; the page underneath never changes. Kept open (held 0.7 s untouched, let go) it stays mapping, LOCK in its tab row, SEL still flipping (the one-keep-open rule for every layer).
+- "The one last shown": the LFO / envelope category last on screen (LFO 1, the amp envelope if none yet); SEL flips while held; the flip lasts the hold.
+- The view: the page's body as it was; the header's tag LFO or ENV with MASTER's chip (DEPTH, LENGTH); the tab row a MAP banner OUTLINED in the voice's colour (a LOCK banner is filled), then "SEL" and what it flips to, and the legend [-] REMOVE; the dials the amounts: a set one BOXED in the voice's colour with a bipolar ring from the top (a lock is inverted), 0 grey, a knob that cannot be mapped dark grey "--" with a dark ring (one look for every refusal), a turn of it says NAME: NOT MAPPABLE or NAME: NOT FROM ITSELF.
+- The mark outside the hold: a small wave (five 2 px dots) under the knob's ring in the voice's colour, for any source (the fixed cells too: FILT's ENV marks CUTOFF, as FENV moves it).
+- Destinations: CUTOFF, RESO, the OSC page's three macros, an insert's AMOUNT: their fixed columns; TUNE: the PIT column (a semitone a step, +-12 at full: vibrato per note) rather than a column moving TUNE's cents; every other continuous knob (named positions, or fewer than 25, count as switches): an assignable column, made on the first mapping, freed when its last cell goes (from the hold; the MATRIX page keeps an emptied column until the next load).
+- Not mappable: TYPE (SELECT), OCT, GLMODE, VOICE, PRIOR, ALLOC, FILT's ENV and KEY (they are modulation amounts: the FENV and KEY cells), LINK, the LFO's POL, SYNC, TRIG, ESYNC, LFO 2's SYNC and TRIG, the SLICER's PAT and RATE, the MATRIX page's knobs. An envelope onto its own times and level is refused (AENV: ATTACK..RELEASE; FENV: the filter envelope's four); an LFO may move its own RATE, PHASE, FADE.
+- OCT- while mapping removes that source's mappings on this page's knobs; SAVE + OCT- undoes it (the matrix and the fixed cells' parameters kept in the undo's own room, no RAM of its own).
+- Velocity and key: MATRIX page only (Ben). The drums: no mapping (wave 3's per-sound LFO stays as it is); holding LFO / ENV there is MASTER's pair. A question for Ben (below).
+
+The matrix (19 columns)
+- Assignable columns AS1..AS19 (MX_NAS), one parameter each; the cells stay 19 a voice (MX_NCELL), so a voice can map 19 different parameters: the one limit, said MATRIX FULL: 19 CELLS, nothing changed.
+- Stored in mod[46] as layout 2: byte 7 is 0x5B (always 0 in layout 1), the rest a bit stream: LFO 2's SYNC (4 bits) and TRIG (2), Spice (7), Dice (14), how many cells (5), each cell its source (3), destination (7: a fixed column, or 11 + the parameter's id) and amount (7). 355 of 360 bits. The columns are not stored (rebuilt from the cells, in order); a column with no cell is not kept. Layout 1 (waves 5 to 10) is read exactly; a project or preset of waves 5 to 10 renders bit for bit as wave 10 did (tests/mx11_test.c against hashes made with wave 10's own code, tests/mx11_ref.sh). A wave 10 firmware reading a wave 11 project would read its matrix as garbage, checked and dropped (not required: older firmware never reads newer projects).
+- Per note: PIT, M1 M2 M3, CUT, RES, LVL. Per block for the whole voice (the last note's envelopes and velocity): PAN, FX1 FX2 FX3 and every parameter column (envelope times, the filter's DRIVE, the sends, the slots' knobs, the LFOs' rates, GLIDE, DETUNE, SLICER DEPTH, the Type's 4th and 5th).
+- The MATRIX page shows the eleven fixed columns, the parameter columns in use, then one empty "+" column (KNOB 4 TARGET picks its parameter; one column a parameter; a column with cells cannot be set to none). The heads are three letters (ATK, FAT, DRV, L1R, L2R, 1T, E4 ...; RESO became RES) so 19 read side by side; the view scrolls six at a time as before.
+
+The lights (ui_lights.c)
+- One function (combo_live) says what works under each hold; the lights draw from it and the input asks it before acting (the layers' OCT- / OCT+ / PLAY / SEL, the layers' keys, and a layer or page button pressed under a hold). New because of it: a button with nothing to do with what is held is now ignored while it is held (before, another layer button took over the hold, and with a step held GLO, SAVE, ARP left the steps); a page button under a step lights only where it would move. Fix found by the test: OCT- already held when a layer started was taken as a press of it (hold OCT-, then SAVE, was an undo).
+- PLAY under a hold (but SEQ's) stays the transport and REC stays record: what they do alone, not lit as combos.
+- Black keys: dark wherever they have no job, pressed or not (the steps, the drum voice's sounds outside CHROMATIC, chord mode off the KEY pages); where a strip is drawn the lit set is the strip's (tested against what the strip draws).
+- The confirm: SAVE alone; it pulses at 2 Hz (NORMAL, SHOW); in QUIET it glows still.
+- PERFORM: every pad lit; a held one lit, a latched one blinking (QUIET: still).
+
+DISCO (GLO > DEVICE > LIGHTS, KNOB 1; the menu's LIGHTS section has four rows now)
+- QUIET NORMAL SHOW, NORMAL to start; kept in the settings word's free bits 30-31 (as level ^ 1, so a word from before reads NORMAL), with the device, not the project.
+- Every light is a level (dark, backlight, glow, lit) and a kind: STATE, HINT, MOTION, BACK. QUIET: STATE lit becomes glow, HINT becomes backlight (its pulse at least 1.5 us while a hold shows), MOTION off, the backlight at most LOW, NOTES off. NORMAL: as built. SHOW: NORMAL, every button's backlight HIGH, and with nothing held where the keys play notes: every voice's sounding notes lit, the drum hits lit, the step running along the white keys at the glow, the mix's level up from the lowest key at the glow; HOME untouched a minute while playing opens the screensaver. A hold always wins.
+- The ceiling: the level never raises LIGHTS, KEYS or NOTES (SHOW's HIGH backlight is its own); QUIET caps them. The screen's brightness is untouched (a question for Ben).
+- The full table of every light by level is GUIDE.md section 10, "The lights and DISCO".
+
+SAVE > PATTERNS
+- SAVE's third category (PRESETS, USER, PATTERNS, TOOLS): A to D STORED or EMPTY, PLAYING marked; KNOB 1 the pattern (-/+ too), KNOB 2 STORE (a GO: right). Empty: stored at once (as SAVE + key); stored: asks HOLD SAVE: STORE A. Header tag SAVE in grey (the whole project's). Hold SAVE + key 1 to 4 stays the shortcut. The page is "PATTERNS" (a page "PATTERN" was removed in wave 8 and a test guards that).
+
+The colour code (Ben, 11:33)
+- TE_COL, TE_MID, TE_DIM swapped at their one source: voice 3 coral, the drums teal; the heads keep their drawings (they take the palette when drawn), the boot wordmark's bars, the button map, the cheat sheet, the guide. Coral beside record red: see "For Ben to confirm".
+
+Tests and their hygiene
+- tests/ui_pages_test.c: hold to map on every synth page (32 knobs mapped, 22 refused), both ways with the MATRIX page, SEL, OCT- and its undo, the limit, the sound (the hold's cell = the grid's cell); every control under 25 holds, lit <=> does something with it and not what it does alone (forked trials); the confirm; the black keys against the strip; QUIET still for 2 s on HOME and the steps while playing; SHOW moving; DISCO kept; SAVE > PATTERNS; the MAP view's and the 19-column grid's colours and columns; the colour code. The NO SOUND CHANGES test now clears the FX slots' types and running state earlier tests left (it compared a route that runs the slots for a moment with one that does not); the mixer's F#3 test starts with SOLO off.
+
+Memory, measured on the rv32 -Os stand-in (clang, the inline asm emptied, felucca.c) against the wave 10 merge (ec814ba): .data+.bss +194 B (about 96,394 of 98,304 on the device: about 1.9 KB left), code +15,544 B and constants +293 B (an image of about 537,400 of 581,564), the pool unchanged, .noinit unchanged. The matrix's RAM: +17 B a voice (the columns); the audio interrupt's stack +about 150 B in mx_part_begin (19 columns). No new 64-bit divide (the stand-in's __divdi3 / __udivdi3 references are the same as wave 10's). MX_NAS can be lowered at compile time if the device needs it (each column a byte a voice; below 19 a second limit appears, MAP FULL: ALL COLUMNS USED). Not needed.
+
+Battery (an estimate on paper, not a measurement). The LEDs are multiplexed over 11 columns; a lit LED is on about 95 us of each ~1.05 ms frame (about 9 %), a glow 4 us (0.4 %), the backlight 0.5 to 2 us. At an assumed 5 to 10 mA through an LED while on, a lit LED averages about 0.5 to 0.9 mA, a glowing one about 0.02 to 0.04 mA. NORMAL in use lights about 5 to 10 LEDs (page button, steps, beats, hits): 3 to 7 mA; QUIET puts them at the glow: under 0.5 mA. Against the whole FM-1 (the processor, codec, amplifier and the screen's backlight, guessed at 80 to 150 mA) QUIET saves about 2 to 8 % of the battery: worth having for a flight, not a big change. SHOW (every button's backlight HIGH, 10 to 20 keys lit) costs about as much more. Confidence low: the LED current and the FM-1's draw are not measured.
+
+Not checked
+- No device build. The long tests (soak, stress, regress, web) were not run. The simulator's page changes were not run in a browser (no Emscripten here: the C compiles natively, the JS parses).
+
 ## For Ben to confirm
 Every call waves 2 to 7 made that the spec did not cover, and every device-only limit or lossy conversion, one line each. The detail is in each wave's section above.
 
@@ -637,3 +686,14 @@ Wave 10, one idea per control
 - The mixer: PAN on G#3 for both mixers (key 11 gone); a synth voice's mixer still solos on keys 5 to 8.
 - No SAVE page for storing a pattern (a hold only, as Ben's words suggest); say if one is wanted.
 - The white ring: only SAVE into an empty user preset slot.
+Wave 11, mapping and lights
+- THE DRUMS AND HOLD TO MAP: not built; holding LFO / ENV on the drum screen is MASTER's pair. Choose: leave it so; or hold LFO + turn a knob sets the selected sound's LFO DEST to that knob's parameter and DEPTH by the turn (where that destination exists; one destination a sound, so it replaces the last); or hold ENV likewise onto a per-sound envelope destination (none exists today: it would need one).
+- THE DRUMS' ERASE AND GHOST (from wave 10): on a screen where the keys play the drum sounds, a sound's key held and then OCT- erases that sound's hits from the pattern (playing: as the playhead passes; stopped: every step); OCT- held first and then a key is a ghost hit. So holding a long kick and pressing OCT- for a ghost snare erases the kicks (SAVE + OCT- brings them back). Choose: keep it; or the erase needs the key held 0.5 s before OCT- counts (a quick OCT- under a key is a ghost on the next key instead); or erase moves to hold EDIT + key (the old way, a second place for minus); or the ghost moves to the left of the keyboard only (keys 1 to 8 ghost while OCT- is held, never erase).
+- The hold's view is shown on a voice's sound pages only, not on HOME or the steps.
+- TUNE maps to the pitch column (+-12 semitones, per note) rather than moving the cents of TUNE.
+- A layer button pressed while another layer is held now does nothing (it used to switch the hold to it); with a step held, GLO, SAVE, ARP do nothing (they used to leave the steps).
+- The map banner outlined, amounts boxed, refusals dark grey "--"; the mark a small wave under the ring.
+- DISCO: QUIET's hints at the backlight level (very dim: right for a dark cabin, faint in daylight); SHOW's dance and its screensaver after a minute.
+- THE SCREEN'S BRIGHTNESS is not part of DISCO. Should QUIET also dim the screen (the LCD backlight is the bigger battery cost)?
+- VOICE 3 CORAL AND RECORD RED: coral (255,128,108) and the record red (255,44,52) are close. Where they now sit side by side with voice 3 selected or recording (review/wave11: w11-v3-rec-armed, w11-v3-home-rec, w11-v3-filt-rec): the REC screen's armed row is a red frame around voice 3's coral row; the strip shows voice 3's coral head and number with the red recording dot right after; HOME shows voice 3's coral name inverted with the red dot beside it; a voice 3 header's coral tag sits left of the red beat light and red recording disc. The confirm ring is red with no coral near it (fine). Nothing changed; options: keep; or make the recording dot white with a red ring; or move voice 3 to a less red coral.
+

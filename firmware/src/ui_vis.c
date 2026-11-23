@@ -367,7 +367,7 @@ static void eyes_back_row(uint16_t *q, int32_t sy)   /* the rings and the star, 
  * through them) and a faint halo; a few stars; four strata of dunes drifting at their own speeds (the nearer, the
  * faster), lit on the faces turned to the low sun, with a bright crest and a contour under it; heat shimmer near the
  * horizon and, now and then (and on a kick), a glitch scanline torn sideways. The sun's rings and the strata are the
- * voices, purple farthest, coral nearest: a voice playing raises its dunes and brightens them and its rings. */
+ * voices, purple farthest, the drums (teal) nearest: a voice playing raises its dunes and brightens them and its rings. */
 #define DS_HOR 116
 static uint8_t ds_r[4][121];                        /* each stratum's crest, every 2 columns (bit 0: the face is lit) */
 static uint16_t ds_sh[4];                           /* each stratum's shadow */

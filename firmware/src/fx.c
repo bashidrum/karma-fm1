@@ -1080,16 +1080,19 @@ static void core_balance(void)                  /* CPU0, after the join: the nex
 /* (PHEBUS wave 5) the matrix's part-wide destinations of track t now (modmx.c): PAN, FX1 FX2 FX3 into pm[0..3]; AS1 AS2 set on
  * t->p for the block (their values before into as_b, what was set into as_s; mx_part_end puts them back) */
 static const param_desc_t *lock_desc(const track_t *t, uint32_t id);   /* (seq.c) */
-typedef struct { int32_t pm[4]; uint8_t id[2]; int16_t b[2], s[2]; } mxpart_t;
+/* (wave 11) up to MX_NAS assignable columns (each a parameter, hold to map's): those with a cell are set for the block */
+typedef struct { int32_t pm[4]; uint8_t n, id[MX_NAS]; int16_t b[MX_NAS], s[MX_NAS]; } mxpart_t;
 static void mx_part_begin(track_t *t, mxpart_t *x)
 {
     uint32_t ti = (uint32_t)(t - trk), i;
-    int32_t src[MS_N], as[2] = {0, 0};
+    int32_t src[MS_N], as[MX_NAS];
     const mxt_t *m;
-    memset(x, 0, sizeof *x);
+    x->pm[0] = x->pm[1] = x->pm[2] = x->pm[3] = 0;
+    x->n = 0;
     if (ti >= NPART)
         return;
     m = &mxt[ti];
+    memset(as, 0, sizeof as);
     memcpy(src, m->vs, sizeof src);
     src[MS_LFO1] = mulq15(t->lfo_val, t->lfo_fade);
     src[MS_LFO2] = m->l2val;
@@ -1108,24 +1111,25 @@ static void mx_part_begin(track_t *t, mxpart_t *x)
         else if (d >= MD_AS1)
             as[d - MD_AS1] += src[s] * a;               /* (Q21: +- the whole range at full) */
     }
-    for (i = 0; i < 2u; i++) {
-        uint32_t id = m->as[i] ? m->as[i] - 1u : P_COUNT;
+    for (i = 0; i < MX_NAS; i++) {
+        uint32_t id = m->as[i] ? m->as[i] - 1u : P_COUNT, j = x->n;
         const param_desc_t *d;
         int32_t r;
         if (!as[i] || id >= P_COUNT || !p_lockable(id))
             continue;
         d = lock_desc(t, id);
         r = d->max - d->min;
-        x->id[i] = (uint8_t)(id + 1u);
-        x->b[i] = t->p[id];
-        x->s[i] = (int16_t)clamp(x->b[i] + (int32_t)(((int64_t)as[i] * r + (1 << 20)) >> 21), d->min, d->max);
-        t->p[id] = x->s[i];
+        x->id[j] = (uint8_t)(id + 1u);
+        x->b[j] = t->p[id];
+        x->s[j] = (int16_t)clamp(x->b[j] + (int32_t)(((int64_t)as[i] * r + (1 << 20)) >> 21), d->min, d->max);
+        t->p[id] = x->s[j];
+        x->n++;
     }
 }
 static void mx_part_end(track_t *t, const mxpart_t *x)
 {
     int i;
-    for (i = 1; i >= 0; i--)                            /* back, unless the UI turned it meanwhile */
+    for (i = (int)x->n - 1; i >= 0; i--)                /* back, unless the UI turned it meanwhile */
         if (x->id[i] && t->p[x->id[i] - 1u] == x->s[i])
             t->p[x->id[i] - 1u] = x->b[i];
 }

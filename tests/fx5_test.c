@@ -237,7 +237,7 @@ static void t_matrix(void)
 {
     uint32_t s, d, bad = 0, n = 0;
     for (s = 0; s < MS_N; s++)
-        for (d = 0; d < MD_N; d++) {
+        for (d = 0; d <= MD_AS2; d++) {                 /* (wave 11: AS3 .. are columns with no parameter here) */
             double df;
             int32_t a = mx_alias(s, d) >= 0 && (s == MS_LFO1 && d == MD_LVL) ? 100 : s == MS_KEY && d == MD_CUT ? 100 : 60;
             mx_cell = -1;
@@ -248,7 +248,7 @@ static void t_matrix(void)
             df = diff(500);
             n++;
             if (df < 2.0) {
-                printf("  %s > %s: |diff| %.2f\n", N_MSRC[s], N_MDST[d], df);
+                printf("  %s > %u: |diff| %.2f\n", N_MSRC[s], (unsigned)d, df);
                 bad++;
             }
         }

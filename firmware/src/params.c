@@ -43,8 +43,8 @@ static const char *const N_XBIG[] = {"OFF", "CHORUS", "PHASER", "FLANGER", "REVE
 _Static_assert(sizeof N_XTYPE / sizeof N_XTYPE[0] == XT_N && sizeof N_XBIG / sizeof N_XBIG[0] == XT_N, "a name an FX type");
 /* the mod matrix's rows and columns (core.h MS_*, MD_*): short in the grid, long on the knobs */
 static const char *const N_MSRC[] = {"LFO1", "LFO2", "AENV", "FENV", "PENV", "VEL", "KEY"};
-static const char *const N_MDST[] = {"PIT", "M1", "M2", "M3", "CUT", "RESO", "LVL", "PAN", "FX1", "FX2", "FX3", "AS1", "AS2"};
-_Static_assert(sizeof N_MSRC / sizeof N_MSRC[0] == MS_N && sizeof N_MDST / sizeof N_MDST[0] == MD_N, "the grid's names");
+static const char *const N_MDST[] = {"PIT", "M1", "M2", "M3", "CUT", "RES", "LVL", "PAN", "FX1", "FX2", "FX3"};
+_Static_assert(sizeof N_MSRC / sizeof N_MSRC[0] == MS_N && sizeof N_MDST / sizeof N_MDST[0] == MD_NFIX, "the grid's names");
 static const char *const N_AMODE[] = {"OFF", "UP", "DN", "UPDN", "RND", "ORD"};
 static const char *const N_MOUT[] = {"KEYS", "SEQ"};
 static const char *const N_MIN[] = {"NOTES", "CLOCK", "CH 1", "CH 2", "CH 3", "CH 4", "CH 5", "CH 6", "CH 7", "CH 8", "CH 9",
@@ -529,7 +529,7 @@ static int32_t fam_stage(uint32_t fam)             /* the chain's stage of a fam
 }
 enum { SC_TRACK, SC_GLOBAL, SC_ENGINE, SC_STEP, SC_TRK, SC_DRUM };
 enum { GR_NONE, GR_ADSR, GR_LFO, GR_STEPS, GR_ARP, GR_SCALE, GR_FX, GR_BROWSE, GR_SLOTS, GR_USER, GR_TRK,
-       GR_SLCR, GR_INS, GR_HEX, GR_XSLOT, GR_LFO2, GR_MATRIX, GR_SENDS };
+       GR_SLCR, GR_INS, GR_HEX, GR_XSLOT, GR_LFO2, GR_MATRIX, GR_SENDS, GR_SPATT };
 
 typedef struct {
     const char *title;
@@ -552,7 +552,7 @@ typedef struct {
 enum { CT_NONE, CT_OSC, CT_FILT, CT_AMP, CT_FENV, CT_LFO1, CT_LFO2, CT_MATRIX, CT_INS, CT_SENDS, CT_SLICER, CT_MIX,
        CT_DFILT, CT_DINS, CT_DSENDS, CT_DSLICER, CT_ARP, CT_KEY, CT_GLOBAL, CT_SYSTEM, CT_MIDI, CT_PRESETS, CT_USER,
        CT_TOOLS, CT_HOME, CT_GRID,
-       CT_TRIG, CT_PATT, CT_PATTS, CT_SRC, CT_FLTR, CT_DAMP, CT_DLFO, CT_CHROM, CT_DEVICE, CT_SAVER, CT_N };
+       CT_TRIG, CT_PATT, CT_PATTS, CT_SRC, CT_FLTR, CT_DAMP, CT_DLFO, CT_CHROM, CT_DEVICE, CT_SAVER, CT_SPATT, CT_N };
 #define PG_ENG(e) ((uint8_t)((e) + 1u))
 #define PG_OTHER 0xFFu
 
@@ -627,6 +627,9 @@ static const page_t PAGES[] = {
     {"MASTER", FAM_MFX, SC_GLOBAL, GR_NONE, {G_DUST, G_DUCK, 0xFF, 0xFF}, SEL_NONE, CT_MIX},
     {"PRESETS", FAM_SAVE, SC_GLOBAL, GR_BROWSE, {0xFF, 0xFF, 0xFF, 0xFF}, SEL_NONE, CT_PRESETS},   /* browser: PRESETS knob / KNOB 1 */
     {"USER", FAM_SAVE, SC_GLOBAL, GR_USER, {0xFF, 0xFF, 0xFF, 0xFF}, SEL_NONE, CT_USER},       /* user presets: SLOT LOAD ERASE SAVE */
+    /* (wave 11) storing a pattern a home of its own (it was hold SAVE + key 1..4 only, the shortcut it stays): KNOB 1 the
+     * pattern A..D, KNOB 2 STORE (a GO: right stores, over a stored one it asks: hold SAVE) */
+    {"PATTERNS", FAM_SAVE, SC_GLOBAL, GR_SPATT, {0xFF, 0xFF, 0xFF, 0xFF}, SEL_NONE, CT_SPATT},
     /* (3.0.5) PROJECT (PARTS) is gone from SAVE: the sections are SAVE held + keys 1..8. SAVE here is the sound's */
     {"TOOLS", FAM_SAVE, SC_GLOBAL, GR_NONE, {G_CLRSEQ, G_INITSND, 0xFF, G_NEWPRJ}, SEL_NONE, CT_TOOLS},
     {"ARP", FAM_ARP, SC_TRACK, GR_ARP, {P_AMODE, P_ARATE, P_AOCT, P_AGATE}, SEL_NONE, CT_ARP},
@@ -642,7 +645,7 @@ static const page_t PAGES[] = {
 static int page_for_drum(const page_t *pg)
 {
     if (pg->scope == SC_GLOBAL)
-        return pg->graph != GR_BROWSE && pg->graph != GR_USER;
+        return pg->graph != GR_BROWSE && pg->graph != GR_USER;   /* (wave 11: SAVE > PATTERN: the drums' too) */
     if (pg->eng)                                    /* (a synth engine's own page) */
         return 0;
     return pg->scope != SC_ENGINE && (pg->scope != SC_TRACK || pg->fam == FAM_DRM || pg->graph == GR_SLCR);   /* (wave 8: its
@@ -664,6 +667,66 @@ static int page_shown(const page_t *pg)
  * engine's E0 .. E7 they are on its Type (0xFF: the Type has none); every other id as it is (V_TYPE stays V_TYPE) */
 #include "modmx.c"             /* (PHEBUS wave 5) the mod matrix */
 static int16_t mx_row, mx_col;   /* (wave 5) the MATRIX page's cursor: the cell SOURCE and DEST point at (the UI's) */
+/* (wave 11) the MATRIX page's columns, as shown: the eleven fixed ones, the assignable columns that have a parameter (in their
+ * order), then one empty assignable column, "+", to make another (none when every column has one). Returns how many */
+static uint32_t mx_vis(uint32_t ti, uint8_t *cols)
+{
+    uint32_t c, n = 0, fr = MX_NAS;
+    for (c = 0; c < MD_NFIX; c++)
+        cols[n++] = (uint8_t)c;
+    for (c = 0; c < MX_NAS; c++) {
+        if (mxt[ti % NPART].as[c])
+            cols[n++] = (uint8_t)(MD_AS1 + c);
+        else if (fr == MX_NAS)
+            fr = c;
+    }
+    if (fr < MX_NAS)
+        cols[n++] = (uint8_t)(MD_AS1 + fr);
+    return n;
+}
+static uint32_t mx_vis_pos(uint32_t ti, uint32_t col)  /* column col's place among those shown (not shown: the last) */
+{
+    uint8_t cols[MD_N];
+    uint32_t n = mx_vis(ti, cols), i;
+    for (i = 0; i < n; i++)
+        if (cols[i] == col)
+            return i;
+    return n - 1u;
+}
+/* a column's name in the grid's head: three letters, one name a parameter (wave 11: up to 19 parameter columns side by side, so
+ * the LFOs' RATEs, the two envelopes' stages and the slots' knobs need names of their own); "+" an empty column */
+static void mx_col_name(uint32_t ti, uint32_t col, char *b)
+{
+    static const struct { uint8_t id; char n[4]; } SN[] = {
+        {P_ATK, "ATK"}, {P_DEC, "DEC"}, {P_SUS, "SUS"}, {P_REL, "REL"}, {P_FATK, "FAT"}, {P_FDEC, "FDC"}, {P_FSUS, "FSU"},
+        {P_FREL, "FRL"}, {P_FDRV, "DRV"}, {P_GLIDE, "GLD"}, {P_DETUNE, "DTN"}, {P_DLY, "DLY"}, {P_REV, "REV"}, {P_CHOR, "CHO"},
+        {P_LRATE, "L1R"}, {P_LPHASE, "L1P"}, {P_LFADE, "L1F"}, {P_L2RATE, "L2R"}, {P_SLDEPTH, "SLD"}, {P_FCUT, "CUT"},
+        {P_FRES, "RES"}, {P_TUNE, "TUN"}, {P_PAN, "PAN"}, {P_LEVEL, "LVL"}};
+    uint32_t a = col >= MD_AS1 && col < MD_N ? mxt[ti % NPART].as[col - MD_AS1] : 0u, i, id;
+    if (col < MD_NFIX) {
+        str_cpy(b, N_MDST[col], 6);
+        return;
+    }
+    if (!a) {
+        str_cpy(b, "+", 6);
+        return;
+    }
+    id = a - 1u;
+    for (i = 0; i < NELEM(SN); i++)
+        if (SN[i].id == id) {
+            str_cpy(b, SN[i].n, 4);
+            return;
+        }
+    if (id >= P_X1TYPE && id < P_X1TYPE + 4u * NXSLOT) {   /* a slot's knob: its number, T I A */
+        b[0] = (char)('1' + (id - P_X1TYPE) / 4u), b[1] = "-TIA"[(id - P_X1TYPE) % 4u], b[2] = 0;
+        return;
+    }
+    if (id >= P_E0 && id <= P_E7) {                     /* the Type's controls: E1 .. E8 */
+        b[0] = 'E', b[1] = (char)('1' + id - P_E0), b[2] = 0;
+        return;
+    }
+    str_cpy(b, track_desc(&trk[ti % NPART], id)->label, 4);
+}
 /* (wave 5) an FX page's slot (0..2) */
 static uint32_t pg_slot(const page_t *pg) { return ((uint32_t)pg->sel - P_X1TYPE) / 4u % NXSLOT; }   /* (wave 9: its TYPE is SELECT's) */
 static uint32_t pg_id(const page_t *pg, uint32_t k)
@@ -731,9 +794,13 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
             *valp = &mx_row;
             return &S;
         }
-        if (id == V_MDST) {
-            static const param_desc_t D = PE("DEST", N_MDST, 0);
-            *valp = &mx_col;
+        if (id == V_MDST) {                           /* (wave 11) the columns shown: the fixed, the assignable in use, "+" */
+            static param_desc_t D = {"DEST", F_INT, 0, 0, 0, 0, 0};
+            uint8_t cols[MD_N];
+            uint32_t n = mx_vis(ti, cols);
+            D.max = (int16_t)(n - 1u);
+            vv[1] = (int16_t)mx_vis_pos(ti, (uint32_t)mx_col);
+            *valp = &vv[1];
             return &D;
         }
         if (id == V_MAMT) {                           /* a grid cell (a fixed one is its parameter: pg_id) */
@@ -743,7 +810,7 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
             return &A;
         }
         /* V_MK4: on an assignable column its TARGET (the parameter it moves), elsewhere CLEAR (a turn: the cell to 0) */
-        if (mx_col == MD_AS1 || mx_col == MD_AS2) {
+        if (mx_col >= MD_AS1 && mx_col < (int16_t)MD_N) {
             static const param_desc_t T = {"TARGET", F_INT, 0, P_COUNT, 0, 0, 0};
             vv[3] = (int16_t)mxt[ti].as[mx_col - MD_AS1];
             *valp = &vv[3];

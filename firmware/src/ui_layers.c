@@ -22,6 +22,12 @@ static void section_store(uint32_t s);                  /* project.c */
 static void perf_knob(uint32_t k, int32_t s);           /* ui_perf.c (wave 6: PERFORM) */
 static void section_load(uint32_t s);
 #include "ui_master.c"                                  /* (wave 10) MASTER with a button held: its pair */
+static void map_chip(uint32_t l)                        /* (wave 11) mapping: MASTER's pair of the held button, as a chip */
+{
+    mpair_t m;
+    if (master_pair(l, &m))
+        hdr_mchip = m.chip, hdr_mcol = m.col, hdr_mratio = (m.v - m.lo) * 1000 / (m.hi - m.lo);
+}
 /* (wave 8, Ben 22 Nov 2026: "keep them few and consistent") THE TIMES, all of them, in one place (GUIDE.md section 2):
  *   TAP_MS         a press shorter than this, nothing else touched: a tap (a button's pages)
  *   SHOW_MS        a layer shows after this, so a tap does not flash it
@@ -255,6 +261,9 @@ static int32_t black_idx(uint32_t k)
 
 /* ------------------------------------------------------------ keys --- */
 /* a key of the layers the UI runs (seq.c lk_q): GLO the mixer, SAVE the store, SEQ's black keys */
+static int combo_live(uint32_t h, uint32_t c);          /* (wave 11, ui_lights.c) */
+#define HC_LY(l) (6u + (l))                             /* (ui_lights.c HC_LY0 + a layer) */
+#define HC_STEPS 2u                                     /* (ui_lights.c HC_STEP: a step held) */
 static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
 {
     int32_t w = punch_key(k), bi = black_idx(k);
@@ -263,7 +272,7 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
             grid_key(k, 0);
         return;
     }
-    if (!down)
+    if (!down || !combo_live(HC_LY(layer), 14u + k))    /* (wave 11: what the lights say works, works; nothing else) */
         return;
     switch (layer) {
     case LY_SEQ:                                        /* black keys 1 to 4: A to D; D#4: FILL on the next bar (again: off) */
@@ -332,6 +341,11 @@ static void layer_knobs(uint32_t layer)
                 pattern_rotate(t, s);
             else
                 patt_turn(t, 0, k, s);
+            break;
+        case LY_LFO:
+        case LY_ENV:                                    /* (wave 11) mapping: the source's amount onto the knob (ui_map.c) */
+            if (map_lyr)
+                map_turn(k, s);
             break;
         case LY_GLO: {
             int16_t *lv = mix_pan ? &trk[k].p[P_PAN] : k == TRK_DRUM ? &song.g[G_DRLVL] : &trk[k].p[P_LEVEL];

@@ -17,6 +17,7 @@
  *                  SELECT every half; with a step held too. Nothing held, the knobs edit the sound (TRIG: NOTE STEP HIT VEL,
  *                  the pen); a step held, a knob LOCKS what it shows on the step (TRIG: the step's NOTE LEN VEL COND, FLAG
  *                  RETRIG NUDGE), the locked value inverted; OCT- the lock of the knob last turned, again every lock */
+#include "ui_map.c"                                      /* (wave 11) hold LFO / ENV to map */
 /* ---- the values */
 static void syn_fmt_type(char *b, uint32_t ty) { str_cpy(b, ty < NVTYPE ? VTYPES[ty].name : "--", 8); }
 /* page pg's four knobs on the selected synth track: labels, values (a step held, first: its lock, inverted), dials */
@@ -46,8 +47,17 @@ static void syn_vals(const page_t *pg, int32_t first, const char *lab[4], char v
                 *dim |= 1u << k;                        /* (not lockable: the Rytm's machine, grey with a step held) */
             continue;
         }
+        if (id == V_MDST) {                             /* (wave 11) the column's name (an assignable one: its parameter's) */
+            uint8_t cols[MD_N];
+            uint32_t n = mx_vis(song.sel % NPART, cols);
+            mx_col_name(song.sel % NPART, (uint32_t)mx_col, v[k]);
+            ratio[k] = n > 1u ? (int32_t)mx_vis_pos(song.sel % NPART, (uint32_t)mx_col) * 1000 / (int32_t)(n - 1u) : 0;
+            if (first >= 0)
+                *dim |= 1u << k;
+            continue;
+        }
         if (id == V_MK4) {                              /* (wave 5) TARGET: the parameter's name; CLEAR: the cell */
-            if (mx_col >= MD_AS1) {
+            if (mx_col >= MD_AS1 && mx_col < (int16_t)MD_N) {
                 uint32_t a = mxt[song.sel % NPART].as[mx_col - MD_AS1];
                 str_cpy(v[k], a ? track_desc(t, a - 1u)->label : "--", 8);
                 ratio[k] = a ? (int32_t)a * 1000 / P_COUNT : 0;
@@ -354,19 +364,26 @@ static void syn_sends(const track_t *t, uint16_t c, uint16_t cd)
  * a cell, as large as its amount, a ring when negative, the cursor framed white */
 static void syn_matrix(const track_t *t, uint16_t c)
 {
-    uint32_t ti = (uint32_t)(t - trk) % NPART, r, d, d0 = (uint32_t)clamp(mx_col - 5, 0, (int32_t)MD_N - 6);
-    for (d = d0; d < d0 + 6u; d++)
-        cv_text(38 + (int32_t)(d - d0) * 32 + (32 - text_w(&FONT_S, N_MDST[d])) / 2, 0, &FONT_S, N_MDST[d],
-                d == (uint32_t)mx_col ? C_WHITE : TE_G3);
-    if (d0)                                             /* (more columns either side: the cursor slides the view) */
+    uint8_t cols[MD_N];
+    uint32_t ti = (uint32_t)(t - trk) % NPART, r, j, n = mx_vis(ti, cols), cp = mx_vis_pos(ti, (uint32_t)mx_col);
+    uint32_t j0 = (uint32_t)clamp((int32_t)cp - 5, 0, (int32_t)n - 6);
+    char nm[8];
+    for (j = j0; j < j0 + 6u && j < n; j++) {           /* (wave 11: an assignable column is named by its parameter, white-grey
+                                                         * as every head; "+" the empty one that makes another) */
+        mx_col_name(ti, cols[j], nm);
+        cv_text(38 + (int32_t)(j - j0) * 32 + (32 - text_w(&FONT_S, nm)) / 2, 0, &FONT_S, nm,
+                j == cp ? C_WHITE : cols[j] >= MD_AS1 ? TE_G4 : TE_G3);
+    }
+    if (j0)                                             /* (more columns either side: the cursor slides the view) */
         cv_text(31, 0, &FONT_S, "<", TE_G2);
-    if (d0 + 6u < MD_N)
+    if (j0 + 6u < n)
         cv_text(232, 0, &FONT_S, ">", TE_G2);
     for (r = 0; r < MS_N; r++) {
         int32_t y = 16 + (int32_t)r * 13;
         cv_text(2, y - 2, &FONT_S, N_MSRC[r], r == (uint32_t)mx_row ? C_WHITE : TE_G4);
-        for (d = d0; d < d0 + 6u; d++) {
-            int32_t x = 38 + (int32_t)(d - d0) * 32 + 16, a = mx_get(ti, r, d), cy = y + 5, rad;
+        for (j = j0; j < j0 + 6u && j < n; j++) {
+            uint32_t d = cols[j];
+            int32_t x = 38 + (int32_t)(j - j0) * 32 + 16, a = mx_get(ti, r, d), cy = y + 5, rad;
             if ((r == MS_LFO1 && d == MD_LVL) || (r == MS_KEY && d == MD_CUT))
                 a = a / 2;                              /* (the one-way fixed cells: 0..127) */
             rad = a ? 1 + (a < 0 ? -a : a) * 4 / 64 : 0;
@@ -376,7 +393,7 @@ static void syn_matrix(const track_t *t, uint16_t c)
                 cv_rect(x - rad, cy - rad, 2 * rad + 1, 2 * rad + 1, c);
             else
                 op_box(x - rad, cy - rad, 2 * rad + 1, 2 * rad + 1, c);
-            if (r == (uint32_t)mx_row && d == (uint32_t)mx_col)
+            if (r == (uint32_t)mx_row && j == cp)
                 op_box(x - 13, y - 1, 27, 13, C_WHITE);
         }
     }
@@ -396,7 +413,9 @@ static void syn_body(track_t *t, const page_t *pg, uint32_t half, uint32_t *cach
         const mxt_t *m = &mxt[song.sel % NPART];                                         /* its cells, the globals shown) */
         for (i = 0; i < MX_NCELL; i++)
             sig = (sig ^ ((uint32_t)m->c[i].at << 8 | (uint8_t)m->c[i].amt)) * 16777619u;
-        sig ^= (uint32_t)m->l2sync * 77u + (uint32_t)m->l2trig * 999u + (uint32_t)m->as[0] * 13u + (uint32_t)m->as[1] * 131u;
+        sig ^= (uint32_t)m->l2sync * 77u + (uint32_t)m->l2trig * 999u;
+        for (i = 0; i < MX_NAS; i++)
+            sig = (sig ^ m->as[i]) * 16777619u;
     }
     if (pg->graph == GR_LFO || pg->graph == GR_LFO2 || (pg->graph == GR_SLCR && t->p[P_SLCR]) ||
         (pg->graph == GR_XSLOT && (t->p[pg->id[0]] == XT_PHASER || t->p[pg->id[0]] == XT_FLANGER)))
@@ -575,11 +594,31 @@ static void syn_page_draw(void)
         if (stage_page(st, k) == ui.page)
             h = k;
     op_names_str(t, name);
+    if (map_lyr && map_vis) {                           /* (wave 11) HOLD TO MAP: the page as it is, its dials the amounts */
+        static uint32_t mhead, mtabs, mdials;
+        uint32_t s = map_src();
+        char bn[16];
+        map_chip(map_lyr);                              /* (MASTER's pair, as the wave 10 hold: its chip) */
+        op_header(map_lyr == LY_LFO ? "LFO" : "ENV", TE_COL[v], name, &mhead);
+        hdr_mchip = 0;
+        syn_body(t, pg, h, &body);
+        str_cpy(bn, "MAP ", sizeof bn);
+        str_cpy(bn + 4, map_src_name(s), 10);
+        nav_map_hint = map_other_name(s);
+        nav_tabs(TE_COL[v], bn, &mtabs);
+        nav_map_hint = 0;
+        map_dials(pg, s, TE_COL[v], &mdials);
+        op_trackbar(&bar);
+        head = tabs = dials = 0;
+        return;
+    }
     op_header(tag, TE_COL[v], mlu.on ? "LEARN" : name, &head);
     syn_body(t, pg, h, &body);
     nav_tabs(TE_COL[v], 0, &tabs);                    /* (wave 9: the group's categories, the page in it) */
     syn_vals(pg, -1, lab, vb, ratio, &locked, &dim);
+    dial_mark = (uint8_t)map_marks(pg);               /* (wave 11) a knob something is mapped onto: its mark */
     op_dials(lab, val, ratio, locked, dim, TE_COL[v], ui.page * 977u + song.sel * 31u, &dials);
+    dial_mark = 0;
     op_trackbar(&bar);
 }
 

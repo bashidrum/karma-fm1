@@ -85,6 +85,13 @@ enum { LIGHTS_OFF, LIGHTS_LOW, LIGHTS_MID, LIGHTS_HIGH, LIGHTS_N };
 enum { KEYS_OFF, KEYS_C, KEYS_WHITE, KEYS_ALL, KEYS_N };   /* (ALL: SLOOP 2.4; an older SLOOP reads it as OFF) */
 static uint8_t lights_lvl, lights_keys;
 static uint8_t lights_notes;                   /* 1: on a synth track the sounding notes light their keys */
+/* (wave 11, Ben 23 Nov 2026, 10:46: "We should have settings for how much of a disco you can put on in the global settings. For
+ * example, it might be a dick move to have it flashing for 11hrs on a flight to Mexico. But I'd want it flashing if I was ever
+ * shooting some content with it") GLO > DEVICE > LIGHTS > DISCO: QUIET (only what is needed to work, dim, nothing moves),
+ * NORMAL (as before), SHOW (everything moves). A ceiling over LIGHTS, KEYS and NOTES (ui_lights.c). Kept in the settings'
+ * word, bits 30..31 (as disco ^ 1: an older word's 0 reads NORMAL) */
+enum { DISCO_QUIET, DISCO_NORMAL, DISCO_SHOW, DISCO_N };
+static uint8_t disco = DISCO_NORMAL;
 static uint8_t lights_sync;                    /* GLO > SYSTEM > SYNC (G_SYNC), kept here: 0 INT, 1 USB, 2 TRS */
 static uint8_t lights_mout;                    /* GLO > SYSTEM > MIDI (G_MIDI): 1 = the sequencer goes to MIDI OUT too */
 static uint8_t lights_min = 2;                 /* GLO > SYSTEM > IN (G_ROUTE): 0 NOTES, 1 CLOCK only, 2..17 (2.6) CH 1..16
@@ -112,13 +119,17 @@ static uint32_t lights_word(void)
            (uint32_t)(usb_serial != 0u) << 16 | (uint32_t)(vis_style % VIS_N) << 17 |
            (uint32_t)(lights_min >= 2u && lights_min <= 17u ? lights_min - 1u : 0u) << 21 |  /* 2.6: CH n (n 1..16; 0 none) */
            (uint32_t)((midi_knobs ^ 4u) & 7u) << 26 |                                  /* KNOBS (2026-10-20; 0: PANEL) */
-           (uint32_t)(usb_stems_set != 0u) << 29;                                      /* USB AUDIO = STEMS (KARMA 3.0) */
+           (uint32_t)(usb_stems_set != 0u) << 29 |                                     /* USB AUDIO = STEMS (KARMA 3.0) */
+           (uint32_t)((disco ^ 1u) & 3u) << 30;                                        /* (wave 11) DISCO, 0: NORMAL */
 }
 static void lights_from_word(uint32_t w)
 {
     lights_lvl = (uint8_t)((w & 15u) < LIGHTS_N ? (w & 15u) : LIGHTS_OFF);
     lights_keys = (uint8_t)(((w >> 4) & 15u) < KEYS_N ? ((w >> 4) & 15u) : KEYS_OFF);
     lights_notes = (uint8_t)((w >> 8) & 1u);
+    disco = (uint8_t)(((w >> 30) ^ 1u) & 3u);
+    if (disco >= DISCO_N)
+        disco = DISCO_NORMAL;
     rec_count = (uint8_t)((w >> 10) & 1u);
     usb_full = (uint8_t)((w >> 11) & 1u);       /* menu USB AUDIO (fx.c) */
     lights_sync = (uint8_t)(((w >> 12) & 3u) % 3u);

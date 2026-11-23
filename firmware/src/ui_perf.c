@@ -125,6 +125,9 @@ static void perf_screen_draw(void)
         hdr_mchip = 0;
     }
     /* the chips (black keys) and the pads (white keys) */
+    bk_drawn = 0, bk_drawn_f = ui.frame;                /* (wave 11: the strip's live keys, for the lights) */
+    for (i = 0; i < 11u; i++)
+        bk_drawn |= (uint16_t)((PF_BLACK[i] >= 0) << i);
     sig = perf_shown_sig();
     if (ui.force || sig != body) {
         body = sig;

@@ -501,36 +501,130 @@ static uint32_t proj_sum(const proj_core_t *c) { return proj_hash(c, sizeof *c -
 #define PROJ_SEND_V 3u
 static int16_t proj_old_swing;                 /* (wave 8) the GLOBAL SWING of the last project of before loaded: a section
                                                 * stored then borrowed it, so it is added to such a section's tracks too */
-_Static_assert(8u + 2u * MX_NCELL == 46u, "the matrix fits mod[46]");
+/* (wave 11) mod[46], layout 2: byte 7 is MXL2 (layout 1, waves 5 to 10, always had 0 there); the other 45 bytes a stream of
+ * bits, low bit first: LFO 2's SYNC (4) and TRIG (2), Spice (7), Dice (14), how many cells (5), then each cell: its source (3),
+ * its destination (7: a fixed column 0..10, or 11 + the parameter id of an assignable column), its amount (7, -64..63). 32 +
+ * 19 x 17 = 355 of 360 bits. The columns are not stored: each parameter a cell names gets one again (in the order met).
+ * Layout 1 (as[0] as[1], SYNC, TRIG, Spice, Dice in bytes 0..6; 19 cells of two bytes, the place s x 13 + d + 1) is read
+ * exactly: every cell keeps its source, column and amount (AS1 AS2 are columns 11 and 12 there and here) */
+#define MXL2 0x5Bu
+#define MD_N_V1 13u                                    /* (layout 1's columns: AS1, AS2 only) */
+_Static_assert(32u + 17u * MX_NCELL <= 360u && P_COUNT + MD_NFIX < 128u, "the matrix fits mod[46], layout 2");
+static void mxb_put(uint8_t *b, uint32_t *pos, uint32_t v, uint32_t n)
+{
+    uint32_t i;
+    for (i = 0; i < n; i++, (*pos)++) {
+        uint32_t q = *pos < 56u ? *pos : *pos + 8u;    /* (byte 7 is the layout's) */
+        if ((v >> i) & 1u)
+            b[q >> 3] |= (uint8_t)(1u << (q & 7u));
+    }
+}
+static uint32_t mxb_get(const uint8_t *b, uint32_t *pos, uint32_t n)
+{
+    uint32_t i, v = 0;
+    for (i = 0; i < n; i++, (*pos)++) {
+        uint32_t q = *pos < 56u ? *pos : *pos + 8u;
+        v |= (uint32_t)((b[q >> 3] >> (q & 7u)) & 1u) << i;
+    }
+    return v;
+}
 static void mx_pack(uint8_t *b, uint32_t ti)       /* track ti's matrix, LFO 2, Spice and Dice -> mod[46] */
 {
     const mxt_t *m = &mxt[ti % NPART];
-    uint32_t i;
+    uint32_t i, pos = 0, n = 0;
     memset(b, 0, 46);
-    b[0] = m->as[0], b[1] = m->as[1];
-    b[2] = (uint8_t)m->l2sync, b[3] = (uint8_t)m->l2trig, b[4] = (uint8_t)m->spice;
-    b[5] = (uint8_t)((uint16_t)m->dice & 255u), b[6] = (uint8_t)((uint16_t)m->dice >> 8);
+    b[7] = MXL2;
+    mxb_put(b, &pos, (uint32_t)m->l2sync & 15u, 4);
+    mxb_put(b, &pos, (uint32_t)m->l2trig & 3u, 2);
+    mxb_put(b, &pos, (uint32_t)m->spice & 127u, 7);
+    mxb_put(b, &pos, (uint32_t)(uint16_t)m->dice & 0x3FFFu, 14);
+    for (i = 0; i < MX_NCELL; i++)
+        n += m->c[i].at != 0;
+    mxb_put(b, &pos, n, 5);
     for (i = 0; i < MX_NCELL; i++) {
-        b[8u + 2u * i] = m->c[i].at;
-        b[9u + 2u * i] = (uint8_t)m->c[i].amt;
+        uint32_t at = m->c[i].at, d, code;
+        if (!at)
+            continue;
+        d = (at - 1u) % MD_N;
+        code = d < MD_NFIX ? d : m->as[d - MD_AS1] ? MD_NFIX + m->as[d - MD_AS1] - 1u : 127u;
+        mxb_put(b, &pos, (at - 1u) / MD_N, 3);
+        mxb_put(b, &pos, code, 7);
+        mxb_put(b, &pos, (uint32_t)m->c[i].amt & 127u, 7);
     }
 }
+/* a cell (s, d) of amount a read back into track ti (an assignable one: the column of parameter p, made if new; p
+ * not a parameter a column can move, or no column left: dropped). 1 = kept */
+static int mx_cell_in(uint32_t ti, uint32_t s, uint32_t d, int32_t p, int32_t a)
+{
+    mxt_t *m = &mxt[ti];
+    uint32_t i;
+    a = clamp(a, -64, 63);
+    if (s >= MS_N || !a)
+        return 0;
+    if (d >= MD_NFIX) {
+        int32_t c = p >= 0 && mx_as_ok((uint32_t)p) ? mx_as_find(ti, (uint32_t)p) : -1;
+        if (p < 0 || !mx_as_ok((uint32_t)p))
+            return 0;
+        if (c < 0) {
+            for (i = 0; i < MX_NAS && m->as[i]; i++)
+                ;
+            if (i == MX_NAS)
+                return 0;
+            m->as[i] = (uint8_t)(p + 1);
+            c = (int32_t)(MD_AS1 + i);
+        }
+        d = (uint32_t)c;
+    }
+    if (mx_alias(s, d) >= 0)
+        return 0;
+    for (i = 0; i < MX_NCELL; i++)
+        if (!m->c[i].at) {
+            m->c[i].at = (uint8_t)mx_at(s, d);
+            m->c[i].amt = (int8_t)a;
+            return 1;
+        }
+    return 0;
+}
+static uint32_t mx_unpack_lost;                        /* (the last read: cells dropped; tests) */
 static void mx_unpack(const uint8_t *b, uint32_t ti)   /* .. back, every value inside its range */
 {
     mxt_t *m = &mxt[ti % NPART];
     uint32_t i;
-    for (i = 0; i < 2u; i++)
-        m->as[i] = (uint8_t)(b[i] && mx_as_ok(b[i] - 1u) ? b[i] : 0u);
-    m->l2sync = (int16_t)(b[2] < NELEM(N_LSYNC) ? b[2] : 0u);
+    ti %= NPART;
+    memset(m->c, 0, sizeof m->c);
+    memset(m->as, 0, sizeof m->as);
+    mx_unpack_lost = 0;
+    if (b[7] == MXL2) {                               /* layout 2 (wave 11) */
+        uint32_t pos = 0, n, l2s = mxb_get(b, &pos, 4), l2t = mxb_get(b, &pos, 2);
+        m->l2sync = (int16_t)(l2s < NELEM(N_LSYNC) ? l2s : 0u);
+        m->l2trig = (int16_t)(l2t < 3u ? l2t : 1u);
+        m->spice = (int16_t)mxb_get(b, &pos, 7);
+        m->dice = (int16_t)clamp((int32_t)mxb_get(b, &pos, 14), 0, 9999);
+        n = mxb_get(b, &pos, 5);
+        for (i = 0; i < n && i < MX_NCELL; i++) {
+            uint32_t s = mxb_get(b, &pos, 3), code = mxb_get(b, &pos, 7), a7 = mxb_get(b, &pos, 7);
+            int32_t a = (int32_t)(a7 & 63u) - (int32_t)(a7 & 64u);
+            if (!mx_cell_in(ti, s, code < MD_NFIX ? code : MD_NFIX, code < MD_NFIX ? -1 : (int32_t)(code - MD_NFIX), a) && a)
+                mx_unpack_lost++;
+        }
+        return;
+    }
+    m->l2sync = (int16_t)(b[2] < NELEM(N_LSYNC) ? b[2] : 0u);   /* layout 1 (waves 5 to 10) */
     m->l2trig = (int16_t)(b[3] < 3u ? b[3] : 1u);
     m->spice = (int16_t)(b[4] & 127u);
     m->dice = (int16_t)clamp((int32_t)(b[5] | (uint32_t)b[6] << 8), 0, 9999);
+    for (i = 0; i < 2u; i++)                          /* (its two columns first, in their places: AS1 AS2 as they were) */
+        m->as[i] = (uint8_t)(b[i] && mx_as_ok(b[i] - 1u) ? b[i] : 0u);
     for (i = 0; i < MX_NCELL; i++) {
-        uint32_t at = b[8u + 2u * i];
+        uint32_t at = b[8u + 2u * i], s, d;
         int32_t a = (int8_t)b[9u + 2u * i];
-        int ok = at && at <= MS_N * MD_N && mx_alias((at - 1u) / MD_N, (at - 1u) % MD_N) < 0 && a;
-        m->c[i].at = (uint8_t)(ok ? at : 0u);
-        m->c[i].amt = (int8_t)(ok ? clamp(a, -64, 63) : 0);
+        if (!at || at > MS_N * MD_N_V1 || !a)
+            continue;
+        s = (at - 1u) / MD_N_V1, d = (at - 1u) % MD_N_V1;
+        if (d >= MD_NFIX && !m->as[d - MD_NFIX])
+            continue;                                 /* (a column with no parameter: it moved nothing) */
+        if (!mx_cell_in(ti, s, d < MD_NFIX ? d : MD_NFIX, d < MD_NFIX ? -1 : (int32_t)m->as[d - MD_NFIX] - 1, a))
+            mx_unpack_lost++;
     }
 }
 static int proj_ok(const proj_core_t *c) { return c->magic == PROJ_MAGIC && c->size == sizeof *c && c->sum == proj_sum(c); }

@@ -31,10 +31,12 @@ static int on_drum_page(void) { return !ui.home && cur_page()->scope == SC_DRUM;
 #define TE_RED RGB(255, 44, 52)          /* recording, erasing */
 #define TE_MUTE RGB(255, 196, 40)        /* a muted track: a yellow M, as Ableton (SPEC.md, 20 Nov 2026) */
 #define TE_SOLO RGB(150, 215, 255)       /* a soloed track: an ice-blue S, as Ableton (review 15: never the alien's blue) */
-/* Ben's palette (SPEC.md, 20 Nov 2026): track 1 purple, 2 blue, 3 green, 4 (drums) coral */
-static const uint16_t TE_COL[4] = {RGB(140, 118, 240), RGB(40, 160, 245), RGB(20, 196, 170), RGB(255, 128, 108)};
-static const uint16_t TE_MID[4] = {RGB(92, 78, 158), RGB(26, 106, 162), RGB(13, 129, 112), RGB(168, 84, 71)};
-static const uint16_t TE_DIM[4] = {RGB(48, 40, 82), RGB(14, 54, 83), RGB(7, 67, 58), RGB(87, 44, 37)};
+/* Ben's palette (SPEC.md, 20 Nov 2026; wave 11, Ben 23 Nov 2026, 11:33: "That teal is meant to be drums ... Happy to keep it
+ * with just swapping the surf green to drums"): voice 1 purple, 2 blue, 3 coral, 4 (drums) teal. The one place the voices'
+ * colours are set: every screen, graph, head and light takes them from here */
+static const uint16_t TE_COL[4] = {RGB(140, 118, 240), RGB(40, 160, 245), RGB(255, 128, 108), RGB(20, 196, 170)};
+static const uint16_t TE_MID[4] = {RGB(92, 78, 158), RGB(26, 106, 162), RGB(168, 84, 71), RGB(13, 129, 112)};
+static const uint16_t TE_DIM[4] = {RGB(48, 40, 82), RGB(14, 54, 83), RGB(87, 44, 37), RGB(7, 67, 58)};
 #define TE_DRUM TE_COL[3]
 /* Ben's rule (SPEC.md, 20 Nov 2026): a voice's colour means "this acts on that voice". A knob strip is tinted by what
  * each knob acts on: 0..3 a track, 4 neutral (general or global controls). knob_tint[] is set by the screen that draws

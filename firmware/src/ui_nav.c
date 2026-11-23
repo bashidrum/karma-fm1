@@ -19,7 +19,7 @@ static const uint8_t NAV_SYN[NB][5] = {
     [B_SEQ] = {CT_TRIG, CT_PATT, CT_PATTS},             /* (wave 10, Ben: "in charge of patterns") */
     [B_ARP] = {CT_ARP, CT_KEY},                         /* (Ben: key, scale and chord "Under ARP") */
     [B_GLO] = {CT_GLOBAL, CT_SYSTEM, CT_MIDI, CT_DEVICE},
-    [B_SAVE] = {CT_PRESETS, CT_USER, CT_TOOLS},
+    [B_SAVE] = {CT_PRESETS, CT_USER, CT_SPATT, CT_TOOLS},
     [B_HOME] = {CT_HOME, CT_SAVER},
 };
 static const uint8_t NAV_DRUM[NB][6] = {               /* the drum voice, parallel (the Rytm's SRC FLTR AMP LFO, its FX track) */
@@ -30,7 +30,7 @@ static const uint8_t NAV_DRUM[NB][6] = {               /* the drum voice, parall
     [B_SEQ] = {CT_TRIG, CT_PATT, CT_PATTS},             /* (wave 10, Ben: "in charge of patterns") */
     [B_ARP] = {CT_CHROM},
     [B_GLO] = {CT_GLOBAL, CT_SYSTEM, CT_MIDI, CT_DEVICE},
-    [B_SAVE] = {CT_PRESETS, CT_USER, CT_TOOLS},
+    [B_SAVE] = {CT_PRESETS, CT_USER, CT_SPATT, CT_TOOLS},
     [B_HOME] = {CT_HOME, CT_SAVER},
 };
 static const char *const CT_NAME[CT_N] = {
@@ -40,7 +40,7 @@ static const char *const CT_NAME[CT_N] = {
     [CT_KEY] = "KEY", [CT_GLOBAL] = "GLOBAL", [CT_SYSTEM] = "SYSTEM", [CT_MIDI] = "MIDI", [CT_PRESETS] = "PRESETS",
     [CT_USER] = "USER", [CT_TOOLS] = "TOOLS", [CT_HOME] = "HOME", [CT_TRIG] = "TRIG", [CT_PATT] = "PATTERN", [CT_PATTS] = "A-D", [CT_SRC] = "SRC",
     [CT_FLTR] = "FLTR", [CT_DAMP] = "AMP", [CT_DLFO] = "LFO", [CT_CHROM] = "CHROM", [CT_DEVICE] = "DEVICE",
-    [CT_SAVER] = "SAVER",
+    [CT_SAVER] = "SAVER", [CT_SPATT] = "PATT",
 };
 /* the drum screen's FX tab: where each category starts among its halves (ui_drum.c dbus_page: FILTER, INSERT, INSERT 2,
  * SENDS, SLICER, then the whole mix's DELAY, REV/CHO, MASTER) */
@@ -242,6 +242,22 @@ static void nav_button(uint32_t b)
         ;
     nav_go(i < ng ? g[(i + 1u) % ng] : g[0], 0);
 }
+/* (wave 11) button b pressed now would show another page (the lights: a page button with nothing to move to stays dark) */
+static int nav_moves(uint32_t b)
+{
+    uint32_t k, n, ng, c = nav_cat(&k, &n), i;
+    const uint8_t *g = nav_group(b, &ng);
+    if (!ng)
+        return 0;
+    for (i = 0; i < ng && g[i] != c; i++)
+        ;
+    return (i < ng ? g[(i + 1u) % ng] : g[0]) != c || k != 0u;
+}
+static int nav_page_moves(void)
+{
+    uint32_t k, n, c = nav_cat(&k, &n);
+    return c != CT_NONE && n >= 2u;
+}
 /* (Ben, 08:42) SEL, the PAGE button: the next page of the category shown, round; one page: nothing */
 static void nav_page(void)
 {
@@ -283,6 +299,7 @@ static void nav_tabs(uint16_t col, const char *banner, uint32_t *cache)
     pm_words(&pm, &pp);
     pm_shown_m = pm, pm_shown_p = pp;
     sig = studio_hash(studio_hash(studio_hash(sig, banner ? banner : ""), pm ? pm : "-"), pp ? pp : "+");
+    sig = studio_hash(sig * 3u + (ly_lock != LY_PLAY), nav_map_hint ? nav_map_hint : "");
     if (!ui.force && sig == *cache)
         return;
     *cache = sig;
@@ -291,6 +308,20 @@ static void nav_tabs(uint16_t col, const char *banner, uint32_t *cache)
     cv_rect(0, 0, 240, 1, TE_G1);
     if (pm || pp)
         xr = pm_draw(236, 5, pm, pp) - 6;
+    if (banner && nav_map_hint) {                       /* (wave 11) MAP: outlined in the voice's colour (a LOCK banner is
+                                                         * filled), then what SEL flips to, grey; LOCK while kept open */
+        int32_t x = 2 + text_w(&FONT_S, banner) + 6;
+        op_box(2, 4, x - 2, 17, col);
+        cv_text(5, 5, &FONT_S, banner, col);
+        x = cv_text(x + 6, 5, &FONT_S, "SEL", TE_G4);
+        x = cv_text(x + 4, 5, &FONT_S, nav_map_hint, TE_G3);
+        if (ly_lock != LY_PLAY && x + 8 + text_w(&FONT_S, "LOCK") <= xr) {
+            cv_rect(xr - text_w(&FONT_S, "LOCK") - 4, 4, text_w(&FONT_S, "LOCK") + 4, 17, C_WHITE);
+            cv_text(xr - text_w(&FONT_S, "LOCK") - 2, 5, &FONT_S, "LOCK", C_BLACK);
+        }
+        cv_blit(0, 131);
+        return;
+    }
     if (banner) {
         cv_rect(2, 4, text_w(&FONT_S, banner) + 4, 17, col);
         cv_text(4, 5, &FONT_S, banner, C_BLACK);

@@ -6,17 +6,19 @@
  * its row; wave 9: SEL, the PAGE button, the next section, GLO the next category GLOBAL), PRESETS moves the cursor; OCT+ steps the cursor's setting round or opens it (CALIBRATION, ABOUT),
  * OCT- closes (from ABOUT: back to the section). */
 /* ------------------------------------------------------------ menu --- */
-enum { MI_COLOR, MI_ZOOM, MI_LIGHTS, MI_KEYS, MI_NOTES, MI_LOWCUT, MI_USB, MI_SERIAL, MI_PANEL, MI_LCLEAR, MI_ABOUT,
+enum { MI_COLOR, MI_ZOOM, MI_DISCO, MI_LIGHTS, MI_KEYS, MI_NOTES, MI_LOWCUT, MI_USB, MI_SERIAL, MI_PANEL, MI_LCLEAR, MI_ABOUT,
        MI_COUNT };
-static const char *const MI_NAME[MI_COUNT] = {"COLOR", "ZOOM", "LIGHTS", "KEYS", "NOTES", "SPEAKER LOWCUT", "USB AUDIO",
+static const char *const MI_NAME[MI_COUNT] = {"COLOR", "ZOOM", "DISCO", "LIGHTS", "KEYS", "NOTES", "SPEAKER LOWCUT", "USB AUDIO",
                                               "USB SERIAL", "HARDWARE CALIBRATION", "MIDI LEARN CLEAR", "ABOUT"};
 enum { MS_SCREEN, MS_LIGHTS, MS_AUDIO, MS_SYSTEM, MS_COUNT };
 static const char *const MS_NAME[MS_COUNT] = {"SCREEN", "LIGHTS", "AUDIO", "SYSTEM"};   /* (AUDIO: and USB) */
-static const uint8_t MS_FIRST[MS_COUNT + 1] = {MI_COLOR, MI_LIGHTS, MI_LOWCUT, MI_PANEL, MI_COUNT};   /* rows of each */
+static const uint8_t MS_FIRST[MS_COUNT + 1] = {MI_COLOR, MI_DISCO, MI_LOWCUT, MI_PANEL, MI_COUNT};   /* rows of each */
+static const char *const DISCO_NAME[DISCO_N] = {"QUIET", "NORMAL", "SHOW"};   /* (wave 11) how much the lights move */
 static const char *const LIGHTS_NAME[LIGHTS_N] = {"OFF", "LOW", "MID", "HIGH"};   /* every button lit, the labels readable */
 static const char *const KEYS_NAME[KEYS_N] = {"OFF", "C KEYS", "WHITE KEYS", "ALL KEYS"};      /* keys lit too, at the LIGHTS level */
 #define MI_Y0 26                                   /* the first row, under the section tabs */
 #define MI_DY 50                                   /* a row: the label, the value in large type */
+#define MI_DY4 44                                  /* (wave 11) a row of a four-row section (LIGHTS) */
 
 static uint32_t mi_sec(uint32_t i)                 /* the section of item i */
 {
@@ -34,11 +36,14 @@ static const char *mi_value(uint32_t i, uint16_t *c)
     switch (i) {
     case MI_COLOR: return PALETTES[settings.palette].name;
     case MI_ZOOM: return settings.zoom ? "ON" : "OFF";
+    case MI_DISCO: return DISCO_NAME[disco % DISCO_N];
     case MI_LIGHTS: return LIGHTS_NAME[lights_lvl % LIGHTS_N];
     case MI_KEYS:
         *c = lights_lvl ? C_HI : C_DIM;               /* (needs LIGHTS) */
         return KEYS_NAME[lights_keys % KEYS_N];
-    case MI_NOTES: return lights_notes ? "ON" : "OFF";
+    case MI_NOTES:
+        *c = disco == DISCO_QUIET ? C_DIM : C_HI;        /* (QUIET: no notes, whatever this says) */
+        return lights_notes ? "ON" : "OFF";
     case MI_LOWCUT: return settings.lowcut ? "ON" : "OFF";
     case MI_USB: return usb_stems_set ? "STEMS" : usb_full ? "FULL" : "MASTER";
     case MI_SERIAL: return usb_serial ? "ON" : "OFF";
@@ -64,7 +69,7 @@ static void draw_menu(void)
     uint32_t i, pass, sec = mi_sec(ui.menu_sel % MI_COUNT);
     uint32_t sig = ui.menu * 7u + ui.menu_sel * 131u + settings.palette * 1009u + settings.lowcut * 7919u +
                    settings.zoom * 104729u + lights_lvl * 1299709u + lights_keys * 15485863u + ml_count() * 2654435u +
-                   lights_notes * 32452843u + usb_full * 49979687u + usb_serial * 86028121u + usb_stems_set * 15485863u;
+                   lights_notes * 32452843u + disco * 7741u + usb_full * 49979687u + usb_serial * 86028121u + usb_stems_set * 15485863u;
     if (!ui.force && sig == ui.menu_sig)
         return;
     ui.menu_sig = sig;
@@ -119,14 +124,15 @@ static void draw_menu(void)
                 cv_text(x, 4, &FONT_S, MS_NAME[i], i == sec ? C_WHITE : C_DIM);
                 x += w + 10;
             }
+            int32_t dy = MS_FIRST[sec + 1u] - MS_FIRST[sec] > 3u ? MI_DY4 : MI_DY;   /* (wave 11: LIGHTS has four rows) */
             for (i = MS_FIRST[sec]; i < MS_FIRST[sec + 1u]; i++) {
                 uint32_t r = i - MS_FIRST[sec];
-                int32_t y = MI_Y0 + (int32_t)r * MI_DY, xv;
+                int32_t y = MI_Y0 + (int32_t)r * dy, xv;
                 int cur = i == ui.menu_sel;
                 uint16_t vc;
                 const char *v = mi_value(i, &vc);
                 char k[4] = {'K', (char)('1' + r), 0, 0};
-                cv_rect(4, y + 2, 4, MI_DY - 8, cur ? C_WHITE : TE_G3);   /* the knob's row: white active, grey idle (no
+                cv_rect(4, y + 2, 4, dy - 8, cur ? C_WHITE : TE_G3);   /* the knob's row: white active, grey idle (no
                                                                     * voice colours: the menu is no voice's, review 16a) */
                 xv = cv_text(14, y, &FONT_S, k, cur ? C_WHITE : TE_G3);
                 cv_text(xv + 6, y, &FONT_S, MI_NAME[i], cur ? C_WHITE : C_GRAY);
@@ -145,8 +151,12 @@ static void draw_menu(void)
                 if ((i == MI_SERIAL && usb_serial != usb_cdc_now()) || (i == MI_USB && usb_stems_set != USB_STEMS_NOW))
                     cv_text(xv + 8, y + 30, &FONT_S, "RESTART", C_AMB);   /* (usb.c: at the next start) */
             }
-            cv_text(4, MI_Y0 + 3 * MI_DY + 6, &FONT_S, "SEL: SECTION  GLO: GLOBAL", C_DIM);
-            cv_text(4, MI_Y0 + 3 * MI_DY + 22, &FONT_S, "K1-K3 SET  OCT+ OK  OCT- OUT", C_DIM);   /* (rows .. 218) */
+            if (dy == MI_DY) {
+                cv_text(4, MI_Y0 + 3 * MI_DY + 6, &FONT_S, "SEL: SECTION  GLO: GLOBAL", C_DIM);
+                cv_text(4, MI_Y0 + 3 * MI_DY + 22, &FONT_S, "K1-K3 SET  OCT+ OK  OCT- OUT", C_DIM);   /* (rows .. 218) */
+            } else {
+                cv_text(4, MI_Y0 + 4 * MI_DY4 + 2, &FONT_S, "K1-K4 SET  SEL: SECTION", C_DIM);   /* (rows .. 218) */
+            }
         }
         cv_oy = 0;
         cv_blit(0, H_HEAD + 1 + pass * 124u);
@@ -198,6 +208,10 @@ static void mi_set(uint32_t i, int32_t s)
         break;
     case MI_NOTES:
         lights_notes = (uint8_t)(s > 0 ? 1u : s < 0 ? 0u : !lights_notes);
+        break;
+    case MI_DISCO:                                     /* QUIET NORMAL SHOW, stopping at the ends; OCT+ round */
+        disco = (uint8_t)(s > 0 ? (disco + 1u < DISCO_N ? disco + 1u : disco) : s < 0 ? (disco ? disco - 1u : 0u)
+                                                                             : (disco + 1u) % DISCO_N);
         break;
     case MI_LIGHTS:
     case MI_KEYS: {                                    /* brighter / dimmer (stops at the ends); OCT+ steps round */

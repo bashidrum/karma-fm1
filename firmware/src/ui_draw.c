@@ -56,7 +56,9 @@ static void draw_head(void)
     const char *title = ui.home ? "HOME" : pg->scope == SC_ENGINE && !is_drum(TSEL) ? e->page_title[pg->id[0] != P_E0] : pg->title;
     if (mlu.on)                                       /* MIDI LEARN on (2.6, GLO + F#3) */
         title = "LEARN";
-    if (shared_page(pg))
+    if (pg->graph == GR_SPATT && !ui.home)              /* (wave 11) SAVE > PATTERNS: the whole project's, no voice's tag */
+        op_header("SAVE", TE_G4, title, &ui.head_sig);
+    else if (shared_page(pg))
         op_header(pg->fam == FAM_MFX ? "MIX" : "GLO", TE_G4, title, &ui.head_sig);   /* (wave 9: the whole mix's, after a
                                                          * voice's FX in the FX group: MIX, never a voice's tag) */   /* (wave 7: the button that opens them) */
     else if (drums_page(pg))
@@ -390,6 +392,25 @@ static void graph_user(void)
     }
 }
 
+/* (wave 11) SAVE > PATTERN: the four patterns, stored or empty, the one playing marked, the one KNOB 1 picks in white */
+static uint8_t spatt_sel;                               /* the pattern KNOB 1 picks (0..3) */
+static int32_t patt_shown(void);                        /* (ui_layers.c) */
+static void graph_spatt(void)
+{
+    uint32_t i, ready = arrangement_ready();
+    int32_t pl = patt_shown();
+    for (i = 0; i < 4u; i++) {
+        int32_t y = 6 + (int32_t)i * 26;
+        char b[2] = {(char)('A' + i), 0};
+        int sel = i == spatt_sel, used = (ready >> i) & 1u;
+        if (sel)
+            cv_rect(4, y + 6, 3, 3, C_WHITE);
+        cv_text(14, y, &FONT_S, b, sel ? C_WHITE : C_GRAY);
+        cv_text(40, y, &FONT_S, used ? "STORED" : "EMPTY", used ? (sel ? C_WHITE : C_HI) : C_DIM);
+        if (pl == (int32_t)i)
+            cv_text(130, y, &FONT_S, "PLAYING", TE_G4);
+    }
+}
 /* the song's parts A..D (SAVE > PARTS): used / empty, the selected one in white */
 static void graph_slots(void)
 {
@@ -713,6 +734,10 @@ static void draw_graph(void)
             cv_oy = 0;
             graph_user();
             break;
+        case GR_SPATT:
+            cv_oy = 0;
+            graph_spatt();
+            break;
         default:
             if (big_page(pg)) {
                 cv_oy = 0;
@@ -730,11 +755,11 @@ static void draw_graph(void)
         }
     }
     if (!ui.home && !drum_note && !is_drum(t) && !big_page(pg) && pg->graph != GR_BROWSE && pg->graph != GR_SLOTS &&
-        pg->graph != GR_USER) {                      /* over a graph (they keep to the lower rows): the track's sound */
+        pg->graph != GR_USER && pg->graph != GR_SPATT) {                      /* over a graph (they keep to the lower rows): the track's sound */
         cv_oy = 0;
         op_names(t);
     }
-    top = !ui.home && !drum_note && (pg->graph == GR_BROWSE || pg->graph == GR_SLOTS || pg->graph == GR_USER ||
+    top = !ui.home && !drum_note && (pg->graph == GR_BROWSE || pg->graph == GR_SLOTS || pg->graph == GR_USER || pg->graph == GR_SPATT ||
                                      big_page(pg));   /* these draw from the top */
     cv_oy = 0;
     if (ui.hot_t && settings.zoom && !(top && big_page(pg) && !drum_note)) {   /* (the big values show it already) */                 /* focus (menu ZOOM): the touched value, large and white */
@@ -860,6 +885,14 @@ static void draw_columns_set(void)
         fmt_int(u + 1, (int32_t)total);
         draw_column(0, "No.", val, u, VAL(0u), -1, ICON_NONE);
         draw_column(1, "ENG", ENGINES[TSEL->eng_req]->name, "", VAL(1u), -1, engine_icon(ENGINES[TSEL->eng_req]->name));
+        draw_column(2, "", "", "", C_HI, -1, ICON_AUTO);
+        draw_column(3, "", "", "", C_HI, -1, ICON_AUTO);
+        return;
+    }
+    if (cur_page()->graph == GR_SPATT) {                 /* (wave 11) PATT, then STORE (a GO) */
+        val[0] = (char)('A' + spatt_sel % 4u), val[1] = 0;
+        draw_column(0, "PATT", val, "", VAL(0u), (int32_t)spatt_sel * 333, ICON_AUTO);
+        draw_column(1, "STORE", "--", "", C_HI, -1, ICON_AUTO);
         draw_column(2, "", "", "", C_HI, -1, ICON_AUTO);
         draw_column(3, "", "", "", C_HI, -1, ICON_AUTO);
         return;
