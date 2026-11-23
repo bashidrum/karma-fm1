@@ -355,6 +355,8 @@ const ARROWS = { ArrowUp: [EN.SELECT, 1], ArrowDown: [EN.SELECT, -1], ArrowRight
 const MASTER_KEYS = { PageUp: 1, Backslash: 1, PageDown: -1, Backquote: -1 };
 addEventListener("keydown", (e) => {
   if (!node || e.metaKey || e.ctrlKey || e.altKey || e.target.closest?.(".hit.knob")) return;
+  // (wave 12) PRESETS from the keyboard: Shift + Left / Right (or Down / Up): the drums' sound on the drum screen, the kit on HOME
+  if (e.shiftKey && ARROWS[e.code]) { turn(knobs.find((k) => k.role === EN.PRESETS), ARROWS[e.code][1]); e.preventDefault(); return; }
   if (ARROWS[e.code]) { const [r, n] = ARROWS[e.code]; turn(knobs.find((k) => k.role === r), n); e.preventDefault(); return; }
   if (MASTER_KEYS[e.code]) { turn(knobs.find((k) => k.role === "master"), MASTER_KEYS[e.code]); e.preventDefault(); return; }
   const m = KEYMAP[e.code];
