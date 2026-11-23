@@ -484,3 +484,13 @@ Claude's grid, for him to confirm when he sees it. Four columns of four, one typ
 - keys 9 to 12, FILTER: ISO LO, ISO MID, ISO HI, MOTION
 - keys 13 to 16, COLOUR: CRUSH, PHASER, JET, VOWEL
 The eleven black keys stay a row, on one line of the screen with shorter names: V1 V2 V3, the four drum mutes, reverse, stop, sweep down, sweep up.
+
+### 23 Nov 2026, 22:31: kick first, and the save screen, in Ben's words
+
+"The analog rytm has a similar function to finger drum on its own 16 step sequencer buttons and the order of those is: ... Track 1 (BD): Bass Drum, Track 2 (SD): Snare Drum, Track 3 (RS): Rim Shot, Track 4 (CP): Clap, Track 5 (BT), Track 6 (LT), Track 7 (MT), Track 8 (HT), Track 9 (CH), Track 10 (OH), Track 11 (CY), Track 12 (CB) ...
+
+Our order is different but the kick is still first,Our order is very similar I'm confused as to why the Kick can't be first in our model while keeping the 16 note grid look as we've discussed?
+
+Also, in regard to the screenshot that I've attached. I tried to save a little sketch I'd made and was met with a screen that mentioned saving keys and I had no idea what that was about."
+
+(The screenshot: the hold-SAVE layer kept open, reading "KEYS: STORE  - UNDO  + REDO  LOCK" over four tiles SAVE A to SAVE D.)
