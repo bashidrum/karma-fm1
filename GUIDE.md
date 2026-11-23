@@ -63,23 +63,55 @@ Colour always means something:
 
 ## 2. The controls and the screen
 
+### How to move around: four ways, in this order
+
+Ben's rule for the whole instrument (23 Nov 2026). Everything you reach, you reach the first way; the others are extras.
+
+1. **Press a labelled button.** Its features show, and KNOB 1 to 4 set them. Pressing the **same button again** goes to its **next category** (EDIT: OSC, then FILT, then OSC again). A button never walks pages and never jumps to another button's things.
+2. **SEL is the PAGE button.** A tap of **SEL** goes to the **next page** inside the category shown (OSC: OSC 2, OSC 3, OSC 4, then OSC again). A category with one page: SEL does nothing.
+3. **The SELECT knob is knob 5: the TYPE.** On a synth page it turns that page's type (the oscillator Type, the filter's TYPE, an insert's TYPE, the LFO's WAVE, the SLICER's mode). On the drum screen it picks the sound (one of the 16). It never walks pages and never sets the tempo. What it turns is written in the header, in a dark chip with a little dial: no chip, SELECT does nothing there.
+4. **Long presses are shortcuts or performance layers**, never the only way to something: hold FX for PERFORM, GLO for the mixer, SAVE for patterns A to D, EDIT to erase, ARP to roll, SEQ for the pattern's settings (also SEQ's PATTERN page). **Button combos are the last resort**, kept only where one button is always the same and the link is obvious: SEQ + OCT- halves the pattern, SEQ + OCT+ doubles it as a clone, EDIT + OCT- / OCT+ undo and redo.
+
+The tab row above the dials always shows **the categories of the button you pressed** (the one shown filled) and, at the right, **the page inside it** ("2/4"). So the next press is never a surprise: the button moves along the tab row, SEL moves the "2/4".
+
+### The button map
+
+| Button | Tap | Tap again (its next category, round) | SEL (the next page inside) | Hold | SELECT turns |
+| --- | --- | --- | --- | --- | --- |
+| **EDIT** | synth: **OSC**. Drums: **SRC** | synth: FILT, OSC. Drums: FLTR, SRC | OSC: OSC 2, 3, 4. FILT: FILT 2. SRC: 2/3, 3/3. FLTR: 2/2 (synthesised kits) | ERASE (keys erase; KNOB 1 SHIFT, KNOB 3 TRANSP); + OCT- undo, + OCT+ redo | synth: OSC the Type, FILT the filter TYPE. Drums: the sound |
+| **ENV** | synth: **AMP** envelope. Drums: **AMP** | synth: FILT envelope, AMP. Drums: AMP again | drums: AMP 2/2 | | nothing (synth); the sound (drums) |
+| **LFO** | synth: **LFO 1**. Drums: **LFO** | synth: LFO 2, MATRIX, LFO 1. Drums: LFO again | LFO 1: its sync page. Drums: LFO 2/2 | | synth: LFO 1 and LFO 2's WAVE. Drums: the sound |
+| **FX** | synth: **INS** (this voice's inserts). Drums: **FILTER** (the drum voice's) | synth: SENDS, SLICER, **MIX**. Drums: INS, SENDS, SLICER, **MIX**. Then round | INS: FX 1, 2, 3. Drums INS: INSERT, INSERT 2. MIX: DELAY, REV/CHO, MASTER | PERFORM (the pads) | synth: FX 1 to 3 the insert TYPE, SLICER its mode. Drums: the sound |
+| **SEQ** | the GRID (drums: the drum screen) on **TRIG** | PATTERN (GATE DIV SWING STEPS), TRIG | TRIG: TRIG 2/2 | STEPS (the pattern's settings, a shortcut); + OCT- halve, + OCT+ double (a clone) | nothing (synth GRID's TRIG, PATTERN); the sound (drums) |
+| **ARP** | synth: **ARP** (the arpeggiator). Drums: **CHROMATIC** | synth: KEY (key, scale, chord), ARP. Drums: CHROMATIC off | ARP: ARP 2. KEY: KEY 2 | ROLL (drums: RETRIG) | nothing |
+| **SEL** | **PAGE**: the next page of the category shown | (the same) | | nothing (left unused) | |
+| **GLO** | **GLOBAL** | SYSTEM, MIDI, DEVICE (the menu), GLOBAL | MIDI: MIDI 2, MIDI 3. DEVICE: SCREEN, LIGHTS, AUDIO, SYSTEM | the mixer (drums selected: the 16 sounds' mutes) | nothing |
+| **SAVE** | **PRESETS** | USER, TOOLS, PRESETS | | patterns A to D | nothing |
+| **HOME** | **HOME** | the screensaver, HOME | screensaver: the next one | the menu (a shortcut to GLO's DEVICE) | nothing |
+| **REC** | record / arm (synth GRID, stopped: STEP REC) | stop | | clear the voice; with a question showing: yes (the one confirm) | |
+| **PLAY** | start / stop | | | | |
+| **OCT- / OCT+** | octave; pages of steps on the GRID | | | OCT+ with a pad or F#5 held: latch. OCT- / OCT+ held + a drum key: ghost / hard hit | |
+
+On the GRID and the drum screen the same buttons choose the same categories, with or without a step held, and the keys stay steps. So a lock on any page is: **hold the step, press the page's button (and SEL) until its page shows, turn a knob** (or SELECT, for a type that can be locked).
+
 ### The FM-1's controls
 
 | Control | Name in this manual | Main job |
 | --- | --- | --- |
 | Buttons | **PLAY**, **REC** | transport and recording; hold REC: the one confirm |
-| Buttons | **HOME**, **SAVE** | the HOME screen; the SAVE pages (presets, tools) |
-| Buttons | **ENV**, **LFO**, **FX**, **SEL**, **EDIT**, **ARP**, **SEQ**, **GLO** | tap: open pages. Hold: a layer (below). **FX** is always the whole mix |
+| Buttons | **HOME**, **SAVE** | the HOME screen (again: the screensaver); the SAVE pages (presets, user presets, tools) |
+| Buttons | **ENV**, **LFO**, **FX**, **EDIT**, **ARP**, **SEQ**, **GLO** | tap: the button's categories, one a press. Hold: a layer (below) |
+| Button | **SEL (PAGE)** | the next page of the category shown. Held: nothing |
 | Buttons | **OCT-**, **OCT+** | octave; pages of steps; OCT+ is the latch (PERFORM pads, drum FILL) |
-| Knob | **ALGORITHM** | choose the voice: 1, 2, 3, DRUM |
+| Knob | **ALGORITHM** | choose the voice: 1, 2, 3, DRUM (on the GRID, past DRUM: the STUTTER lane) |
 | Knob | **PRESETS** | the voice's sounds (the drums: the kit) |
-| Knob | **SELECT** | walk the pages, tabs and halves (on HOME: the screensavers). Never the tempo |
+| Knob | **SELECT** | knob 5: the TYPE of a synth page; the SOUND on the drum screen. Never a page, never the tempo |
 | Knobs | **KNOB 1** to **KNOB 4** | the four values on the screen, under the four dials |
 | Knob | **MASTER** | the output volume |
 | Keys | **key 1** to **key 16** | the 16 white keys, F3 to G5 |
 | Keys | the **black keys** | F#3, G#3, A#3, C#4, D#4, F#4, G#4, A#4, C#5, D#5, F#5. "Black keys 1 to 4" are the first four |
 
-SEL is the button between FX and ENV. SELECT is the knob.
+SEL is the button between FX and ENV (printed SEL; in this manual **SEL (PAGE)**). SELECT is the knob.
 
 | Key | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -91,11 +123,11 @@ SEL is the button between FX and ENV. SELECT is the knob.
 
 | Gesture | The one way | Where |
 | --- | --- | --- |
-| **Confirm** | anything that erases or replaces asks first in a white bar, **HOLD REC: ...** (HOLD REC: NEW, HOLD REC: LOAD U07, HOLD REC: REPLACE 606\*, HOLD REC: CLEAR PADS, HOLD REC: STORE B). **Hold REC**: a red ring fills (about 1.3 seconds); full, it is done. Let go early: nothing, the question stays. Tap REC, press another button or leave the screen: the question goes. Nothing records while a question shows | SAVE > USER (LOAD, ERASE, SAVE), SAVE > TOOLS (CLRSQ, INIT, NEW), storing over a used pattern, replacing your edited kit, clearing the lane's pads. Hold REC with no question: clear the selected voice (the same ring) |
-| **Keep a layer open** | hold its button about 0.7 seconds without touching anything, then let go: **LOCK** shows. The same button again, HOME or any page button lets it go (PLAY, REC, OCT- and OCT+ do not) | every layer: FX, EDIT, ARP, SEQ, SEL, GLO, SAVE |
+| **Confirm** | anything that erases or replaces asks first in a white bar, **HOLD REC: ...** (HOLD REC: NEW, HOLD REC: LOAD U07, HOLD REC: REPLACE 606\*, HOLD REC: CLEAR PADS, HOLD REC: STORE B, HOLD REC: HALVE TO 8). **Hold REC**: a red ring fills (about 1.3 seconds); full, it is done. Let go early: nothing, the question stays. Tap REC, press another button or leave the screen: the question goes. Nothing records while a question shows | SAVE > USER (LOAD, ERASE, SAVE), SAVE > TOOLS (CLRSQ, INIT, NEW), storing over a used pattern (keep SAVE held), halving a pattern that has steps in its second half (keep SEQ held), replacing your edited kit, clearing the lane's pads. Hold REC with no question: clear the selected voice (the same ring) |
+| **Keep a layer open** | hold its button about 0.7 seconds without touching anything, then let go: **LOCK** shows. The same button again, HOME or any page button lets it go (PLAY, REC, OCT- and OCT+ do not) | every layer: FX, EDIT, ARP, SEQ, GLO, SAVE |
 | **Latch** | **OCT+** with the thing held (or the thing pressed with OCT+ held). Press it again to let it go; STOP ends every latch | PERFORM pads, the drum FILL (F#5) |
 
-Nothing is reached by pressing twice quickly, and nothing is deeper than a hold. Pressing a page button again walks its pages (ENV: AMP, then FILT), which is not a double press: there is no timing.
+Nothing is reached by pressing twice quickly, and nothing is deeper than a hold. Pressing a button again goes to its next category: there is no timing in it, so it is not a double press.
 
 ### The times, all of them
 
@@ -108,17 +140,17 @@ Nothing is reached by pressing twice quickly, and nothing is deeper than a hold.
 
 ### Tap and hold: the layers
 
-Tap a button to open its pages. Hold it and the keys and knobs do something else for as long as you hold it. That is a **layer**.
+Tap a button for its categories. Hold it and the keys and knobs do something else for as long as you hold it. That is a **layer**: a performance layer or a shortcut to something that also has a page.
 
-| Hold | Layer | For |
-| --- | --- | --- |
-| **FX** | PERFORM | the effect pads ([section 6](#6-perform-the-pads)) |
-| **EDIT** | ERASE | erase notes or sounds, shift, double, transpose, undo |
-| **ARP** | ROLL | note repeat (on the drums: RETRIG) |
-| **SEQ** | STEPS | the pattern's GATE, DIV, SWING and STEPS |
-| **SEL** | KEY | key, scale and chord (on the drums: SOUND, the sound pick) |
-| **GLO** | MIX | levels, mute, solo, fill, pan |
-| **SAVE** | PATTERN | play and store the patterns A to D |
+| Hold | Layer | For | Its normal home too |
+| --- | --- | --- | --- |
+| **FX** | PERFORM | the effect pads ([section 6](#6-perform-the-pads)) | performance |
+| **EDIT** | ERASE | erase notes or sounds, shift, transpose; + OCT- / OCT+ undo, redo | performance |
+| **ARP** | ROLL | note repeat (on the drums: RETRIG) | performance |
+| **SEQ** | STEPS | the pattern's GATE, DIV, SWING and STEPS; + OCT- halve, + OCT+ double | SEQ's PATTERN page |
+| **GLO** | MIX | levels, mute, solo, fill, pan (the drums selected: the 16 sounds' mutes and solos) | performance |
+| **SAVE** | PATTERN | play and store the patterns A to D | performance |
+| **SEL** | nothing | left unused | |
 
 A layer shows after about 0.14 seconds, so a tap does not flash it. To keep a layer open without holding it, hold its button about 0.7 seconds without touching anything, then let go: the line under the header says **LOCK**. Any other button lets it go, the same button too, except PLAY, REC, OCT- and OCT+.
 
@@ -126,9 +158,9 @@ A layer shows after about 0.14 seconds, so a tap does not flash it. To keep a la
 
 Every screen has the same frame, top to bottom:
 
-1. **The header.** A boxed **tag** says what the screen acts on: **1**, **2**, **3** (a synth voice), **DRUM**, **HOME**, **STUT** (the STUTTER lane), **FX** (the whole mix's effects), **GLO** (settings), **REC**, or on a layer the button you hold (**FX**, **EDIT**, **ARP**, **SEQ**, **SEL**, **GLO**, **SAVE**). Then the title (the sound's name, the kit, the page or the layer), the tempo, a play or stop symbol, four beat lights (beat 1 red only while recording), a red disc while recording or a small white **unsaved dot**, and the battery. While a fill is on, **FILL** shows inverted in white; while PERFORM pads are latched, **PERF** and how many.
+1. **The header.** A boxed **tag** says what the screen acts on: **1**, **2**, **3** (a synth voice), **DRUM**, **HOME**, **STUT** (the STUTTER lane), **MIX** (the whole mix's effects, white), **GLO** (settings), **REC**, or on a layer the button you hold (**FX**, **EDIT**, **ARP**, **SEQ**, **GLO**, **SAVE**). Then the title (the sound's name, the kit, the page or the layer) or, where SELECT turns something, **the SELECT chip** in its place: a little dial and the value SELECT turns (LP24, ACID, DIST, SINE, SNARE), on the dark shade of the voice's colour, filled for a moment as you turn it. Then the tempo, a play or stop symbol, four beat lights (beat 1 red only while recording), a red disc while recording or a small white **unsaved dot**, and the battery. While a fill is on, **FILL** shows inverted in white; while PERFORM pads are latched, **PERF** and how many.
 2. **The body.** What the screen is about: the steps, a graph, the pads.
-3. **The tabs** (on the sound pages, the GRID and the drum screen): the pages of the voice, the one shown inverted, and "1/3" at the right for the half of the page shown. On a layer, a line here says what it does now; a message shows there as a white bar.
+3. **The tabs** (on every page screen, the GRID and the drum screen): the categories of the button you pressed, the one shown filled, and "2/4" at the right: the page inside it (SEL's). On FX the voice's categories come first in the voice's colour, then a divider and **MIX** in white: the whole mix. On a layer, a line here says what it does now; a message shows there as a white bar.
 4. **The dials.** Four dials, one over each knob: the name above, the value beside it in one tall face, always in a fixed 40-pixel column, so a value never runs into the next one. The knob you are turning has its name inverted and its value underlined. A grey value does nothing in the current setting. A value **locked** on the step you hold is drawn **inverted**. A short message replaces the dials as a white bar.
 5. **The strip.** The four voices' heads, numbered 1 2 3 DR. The selected voice is underlined and its number is in its colour. A yellow **M** means muted, an ice-blue **S** soloed, a red dot recording.
 
@@ -138,9 +170,9 @@ Tap **HOME**. The header says **PATTERN A** (to D) while a pattern plays, otherw
 
 | Part | Shows |
 | --- | --- |
-| **deck** | BAR and the bar of the selected voice's loop; a strip of the **FLOW** backdrop, a band per voice in its colour that swells as that voice gets louder (it flows while something plays and stands still otherwise), with a **>** after it: SELECT right opens it full screen; the patterns **A B C D**: the one playing filled white, the one asked for next outlined white, the stored ones outlined grey |
+| **deck** | BAR and the bar of the selected voice's loop; a strip of the **FLOW** backdrop, a band per voice in its colour that swells as that voice gets louder (it flows while something plays and stands still otherwise), with a **>** after it: HOME again opens it full screen; the patterns **A B C D**: the one playing filled white, the one asked for next outlined white, the stored ones outlined grey |
 | **SYNTH** | the three melodic voices side by side: each sound's name in its voice's colour, with **M**, **S** or a red dot, and under it the 16 steps in view (a note in the voice's colour, a tie dim, the step playing white). **The selected voice's name is inverted.** A muted voice's name is grey |
-| **DRUM** | DRUM (inverted when the drums are selected), M or S for the drum voice, the kit (a * after the name when your copy plays), how many sounds MUTE mode has muted (yellow M and a number) or soloed (ice-blue S), the selected sound's name, and the 16 steps in view: a step with the selected sound's hit in coral, with other sounds' hits dim coral, with only muted sounds grey, the step playing underlined white |
+| **DRUM** | DRUM (inverted when the drums are selected), M or S for the drum voice, the kit (a * after the name when your copy plays), how many sounds the mixer has muted (yellow M and a number) or soloed (ice-blue S), the selected sound's name, and the 16 steps in view: a step with the selected sound's hit in coral, with other sounds' hits dim coral, with only muted sounds grey, the step playing underlined white |
 | **PERFORM** | **LANE ON** or **LANE OFF** for the STUTTER lane, the latched pads by name at the right (or "3 LATCHED" when the names do not fit), and the lane's 16 steps in view: lit steps grey, a run of lit steps of one length drawn as one bar, the step playing underlined |
 
 The HOME knobs play the selected voice while it plays:
@@ -152,7 +184,7 @@ The HOME knobs play the selected voice while it plays:
 | **KNOB 3 STUT** | the STUTTER lane ON (turn right) or OFF (turn left). White-grey: it acts on the whole mix |
 | **KNOB 4 LEVEL** | the voice's level. On a muted voice the first turn unmutes it |
 
-All four values are in the same tall face as on every page. On HOME, **PRESETS** browses the selected voice's sounds and **SELECT** right opens the screensavers, HOME's pages ([section 10](#10-settings-midi-and-usb)). The tempo is set in one place: **GLO > GLOBAL, KNOB 1 BPM**; every header shows it.
+All four values are in the same tall face as on every page. On HOME, **PRESETS** browses the selected voice's sounds and **HOME** again opens the screensaver, HOME's second category ([section 10](#10-settings-midi-and-usb)). SELECT does nothing on HOME. The tempo is set in one place: **GLO > GLOBAL, KNOB 1 BPM**; every header shows it.
 
 ---
 
@@ -163,16 +195,16 @@ This takes you from a new project to a saved groove. Start with **SAVE > TOOLS >
 **1. A drum pattern (two minutes).**
 
 1. Turn **ALGORITHM** to **DRUM** and tap **SEQ**. The drum screen opens: the 16 white keys are the steps of the selected sound.
-2. Hold **SEL** and press **key 1**: KICK is selected (you hear it). Let go of SEL. Tap keys **1, 5, 9 and 13**: four kicks.
-3. Hold **SEL** and press **key 3**: SNARE. Tap keys **5 and 13**.
-4. Hold **SEL** and press **key 5**: HAT. Tap keys 3, 7, 11 and 15.
+2. Turn **SELECT** until the header's chip says **KICK** (you hear each sound as you pass it). Tap keys **1, 5, 9 and 13**: four kicks.
+3. Turn **SELECT** to **SNARE**. Tap keys **5 and 13**.
+4. Turn **SELECT** to **HAT**. Tap keys 3, 7, 11 and 15.
 5. Press **PLAY**.
 
-**2. Lock a hit (one minute).** Hold **SEL** + **key 3** to select the snare again. **Hold key 13** (the second snare), tap **ENV** to show the AMP page, and turn **KNOB 2** (DECAY) right. Let go. Only that snare is longer: its value was drawn inverted while you held it, and its step now has a small black square. To take the lock off, hold the step and press **OCT-**.
+**2. Lock a hit (one minute).** Turn **SELECT** back to the snare. **Hold key 13** (the second snare), tap **ENV** to show the AMP page, and turn **KNOB 2** (DECAY) right. Let go. Only that snare is longer: its value was drawn inverted while you held it, and its step now has a small black square. To take the lock off, hold the step and press **OCT-**.
 
 **3. A bass line (two minutes).** Turn **ALGORITHM** to **1**. You stay on the GRID, now voice 1's. Press **PLAY** to stop. Tap **REC**: the title reads STEP REC and a red frame marks the step the next note goes on. Play a note on the keys: it lands on that step and the frame moves on. Press **SEQ** for a rest, **ARP** to tie the note before. Tap **REC** to finish. Press **PLAY**.
 
-**4. Open the filter (one minute).** Tap **HOME**. While it plays, turn **KNOB 1 CUTOFF** and **KNOB 2 DECAY**. For the full filter page tap **EDIT** twice (OSC, then FILT): KNOB 2 is RESO.
+**4. Open the filter (one minute).** Tap **HOME**. While it plays, turn **KNOB 1 CUTOFF** and **KNOB 2 DECAY**. For the full filter page tap **EDIT** twice (OSC, then FILT): KNOB 2 is RESO, and **SELECT** turns the filter's TYPE.
 
 **5. A chord track (two minutes).** Turn **ALGORITHM** to **2** (JUNO, polyphonic). Tap **SEQ** for its GRID, stop the song and tap **REC**. Hold three keys together and let go: the chord goes onto the step when the last key comes up. Write four chords, using **SEQ** for rests. Tap **REC** to finish and press **PLAY**.
 
@@ -192,39 +224,41 @@ Every synth sound is one chain of five stages, in signal order, the same on ever
 
 The oscillator makes the sound, the filter shapes it (before the amp, so a ringing filter dies with the note), the amp envelope shapes its level, three insert slots colour it and its sends feed the whole mix's delay, reverb and chorus, and the mod matrix moves it.
 
-| Button | On the chain |
-| --- | --- |
-| **EDIT** | enters at OSC; on the chain, the next stage (MOD goes round to OSC) |
-| **ENV**, **LFO** | that stage's first page; again, its next page |
-| **ENV, then EDIT** | the FX stage (this voice's inserts and sends): the FX button is the whole mix, never a voice |
-| **SELECT** | every page of the chain, one by one, stopping at both ends |
-| **SEQ** | the GRID, on this page's tab (the keys become steps) |
+| Button | Its categories (again: the next, round) | SEL: the pages inside |
+| --- | --- | --- |
+| **EDIT** | **OSC**, **FILT** | OSC 1 to 4; FILT 1, 2 |
+| **ENV** | **AMP**, **FILT** (the filter's own envelope) | one page each |
+| **LFO** | **LFO 1**, **LFO 2**, **MATRIX** | LFO 1: LFO, its sync page |
+| **FX** | **INS**, **SENDS**, **SLICER** (this voice, its colour), then **MIX** (the whole mix, white) | INS: FX 1, 2, 3. MIX: DELAY, REV/CHO, MASTER |
+| **SEQ** | the GRID: **TRIG**, **PATTERN** | TRIG 1/2, 2/2 |
+| **ARP** | **ARP**, **KEY** | ARP, ARP 2; KEY, KEY 2 |
+| **SELECT** | the page's TYPE: OSC the Type, FILT the filter TYPE, FX 1 to 3 the insert TYPE, SLICER its mode, LFO 1 and LFO 2 their WAVE. ENV, SENDS, MATRIX, ARP, KEY have none: SELECT does nothing there | |
 
 On a sound page the keys play notes. Each page shows its subject large in the voice's colour and draws what the knobs do: the wave, the filter's response and its envelope's sweep, the envelopes, the FX slots, the LFOs, the matrix grid.
 
 ### Pages
 
-| Page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
-| --- | --- | --- | --- | --- |
-| **OSC 1/4** | **TYPE** (31) | macro 1 | macro 2 | macro 3 |
-| **OSC 2/4** | **OCT** (-3 to +3) | **TUNE** (-99 to +99 cents) | **GLIDE** | **VOICE** (POLY, MONO, LEG, UNI) |
-| **OSC 3/4** | the Type's 4th control | the Type's 5th control | **DTUNE** (unison spread) | **PRIOR** (LAST, LOW, HIGH) |
-| **OSC 4/4** | **GLMODE** (RATE: GLIDE is the time an octave takes; TIME: the time any glide takes) | **ALLOC** (ROT: notes take the voices in turn; REUSE: the nearest free one) | | |
-| **FILT 1/2** | **CUTOFF** | **RESO** | **ENV** (how far the filter's envelope moves it, either way) | **TYPE**: LP24, LP12, BP, HP |
-| **FILT 2/2** | **DRIVE** | **KEY** (the cutoff follows the note) | **LINK**: AMP or OWN | |
-| **ENV 1/2** AMP | **ATTACK** | **DECAY** | **SUSTN** | **RELEAS** |
-| **ENV 2/2** FILT | **ATTACK** | **DECAY** | **SUSTN** | **RELEAS** (the filter's own envelope) |
-| **FX 1**, **FX 2**, **FX 3** | **TYPE** | TIME | INTENS | AMOUNT (named by the type) |
-| **SENDS** | **DELAY** | **REVERB** | **CHORUS** | |
-| **SLICER** | **SLCR** | **PAT** | **RATE** | **DEPTH** |
-| **LFO** | **RATE** | **WAVE** | **PHASE** | **FADE** |
-| **LFO SYNC** | **SYNC** | **TRIG** (NOTE, FREE, PATT) | **POL** | **ESYNC** (both envelopes in note values) |
-| **LFO 2** | **RATE** | **WAVE** | **SYNC** | **TRIG** (NOTE, FREE, PATT; FREE to start) |
-| **MATRIX** | **SOURCE** (row) | **DEST** (column) | **AMOUNT** | **CLEAR** (on AS1, AS2: **TARGET**) |
+| Page | SELECT | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
+| --- | --- | --- | --- | --- | --- |
+| **OSC 1/4** | **TYPE** (31) | macro 1 | macro 2 | macro 3 | the Type's 4th control |
+| **OSC 2/4** | TYPE | **OCT** (-3 to +3) | **TUNE** (-99 to +99 cents) | **GLIDE** | **GLMODE** (RATE: GLIDE is the time an octave takes; TIME: the time any glide takes) |
+| **OSC 3/4** | TYPE | the Type's 5th control | **VOICE** (POLY, MONO, LEG, UNI) | **DTUNE** (unison spread) | **PRIOR** (LAST, LOW, HIGH) |
+| **OSC 4/4** | TYPE | **ALLOC** (ROT: notes take the voices in turn; REUSE: the nearest free one) | | | |
+| **FILT 1/2** | **TYPE**: LP24, LP12, BP, HP | **CUTOFF** | **RESO** | **ENV** (how far the filter's envelope moves it, either way) | **DRIVE** |
+| **FILT 2/2** | TYPE | **KEY** (the cutoff follows the note) | **LINK**: AMP or OWN | | |
+| **ENV** AMP | | **ATTACK** | **DECAY** | **SUSTN** | **RELEAS** |
+| **ENV** FILT | | **ATTACK** | **DECAY** | **SUSTN** | **RELEAS** (the filter's own envelope) |
+| **FX 1**, **FX 2**, **FX 3** | **TYPE** | TIME | INTENS | AMOUNT (named by the type) | |
+| **SENDS** | | **DELAY** | **REVERB** | **CHORUS** | |
+| **SLICER** | **SLCR** (its mode) | **PAT** | **RATE** | **DEPTH** | |
+| **LFO 1** | **WAVE** | **RATE** | **PHASE** | **FADE** | **POL** |
+| **LFO 1** sync | WAVE | **SYNC** | **TRIG** (NOTE, FREE, PATT) | **ESYNC** (both envelopes in note values) | |
+| **LFO 2** | **WAVE** | **RATE** | **SYNC** | **TRIG** (NOTE, FREE, PATT; FREE to start) | |
+| **MATRIX** | | **SOURCE** (row) | **DEST** (column) | **AMOUNT** | **CLEAR** (on AS1, AS2: **TARGET**) |
 
 ### The oscillator
 
-KNOB 1 on OSC picks the **Type** from one list of 31, the same on every voice: ACID (the 303), JUNO (the Juno DCO), the Plaits models (VA, VA VCF, FOLD, PHASE D, 2-OP FM, 6-OP A, B, C, WAVETABLE, TERRAIN, ADDITIVE, CHORD, STR MACH, SWARM, FORMANT, CHIPTUNE, STRING, MODAL, NOISE, SPEECH, PARTICLE, KICK, SNARE, HI-HAT) and the Elements models (BOUNCE, PLUCKED, BOWED, BLOWN, OMINOUS). KNOB 2 to 4 are its three macros, renamed for each Type (VA: DETUNE, SQUARE, SAW; ACID: WAVE, ACCENT, SLIDE; JUNO: WAVE, PW, SUB). Turning TYPE changes only the oscillator: the filter, envelopes, FX and voice stay. Another engine's Type starts its macros at plain defaults. ACID plays one note at a time, JUNO up to six, the heavy models (6-OP, STR MACH, STRING, SPEECH, PARTICLE, BOWED, BLOWN, OMINOUS) one.
+**SELECT** on any OSC page picks the **Type** from one list of 31, the same on every voice: ACID (the 303), JUNO (the Juno DCO), the Plaits models (VA, VA VCF, FOLD, PHASE D, 2-OP FM, 6-OP A, B, C, WAVETABLE, TERRAIN, ADDITIVE, CHORD, STR MACH, SWARM, FORMANT, CHIPTUNE, STRING, MODAL, NOISE, SPEECH, PARTICLE, KICK, SNARE, HI-HAT) and the Elements models (BOUNCE, PLUCKED, BOWED, BLOWN, OMINOUS). KNOB 1 to 3 are its three macros and KNOB 4 its fourth control, renamed for each Type (VA: DETUNE, SQUARE, SAW; ACID: WAVE, ACCENT, SLIDE; JUNO: WAVE, PW, SUB). Turning TYPE changes only the oscillator: the filter, envelopes, FX and voice stay. Another engine's Type starts its macros at plain defaults. ACID plays one note at a time, JUNO up to six, the heavy models (6-OP, STR MACH, STRING, SPEECH, PARTICLE, BOWED, BLOWN, OMINOUS) one.
 
 ### The filter
 
@@ -236,18 +270,18 @@ One resonant filter on every voice: a four-pole ladder whose TYPE gives 24 or 12
 
 ### FX: inserts and sends
 
-The FX stage is this voice's own, in its colour. Three **insert** slots in series after the filter, all OFF to start. KNOB 1 picks a slot's TYPE; KNOB 2 to 4 are named by the type:
+**FX** first opens this voice's own effects, in its colour: **INS** (SEL: FX 1, FX 2, FX 3), then **SENDS**, then **SLICER**; one more press is **MIX**, the whole mix's effects in white ([section 9](#9-fx-glo-and-the-mixer)). Three **insert** slots in series after the filter, all OFF to start. **SELECT** picks a slot's TYPE; KNOB 1 to 3 are named by the type:
 
-| Type | KNOB 2 | KNOB 3 | KNOB 4 |
+| Type | KNOB 1 | KNOB 2 | KNOB 3 |
 | --- | --- | --- | --- |
 | **PHASER**, **FLANGER** | RATE | FDBK | MIX |
 | **DIST**, **SOFT**, **HARD**, **FOLD**, **FUZZ** | TONE | DRIVE | MIX |
 | **CRUSH** | RATE | BITS | MIX |
 | **EQ** | LOW | MID | HIGH (-12 to +12 dB) |
 
-A voice can have one FLANGER; KNOB 1 skips it when another slot has it.
+A voice can have one FLANGER; SELECT skips it when another slot has it.
 
-**SENDS** (after FX 3): how much of this voice goes to the whole mix's **DELAY**, **REVERB** and **CHORUS**, 0 to start. A voice has three inserts and all three sends at once. The delay's time, the reverb's size and the chorus's rate are not on any voice page: they are the FX button's pages ([section 9](#9-fx-glo-and-the-mixer)).
+**SENDS** (after FX 3): how much of this voice goes to the whole mix's **DELAY**, **REVERB** and **CHORUS**, 0 to start. A voice has three inserts and all three sends at once. The delay's time, the reverb's size and the chorus's rate are not on any voice page: they are FX's MIX pages ([section 9](#9-fx-glo-and-the-mixer)).
 
 ### The mod matrix
 
@@ -260,7 +294,7 @@ A filled square is a positive amount, an empty one negative, bigger for more. Si
 
 ### The GRID: steps on the keys
 
-**Tap SEQ** for the selected voice's GRID. The 16 white keys are the 16 steps of the page shown. They play nothing. Under the steps: a line about the step held or under the cursor, the tabs **TRIG OSC FILT ENV FX MOD**, and the dials.
+**Tap SEQ** for the selected voice's GRID. The 16 white keys are the 16 steps of the page shown. They play nothing. Under the steps: a line about the step held or under the cursor, the tab row (the categories of the last button pressed) and the dials.
 
 | You do | Result |
 | --- | --- |
@@ -269,38 +303,38 @@ A filled square is a positive amount, an empty one negative, bigger for more. Si
 | **hold a step** | the step is selected: the line shows STEP n HELD, its note and its locks |
 | **hold a step and turn a knob on a sound tab** | that value is **locked** on the step (drawn inverted; the tile gets a small square) |
 | **hold a step + OCT-** | on a sound tab: the lock of the knob last turned goes; again: every lock. On TRIG: the step's locks, nudge and condition |
-| **hold a step + OCT+** | the next condition: NORMAL, FILL ONLY, NO FILL, CHANCE |
-| **EDIT**, **ENV**, **LFO** | the OSC, ENV, MOD tab (EDIT again: the next stage, so FILT, FX); ENV and LFO again: the next page. Also with a step held |
-| **SEQ** | the TRIG tab; again, TRIG's next half |
-| **SELECT** | every half of every tab, TRIG first |
+| **EDIT**, **ENV**, **LFO**, **FX** | their categories on the GRID, as on the sound pages (the keys stay steps); **SEL** the pages inside. Also with a step held |
+| **SEQ** | TRIG; again PATTERN (GATE DIV SWING STEPS); again TRIG |
+| **SELECT** | the TYPE of the page shown (a step held: locked on it, where it can be) |
 | **black keys 1 to 4** | page 1 to 4 (steps 1-16 .. 49-64) |
 | **OCT-**, **OCT+** (nothing held) | the page before or after; OCT+ on the last page adds a copy of it (up to 64 steps) |
 
-**TRIG** with a step held: KNOB 1 NOTE (by scale degrees), LEN (in steps; the steps after become ties), VEL, COND (-, FILL, NOFL, CHNC). TRIG 2/2: FLAG (-, ACC, SLD, A+S), RETRIG (x1 to x4: the step repeated in its time), NUDGE. With nothing held: NOTE (the pen), STEP (the cursor), HIT (right sets the cursor's step, left clears it), VEL.
+**TRIG** with a step held: KNOB 1 NOTE (by scale degrees), LEN (in steps; the steps after become ties), VEL, COND (-, FILL, NOFL, CHNC). TRIG 2/2 (SEL): FLAG (-, ACC, SLD, A+S), RETRIG (x1 to x4: the step repeated in its time), NUDGE. With nothing held: NOTE (the pen), STEP (the cursor), HIT (right sets the cursor's step, left clears it), VEL.
 
-**Locks.** The Rytm's way: hold a step, turn whatever is on the knobs. The page buttons still change the tab while you hold it, so you can lock the cutoff, tap ENV and lock the decay in one hold. TYPE, an FX slot's TYPE, VOICE, PRIOR and the matrix's cursor cannot be locked (grey while a step is held). A voice holds **24 locks**.
+**Locks.** The Rytm's way: hold a step, turn whatever is on the knobs. The page buttons and SEL still change the page while you hold it, so you can lock the cutoff, tap ENV and lock the decay in one hold. SELECT with a step held locks the page's type where it can (the filter's TYPE, the LFO's WAVE, the SLICER's mode); the oscillator Type, an FX slot's TYPE, VOICE, PRIOR and the matrix's cursor cannot be locked (TYPE: NOT LOCKABLE). A voice holds **24 locks**.
 
-**Spice and Dice.** On TRIG 2/2 with nothing held (turn SELECT right on TRIG): KNOB 1 **SPICE** (0 to 100 %: how much variation you hear; 0 is the pattern as written) and KNOB 2 **DICE** (each click right a new roll, left the roll before). A roll leaves notes out, moves some an octave, adds retrigs and changes velocities and lengths; the notes you wrote never change. Each pattern A to D keeps its own.
+**Spice and Dice.** On TRIG 2/2 with nothing held (SEL on TRIG): KNOB 1 **SPICE** (0 to 100 %: how much variation you hear; 0 is the pattern as written) and KNOB 2 **DICE** (each click right a new roll, left the roll before). A roll leaves notes out, moves some an octave, adds retrigs and changes velocities and lengths; the notes you wrote never change. Each pattern A to D keeps its own.
 
-**STEP REC.** With the song stopped, on a synth voice's GRID, tap **REC**. A red frame marks the step the next note goes on. Play a note or a chord (keys held together: written when the last comes up); the frame moves on. **SEQ** writes a rest, **ARP** a tie (a key held + SEQ: written and tied). OCT- and OCT+ set the octave, SELECT or KNOB 2 moves the frame, KNOB 3 the velocity, KNOB 4 the pattern length. EDIT + OCT- undoes the whole pass. Tap **REC** again to finish. With the song playing, REC on the GRID records live instead (LIVE REC).
+**STEP REC.** With the song stopped, on a synth voice's GRID, tap **REC**. A red frame marks the step the next note goes on. Play a note or a chord (keys held together: written when the last comes up); the frame moves on. OCT- and OCT+ set the octave, KNOB 2 moves the frame, KNOB 3 the velocity, KNOB 4 the pattern length. SEQ writes a rest (keys held: their notes first), ARP a tie. EDIT + OCT- undoes the whole pass. Tap **REC** again to finish. With the song playing, REC on the GRID records live instead (LIVE REC).
 
 **Undo.** **EDIT + OCT-** undoes, **EDIT + OCT+** redoes.
 
+**Halve and double.** **Hold SEQ and press OCT-**: the pattern is halved. If its second half holds anything, it asks first (HOLD REC: HALVE TO 8): keep SEQ held and hold REC until the ring fills; the second half is dropped. **Hold SEQ and press OCT+**: the pattern is doubled as a clone, its steps with their locks, nudges and conditions copied after themselves (up to 64 steps). One undo each.
+
 ### Presets
 
-**PRESETS** browses the voice's sounds, grouped by kind (BASS, KEYS, ORGN, PAD, LEAD, PLCK, STAB, FX, INIT), then your user presets. Each engine has an INIT sound. **Tap SAVE** for the SAVE pages: **PRESETS** (KNOB 1 the sound, KNOB 2 the engine), **USER** (KNOB 1 SLOT 1 to 32, KNOB 2 LOAD, KNOB 3 ERASE, KNOB 4 SAVE), **TOOLS** (KNOB 1 CLRSQ clears the pattern, KNOB 2 INIT resets the sound, KNOB 4 NEW). Each asks: turn it, then hold REC until the ring fills.
+**PRESETS** browses the voice's sounds, grouped by kind (BASS, KEYS, ORGN, PAD, LEAD, PLCK, STAB, FX, INIT), then your user presets. Each engine has an INIT sound. **Tap SAVE** for its categories, one a press: **PRESETS** (KNOB 1 the sound, KNOB 2 the engine), **USER** (KNOB 1 SLOT 1 to 32, KNOB 2 LOAD, KNOB 3 ERASE, KNOB 4 SAVE), **TOOLS** (KNOB 1 CLRSQ clears the pattern, KNOB 2 INIT resets the sound, KNOB 4 NEW). Each asks: turn it, then hold REC until the ring fills.
 
-### Key, scale and chords (hold SEL)
+### Key, scale and chords (ARP, then KEY)
 
-| Control | Does |
-| --- | --- |
-| **a key** | the key of the song (the root of all three synth voices) |
-| KNOB 1 **CHORD** | OFF, TRIAD, 7TH, 9TH, SUS4, POWER |
-| KNOB 2 **SCALE** | CHROM, MAJ, MIN, DOR, MIX, PEN, MPEN, HARM, PHRY, LYD, LOC, MEL, BLUES, WHOLE, DIMHW, DIMWH |
-| KNOB 3 **KEYS** | OFF, SNAP (keys round to the scale), WHITE (white keys walk the scale, black keys silent) |
-| KNOB 4 **TRANSP** | -24 to +24 semitones |
+Ben chose to put them under ARP: tap **ARP** for the arpeggiator (SEL: ARP 2), tap it again for **KEY**:
 
-With a chord mode on, the white keys walk the scale from C4 and each plays the chord of its degree; the black keys change it while held: F# flips the third, G# adds the 7th, A# makes it sus4, C# adds the 9th, D# inverts it. Tap **SEL** for the SEL pages (ROOT, SCALE, QNT, CHORD; TRANS, STRUM, VLEAD).
+| Page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
+| --- | --- | --- | --- | --- |
+| **KEY** | **ROOT**: the key of the song (all three synth voices) | **SCALE**: CHROM, MAJ, MIN, DOR, MIX, PEN, MPEN, HARM, PHRY, LYD, LOC, MEL, BLUES, WHOLE, DIMHW, DIMWH (all three voices) | **QNT**: OFF, SNAP (keys round to the scale), WHITE (white keys walk the scale, black keys silent) | **CHORD**: OFF, TRIAD, 7TH, 9TH, SUS4, POWER |
+| **KEY 2** | **TRANS**: -24 to +24 semitones | **STRUM** | **VLEAD** (voice leading) | |
+
+With a chord mode on, the white keys walk the scale from C4 and each plays the chord of its degree; the black keys change it while held: F# flips the third, G# adds the 7th, A# makes it sus4, C# adds the 9th, D# inverts it. (Until wave 9 these were also a layer, SEL held + a key for the key of the song: SEL is the PAGE button now and its hold is unused.)
 
 ---
 
@@ -318,24 +352,23 @@ The closed hat cuts the open hat. Holding OCT- while you hit a drum key gives a 
 
 ### The drum screen
 
-Tap **SEQ** or **EDIT** with DRUM selected. The header shows DRUM and the kit. The body shows the **selected sound's name** large and how many steps it plays on (or STEP n HELD), the **sound map** top right (16 tiles; a sound with hits dim coral, lit as it plays, the selected one framed white, a yellow bar muted, ice blue soloed), the selected sound's **16 steps** (a hit filled, its shade its velocity; a black square: locks; three lines: a retrig; a notch: a condition), a line about the held step (RETRIG 1/32, LOCK DECAY ...) or which steps are shown with four page slots, the tabs **TRIG SRC FLTR AMP LFO FX**, and the dials in coral.
+Tap **SEQ** or **EDIT** with DRUM selected. The header shows DRUM and the **SELECT chip: the selected sound** (SELECT picks it). The body shows the **selected sound's name** large, the kit and how many steps it plays on (or STEP n HELD), the **sound map** top right (16 tiles; a sound with hits dim coral, lit as it plays, the selected one framed white, a yellow bar muted, ice blue soloed), the selected sound's **16 steps** (a hit filled, its shade its velocity; a black square: locks; three lines: a retrig; a notch: a condition), a line about the held step (RETRIG 1/32, LOCK DECAY ...) or which steps are shown with four page slots, the tab row (the categories of the button pressed: SRC FLTR for EDIT, AMP for ENV, LFO, the FX group, TRIG PATTERN for SEQ) and the dials in coral.
 
 | You do | Result |
 | --- | --- |
-| **hold SEL + key** | select that sound (heard) |
+| **SELECT** | the selected sound, one of the 16 a detent (heard while stopped), on every tab |
 | **tap an empty step** | a hit of the selected sound (velocity 100, or TRIG's KNOB 1 with nothing held) |
 | **tap a hit** | it goes when the key comes up, unless a knob was turned |
 | **hold a step and turn a knob** | lock that value on that sound's hit only (drawn inverted) |
 | **hold a step + OCT-** | the lock of the knob last turned goes; again (or none turned): every lock. On TRIG: the hit's condition, chance, nudge, retrig, every lock and the drum voice's own locks on that step |
-| **hold a step + OCT+** | the next condition |
-| **EDIT** | SRC; again FLTR, AMP, LFO, FX, SRC |
-| **ENV**, **LFO** | AMP, LFO; again the page's next half |
-| **SEQ** | TRIG; again TRIG's next half |
-| **SELECT** | every half of every page, TRIG first |
+| **EDIT** | SRC; again FLTR, SRC. **SEL**: the page inside (SRC 1/3 .. 3/3, FLTR 2/2) |
+| **ENV**, **LFO** | AMP, LFO (SEL: their 2/2) |
+| **FX** | the drum voice's FILTER; again INS (SEL: INSERT 2), SENDS, SLICER, then MIX (DELAY, REV/CHO, MASTER: the whole mix, white) |
+| **SEQ** | TRIG (SEL: TRIG 2/2); again PATTERN (DIV SWING STEPS) |
 | **black keys 1 to 4**, **OCT-**, **OCT+** | pages of steps, as on the synth GRID |
 | **PRESETS** | the kit |
 
-The page buttons and SELECT also work with a step held, as the Rytm's page keys do. With nothing held, a knob changes the selected sound.
+The page buttons and SEL also work with a step held, as the Rytm's page keys do; SELECT does not change the sound while a step is held (LET GO OF THE STEP). With nothing held, a knob changes the selected sound.
 
 ### The sound pages
 
@@ -351,7 +384,7 @@ The page buttons and SELECT also work with a step held, as the Rytm's page keys 
 | **LFO 1/2** | SPEED, DEPTH, DEST, WAVE | the same |
 | **LFO 2/2** | SYNC, FADE, PHASE, MODE | the same |
 
-FLTR is laid out as a synth voice's FILT: CUTOFF, RESO, ENV, TYPE, then DRIVE first on 2/2. DEL and REV are the sound's own sends. Every sound has its own LFO: DEST is PITCH (up to 12 semitones), CUT, RES or LEVEL; MODE is TRIG (restarts at each hit), FREE or ONE (one cycle).
+FLTR starts as a synth voice's FILT: CUTOFF, RESO, ENV. Its TYPE stays on KNOB 4 and DRIVE leads 2/2, because the drum screen's SELECT picks the sound (on a synth voice TYPE is SELECT's and DRIVE takes KNOB 4). DEL and REV are the sound's own sends. Every sound has its own LFO: DEST is PITCH (up to 12 semitones), CUT, RES or LEVEL; MODE is TRIG (restarts at each hit), FREE or ONE (one cycle).
 
 **Every kit can be edited.** The first knob you turn on a built-in kit makes your own copy of it in the project (YOUR COPY OF THE KIT; the kit's name gets a *, "606*"). The built-in kit never changes. A project holds one copy: turning a knob on another kit asks HOLD REC: REPLACE 606\*; hold REC until the ring fills to replace it. Locks do not make a copy. MODEL cannot be locked.
 
@@ -366,11 +399,11 @@ With nothing held, TRIG's KNOB 1 is the velocity new hits get (100 to start); th
 
 ### Modes and live play
 
-- **MUTE mode**: tap **SEL**. The keys mute and unmute the 16 sounds (yellow M); **SEL + key** solos one (ice-blue S). Mutes and solos are not saved. Tap SEL again for the steps.
-- **CHROMATIC mode**: tap **ARP**. The 27 keys play the selected sound at pitches, C4 (key 5) its own; OCT- and OCT+ move them an octave (-2 to +2). Recorded live, each hit keeps its pitch as a NOTE lock. Tap ARP again to leave.
+- **Mutes and solos**: on the mixer. **Hold GLO** with the drums selected: the 16 keys mute and unmute the 16 sounds (yellow); **F#3** turns them into solo keys (ice blue), F#3 again back to mutes. Mutes and solos are not saved.
+- **CHROMATIC mode**: tap **ARP** (the drum voice's ARP group has this one category). The 27 keys play the selected sound (SELECT changes it) at pitches, C4 (key 5) its own; OCT- and OCT+ move them an octave (-2 to +2). Recorded live, each hit keeps its pitch as a NOTE lock. ARP again, or any other page button, leaves it.
 - **RETRIG**: hold **ARP** and press a key: the sound repeats while held. The black keys pick the rate: F#3 1/4, G#3 1/6, A#3 1/8, C#4 1/12, D#4 1/16, F#4 1/24, G#4 1/32, A#4 1/40, C#5 1/48, D#5 1/64, F#5 1/80; KNOB 1 goes through all 17 (1/1 to 1/80).
 - **FILL**: on the drum screen, hold **F#5** for a fill while held; **OCT+** with F#5 held latches it (as a PERFORM pad); F#5 again, or STOP, ends it. FILL shows in every header.
-- **FX tab, the drum voice's own pages**: EDIT past LFO (or SELECT) reaches **FX**: its **FILTER** (LP / HP, HOME's KNOB 1 on the drums), **INSERT** (TYPE and three values), **INSERT 2** (MIX), **SENDS** (DELAY, REVERB: the whole drum voice's, on top of each sound's DEL and REV) and **SLICER**, acting on the whole drum voice, in coral. The line above the tabs names the page. Hold a step and turn a knob there to lock it per step, as on any tab (SENDS cannot be locked).
+- **FX, the drum voice's own pages**: tap **FX**: its **FILTER** (LP / HP, HOME's KNOB 1 on the drums), **INSERT** (TYPE and three values), **INSERT 2** (MIX), **SENDS** (DELAY, REVERB: the whole drum voice's, on top of each sound's DEL and REV) and **SLICER**, acting on the whole drum voice, in coral, one category a press (INS's second page, INSERT 2, by SEL); one more press is **MIX**, the whole mix's pages in white. The line above the tabs names the page. Hold a step and turn a knob there to lock it per step, as on any tab (SENDS cannot be locked).
 
 ### Kits
 
@@ -382,7 +415,7 @@ With nothing held, TRIG's KNOB 1 is the velocity new hits get (100 to start); th
 
 PERFORM works the way the MPC's pad effects do: each key is one effect on the whole mix, on while you hold it; several play at once; a latch keeps one on; the four knobs set the last pad you pressed.
 
-**In and out.** Hold **FX**: PERFORM shows while you hold it and the keys are pads. Let go and the keys play notes again. Hold FX for about 0.7 seconds untouched and let go, and it stays open (LOCK on the line under the header); tap FX again or any page button to leave. Tapped, FX opens the whole mix's effect pages. PLAY and REC work while it is open. Pads never play or record notes.
+**In and out.** Hold **FX**: PERFORM shows while you hold it and the keys are pads. Let go and the keys play notes again. Hold FX for about 0.7 seconds untouched and let go, and it stays open (LOCK on the line under the header); tap FX again or any page button to leave. Tapped, FX opens this voice's own effects first (INS), then SENDS, SLICER and the whole mix's MIX pages. PLAY and REC work while it is open. Pads never play or record notes.
 
 **The pad map.** The 16 white keys are four rows of four (keys 1 to 4 the top row); the black keys are the chips above them.
 
@@ -482,11 +515,11 @@ While a pattern plays, what you change in it is kept in it. **Tap SAVE** on its 
 | **tap REC again** | stops or cancels |
 | **hold REC** | after about 0.7 seconds a ring fills over about 1.3 seconds more: the selected voice is cleared. Let go early and nothing happens. EDIT + OCT- brings it back |
 
-The REC screen: KNOB 3 **START** (NOTE or COUNT); the length is hold SEQ's STEPS. Notes are quantised to the voice's DIV. Rolls are recorded as retrigs. PERFORM pads go into the STUTTER lane.
+The REC screen: KNOB 3 **START** (NOTE or COUNT); the length is SEQ's PATTERN page (or hold SEQ). Notes are quantised to the voice's DIV. Rolls are recorded as retrigs. PERFORM pads go into the STUTTER lane.
 
-**Hold EDIT** (ERASE): a key erases that note or sound (playing: from each step the playhead passes while you hold it; stopped: from the whole pattern). KNOB 1 SHIFT rotates the pattern, KNOB 2 DOUBLE doubles or halves it, KNOB 3 TRANSP transposes (synth voices). OCT- undo, OCT+ redo. On the drums, a black key switches EDIT's keys between erasing and muting.
+**Hold EDIT** (ERASE): a key erases that note or sound (playing: from each step the playhead passes while you hold it; stopped: from the whole pattern). KNOB 1 SHIFT rotates the pattern, KNOB 3 TRANSP transposes (synth voices). OCT- undo, OCT+ redo. (Halving and doubling are SEQ + OCT- and SEQ + OCT+; the drum mutes are the mixer's.)
 
-**Hold SEQ** (STEPS): KNOB 1 GATE (synth voices), KNOB 2 DIV (1/4, 1/8, 1/16, 1/32, 8T, 16T, 1/2, 1BAR, 2BAR), KNOB 3 SWING (0 to 100), KNOB 4 STEPS (1 to 64). These are the pattern's settings and live only here: the one swing and the one length. The keys do nothing; the screen draws the pattern in time with its swing.
+**The pattern's settings: SEQ, then SEQ again (PATTERN)**, or **hold SEQ** (STEPS, the shortcut): KNOB 1 GATE (synth voices), KNOB 2 DIV (1/4, 1/8, 1/16, 1/32, 8T, 16T, 1/2, 1BAR, 2BAR), KNOB 3 SWING (0 to 100), KNOB 4 STEPS (1 to 64): the one swing and the one length. Held, the keys do nothing and the screen draws the pattern in time with its swing; OCT- halves the pattern, OCT+ doubles it as a clone.
 
 **Hold ARP** (ROLL): hold a key for a note-repeat roll; KNOB 1 the rate (1/8, 1/16, 1/32, 32T, 1/64). Tap ARP for the arpeggiator pages (ARP: MODE, RATE, OCT, GATE; ARP 2: SWG, PROB, HOLD, ORD).
 
@@ -504,23 +537,21 @@ Projects saved by PHEBUS use a new format: PHEBUS reads older KARMA projects, st
 
 ## 9. FX, GLO and the mixer
 
-### The FX button: the whole mix
+### The FX button: this voice, then the whole mix
 
-**FX always means the whole mix**, drawn white and grey with the tag **FX**, whichever voice is selected. **Tap FX** for its pages (tap again or turn SELECT for the next); **hold FX** for PERFORM ([section 6](#6-perform-the-pads)).
+Ben: "Voice FX, then mix FX". **Tap FX** for the selected voice's own effects, in its colour: **INS** (its three inserts, SEL: FX 1, 2, 3), then **SENDS**, then **SLICER** (on the drums: FILTER, INS, SENDS, SLICER). One more press is **MIX**: the whole mix's effects, white and grey with the tag **MIX**, after a divider in the tab row, whichever voice is selected. FX again goes round to INS. **Hold FX** for PERFORM ([section 6](#6-perform-the-pads)).
 
-| Page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
+| MIX page (SEL) | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
 | --- | --- | --- | --- | --- |
 | **DELAY** | TIME | FDBK | COLOR | MIX (its return) |
 | **REV/CHO** | SIZE | DAMP | RATE (the chorus's) | DEPTH (the chorus's) |
 | **MASTER** | DUST | DUCK | | |
 
-There is one delay, one reverb and one chorus for the whole FM-1. Each voice sends to them from its own **SENDS** page; the drums send from each sound's AMP 2/2 and their FX tab; PERFORM's ECHO and VERB throw into them. DUST is an old sampler and record; DUCK pumps the synth voices on every kick.
+There is one delay, one reverb and one chorus for the whole FM-1. Each voice sends to them from its own **SENDS** page; the drums send from each sound's AMP 2/2 and their FX SENDS; PERFORM's ECHO and VERB throw into them. DUST is an old sampler and record; DUCK pumps the synth voices on every kick. On the GRID and the drum screen the MIX pages show in the same place (the keys stay steps; the knobs are not lockable there).
 
-A voice's own effects (its three inserts, its sends, its SLICER) are its FX stage, reached with **EDIT** (from ENV: one press) or SELECT, never with the FX button.
+### GLO: the settings
 
-### GLO pages: the settings
-
-Tap **GLO** for the settings; tap again or turn SELECT for the next. The tag is **GLO**, white and grey. The list names the four knobs with a bar where each sits; the values are in the dials.
+Tap **GLO** for its categories, one a press: **GLOBAL**, **SYSTEM**, **MIDI** (SEL: MIDI 2, MIDI 3), **DEVICE** (the menu, [section 10](#10-settings-midi-and-usb)), then GLOBAL again. The tag is **GLO**, white and grey. The list names the four knobs with a bar where each sits; the values are in the dials.
 
 | Page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
 | --- | --- | --- | --- | --- |
@@ -528,11 +559,13 @@ Tap **GLO** for the settings; tap again or turn SELECT for the next. The tag is 
 | **SYSTEM** | OUT | SYNC | IN | CPU (or the USB state) |
 | **MIDI** | CH1 | CH2 | CH3 | CH4 |
 | **MIDI 2** | IN | OTHER | OUT | BEND |
-| **MIDI 3** | KNOBS | | | |
+| **MIDI 3** | KNOBS | **LEARN** (MIDI LEARN on / off) | | |
 
 ### The mixer (hold GLO)
 
-Hold **GLO** for the mixer (hold it 0.7 seconds untouched and let go to keep it). It shows each voice's level as a podium with its meter, M and S badges, the 16 keys' jobs, and four dials, each in its voice's colour.
+Hold **GLO** for the mixer (hold it 0.7 seconds untouched and let go to keep it). It shows each voice's level as a podium with its meter, M and S badges, the keys' jobs, and four dials, each in its voice's colour. What the keys do depends on the voice selected.
+
+A synth voice selected:
 
 | Control | Does |
 | --- | --- |
@@ -542,9 +575,18 @@ Hold **GLO** for the mixer (hold it 0.7 seconds untouched and let go to keep it)
 | **key 9** | fill while held |
 | **key 10** | fill on the next bar (pressed again: cancelled; a toggle, no timing) |
 | **key 11** | the knobs set the pans (title PAN); pressed again: levels |
-| **F#3** | MIDI LEARN on or off |
+The drums selected (Ben: "Hold GLO: with the drums selected, the keys mute the 16 sounds"):
 
-A muted voice fades out in a few milliseconds and its pattern runs on silently.
+| Control | Does |
+| --- | --- |
+| **KNOB 1 to 4** | levels of voices 1, 2, 3 and the drums (pans with C#4) |
+| **keys 1 to 16** | mute the 16 sounds (a tile each, its initial; muted yellow) |
+| **F#3** | the keys solo instead (soloed ice blue; SOLO lit); again: mutes |
+| **G#3** | fill while held |
+| **A#3** | fill on the next bar (again: cancelled) |
+| **C#4** | the knobs set the pans; again: levels |
+
+The voices' own mutes are then off the keys: select a synth voice to mute a voice. A muted voice fades out in a few milliseconds and its pattern runs on silently. (MIDI LEARN, once GLO + F#3, is GLO > MIDI 3 LEARN.)
 
 ---
 
@@ -552,7 +594,7 @@ A muted voice fades out in a few milliseconds and its pattern runs on silently.
 
 ### The menu
 
-**Hold HOME** (about 0.7 seconds). SELECT changes section, KNOB 1 to 3 set its rows, PRESETS moves the cursor, OCT+ steps a setting or opens it, OCT- closes.
+GLO's last category, **DEVICE** (tap GLO until it shows); **hold HOME** (about 0.7 seconds) is its shortcut. **SEL** goes to the next section (round), KNOB 1 to 3 set its rows, PRESETS moves the cursor, OCT+ steps a setting or opens it, OCT- or HOME closes, GLO goes on to GLOBAL.
 
 | Section | Rows |
 | --- | --- |
@@ -565,7 +607,7 @@ USB AUDIO and USB SERIAL take effect at the next start. ABOUT shows PHEBUS, "BAS
 
 ### Screensavers
 
-The screensavers are HOME's pages: on HOME turn **SELECT** right (the **>** after the deck's FLOW band) for **FLOW**, then **EYES**, **DESERT** and **THIRD EYE**, each driven by the four voices' levels in their colours. SELECT left from FLOW is HOME again; HOME or any page button closes it. At power-on a boot screen of about 3 seconds shows a flowing backdrop with PHE and BUS in black; any key skips it.
+The screensaver is HOME's second category: on HOME tap **HOME** again (the **>** after the deck's FLOW band) for **FLOW**; **SEL** for the next one, **EYES**, **DESERT**, **THIRD EYE** (round), each driven by the four voices' levels in their colours. HOME again is HOME; any other page button closes it. At power-on a boot screen of about 3 seconds shows a flowing backdrop with PHE and BUS in black; any key skips it.
 
 ### MIDI
 
@@ -574,7 +616,7 @@ The screensavers are HOME's pages: on HOME turn **SELECT** right (the **>** afte
 - **KNOBS** (MIDI 3): what a controller's knobs do: PANEL, AUTO, 1-8, 70-77 or GM.
 - **SYNC** (GLO > SYSTEM): INT, USB or TRS. START plays from the top, CONTINUE carries on, STOP stops; with no clock pulse for half a second, the FM-1 goes back to its own tempo.
 - **CCs** (with MIDI 3 KNOBS on GM; PANEL takes 70 to 77 for the FM-1's knobs): 5 GLIDE, 7 LEVEL, 10 PAN, 71 RESO, 72 release, 73 attack, 74 the voice filter's CUTOFF (on the drum channel: the drum voice's FILTER), 75 decay, 91 / 93 / 94 the reverb, chorus and delay sends (the SENDS page), 64 sustain, 120 and 123 all sound and all notes off, 121 reset.
-- **Program Change** loads the voice's n-th sound (on the drum channel, kit n). **MIDI LEARN**: GLO + F#3, turn a knob on screen, move the controller's knob, GLO + F#3 again.
+- **Program Change** loads the voice's n-th sound (on the drum channel, kit n). **MIDI LEARN**: GLO > MIDI 3, KNOB 2 LEARN right (LEARN in every header), turn a knob (or SELECT) on screen, move the controller's knob; KNOB 2 left ends it.
 - MIDI comes in on the 3.5 mm TRS jack (try the other adapter type if nothing plays) or USB from a computer or phone. A USB keyboard plugged straight in cannot work. No Bluetooth MIDI.
 
 ### USB audio
@@ -609,22 +651,25 @@ The FM-1 is a class-compliant USB audio input. MENU > AUDIO > USB AUDIO: **MASTE
 
 ## 12. Every gesture
 
+The four ways ([section 2](#2-the-controls-and-the-screen)): a labelled button (again: its next category), SEL (PAGE: the next page inside), SELECT (knob 5: the type; on the drums the sound), and only then holds and combos.
+
 ### The same gesture, the same meaning
 
 | Gesture | Means, wherever it works |
 | --- | --- |
-| tap a button | open its pages |
-| hold a button | its layer |
+| tap a labelled button | its group's first category; on it already, the next category (round). Never a page, never another button's things |
+| tap SEL | PAGE: the next page of the category shown (round); one page: nothing |
+| SELECT | knob 5: the type of the page (synth); the sound (drum screen). No chip in the header: nothing. Never a page, never the tempo |
+| hold a button | its layer: a performance layer or a shortcut to a page (SEQ held: the PATTERN page's knobs) |
 | hold a layer button 0.7 s, untouched, let go | keep the layer open (LOCK), every layer |
 | hold REC (a question showing) | yes: the ring fills, it is done |
 | OCT+ with the thing held | latch it (PERFORM pads, the drum FILL) |
-| hold a step + turn a knob | change that value on that step: a lock (synth GRID, drum screen) or the step's length (STUTTER lane) |
+| hold a step + turn a knob (or SELECT) | change that value on that step: a lock (synth GRID, drum screen) or the step's length (STUTTER lane) |
+| hold a step + a page button / SEL + a knob | a lock on another page: the only three-control gesture (Ben's Rytm lock) |
 | hold a step + OCT- | remove from that step: the last lock, then every lock (synth, drums); its recorded pads (STUTTER lane) |
-| hold a step + OCT+ | the next condition (synth, drums) |
 | OCT- / OCT+, nothing held | page of steps before / after (GRID, drums, lane); elsewhere the octave |
-| SELECT | walk the halves, tabs and pages (on HOME: the screensavers). Never the tempo |
-| hold SEQ | the pattern's settings (GATE, DIV, SWING, STEPS) |
-| EDIT + OCT- / OCT+ | undo / redo |
+| hold SEQ + OCT- / OCT+ | halve the pattern (asks if steps would go) / double it as a clone |
+| hold EDIT + OCT- / OCT+ | undo / redo |
 
 ### Anywhere
 
@@ -633,65 +678,46 @@ The FM-1 is a class-compliant USB audio input. MENU > AUDIO > USB AUDIO: **MASTE
 | tap PLAY | start or stop |
 | tap REC | record or arm (stopped, on a synth voice's GRID: STEP REC) |
 | hold REC | with a question showing: yes; else clear the selected voice (a ring fills) |
-| tap HOME | HOME (closes a screensaver) |
-| hold HOME | the menu |
-| tap FX | the whole mix's DELAY, REV/CHO, MASTER |
-| tap ENV, LFO, EDIT, ARP, SEL, GLO | that button's pages (drums: EDIT, ENV, LFO the drum screen's SRC, AMP, LFO, EDIT walking on to FX; SEL MUTE mode; ARP CHROMATIC mode) |
-| tap SEQ | the GRID (from a synth sound page: on that page's tab; on the GRID: TRIG, again TRIG's next half) |
-| tap SAVE | the SAVE pages |
+| tap HOME | HOME; on HOME the screensaver; on the screensaver HOME |
+| hold HOME | the menu (GLO's DEVICE, a shortcut) |
+| tap EDIT, ENV, LFO, FX, SEQ, ARP, GLO, SAVE | that button's categories, one a press (the button map, section 2) |
+| tap SEL | the next page |
 | ALGORITHM | the voice (on the GRID, past DRUM: the STUTTER lane) |
 | PRESETS | the sound (drums: the kit) |
 | OCT- / OCT+ | octave -3 to +3 (both: 0) |
 | hold OCT- / OCT+ + drum key | ghost / hard hit |
 
-### HOME
+### Sound pages and the synth GRID
 
 | Gesture | Does |
 | --- | --- |
-| KNOB 1 to 4 | CUTOFF, DECAY, STUT (lane on / off), LEVEL |
-| SELECT right | the screensavers |
-
-### Sound pages (synth voice)
-
-| Gesture | Does |
-| --- | --- |
-| tap EDIT | OSC; on the chain, the next stage |
-| tap ENV, LFO | that stage; again, its next page (ENV: AMP, FILT; LFO: LFO, LFO SYNC, LFO 2, MATRIX) |
-| tap EDIT | the next stage (from ENV: FX, which walks FX 1, FX 2, FX 3, SENDS, SLICER with SELECT) |
-| SELECT | the page before or after |
-| tap SEQ | the GRID on this tab |
+| EDIT / ENV / LFO / FX | OSC, FILT / AMP, FILT ENV / LFO 1, LFO 2, MATRIX / INS, SENDS, SLICER, MIX |
+| SEL | OSC 1 to 4, FILT 1 to 2, LFO 1's sync page, FX 1 to 3, the MIX pages |
+| SELECT | OSC: Type; FILT: TYPE; FX 1 to 3: TYPE; SLICER: mode; LFO 1, LFO 2: WAVE |
+| SEQ | the GRID: TRIG, again PATTERN |
 | a FILT ENV knob while LINK is AMP | the filter's envelope becomes OWN |
-| keys | notes |
-
-### GRID (synth voice)
-
-| Gesture | Does |
-| --- | --- |
-| tap an empty / set step | set with the pen / clear on release |
-| hold a step + knob, a sound tab | lock |
-| hold a step + knob, TRIG | NOTE LEN VEL COND; 2/2 FLAG RETRIG NUDGE |
-| hold a step + OCT- / OCT+ | remove locks (TRIG: locks, nudge, condition) / next condition |
-| nothing held, TRIG 1/2 | NOTE (pen), STEP, HIT, VEL |
-| nothing held, TRIG 2/2 | SPICE, DICE |
-| EDIT, ENV, LFO, SEQ, SELECT | the tabs (also with a step held) |
-| black keys 1 to 4, OCT- / OCT+ | pages (OCT+ on the last adds one) |
-| tap REC | stopped: STEP REC; playing: LIVE REC |
-| STEP REC: keys, SEQ, ARP | note or chord, rest, tie |
+| keys | notes (sound pages); steps (GRID) |
+| GRID: tap an empty / set step | set with the pen / clear on release |
+| GRID: hold a step + knob or SELECT | lock (TRIG: NOTE LEN VEL COND; SEL: FLAG RETRIG NUDGE) |
+| GRID: hold a step + OCT- | remove locks (TRIG: locks, nudge, condition) |
+| GRID: nothing held, TRIG 1/2 / 2/2 | NOTE (pen), STEP, HIT, VEL / SPICE, DICE |
+| GRID: black keys 1 to 4, OCT- / OCT+ | pages of steps (OCT+ on the last adds one) |
+| GRID: tap REC | stopped: STEP REC; playing: LIVE REC |
+| STEP REC: keys, SEQ, ARP, KNOB 2 | note or chord, rest, tie, the cursor |
 
 ### Drum screen
 
 | Gesture | Does |
 | --- | --- |
-| hold SEL + key | pick the sound |
+| SELECT | the selected sound (the header's chip names it) |
+| EDIT / ENV / LFO / FX / SEQ | SRC, FLTR / AMP / LFO / FILTER, INS, SENDS, SLICER, MIX / TRIG, PATTERN (also with a step held) |
+| SEL | the page inside (SRC 1/3 .., AMP 2/2, INSERT 2, TRIG 2/2, the MIX pages) |
 | tap an empty step / a hit | a hit / clear on release |
-| hold a step + knob | lock on that sound's hit |
-| hold a step + OCT- / OCT+ | remove locks (TRIG: everything) / next condition |
-| EDIT, ENV, LFO, SEQ, SELECT | SRC FLTR AMP LFO FX, TRIG, every half (also with a step held: on FX, a knob locks the drum voice's own page) |
-| tap SEL / SEL + key in MUTE mode | MUTE mode / solo |
-| tap ARP | CHROMATIC mode (OCT- / OCT+: its octave) |
+| hold a step + knob | lock on that sound's hit (on FX: the drum voice's own page) |
+| hold a step + OCT- | remove locks (TRIG: everything) |
+| tap ARP | CHROMATIC mode (OCT- / OCT+: its octave; ARP again: off) |
 | hold ARP + key / black key | RETRIG / its rate |
 | F#5 / F#5 + OCT+ | FILL while held / latched (F#5 again: off) |
-| EDIT + black key | EDIT's keys erase or mute |
 
 ### STUTTER lane
 
@@ -718,35 +744,35 @@ The FM-1 is a class-compliant USB audio input. MENU > AUDIO > USB AUDIO: **MASTE
 
 | Hold | Gesture | Does |
 | --- | --- | --- |
-| EDIT | key / KNOB 1 to 3 / OCT- OCT+ | erase / SHIFT, DOUBLE, TRANSP / undo, redo |
+| EDIT | key / KNOB 1, 3 / OCT- OCT+ | erase / SHIFT, TRANSP / undo, redo |
 | ARP | key / KNOB 1 | roll (drums: RETRIG) / rate |
-| SEQ | KNOB 1 to 4 | GATE, DIV, SWING, STEPS |
-| SEL | key / KNOB 1 to 4 | song key (drums: the sound) / CHORD, SCALE, KEYS, TRANSP |
-| GLO | keys and knobs | the mixer (section 9) |
+| SEQ | KNOB 1 to 4 / OCT- OCT+ | GATE, DIV, SWING, STEPS / halve, double (a clone) |
+| GLO | keys and knobs | the mixer (section 9; the drums selected: their 16 sounds' mutes) |
 | SAVE | keys 1 to 4 / 5 to 8 | play / store A to D (over a used one: hold REC) |
+| SEL | | nothing |
 | any | hold 0.7 s untouched, let go | keep it open (LOCK) |
 
 ### Menu, screensaver, power-on
 
 | Gesture | Does |
 | --- | --- |
-| SELECT, KNOB 1 to 3, PRESETS, OCT+ / OCT- (menu) | section, rows, cursor, open / close |
-| SELECT (screensaver) | the next one |
+| SEL, KNOB 1 to 3, PRESETS, OCT+ / OCT- (menu) | section, rows, cursor, open / close |
+| GLO, HOME (menu) | GLOBAL / HOME |
+| SEL (screensaver) | the next one |
 | hold OCT- while switching on | USB rescue |
-| hold OCT- and OCT+ while switching on | hardware calibration |
+| hold OCT- and OCT+ while switching on | hardware calibration (also DEVICE > SYSTEM) |
 | hold OCT- and OCT+ 5 s, stopped | update mode (UBOOT) |
 
 ### Where a gesture means something else, and why
 
-- **SELECT in STEP REC** moves the red frame, the step the next note goes on. On HOME it walks to the screensavers (HOME's pages). It is never the tempo: that is GLO > GLOBAL's BPM.
-- **OCT- and OCT+** are the octave on HOME, the sound pages and in STEP REC and CHROMATIC mode (the keys are notes there), and pages of steps where the keys are steps. **OCT+ with something held** is the latch (PERFORM pads, the drum FILL); OCT+ with a step held is the next condition.
+- **SELECT on the drum screen** picks the sound, not a type: Ben's choice (the Rytm picks a track with its track keys; the FM-1 has no spare keys). The drum sound's own WAVE, MODEL and filter TYPE stay on knobs.
+- **OCT- and OCT+** are the octave on HOME, the sound pages and in STEP REC and CHROMATIC mode (the keys are notes there), and pages of steps where the keys are steps. **OCT+ with something held** is the latch (PERFORM pads, the drum FILL). With SEQ held they halve and double the pattern.
 - **OCT+ on the STUTTER lane's last page** goes round to page 1 instead of adding a page: the lane's length is KNOB 4's.
-- **A page button pressed again** walks that button's pages (ENV: AMP, FILT; SEQ: TRIG 1/2, 2/2). There is no timing in it, so it is not a double press.
-- **Toggles** (no timing either): SEL tapped on the drums turns MUTE mode on and off, ARP tapped CHROMATIC mode, the mixer's key 10 the fill on the next bar and key 11 the pans.
+- **The drum voice's ARP** has one category, CHROMATIC: pressed again it ends it (the keys are steps again).
+- **The mixer's keys** follow the voice selected: a synth voice, the four voices' mutes and solos; the drums, the 16 sounds' mutes (F#3: solos).
 - **Hold a step + OCT-** removes the lock of the knob turned last; pressed again in the same hold, every lock of the step. Each press says what went.
-- **SEL and ARP on the drum voice** are MUTE mode, the sound pick, CHROMATIC mode and RETRIG (the Rytm's), not the key, scale and arpeggiator of the synth voices.
-- **TRIG's knobs with nothing held**: on a synth voice the pen, cursor, hit and velocity; on the drums KNOB 1 is the velocity new hits get and the others say HOLD A STEP.
-- **Three controls at once**, the only ones: hold a step, change the tab with a page button, turn a knob (a lock on another page: the Rytm's way, Ben's choice). Everything else is one or two controls.
+- **Power-on holds** (rescue, calibration, update mode) are the loader's and the recovery's, not the UI's: left as they are.
+- **Three controls at once**, the only ones: hold a step, change the page with a page button or SEL, turn a knob (a lock on another page: the Rytm's way, Ben's choice). Everything else is one or two controls.
 
 ---
 
@@ -806,16 +832,20 @@ The screen font is Terminus. The PHEBUS wordmark is drawn from TeX Gyre Adventor
 | **voice** | one of the four instruments: 1, 2, 3 (synth) and DR (drums). Messages call a voice's part a TRACK ("TRACK 1 CLEARED") |
 | **step** | one place in a pattern, 1 to 64; a white key on the GRID, the drum screen and the lane. "STEP 5 HELD" |
 | **trig** | what sits on a step: a note or a drum hit. TRIG is also the tab with the held step's own values |
-| **page** | 16 steps (black keys 1 to 4); also one screen of a voice's settings |
-| **half** | a page's next four knobs, "1/2" at the right of the tabs; SELECT walks them |
-| **tab** | the row naming a voice's pages: TRIG OSC FILT ENV FX MOD (synth), TRIG SRC FLTR AMP LFO (drums) |
+| **category** | what a labelled button opens, one a press: EDIT's OSC and FILT, FX's INS SENDS SLICER MIX ... The tab row names them |
+| **page** (of a category) | one screen of it: "2/4" at the right of the tabs; **SEL** walks them. (A page of steps: 16 steps, black keys 1 to 4) |
+| **SEL (PAGE)** | the button that walks the pages of the category shown. Held: nothing |
+| **SELECT** | the knob: knob 5, the type of a synth page (named in the header's chip); on the drum screen the sound |
+| **type** | what SELECT turns: the oscillator Type, the filter's TYPE, an insert's TYPE, the LFO's WAVE, the SLICER's mode |
+| **tab** | the row naming the categories of the last button pressed, the one shown filled |
 | **lock** | a value set on one step only: hold the step and turn the knob. Drawn inverted |
 | **condition** | when a step plays: -, FILL, NOFL, CHNC |
 | **retrig** | a step repeated: a drum hit at a rate, a synth step 1 to 4 times in its time (RETRIG on both). Never RTRG or RATCH |
 | **roll** | a held key repeated (hold ARP on a synth voice) |
 | **layer** | what the keys and knobs do while a button is held |
 | **PERFORM** | the pads layer, opened by holding FX. Its effects are **pads** |
-| **FX** | the button: always the whole mix (DELAY, REV/CHO, MASTER; held, PERFORM). Also the tab of a voice's own effects (its **inserts**, **SENDS**, SLICER) and of the drum voice's (FILTER, INSERT, SENDS, SLICER) |
+| **FX** | the button: this voice's own effects (INS, SENDS, SLICER; drums FILTER, INS, SENDS, SLICER), then **MIX**, the whole mix's (DELAY, REV/CHO, MASTER); held, PERFORM |
+| **MIX** | FX's last category, the whole mix's effects, white; also the mixer's title (hold GLO) |
 | **insert** | one of a voice's three FX slots, in series: its own effect |
 | **send** | how much of a voice goes to the whole mix's delay, reverb or chorus: its SENDS page |
 | **confirm** | hold REC until the ring fills, when a white bar says HOLD REC: ... |
@@ -823,7 +853,8 @@ The screen font is Terminus. The PHEBUS wordmark is drawn from TeX Gyre Adventor
 | **STUTTER lane** | the fifth sequencer part, tag STUT; STUT on HOME's KNOB 3 |
 | **pattern** | one of A to D: all four voices' sounds and steps, the kit and the lane |
 | **kit** | the drum voice's 16 sounds; **your copy** is the project's edited one (a * after its name) |
-| **Type** | the oscillator model, OSC's KNOB 1, 31 of them |
+| **Type** | the oscillator model, SELECT on OSC, 31 of them |
 | **macro** | one of a Type's three knobs, M1 M2 M3 in the matrix |
 | **mute**, **solo** | yellow M, ice-blue S |
-| **GLO** | the settings (the tempo among them) and, held, the mixer |
+| **GLO** | the settings (GLOBAL with the tempo, SYSTEM, MIDI, DEVICE the menu) and, held, the mixer |
+| **KEY** | ARP's second category: the key, scale and chords of the synth voices |
