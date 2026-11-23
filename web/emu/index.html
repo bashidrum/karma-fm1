@@ -29,6 +29,9 @@ a { color: inherit; }
 .hit:focus-visible { outline: 2px solid var(--lit); outline-offset: 2px; }
 .face { transition: fill .05s; }
 .dim .face.btn { fill: #3a3934; }
+/* (wave 11) the three LED levels: lit, the glow (.dim), the backlight (.bg, fainter still) */
+.bg .face.btn { fill: #2e2d29; }
+.bg .slit { fill: #545457; }
 .lit .face.btn { fill: var(--lit); }
 .lit text { fill: #1d1d1f; }
 .green .face.btn { fill: var(--green); }
@@ -400,7 +403,7 @@ function drawAnim(anim) {
   for (const b of buttons) b.g.querySelector(".face").style.fill = anim ? animFill("btn", anim[b.bit]) : "";
   keys.forEach((k, i) => { k.g.querySelector(".slit").style.fill = anim ? animFill("slit", anim[14 + i]) : ""; });
 }
-function drawLights([litB, litK, dimB, dimK, dimLo = 0, brB = 0, brK = 0, midK = 0], anim = null) {
+function drawLights([litB, litK, dimB, dimK, dimLo = 0, brB = 0, brK = 0, midK = 0, bgB = 0, bgK = 0], anim = null) {
   drawAnim(anim);
   document.documentElement.classList.toggle("dimlo", !!dimLo);   // (the breath's lower peak)
   for (const b of buttons) {
@@ -408,11 +411,13 @@ function drawLights([litB, litK, dimB, dimK, dimLo = 0, brB = 0, brK = 0, midK =
     b.g.classList.toggle("lit", !!(litB & bit) && !green);
     b.g.classList.toggle("green", !!green);
     b.g.classList.toggle("dim", !!(dimB & bit));
+    b.g.classList.toggle("bg", !!(bgB & bit) && !(dimB & bit));
     b.g.classList.toggle("breath", !!(brB & bit));
   }
   keys.forEach((k, i) => {
     k.g.classList.toggle("lit", !!(litK & (1 << i)));
     k.g.classList.toggle("dim", !!(dimK & (1 << i)));
+    k.g.classList.toggle("bg", !!(bgK & (1 << i)) && !(dimK & (1 << i)));
     k.g.classList.toggle("breath", !!(brK & (1 << i)));
     k.g.classList.toggle("mid", !!(midK & (1 << i)));
   });
