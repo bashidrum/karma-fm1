@@ -339,3 +339,9 @@ Applied as: the drum voice is teal (20,196,170) and voice 3 is coral (255,128,10
 - "Hold LFO maps on drums too". On a drum sound, hold LFO and wiggle a knob to make that knob the sound's LFO destination (one per sound).
 
 Claude's reading of the second answer, for him to confirm: the row of steps comes off the drum screen; the keys stay the steps and their lights show the pattern; the freed room on screen goes to the selected sound. PRESETS choosing the sound in view is the wave 12 work already decided at 11:10.
+
+### 23 Nov 2026, 14:03: stutter keys and the iso EQ pads, in Ben's words
+
+"The black keys on the stutter sequencer should just do stutters / beat repeat fx. There should definitely be 3 iso EQ fx on the pad FX play mode too, iso lows, iso mids and iso highs - set to Daft punk values of 220hz bass 1.1khz mids, high 1.1khz +"
+
+Claude's reading, for him to confirm: on the STUTTER lane screen the black keys play stutters by hand (the lengths), drawn in the strip. PERFORM gains three pads, ISO LOW (below 220 Hz), ISO MID (220 Hz to 1.1 kHz) and ISO HIGH (above 1.1 kHz); holding one lets only that band through, holding two lets both through. To be built as the wave after wave 12.
