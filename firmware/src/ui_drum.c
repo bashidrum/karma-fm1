@@ -40,14 +40,21 @@ static uint32_t dmap_marks(void);
 /* (drum_newvel, the velocity a new trig and a drum key take: seq.c; TRIG, nothing held: KNOB 1) */
 static uint8_t dk_touch = 0xFF;                         /* a trig held: the id of the knob last turned in this hold */
 static const char *const DPG_NAME[DPG_TABS] = {"TRIG", "SRC", "FLTR", "AMP", "LFO", "FX"};
-/* (wave 8) the FX tab's halves: the drum voice's own pages (params.c PAGES: FILTER, INSERT, INSERT 2 and SENDS of FAM_DRM, the
- * SLICER every voice has), by name once */
+/* (wave 8) the FX tab's halves: the drum voice's own pages (params.c PAGES: INSERT, INSERT 2, FILTER of FAM_DRM, the SLICER
+ * every voice has), by name once. (The drum effects under FX, Ben 23 Nov 2026, 21:30 to 21:45, "Just mirror the synths as
+ * closely as possible") in a synth voice's FX order: INS (the kit's INSERT, INSERT 2), SENDS (the SELECTED SOUND's own:
+ * DELAY, REVERB, KIT FX; a sound page, not a PAGES one), SLICER (the kit's), then the whole mix's DELAY, REV/CHO, MASTER.
+ * The kit's FILTER is the last half: EDIT's third category (Ben 21:40, "FILTER should live under Edit"), not FX's. The
+ * kit's pages say KIT in the header and SELECT does nothing there (it picks a sound they do not act on) */
 #define NDBUS 8u                                        /* (wave 9: then the whole mix's, the FX group's MIX) */
+#define DBH_SENDS 2u                                    /* the selected sound's SENDS */
+#define DBH_MIX 4u                                      /* the whole mix's first (DELAY) */
+#define DBH_FILTER 7u                                   /* the kit's FILTER (EDIT's KIT FLT) */
 static uint8_t dbus_pg[NDBUS];
-static uint32_t dbus_page(uint32_t h)                   /* the FX tab's half h: its PAGES index */
+static uint32_t dbus_page(uint32_t h)                   /* the FX tab's half h: its PAGES index (SENDS: none, 0) */
 {
-    static const char *const T[NDBUS] = {"FILTER", "INSERT", "INSERT 2", "SENDS", "SLICER", "DELAY", "REV/CHO", "MASTER"};
-    static const uint8_t F[NDBUS] = {FAM_DRM, FAM_DRM, FAM_DRM, FAM_DRM, FAM_DRM, FAM_MFX, FAM_MFX, FAM_MFX};
+    static const char *const T[NDBUS] = {"INSERT", "INSERT 2", "", "SLICER", "DELAY", "REV/CHO", "MASTER", "FILTER"};
+    static const uint8_t F[NDBUS] = {FAM_DRM, FAM_DRM, FAM_DRM, FAM_DRM, FAM_MFX, FAM_MFX, FAM_MFX, FAM_DRM};
     if (!dbus_pg[0] && !dbus_pg[1]) {
         uint32_t i, k;
         for (k = 0; k < NDBUS; k++)
@@ -68,7 +75,24 @@ static uint32_t dpg_half(void)
     uint32_t n = dpg_halves(drum_pg);
     return drum_half[drum_pg % DPG_TABS] < n ? drum_half[drum_pg % DPG_TABS] : 0u;
 }
-static uint32_t dpg_id(uint32_t k) { return drum_pg && drum_pg < DPG_FX ? dh_id(drum_model(), drum_pg - 1u, dpg_half(), k) : 0xFFu; }
+static int dpg_sends(void) { return drum_pg == DPG_FX && dpg_half() == DBH_SENDS; }   /* the sound's SENDS (FX) */
+static int dpg_snd(void) { return (drum_pg && drum_pg < DPG_FX) || dpg_sends(); }    /* a page of the selected sound */
+static int dpg_bus(void) { return drum_pg == DPG_FX && dpg_half() != DBH_SENDS; }     /* a PAGES page: the kit's, the mix's */
+static int dpg_kit(void) { return dpg_bus() && (dpg_half() < DBH_MIX || dpg_half() == DBH_FILTER); }   /* the KIT's */
+static uint32_t dpg_id(uint32_t k)
+{
+    static const uint8_t SENDS[4] = {DSP_DEL, DSP_REV, DSP_KFX, 0xFF};   /* (a synth voice's SENDS: DELAY REVERB CHORUS) */
+    if (dpg_sends())
+        return SENDS[k & 3u];
+    return drum_pg && drum_pg < DPG_FX ? dh_id(drum_model(), drum_pg - 1u, dpg_half(), k) : 0xFFu;
+}
+static uint32_t kfx_count(void)                         /* the sounds through the kit's effects (KIT FX ON) */
+{
+    uint32_t l, n = 0;
+    for (l = 0; l < DRUM_LANES; l++)
+        n += !sl_kfx_off(l);
+    return n;
+}
 static void dpg_go(uint32_t pg, uint32_t half)
 {
     if (pg)
@@ -118,6 +142,8 @@ static void drum_param_set(uint32_t id, int32_t v)
     fm1_irq_off();
     if (id == DSP_REV || id == DSP_DEL)
         sl_send_set(l, id - DSP_REV, (uint32_t)v);
+    else if (id == DSP_KFX)
+        sl_kfx_set(l, v == 0);
     else
         dsp_put(sl_mach(l), pkit.s[l].snd, &pkit.s[l].lfo, id, v);
     slot_edited(l);
@@ -131,7 +157,7 @@ static void drum_lock_turn(uint32_t id, int32_t s, uint32_t role)
     int32_t sk;
     if (!d)
         return;
-    if (id == DSP_MODEL) {                              /* (as the Rytm's machine: not lockable) */
+    if (id == DSP_MODEL || id == DSP_KFX) {             /* (as the Rytm's machine: not lockable; KIT FX: the slot's) */
         ui_message("NOT LOCKABLE");
         return;
     }
@@ -191,7 +217,7 @@ static void drum_held_oct(uint32_t up)
     if (up)                                             /* (wave 9: OCT+ with a step held is no gesture: its condition is
                                                          * TRIG's KNOB 4 COND; a combo with no obvious link, removed) */
         return;
-    if (drum_pg == DPG_FX) {                            /* (wave 8) the FX tab: the drum voice's own locks of the half shown */
+    if (dpg_bus()) {                                    /* (wave 8) the FX tab: the drum voice's own locks of the half shown */
         const page_t *pg = &PAGES[dbus_page(dpg_half())];
         if (!up && pg->scope != SC_TRACK) {
             ui_message("NO LOCK ON THIS PAGE");
@@ -506,7 +532,8 @@ static void drum_main_draw(void)
         op_header("LFO", TE_DRUM, "", &head);
         hdr_mchip = 0;
     } else {
-        op_header("DRUM", TE_DRUM, "", &head);          /* (the title place is SELECT's chip: the slot) */
+        op_header("DRUM", TE_DRUM, dpg_kit() ? "KIT" : "", &head);   /* (the title place is SELECT's chip: the slot; the
+                                                         * kit's pages: KIT, no chip, SELECT does nothing) */
     }
     /* the name, what is held, the map */
     if (first >= 0) {
@@ -595,7 +622,8 @@ static void drum_main_draw(void)
         str_cpy(info + str_len(info), LANE_SHORT[l], 8);
     }
     sig = studio_hash(chrom ? fm1_in.notes * 7u + 3u : snd_pic_sig(&pkit.s[l]) + drum_pg * 7u + bank * 131u + len * 977u +
-                      (first >= 0 ? drum_trig_sig(l, bank) : 0u), info) + (uint32_t)chrom * 99991u + pkit_gen * 3u + l;
+                      (first >= 0 ? drum_trig_sig(l, bank) : 0u), info) + (uint32_t)chrom * 99991u + pkit_gen * 3u + l +
+          dpg_half() * 7919u + pkit.s[l].send * 131u + kfx_count() * 17u;
     if (ui.force || sig != sb) {
         sb = sig;
         cv_begin(240, 55, C_BLACK);
@@ -619,9 +647,26 @@ static void drum_main_draw(void)
                     op_box(x, 0, 10, 17, TE_G3);
                 }
             cv_text(4, 36, &FONT_S, info, TE_G3);
-        } else if (drum_pg == DPG_FX) {                 /* the FX tab: the whole drum voice's own pages */
-            cv_text(4, 0, &FONT_S, "THE WHOLE DRUM VOICE", TE_G4);
-            cv_text_tall(4, 20, PAGES[dbus_page(dpg_half())].title, TE_DRUM);
+        } else if (dpg_sends()) {                       /* (the drum effects under FX) the selected sound's own sends */
+            char a[28] = "SOUND ";
+            slot_name(&pkit.s[l], a + 6, sizeof a - 6u);
+            cv_text(4, 0, &FONT_S, a, TE_DRUM);
+            cv_text_tall(4, 20, "SENDS", TE_DRUM);
+            cv_text(236 - text_w(&FONT_S, sl_kfx_off(l) ? "KIT FX OFF" : "KIT FX ON"), 26, &FONT_S,
+                    sl_kfx_off(l) ? "KIT FX OFF" : "KIT FX ON", sl_kfx_off(l) ? TE_G4 : TE_DRUM);
+            if (first >= 0)
+                cv_text(236 - text_w(&FONT_S, "LOCK ON THE STEP"), 0, &FONT_S, "LOCK ON THE STEP", TE_DRUM);
+        } else if (drum_pg == DPG_FX) {                 /* the FX tab: the kit's own pages (the whole mix's: below) */
+            char a[28];
+            if (dpg_kit()) {                            /* (how many sounds go through: KIT FX ON) */
+                str_cpy(a, "THE KIT: ", sizeof a);
+                fmt_int(a + str_len(a), (int32_t)kfx_count());
+                str_cpy(a + str_len(a), " OF 16 SOUNDS", 14);
+            } else {
+                str_cpy(a, "THE WHOLE MIX", sizeof a);
+            }
+            cv_text(4, 0, &FONT_S, a, dpg_kit() ? TE_G4 : TE_G4);
+            cv_text_tall(4, 20, PAGES[dbus_page(dpg_half())].title, dpg_kit() ? TE_DRUM : C_WHITE);
             if (first >= 0)
                 cv_text(236 - text_w(&FONT_S, "LOCK ON THE STEP"), 0, &FONT_S, "LOCK ON THE STEP", TE_DRUM);
         } else if (!drum_pg) {                          /* TRIG, PATTERN, A-D: the step held (its values), the keys' page */
@@ -724,7 +769,7 @@ static void drum_main_draw(void)
         uint32_t k, locked = 0, dim = 0;
         for (k = 0; k < 4u; k++)
             v[k][0] = 0;
-        if (drum_pg == DPG_FX) {                        /* (wave 8) the FX tab: the drum voice's own pages; a trig held, the
+        if (dpg_bus()) {                                /* (wave 8) the FX tab: the drum voice's own pages; a trig held, the
                                                          * values locked on its step (its sends: not lockable, grey) */
             const page_t *pg = &PAGES[dbus_page(dpg_half())];
             for (k = 0; k < 4u; k++) {
@@ -809,8 +854,8 @@ static void drum_main_draw(void)
                     dim |= 1u << k;                     /* (not lockable: grey with a trig held) */
             }
         }
-        dial_mark = (uint8_t)(drum_pg && drum_pg < DPG_FX ? dmap_marks() : 0u);   /* (wave 12: the knob the LFO moves) */
-        if (drum_pg == DPG_FX && PAGES[dbus_page(dpg_half())].fam == FAM_MFX)   /* (the whole mix's: white-grey) */
+        dial_mark = (uint8_t)(dpg_snd() ? dmap_marks() : 0u);   /* (wave 12: the knob the LFO moves) */
+        if (dpg_bus() && PAGES[dbus_page(dpg_half())].fam == FAM_MFX)   /* (the whole mix's: white-grey) */
             op_dials(lab, val, ratio, locked, dim, TE_G4, drum_pg * 977u + dpg_half() * 31u + pkit_gen, &foot);
         else
             drum_dials(lab, val, ratio, locked, dim, drum_pg * 977u + dpg_half() * 31u + pkit_gen, &foot);
@@ -919,7 +964,7 @@ static void drum_grid_input(uint32_t pressed)
             continue;
         ui.hot_col = (uint8_t)k;
         ui.hot_t = 40;
-        if (drum_pg == DPG_FX) {                        /* (wave 8) the FX tab: the drum voice's own pages */
+        if (dpg_bus()) {                                /* (wave 8) the FX tab: the drum voice's own pages */
             const page_t *pg = &PAGES[dbus_page(dpg_half())];
             if (pg->id[k] == 0xFFu)
                 continue;

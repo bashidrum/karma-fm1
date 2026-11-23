@@ -25,8 +25,9 @@ static uint32_t sel_target(const page_t **pg, uint32_t *id)
     if (on_drum_page()) {
         if (stl_shown())
             return SK_NONE;
-        if (song.sel == TRK_DRUM)                       /* the drum screen: the sound */
-            return SK_SOUND;
+        if (song.sel == TRK_DRUM)                       /* the drum screen: the sound (the kit's pages and the whole mix's:
+                                                         * nothing, they do not act on one sound) */
+            return dpg_bus() ? SK_NONE : SK_SOUND;
         if (!syn_tab || syn_page() >= NPAGES)           /* the synth GRID: its tab's page */
             return SK_NONE;
         *pg = &PAGES[syn_page()];

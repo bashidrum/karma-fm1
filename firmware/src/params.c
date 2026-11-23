@@ -601,13 +601,12 @@ static const page_t PAGES[] = {
     {"LFO 2", FAM_MOD, SC_TRACK, GR_LFO2, {P_L2RATE, V_L2SYNC, V_L2TRIG, 0xFF}, P_L2WAVE, CT_LFO2},
     {"MATRIX", FAM_MOD, SC_TRACK, GR_MATRIX, {V_MSRC, V_MDST, V_MAMT, V_MK4}, SEL_NONE, CT_MATRIX},
     /* ---- the drum voice's own (its bus: the Rytm's FX track), the drum screen's FX tab (ui_drum.c DBUS), with the SLICER
-     * above: its FILTER (LP / HP), its INSERT (2.6, Felucca 1.5) and dry / wet, its sends to the shared delay and reverb (the
-     * whole drum voice's, on top of each sound's own DEL and REV on AMP 2/2) */
+     * above: its FILTER (LP / HP), its INSERT (2.6, Felucca 1.5) and dry / wet. (The drum effects under FX, Ben 21:45: the kit-wide
+     * SENDS page is gone, "Remove them": each sound's own sends are FX > SENDS, a drum screen sound page, ui_drum.c) */
     {"FILTER", FAM_DRM, SC_TRACK, GR_NONE, {P_TFLT, 0xFF, 0xFF, 0xFF}, SEL_NONE, CT_DFILT},
     {"INSERT", FAM_DRM, SC_TRACK, GR_INS, {P_ITYPE, P_IA, P_IB, P_IC}, SEL_NONE, CT_DINS},   /* (wave 9: the drum screen's SELECT picks the
                                                          * sound, so the drum voice's types stay on knobs) */
     {"INSERT 2", FAM_DRM, SC_TRACK, GR_INS, {P_IMIX, 0xFF, 0xFF, 0xFF}, SEL_NONE, CT_DINS},
-    {"SENDS", FAM_DRM, SC_GLOBAL, GR_NONE, {G_DRDLY, G_DRREV, 0xFF, 0xFF}, SEL_NONE, CT_DSENDS},
     {"SLICER", FAM_DRM, SC_TRACK, GR_SLCR, {P_SLCR, P_SLPAT, P_SLRATE, P_SLDEPTH}, SEL_NONE, CT_DSLICER},   /* (wave 9) the drum voice's: its mode on
                                                          * KNOB 1 (the synth SLICER's is SELECT's) */
     /* ---- the other pages */

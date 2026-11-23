@@ -365,6 +365,8 @@ static void page_go(uint32_t i)
 static void dpg_go(uint32_t pg, uint32_t half);           /* (ui_drum.c) */
 static void drum_screen_open(void);
 #define DPG_FX 5u                                       /* (ui_drum.c: the drum screen's FX tab) */
+static int dpg_snd(void);                               /* (ui_drum.c: a page of the selected sound, its SENDS too) */
+static int dpg_bus(void);                               /* (ui_drum.c: a kit's or the whole mix's page on the drum screen) */
 /* a family's first page (wave 9: the buttons step through categories, ui_nav.c; this only opens a family where no button is
  * involved: the tests, a page the voice lost) */
 static void open_family(uint32_t fam)

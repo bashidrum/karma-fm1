@@ -1154,8 +1154,8 @@ int main(int argc, char **argv)
     tap(B_FX); check(cur_cat() == CT_STUT && stl_shown() && song.sel == 0u, "FX again (wave 14): STUT, the STUTTER lane, voice 1 still selected");
     tap(B_SCL); check(cur_cat() == CT_STUT && stl_shown(), "STUT, SEL: one page, nothing moves");
     tap(B_FX); check(cur_cat() == CT_INS && !strcmp(PAGES[ui.page].title, "FX 1") && !stl_view, "FX again: round to INS, FX 1");
-    go_home(); frame(); track_select(TRK_DRUM); frame(); tap(B_FX); check(on_drum_page() && cur_cat() == CT_DFILT, "FX on the drum voice: its own FX first (FILTER)");
-    tap(B_FX); tap(B_FX); tap(B_FX); tap(B_FX);
+    go_home(); frame(); track_select(TRK_DRUM); frame(); tap(B_FX); check(on_drum_page() && cur_cat() == CT_DINS, "FX on the drum voice: INS first, as a synth voice (the drum effects under FX)");
+    tap(B_FX); tap(B_FX); tap(B_FX);
     check(on_drum_page() && cur_cat() == CT_MIX && PAGES[dbus_page(dpg_half())].fam == FAM_MFX, "FX on the drum voice, then MIX");
     track_select(0);
     go_home(); frame();
@@ -1522,19 +1522,19 @@ int main(int argc, char **argv)
         tap(B_SCL); frames(2); ok &= drum_pg == 1u && dpg_half() == 2u;
         tap(B_SCL); frames(2); ok &= drum_pg == 1u && dpg_half() == 0u;
         tap(B_EDIT); frames(2); ok &= drum_pg == 2u && dpg_half() == 0u && cur_cat() == CT_FLTR;
+        tap(B_EDIT); frames(2); ok &= cur_cat() == CT_DFILT && dpg_kit();   /* (Ben 21:40) the kit's FILTER, under EDIT */
         tap(B_EDIT); frames(2); ok &= drum_pg == 1u && dpg_half() == 0u;
-        check(ok && on_drum_page(), "drum pages: EDIT steps SRC > FLTR > SRC (its categories), SEL the pages of SRC (1/3 .. 3/3, round)");
-        tap(B_FX); frames(2); ok = drum_pg == 5u && cur_cat() == CT_DFILT;
+        check(ok && on_drum_page(), "drum pages: EDIT steps SRC > FLTR > KIT FLT > SRC (its categories), SEL the pages of SRC (1/3 .. 3/3, round)");
+        tap(B_FX); frames(2); ok = drum_pg == 5u && cur_cat() == CT_DINS && dpg_half() == 0u;
         ui.force = 1; frame(); ppm("drum-fx");
-        tap(B_FX); frames(2); ok &= cur_cat() == CT_DINS;
-        tap(B_SCL); frames(2); ok &= cur_cat() == CT_DINS && dpg_half() == 2u;   /* INSERT 2 */
-        tap(B_FX); frames(2); ok &= cur_cat() == CT_DSENDS;
+        tap(B_SCL); frames(2); ok &= cur_cat() == CT_DINS && dpg_half() == 1u;   /* INSERT 2 */
+        tap(B_FX); frames(2); ok &= cur_cat() == CT_DSENDS && dpg_sends();
         tap(B_FX); frames(2); ok &= cur_cat() == CT_DSLICER;
         tap(B_FX); frames(2); ok &= cur_cat() == CT_MIX;
         ui.force = 1; frame(); ppm("drum-fx-mix");
         tap(B_FX); frames(2); ok &= cur_cat() == CT_STUT && stl_shown() && song.sel == TRK_DRUM;
-        tap(B_FX); frames(2); ok &= cur_cat() == CT_DFILT && !stl_view;
-        check(ok, "drum pages: FX steps FILTER > INS (SEL: INSERT 2) > SENDS > SLICER > MIX > STUT > round (the voice's, then the mix)");
+        tap(B_FX); frames(2); ok &= cur_cat() == CT_DINS && !stl_view;
+        check(ok, "drum pages: FX steps INS (SEL: INSERT 2) > SENDS > SLICER > MIX > STUT > round (a synth voice's order; no FILTER)");
         tap(B_ENV); frames(2); ok = drum_pg == 3u && dpg_half() == 0u;
         tap(B_SCL); frames(2); ok &= drum_pg == 3u && dpg_half() == 1u;
         tap(B_ENV); frames(2); ok &= drum_pg == 3u && dpg_half() == 0u;   /* (one category: again, its first page) */
@@ -1555,9 +1555,9 @@ int main(int argc, char **argv)
         ui.force = 1; frame(); ppm("drum-trig");
         dpg_go(1, 0); frame();
         check(dh_id(DM_SYN, DPG_SRC, 0, 0) == DSP_S0 + DS_TUNE && dh_id(DM_HEX, DPG_SRC, 0, 0) == DSP_COARSE &&
-              dh_id(DM_SYN, DPG_AMP, 1, 1) == DSP_DEL && dh_id(DM_HEX, DPG_AMP, 1, 2) == DSP_REV &&
+              dh_id(DM_SYN, DPG_AMP, 1, 3) == DSP_S0 + DS_LEVEL && dh_id(DM_HEX, DPG_AMP, 1, 3) == DSP_LEVEL &&
               dh_id(DM_SYN, DPG_LFO, 0, 1) == DSP_LDEP && dh_id(DM_HEX, DPG_LFO, 0, 1) == DSP_LDEP,
-              "drum pages: the same four pages on every sound (SRC TUNE first, AMP 2/2 DEL REV, LFO SPEED DEPTH ..)");
+              "drum pages: the same four pages on every sound (SRC TUNE first, AMP 2/2 LEVEL, LFO SPEED DEPTH ..)");
     }
     {   /* nothing held: a knob edits the selected slot's sound, the project's own (wave 12: no copy, no star, no question) */
         int32_t t0 = DS_KITS[DRUM_DEFAULT_KIT - DRUM_SAMPLED].s[1].pitch;
@@ -1877,20 +1877,23 @@ int main(int argc, char **argv)
                   "DRUM GRID, TRIG 2/2: CHANCE 50 -> 41 %, the retrig's LENGTH 1 -> 1.5 steps, CURVE down, NOTE +2");
             ui.force = 1; frame(); ppm("grid-drum-held-2");
             tap(B_SCL); frame();
-            tap(B_FX); frames(2);                       /* (wave 9) FX, a step held: the drum voice's FX (FILTER), the GRID stays */
-            check(drum_pg == DPG_FX && cur_cat() == CT_DFILT && sg_held,
-                  "DRUM GRID: a step held + FX: the FX tab, FILTER (the drum voice's own pages; the Rytm's page keys)");
-            tap(B_FX); frame();                         /* FILTER > INS */
-            check(drum_pg == DPG_FX && dpg_half() == 1u && !strcmp(PAGES[dbus_page(1)].title, "INSERT"), "DRUM GRID: FX again: INS (INSERT)");
+            tap(B_FX); frames(2);                       /* (wave 9) FX, a step held: the drum voice's FX (INS), the GRID stays */
+            check(drum_pg == DPG_FX && cur_cat() == CT_DINS && sg_held,
+                  "DRUM GRID: a step held + FX: the FX tab, INS (the kit's INSERT; the Rytm's page keys)");
+            check(drum_pg == DPG_FX && dpg_half() == 0u && !strcmp(PAGES[dbus_page(0)].title, "INSERT"), "DRUM GRID: FX: INS (INSERT)");
             encs[panel.enc[EN_K2]] = 1; frame();
             check(step_locked(TDRUM, 1) && lock_find(TDRUM, 1, P_IA, 0) >= 0,
                   "DRUM GRID: on the FX tab, a knob locks the drum voice's own parameter on that step (as any tab)");
             ui.force = 1; frame(); ppm("grid-drum-lock");
             press(B_OCTDN); release(B_OCTDN);
             check(!step_locked(TDRUM, 1), "DRUM GRID: OCT- on the FX tab: that page's locks go");
-            dpg_go(DPG_FX, 3); frame();                /* SENDS: not lockable (the whole drum voice's) */
-            encs[panel.enc[EN_K1]] = 1; frame();
-            check(!step_locked(TDRUM, 1) && str_eq(ui.msg, "NOT LOCKABLE"), "DRUM GRID: the FX tab's SENDS with a step held: not lockable");
+            dpg_go(DPG_FX, DBH_SENDS); frame();        /* (the drum effects under FX) SENDS: the sound's, a lock on the hit */
+            encs[panel.enc[EN_K1]] = 4; frame();
+            check(dt_lk(1, 0, DSP_DEL) >= 0 && !step_locked(TDRUM, 1),
+                  "DRUM GRID: FX > SENDS with a step held: DELAY locks the sound's delay send on that hit (as AMP 2/2 did)");
+            encs[panel.enc[EN_K3]] = 1; frame();
+            check(str_eq(ui.msg, "NOT LOCKABLE") && !sl_kfx_off(0), "DRUM GRID: KIT FX with a step held: not lockable (the slot's)");
+            dt_lk_del(1, 0, DSP_ALL);
             lock_del(TDRUM, 1, P_COUNT); dpg_go(0, 0);
         }
         fm1_in.notes &= ~(1u << key_of_white(1)); frame();
@@ -1902,16 +1905,19 @@ int main(int argc, char **argv)
         ui.msg_t = 0; tap(B_LFO); frames(2);
         check(on_drum_page() && drum_pg == 4u, "DRUM GRID: LFO opens the sound's LFO page (every drum sound has one now)");
         tap(B_FX); frames(2);
-        check(on_drum_page() && drum_pg == DPG_FX, "DRUM: FX: the FX tab, the drum voice's own pages (FILTER INS SENDS SLICER, then MIX)");
-        {   /* (wave 8) the FX tab, nothing held: its knobs set the drum voice's own; its SENDS the drum voice's G_DRDLY G_DRREV */
-            int16_t f0 = TDRUM->p[P_TFLT], d0 = song.g[G_DRDLY];
-            dpg_go(DPG_FX, 0); frame();
+        check(on_drum_page() && drum_pg == DPG_FX, "DRUM: FX: the FX tab (INS SENDS SLICER, then MIX)");
+        {   /* the kit's FILTER (EDIT's KIT FLT) and the sound's SENDS (FX), nothing held */
+            int16_t f0 = TDRUM->p[P_TFLT];
+            uint32_t d0 = sl_send(drum_lane, 1), o;
+            dpg_go(DPG_FX, DBH_FILTER); frame();
             encs[panel.enc[EN_K1]] = -5; frame();
-            dpg_go(DPG_FX, 3); frame(); ui.force = 1; frame(); ppm("drum-fx-sends");
+            dpg_go(DPG_FX, DBH_SENDS); frame(); ui.force = 1; frame(); ppm("drum-fx-sends");
             encs[panel.enc[EN_K1]] = 4; frame();
-            check(TDRUM->p[P_TFLT] < f0 && song.g[G_DRDLY] > d0 && px_count(0, SG_KNOB_Y, 240, 58, TE_DRUM) > 40u,
-                  "DRUM FX tab: FILTER turns the drum voice's filter; SENDS its delay send (drawn in the drum voice's teal)");
-            TDRUM->p[P_TFLT] = f0, song.g[G_DRDLY] = d0;
+            for (o = 0, i = 0; i < 16u; i++) o += i != drum_lane && sl_send(i, 1) != 0u;
+            check(TDRUM->p[P_TFLT] < f0 && sl_send(drum_lane, 1) > d0 && !o && song.g[G_DRDLY] == 0 &&
+                  px_count(0, SG_KNOB_Y, 240, 58, TE_DRUM) > 40u,
+                  "DRUM: KIT FLT turns the kit's filter; FX > SENDS the selected sound's delay send only (teal)");
+            TDRUM->p[P_TFLT] = f0; sl_send_set(drum_lane, 1, d0);
         }
         for (i = 0; i < 6u && cur_cat() != CT_MIX; i++) tap(B_FX);
         ui.force = 1; frames(2);
@@ -2933,7 +2939,7 @@ int main(int argc, char **argv)
         check(!dt_has(0, 0) && drum_mute == 0u, "the kick's key held + OCT-: its steps erased (not muted)");
         drum_mute = 0;
         dtest_clear(0);
-        drum_open(FAM_EDIT); dpg_go(DPG_FX, 1); frame();   /* (wave 8: the drum voice's own pages, its drum screen's FX tab) */
+        drum_open(FAM_EDIT); dpg_go(DPG_FX, 0); frame();   /* (wave 8: the drum voice's own pages, its drum screen's FX tab) */
         ins_d = on_drum_page() && !strcmp(PAGES[dbus_page(dpg_half())].title, "INSERT");
         check(ins_d, "the drum track: the INSERT page on its FX tab");
         go_home(); frames(16);
@@ -3632,13 +3638,13 @@ int main(int argc, char **argv)
                 for (h = 0; h < NDBUS; h++) {
                     dpg_go(DPG_FX, h); ui.force = 1; frame();
                     for (o2 = 0; o2 < NPART; o2++) bad += px_count(0, 0, 240, OP_BAR_Y, TE_COL[o2]);
-                    if (h < 5u)
+                    if (h < DBH_MIX || h == DBH_FILTER)   /* (the kit's pages and the sound's SENDS: teal) */
                         bad += px_count(0, SG_KNOB_Y, 240, 58, TE_DRUM) < 20u;
                     else                                 /* (wave 9) MIX: the whole mix's, white-grey dials, no teal */
                         bad += px_count(0, SG_KNOB_Y, 240, 58, TE_DRUM) != 0u;
                 }
                 dpg_go(1, 0); go_home(); track_select(0); frames(2);
-                check(bad == 0u, "colour rule: the drum FX tab's five own pages in teal only, its three MIX pages in white-grey");
+                check(bad == 0u, "colour rule: the drum FX tab's own pages (kit INS, SENDS, SLICER, KIT FLT) in teal only, its three MIX pages in white-grey");
             }
             for (v = 0; v < NPART; v++) {               /* each voice's every sound page: no other voice's colour, in any
                                                          * of its shades (wave 7 found voice 1's OSC drawing dim coral) */
@@ -5144,14 +5150,14 @@ int main(int argc, char **argv)
          * effects first. FX steps INS SENDS SLICER (drums FILTER INS SENDS SLICER), MIX, STUT, round; ALGORITHM picks the four
          * voices only */
         static const uint8_t SYN_FX[6] = {CT_INS, CT_SENDS, CT_SLICER, CT_MIX, CT_STUT, CT_INS};
-        static const uint8_t DRM_FX[7] = {CT_DFILT, CT_DINS, CT_DSENDS, CT_DSLICER, CT_MIX, CT_STUT, CT_DFILT};
+        static const uint8_t DRM_FX[6] = {CT_DINS, CT_DSENDS, CT_DSLICER, CT_MIX, CT_STUT, CT_DINS};   /* (a synth voice's order) */
         uint32_t v, j, ok, bad, perf_seen = 0, kw4 = key_of_white(4), kb0 = PUNCH_BLACK[0];
         char nm[32];
         memset(&stl, 0, sizeof stl); stl.len = 16; stl.act = 1;
         transport_req = 2; frames(2); song.rec = 0; rec_wait = 0;
         for (v = 0, ok = 1; v < NTRK; v++) {             /* every voice, from HOME: the order, round; PERFORM never by a tap */
             const uint8_t *want = v == TRK_DRUM ? DRM_FX : SYN_FX;
-            uint32_t n = v == TRK_DRUM ? 7u : 6u;
+            uint32_t n = 6u;
             go_home(); track_select(v); frames(2);
             for (j = 0; j < n; j++) {
                 tap(B_FX); frames(2);
@@ -5159,7 +5165,7 @@ int main(int argc, char **argv)
                 perf_seen |= ui.layer == LY_FX || layer_shown || ly_lock == LY_FX;
             }
         }
-        check(ok, "w14: FX tapped, every voice: INS SENDS SLICER MIX STUT, round to INS (drums: FILTER INS SENDS SLICER MIX STUT)");
+        check(ok, "w14: FX tapped, every voice: INS SENDS SLICER MIX STUT, round to INS (the drums the same since their effects moved under FX)");
         for (j = 0; j < 24u; j++) { tap(B_FX); frames(1); perf_seen |= ui.layer == LY_FX || layer_shown || ly_lock == LY_FX; }
         check(!perf_seen, "w14: PERFORM is never reached by tapping FX (36 taps over the four voices)");
         go_home(); track_select(0); frames(2);
@@ -5200,12 +5206,12 @@ int main(int argc, char **argv)
             ui.force = 1; frames(2);
             for (o = 0; o < NTRK; o++)
                 bad += px_count(0, 0, 240, OP_BAR_Y, TE_COL[o]) + px_count(0, 0, 240, OP_BAR_Y, TE_MID[o]) + px_count(0, 0, 240, OP_BAR_Y, TE_DIM[o]);
-            ok &= song.sel == v && px_count(0, OP_BAR_Y + 24, 240, 3, TE_COL[v]) > 100u && nav_tabs_fit && !nav_tabs_bare == (v != TRK_DRUM);
+            ok &= song.sel == v && px_count(0, OP_BAR_Y + 24, 240, 3, TE_COL[v]) > 100u && nav_tabs_fit && !nav_tabs_bare;
             ok &= px_count(2, 1, 46, 18, TE_G4) > 40u;    /* (the tag MIX, white-grey) */
             snprintf(nm, sizeof nm, "w14-stut-v%u", (unsigned)v + 1u);
             ppm(nm);
             tap(B_FX); frames(2);
-            ok &= song.sel == v && !stl_view && cur_cat() == (v == TRK_DRUM ? CT_DFILT : CT_INS);
+            ok &= song.sel == v && !stl_view && cur_cat() == (v == TRK_DRUM ? CT_DINS : CT_INS);
         }
         check(bad == 0u, "w14: STUT on each voice: no voice colour above the strip (tag MIX, white and grey)");
         check(ok, "w14: STUT on each voice: the strip underlines the voice still selected, the tabs fit; FX again: INS, the same voice");
