@@ -138,7 +138,7 @@ static int sel_chip(char *v, int32_t *ratio, uint16_t *col)
         return 0;
     if (kind == SK_SOUND) {
         str_cpy(v, LANE_SHORT[drum_lane & 15u], 8);
-        *ratio = (int32_t)white_of_lane(drum_lane) * 1000 / (DRUM_LANES - 1);   /* (its key's place) */
+        *ratio = (int32_t)white_of_lane_o(drum_lane, DG_SEL) * 1000 / (DRUM_LANES - 1);   /* (its key's place) */
         *col = TE_DRUM;
     } else if (id == V_TYPE) {
         uint32_t ty = vtype_of(TSEL);

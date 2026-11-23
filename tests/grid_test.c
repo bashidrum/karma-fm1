@@ -1,8 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The drum grid, Rytm style (Ben, 23 Nov 2026, 21:07 and 21:14, as he typed it; SPEC.md). Through the real UI (tests/
  * ui_pages_test.c's harness, the audio between frames, as tests/w13_test.c):
- *   the table   the grid's 16 places hold exactly his roles, row by row; the white keys run down the columns (keys 1 to 4
- *               HAT PEDAL KICK 2 KICK ... 13 to 16 CRASH SHAKER CLAP SNARE)
+ *   the table   the grid's 16 places hold exactly his roles, row by row; two key orders over it: the keys played by hand
+ *               count the Rytm's way, the bottom row first (Ben, 22:45: keys 1 to 4 KICK RIM SNARE 2 SNARE ... 13 to 16 HAT
+ *               OP HAT RIDE CRASH); the mixer and SELECT run down the columns (Ben, 21:10: keys 1 to 4 HAT PEDAL KICK 2 KICK
+ *               ... 13 to 16 CRASH SHAKER CLAP SNARE), until Ben says which places the Rytm order applies to
  *   the mixer   each white key mutes, and with OCT+ solos, exactly its sound; the tile that changes is the one in its grid
  *               place; every white key lit (each does something); heard: key 4's mute silences the KICK and nothing else,
  *               key 16's the SNARE, key 1's the HAT, key 15's the CLAP (sample for sample against the same pattern with
@@ -22,6 +24,8 @@ static uint32_t *hits_a;
 /* Ben's grid, row by row from the top left (LANE_SHORT's spelling: "snare2"), and his key order */
 static const char *const WANT_GRID[16] = {"hat", "op hat", "ride", "crash", "pedal", "conga", "c-bell", "shaker",
                                           "kick 2", "lo tom", "hi tom", "clap", "kick", "rim", "snare2", "snare"};
+static const char *const WANT_PLAY[16] = {"kick", "rim", "snare2", "snare", "kick 2", "lo tom", "hi tom", "clap",
+                                          "pedal", "conga", "c-bell", "shaker", "hat", "op hat", "ride", "crash"};
 static const char *const WANT_KEYS[16] = {"hat", "pedal", "kick 2", "kick", "op hat", "conga", "lo tom", "rim",
                                           "ride", "c-bell", "hi tom", "snare2", "crash", "shaker", "clap", "snare"};
 static uint32_t lane_named(const char *s)
@@ -39,11 +43,12 @@ static void table(void)
     for (i = 0; i < 16u; i++) {
         ok &= str_eq(LANE_SHORT[DRUM_GRID[i]], WANT_GRID[i]);
         seen |= 1u << DRUM_GRID[i];
-        ok2 &= str_eq(LANE_SHORT[lane_of_white(i)], WANT_KEYS[i]) && white_of_lane(lane_of_white(i)) == i &&
+        ok2 &= str_eq(LANE_SHORT[lane_of_mixkey(i)], WANT_KEYS[i]) && str_eq(LANE_SHORT[lane_of_white(i)], WANT_PLAY[i]) &&
+               white_of_lane(lane_of_white(i)) == i && white_of_lane_o(lane_of_mixkey(i), DG_MIX) == i &&
                lane_of_key(key_of_white(i)) == lane_of_white(i) && key_of_lane(lane_of_white(i)) == key_of_white(i);
     }
     check(ok && seen == 0xFFFFu, "the grid's 16 places hold exactly Ben's roles (HAT OP HAT RIDE CRASH / ... / KICK RIM SNARE 2 SNARE)");
-    check(ok2, "the white keys run down the columns: 1-4 HAT PEDAL KICK 2 KICK, 5-8 OP HAT CONGA LO TOM RIM, 9-12, 13-16");
+    check(ok2, "played by hand: 1-4 KICK RIM SNARE 2 SNARE .. 13-16 HAT OP HAT RIDE CRASH; the mixer down the columns: 1-4 HAT PEDAL KICK 2 KICK ..");
     for (i = 0, ok = 1; i < 27u; i++)                  /* a black key: the white key's left of it (it plays nothing: wave 10) */
         if (punch_key(i) < 0)
             ok &= lane_of_key(i) == lane_of_key(i - 1u);
@@ -195,7 +200,7 @@ static void mixer_audio(void)
     const uint32_t all = 1u << 0 | 1u << 2 | 1u << 3 | 1u << 4;
     uint32_t i, h, hr;
     for (i = 0; i < 4u; i++) {
-        uint32_t l = lane_of_white(C[i].w);
+        uint32_t l = lane_of_mixkey(C[i].w);
         h = gr_case(C[i].w, 0, 0, 0);
         hr = gr_case(0, 0, all & ~(1u << l), 1);
         check(h == (all & ~(1u << l)) && hr == h && gr_same(), C[i].what);
@@ -280,13 +285,13 @@ static void keys_elsewhere(void)
         fm1_in.notes = 0; frames(2);
         okl &= led_lv[14u + key_of_lane(l)] == LL_LIT;   /* (the hit still lights its sound's key, a few frames) */
     }
-    check(ok, "HOME, the drums: white key n plays exactly its grid sound (key 4 KICK, key 16 SNARE ...)");
+    check(ok, "HOME, the drums: white key n plays exactly its grid sound, bottom row first (key 1 KICK, key 4 SNARE, key 16 CRASH ...)");
     check(okl, "HOME, the drums: a hit lights its sound's key (the key that plays it)");
-    /* hold SEQ: RETRIG on key 4 is the KICK; the tiles are the grid */
+    /* hold SEQ: RETRIG on key 1 is the KICK (the Rytm order); the tiles are the grid */
     transport_req = 1; frames(3);                     /* (RETRIG plays with the transport running, as drumrytm_test's) */
     press(B_SEQ); frames(12);
     memset(pad_lit, 0, sizeof pad_lit);
-    fm1_in.notes = 1u << key_of_white(3);
+    fm1_in.notes = 1u << key_of_white(0);
     {
         uint32_t f, seen = 0;
         for (f = 0; f < 40u; f++) {                     /* (the hits a frame: a pad stays lit 6 frames, the retrig 1/16) */
@@ -295,11 +300,11 @@ static void keys_elsewhere(void)
                 seen |= (uint32_t)(pad_lit[i] != 0u) << i;
         }
         ui.force = 1; frame(); ppm("grid-seq-retrig");
-        check(seen == 1u, "hold SEQ + key 4: RETRIG plays the KICK, nothing else");
-        /* key 4 held: its tile white: the bottom-left tile of the grid (place 12) */
+        check(seen == 1u, "hold SEQ + key 1: RETRIG plays the KICK, nothing else");
+        /* key 1 held: its tile white: the bottom-left tile of the grid (place 12) */
         check(px_count(2, LY_STILES_Y + 3u * LY_STILE_H + 1u, 56, LY_STILE_H - 2, C_WHITE) > 500u &&
               px_count(2, LY_STILES_Y + 1u, 56, LY_STILE_H - 2, C_WHITE) < 100u,
-              "hold SEQ: the held key's tile is the KICK's place (bottom left of the grid), not key 4's row-order place");
+              "hold SEQ: the held key's tile is the KICK's place (bottom left of the grid), not key 1's top-left place");
     }
     fm1_in.notes = 0; frames(3);
     release(B_SEQ); frames(3);
@@ -337,7 +342,7 @@ int main(int argc, char **argv)
     kit_set((uint32_t)(DRUM_DEFAULT_KIT));
     song.g[G_BPM] = 120;
     go_home(); ui.force = 1; frames(4);
-    check(drum_lane == 0u, "a new project: the drum screen starts on KICK (slot 1, key 4)");
+    check(drum_lane == 0u, "a new project: the drum screen starts on KICK (slot 1, key 1 played by hand)");
     table();
     names_fit();
     mixer_keys();

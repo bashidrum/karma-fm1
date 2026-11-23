@@ -289,8 +289,8 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
                                                          * drums. A key tapped: mute (again: unmute); with OCT+ held: solo
                                                          * ("plus = only this"; again: off). Performance state */
         uint32_t plus = (fm1_in.buttons >> panel.btn[B_OCTUP]) & 1u;
-        if (w >= 0 && w < 16) {                         /* (the drum grid: key w is the grid's sound, down the columns) */
-            uint32_t l = lane_of_white((uint32_t)w);
+        if (w >= 0 && w < 16) {                         /* (the drum grid: key w is the grid's sound in the mixer's order, DG_MIX) */
+            uint32_t l = lane_of_mixkey((uint32_t)w);
             if (plus)
                 drum_solo ^= (uint16_t)(1u << l);
             else

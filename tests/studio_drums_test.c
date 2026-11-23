@@ -22,8 +22,9 @@ int main(int argc,char **argv)
     dt_set(3,7,0);assert(dt_vel(3,7)==1u);dt_set(3,7,200);assert(dt_vel(3,7)==127u);   /* (a trig: 1..127) */
     dpat_clear(&dpat);
     for(i=0;i<27u;i++)assert(lane_of_key(i)<DRUM_LANES);
-    /* (the drum grid, Ben 23 Nov 21:14) key 1 (F3) HAT, its black key the same; key 4 KICK; key 16 (G5) SNARE */
-    assert(lane_of_key(0)==4 && lane_of_key(1)==4 && lane_of_key(6)==0 && lane_of_key(26)==2 && key_of_lane(2)==26 && key_of_white(15)==26);
+    /* (the drum grid played by hand, Ben 23 Nov 22:45, the Rytm's order) key 1 (F3) KICK, its black key the same; key 4 SNARE;
+     * key 16 (G5) CRASH */
+    assert(lane_of_key(0)==0 && lane_of_key(1)==0 && lane_of_key(6)==2 && lane_of_key(26)==11 && key_of_lane(2)==6 && key_of_white(15)==26);
     for(i=0;i<DRUM_LANES;i++)assert(lane_of_key(key_of_lane(i))==i && lane_of_white(white_of_lane(i))==i);
     for(i=35;i<=81;i++)assert(lane_of_note(i)<DRUM_LANES);
     for(i=0;i<DRUM_LANES;i++)assert(lane_of_note(LANE_NOTE[i])==i);
