@@ -108,12 +108,19 @@ static int combo_live(uint32_t h, uint32_t c)
         return c == B_OCTDN;
     case HC_LY0 + LY_SAVE:                              /* undo, redo; keys 1 to 4 store A to D */
         return c == B_OCTDN || c == B_OCTUP || (w >= 0 && w < 4);
-    case HC_LY0 + LY_GLO:                               /* the mixer: mutes and solos (drums: the 16 sounds), PAN, SOLO */
+    case HC_LY0 + LY_GLO:                               /* (wave 13) the mixer: the 16 drum sounds on the white keys, the four
+                                                         * voices on F#3 .. C#4 (whichever is selected); OCT+ held with a key:
+                                                         * solo; OCT- every mute and solo off (when there is one); SEL its
+                                                         * second page (the pans) */
+        if (c == B_SCL)
+            return 1;                                   /* (OCT+ alone does nothing: dark, as PERFORM's with no pad held; it
+                                                         * is held with a key, and the screen's legend says [+] SOLO) */
+        if (c == B_OCTDN)
+            return drum_mute || drum_solo || song.solo || trk[0].p[P_MUTE] || trk[1].p[P_MUTE] || trk[2].p[P_MUTE] ||
+                   trk[3].p[P_MUTE];
         if (c < 14u)
             return 0;
-        if (w >= 0)
-            return drum ? 1 : w < 8;
-        return bi == 1 || (bi == 0 && drum);
+        return w >= 0 || (bi >= 0 && bi < 4);
     case HC_LY0 + LY_ENV:
     case HC_LY0 + LY_LFO:                               /* mapping (ui_map.c): SEL the other source, OCT- remove */
         return map_lyr && ((c == B_SCL && !is_drum(TSEL)) || c == B_OCTDN);   /* (wave 12: the drums' one LFO: no SEL) */
