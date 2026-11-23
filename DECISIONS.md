@@ -634,6 +634,59 @@ The 13:35 answers
 Not checked
 - No device build (no toolchain here). The long tests (soak, stress, regress, web) were not run. The backup page does not carry the user kits.
 
+## Rebuild wave 13, the PERFORM set and the mixer (23 Nov): calls made that Ben did not specify
+Ben's words: SPEC.md "23 Nov 2026, 14:03" (stutter keys, the iso EQ pads), "14:13" with the 14:25 answers (the PERFORM set, the four spare black keys, "Hold to mute, latch with OCT+", MOTION a tempo-synced sweep) and "14:19" (the mixer). Where they left a choice: the MPC's pad-FX feel, his four ways, "one idea per control", the fewer "it depends where you are" the better.
+
+The pad map
+- White keys exactly as specced (rows 1/1 1/2 1/4 1/8 / 1/16 HALF ECHO VERB / ISO LO ISO MID ISO HI MOTION / CRUSH PHASER JET VOWEL). Black keys, in key order: F#3 G#3 A#3 V1 V2 V3 (the first group of three: the three voices), C#4 D#4 F#4 G#4 KICKS TOPS SH+CL HT+SN (the four drum mutes together), A#4 C#5 D#5 F#5 REVERSE STOP SWP DN SWP UP (the extras together; SWP UP on the highest key, the one that goes up). The mutes are therefore on the same keys as the mixer's voice keys for V1 to V3 (F#3 G#3 A#3).
+- The strip in its place (y 40) but split 7 + 4 rather than 6 + 5: the seven mutes on the top row (V1 V2 V3 narrow, the drum mutes wide), the four extras under them, each over a pad column. Still key order left to right, top then bottom. Pad and chip labels: ISO LO, ISO MID, ISO HI, MOTION, PHASER, REVERSE, STOP, SWP DN, SWP UP; the mutes V1 V2 V3 KICKS TOPS SH+CL HT+SN (5 letters fit a chip). The pads are 58 x 18 (were 56 x 20) so ISO MID fits.
+- Colours: effects white and grey (the whole mix); V1 purple, V2 blue, V3 coral, the drum mutes teal (each acts on that voice only); held: filled in its colour; latched: dimmer with a white dot. Yellow stays the mixer's M.
+- A mute pressed does not take the knobs (they stay on the last effect pad); the caption names the last pad pressed, mute or not.
+
+The effects
+- ISO: Linkwitz-Riley 24 dB/oct at both crossovers, float (the AC79's FPU, as the voice filter): LOW = LP4 at X1 then the all-pass of X2 (so it stays in step), MID = LP4 at X2 of HP4 at X1, HIGH = HP4 at X2 of HP4 at X1. All three sum to an all-pass of the mix: within 0.1 dB of dry at every frequency (measured 60 Hz to 9 kHz; a chord 0.9906 of the dry level), and two held are the mix less the third within 1 % of the level at every frequency. Not sample-identical to dry (an all-pass shifts phase near the crossovers): inaudible, said here. Band changes and the effect in and out crossfade over 64 samples (largest step on a 100 Hz tone 1.0 to 1.4 x the tone's own). Knobs: LOW X (80 to 500 Hz, 220 to start), HIGH X (600 Hz to 4 kHz, 1.1 kHz), AMOUNT (how far the other bands go); shared by the three pads. SLOPE not offered (a 12 dB Linkwitz-Riley needs a polarity flip and gives a +3 dB bump to the sum: not honest for "all three = the mix").
+- MOTION: a band-pass (SVF) whose centre moves from 150 Hz up DEPTH x 6 octaves and back once per RATE (1/4, 1/2, 1/1, 2/1 bars; 1/1 to start), on the song's grid while playing (its own clock stopped). DEPTH 70 %, RESO 50 % to start; the band-pass gain 1.4 so the band is not much quieter than the mix.
+- CRUSH at its start: BITS 9, RATE 2 (half the sample rate held), THIN 20 % (a one-pole shelf near 190 Hz taken down): the difference from dry 18.3 dB down on the test chord (measured). Wave 6's 7 bits are BITS 7 for those who want it; BITS 2 RATE 16 goes all the way.
+- PHASER: four first-order all-passes a side, swept 200 Hz up DEPTH x 5 octaves by a tempo LFO (RATE 1/4 to 4/1, 1/1), the right side a quarter turn on, FDBK, the classic 50 / 50 sum at AMOUNT 100.
+- JET: wave 6's FLNG (the punch ring as its delay line), renamed and voiced: two bars a sweep and 80 % feedback to start. It stays a time effect (one at a time with the repeats).
+- VOWEL: two formant band-passes (F1, F2 of U O A E I, interpolated in log frequency), VOWEL (between letters shown as A-E), RATE OFF or a sweep U to I and back over 1/4 to 2/1 starting from VOWEL, RESO, AMOUNT.
+- SWP DN: a low-pass from 16 kHz down to RANGE (146 Hz to start); SWP UP: a high-pass from 30 Hz up to RANGE (3.4 kHz). A high-pass rising chosen as the riser (the mix thins towards the drop). LENGTH 1/4 (a beat) to 4/1 (four bars), a bar to start, in time with the tempo; then held until release; release returns over about 46 ms (not the 1.5 ms of the other pads: a filter snapping open clicks). SLOPE 12 or 24 dB (24 to start; the resonance on the last stage).
+- The ten removed pads' code is gone (LP, HP, LCUT, GATE, DROP, the kills; 1/32 8T 16T live on as the lane's repeats).
+
+The mutes
+- Drum groups by slot: KICKS = KICK, KICK 2, LO TOM; TOPS keeps SNARE, SNARE 2, CLAP, HAT, OP HAT, PEDAL, SHAKER; SH+CL keeps SHAKER, CLAP; HT+SN keeps HAT, OP HAT, PEDAL, SNARE, SNARE 2. Snare = SNARE and SNARE 2; RIM is not a snare (the spec's default).
+- Held together: the muted sets add up (what is heard is what every held mute allows). Each slot fades over 8 blocks (about 6 ms, a track mute's), its voices ring on unheard; measured sample for sample against the song with exactly those parts never played, and the song again after release.
+- A muted kick does not trigger DUCK (otherwise a muted kick would still pump the voices: audible).
+- V1 V2 V3 use wave 6's kill path (perf_kill): faded, notes running unheard.
+- Separate from the mixer: PERFORM's mutes are perf_dmute / perf_kill, the mixer's drum_mute / P_MUTE; neither touches the other; both apply (tested).
+
+The lane's black keys
+- F#3 G#3 A#3 C#4 D#4: 1/1 1/2 1/4 1/8 1/16 (the first octave's five black keys: one hand shape); F#4 G#4 A#4: 1/4T 1/8T 1/16T; C#5 D#5: 1/8D 1/16D; F#5: 1/32. The 1/1 to 1/16 keys are PERFORM's own pads (their knobs too); the six others are one pad (the lane's repeat) whose length is its knob, recorded with its span (so 1/32, 8T and 16T spans of old projects keep playing). Strip labels 4T 8T 16T 8D 16D 32 (the lane's own short names; 1/16T does not fit a chip). 1/4T, 1/8D and 1/16D sit on the bar's grid (they are not shares of a beat).
+- The played key wins over the lane's lit steps (wave 6's rule for live pads), and the steps come back on release. Two held: the last pressed plays, the other on release. OCT+ held: latch.
+- The lane screen moved down to make room for the strip: steps 15 px high (were 21), the recorded pads' bars 13 px.
+
+Old lanes
+- The core's spare byte perf.rsv[0] marks the numbering (13: wave 13's); anything else is waves 6 to 12's 22 pads and is converted at load (a project and every pattern): LP -> SWP DN, HP -> SWP UP, KILL DRUMS -> SH+CL (of the four drum mutes the one that leaves least; with no shaker in a pattern it leaves only the clap), KILL BASS -> V1 (V2 or V3 if its VOICE knob was recorded so), FLNG -> JET, 1/32 8T 16T -> the lane's repeat at that length, the rest the same pad; GATE, DROP, LCUT dropped and counted (LANE: n OLD PADS DROPPED). A recorded knob that no longer means the same (LP / HP's CUTOFF on a sweep, the old repeats' PITCH) is dropped from the span; the span stays. Wave 12 firmware reading a wave 13 lane would misread its pads (not a case Ben has).
+
+The mixer
+- THE BUG (C1): soloing worked inside the drums only. A drum sound's solo (drum_solo) silenced the other drum sounds but never the voices, and the voices' solo (song.solo) never the drums. With the simulator's demo playing (drums, bass, chords, lead), soloing the snare left the bass, chords and lead playing over it: nothing sounded soloed; soloing KICK 2 or CLAP (empty in the demo) only took drums away. "KEYS: SOLO" read as a voice called KEYS. The key path itself worked (the harness and the simulator give the same events: tested). Fixed: a solo anywhere leaves only what is soloed (core.h trk_silent).
+- The redesign, one map whichever voice is selected: the 16 white keys the 16 drum sounds, F#3 G#3 A#3 C#4 voices 1, 2, 3 and the drums (the same keys as PERFORM's V mutes). Tap = mute; OCT+ held with a key = solo ("plus = only this"); OCT- = every mute and solo off; SEL = the pans' page. No SOLO or PAN mode keys. OCT+ alone does nothing and is dark (as PERFORM's OCT+ with nothing held), the screen's legend says [+] SOLO.
+- The screen: TAP A KEY: MUTE and [-] CLEAR [+] SOLO; the four voices as cells in the strip's place (name in its colour, level bar with the meter in it), the 16 sounds as 4 x 4 named tiles (the keys' layout, as PERFORM's pads), yellow with an M tab, ice blue with an S tab, dark grey when a solo silences it; the dials LEVEL / PAN in the voices' colours. Unused black keys not drawn, dark.
+- Per-key clear (OCT- with a key) not added: a tap already unmutes and OCT+ with the key un-solos.
+
+Backup (D1)
+- Object 11 (protocol 13): the user kits object as flash holds it (3,564 B), listed only once a kit was ever stored, read from flash by GET (no RAM), restored through st_save with its head and every stored kit checked. The backup page writes it after the banks; a device without it (rc 1 / 5) is skipped; a backup without it (older, or no kits) leaves the FM-1's kits as they are.
+
+Kits per pattern (D2, not changed)
+- What an old project now does: its kit is the one it was saved playing (with its edits), for every pattern; a pattern that used another kit plays its hits on these 16 slots; a step lock of the kit number does nothing. Options, with cost: (a) keep (0 B); (b) a kit number per pattern (4 B RAM; switching loads that built-in or MY KIT whole, so a pattern's slot edits must be saved as a MY KIT to come back); (c) the slots per pattern (592 B a pattern, 2,368 B RAM: more than the 1.3 KB left; would need a reserve released, e.g. PHEBUS_UP_MX=0 1,472 B plus the extras pool); (d) per-pattern slots in the project file only, read from flash on a pattern change (no RAM, a 592 B flash read at the bar; patterns stored while playing would need flash writes while playing, which the FM-1 avoids).
+
+Memory and CPU
+- rv32 -Os stand-in (clang, the inline asm emptied) against the wave 12 merge (f2c2876): code +7,316 B, constants +1,268 B (an image of about 549,550 of 581,564 on the device, about 32 KB left), .data+.bss +456 B (about 97,020 of 98,304: about 1,280 B left), the pool unchanged, .noinit unchanged. The removed pads' code alone: -3,368 B (measured by compiling them out of the wave 12 tree). New RAM: the colour effects' float states (284 B), the drum slots' fades (32 B), a few bytes of pad state. No 64-bit divide added; no new compile-time limit needed.
+- Host cost a sample (x86, -O2): idle 3.5 ns; ISO (three bands) 30; MOTION 13; VOWEL 22; PHASER 26; a 24 dB sweep 29; CRUSH 10; every colour effect stacked 171 (the default mix about 75). Not measured on an FM-1: if stacking runs it short, the compromise to offer is at most four colour effects at once (the MPC's).
+
+Not checked
+- No device build (no toolchain here). Long tests (soak, stress, regress, web) not run. The backup's object 11 is not exercised by a host test (the editor's backup is device-only; web/test_web.mjs is a long test).
+
 ## For Ben to confirm
 Every call waves 2 to 7 made that the spec did not cover, and every device-only limit or lossy conversion, one line each. The detail is in each wave's section above.
 
@@ -756,3 +809,15 @@ Wave 12, drum sounds per slot
 - Ghost notes: the keys play at TRIG's new-hit velocity (it was a fixed 100); three moves to record a ghost live.
 - Hold LFO on the drums: HEX moves the knob as it rings, CLASSIC at each hit's start (except PITCH CUT RESO LEVEL).
 - QUIET dims the screen in software (9/16); the backlight itself cannot be dimmed without a hal change; no battery saved.
+Wave 13, the PERFORM set and the mixer
+- The black-key layout: V1 V2 V3 on F#3 G#3 A#3, the drum mutes on C#4 D#4 F#4 G#4, REVERSE STOP SWP DN SWP UP on A#4 C#5 D#5 F#5; the strip split 7 + 4 on PERFORM.
+- Snare is SNARE and SNARE 2, RIM is not; held drum mutes add up (heard: what all allow); a muted kick does not DUCK.
+- The isolator: an all-pass sum (within 0.1 dB, phase shifted near 220 Hz and 1.1 kHz), no SLOPE knob; AMOUNT kept; the three pads share their crossovers.
+- CRUSH's start: BITS 9, RATE 2, THIN 20 % (18 dB under the dry mix). MOTION: 150 Hz up to six octaves x DEPTH, a bar a sweep. JET: two bars, 80 % feedback. VOWEL: U O A E I, RATE OFF.
+- SWP UP is a high-pass rising; the sweeps return over 46 ms; SLOPE 24 dB to start.
+- The lane's black keys: the five straight lengths on the first octave, 1/4T 1/8T 1/16T 1/8D 1/16D 1/32 on the second; 1/1 and 1/2 replay the sequencer.
+- Old lanes: LP, HP, KILL DRUMS, KILL BASS, FLNG, 1/32, 8T, 16T converted as listed; GATE, DROP, LCUT dropped and counted.
+- The mixer: one map; OCT+ held with a key solos; OCT- clears all; SEL the pans; a solo anywhere silences everything not soloed (a voice solo silences the drums, a drum solo the voices).
+- Backup object 11 carries the user kits; a backup without it leaves the kits as they are.
+- Patterns A to D still share one kit (options above).
+- CPU on the FM-1 unmeasured: every colour effect stacked costs about 2.3 x the default mix on the host; the compromise to offer is four at once.
