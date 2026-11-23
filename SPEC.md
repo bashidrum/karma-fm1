@@ -444,3 +444,9 @@ KICK 2, LO TOM, HI TOM, CLAP
 KICK, RIM, SNARE 2, SNARE
 
 With keys running top to bottom in each column: keys 1 to 4 are HAT, PEDAL, KICK 2, KICK; keys 5 to 8 OP HAT, CONGA, LO TOM, RIM; keys 9 to 12 RIDE, C-BELL, HI TOM, SNARE 2; keys 13 to 16 CRASH, SHAKER, CLAP, SNARE.
+
+### 23 Nov 2026, 21:30 and 21:35: drum effects belong under FX, in Ben's words
+
+"I'm fairly certain that the drum's sends and stutter are all working globally and changing one voice's settings is changing them as global settings for the kit"
+
+"I don't like that the FX are in env. ENV should be for dry sound design / modulation. Edit should be for the same. FX should be for FX. Why is it different for the kit, I vaguely remember you suggesting it would be a good compromise?"
