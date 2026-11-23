@@ -687,6 +687,42 @@ Memory and CPU
 Not checked
 - No device build (no toolchain here). Long tests (soak, stress, regress, web) not run. The backup's object 11 is not exercised by a host test (the editor's backup is device-only; web/test_web.mjs is a long test).
 
+## Rebuild wave 14, the stutter sequence on FX (23 Nov): calls made that Ben did not specify
+Ben's words: SPEC.md "23 Nov 2026, 15:44" ("Not sure where the master stutter sequence has gone?") and his 15:55 answers ("Both on FX as you've recommended but don't walk the PERFORM page. The perform page is only in the long press for FX button"; "Option 2 - but obvi without the Perform page"). The lane had been reached only by turning ALGORITHM one click past DRUM on the steps, as if it were a fifth voice.
+
+FX's categories
+- Synth voices: INS (SEL: FX 1 2 3), SENDS, SLICER, then the whole mix: MIX (SEL: DELAY, REV/CHO, MASTER), STUT; FX again: INS. The drums: FILTER, INS, SENDS, SLICER, MIX, STUT, round. PERFORM is not a category: hold FX only (the 0.7 s keep-open unchanged), from STUT too.
+- STUT has one page: SEL does nothing there (its steps' pages are OCT- / OCT+, as before, and the four slots under the steps show which).
+- The tab row: the voice's categories, the divider, MIX STUT in white. Tab name STUT (four letters, as HOME's KNOB 3 STUT); never cut below four letters (STU reads as nothing). Fitting, in order: the gap narrows, the names not shown are cut to four then three letters, and (new) if it still does not fit, the -/+ legend keeps its boxed minus and plus and drops its word. The drums' six FX categories beside "1/3" and [-] STEPS [+] cannot fit at 8 px a letter otherwise. Measured: the word goes on 15 of the 24 FX rows with a knob just turned (the drums' six; on a synth voice MIX, SLICER and SENDS after a turn); STUT on a synth voice keeps [-] STEPS [+].
+
+The STUTTER category's screen
+- The lane as it was (its steps on the white keys, the black-key stutters in the strip, the recorded pads as bars, LEN ON PADS STEPS, the -/+ legend). Header: tag MIX, title STUTTER: the same tag as DELAY, REV/CHO and MASTER, so it reads as FX's whole-mix group. The steps' page moved out of the title into the four slots (it was "2/2"; "STUTTER 2/2" does not fit before the tempo).
+- White and grey whichever voice is selected: no voice colour above the strip (tested on all four). The strip underlines the voice still selected, as on the MIX pages (it underlined none when the lane was "after DR").
+- ALGORITHM: 1, 2, 3, DRUM only, on every screen (tested from HOME, EDIT, SEQ's steps, FX, ARP, GLO and STUT). On STUT it changes the voice and the lane stays (as MIX stays the mix). The lane's own ALGORITHM code (stl_algo) is gone.
+- Leaving it: any other category, HOME, a page; it is closed once a frame when its screen is no longer shown (stl_fix), so no later route to the drum screen can find it open.
+
+Everything that took "the lane is the selected voice" (the drums), item by item
+- Keys and black keys: the white keys are the lane's steps and the black keys its stutters on every voice (seq.c no longer asks for the drums; ui_grid.c asks stl_shown). A synth voice's STEP REC and live-take note mode are off while the lane shows (sr_here).
+- Recording: REC tapped on STUT is the lane's own take, REC_LANE in song.rec (bit 4, no voice's bit): played stutter keys and PERFORM pads go into the lane, no voice is armed, MIDI notes are not recorded, the strip shows no red dot. Playing: at once. Stopped: the REC screen frames no voice and says "press play / stutters, pads: lane"; a note does not start it (a key is a lane step), PLAY does. ALGORITHM during it does not move it onto a voice (rec_follow leaves it). REC anywhere else: the selected voice, as ever (its take records pads into the lane too, as before). One byte of RAM (seq.c rec_lane).
+- Lights: the lane's steps and their lights as before; every black key lit (drawn). A lane step held is now a step hold for the lights and the input (HC_STEP): OCT- lit (its pads), the other steps and the black keys lit, every page and layer button dark and ignored until let go (as a GRID step). OCT+ held: the black keys lit (they latch; they did before, unlit). 13 holds on STUT checked control by control (the lights test).
+- Hold SEQ, ARP, EDIT, GLO, SAVE, ENV, LFO on STUT: the selected voice's layers, as on any FX page (hold ARP + OCT+ transposes voice 1; hold EDIT + OCT- asks HOLD SAVE: CLEAR VOICE 1, naming it). Hold SEQ's halve / double stay refused on the lane (dark), as wave 9 decided: its length is KNOB 4's. Hold FX: PERFORM.
+- SELECT, PRESETS: nothing on STUT (as on the MIX pages). MIDI: notes play the selected voice; MIDI LEARN has nothing to learn on the lane's knobs. Undo: SAVE + OCT- / OCT+ undo the lane's own edits (the lane's undo is not a voice's). Hold LFO / ENV: MASTER's pair (no mapping on STUT).
+
+HOME
+- KNOB 3 STUT and the PERFORM zone unchanged, except: while no pad is latched the zone says FX>STUT at its right, grey (where the lane lives); latched pads take that place, white, as before.
+
+Stale hints found (Ben: "Knob one in the screenshot doesn't pick a type. Select knob does."; ben already fixed EMPTY: SELECT PICKS A TYPE)
+- The drum MUTE screen's "SEL+KEY: SOLO" (SEL + key left in wave 9): now "HOLD GLO: SOLO". That screen is no longer reachable (nothing sets DK_MUTE since wave 9); fixed anyway.
+- Searched every on-screen string for KNOB 1 picking a type, SELECT walking pages, SEL for scale or the sound, HOLD REC confirming, ALGORITHM for the lane: no other. The menu's "SEL: SECTION", the screensaver's "SEL: NEXT", the MAP banner's "SEL" are right (SEL is PAGE). Comments that still say so were left (not on screen), except the lane's own.
+
+Not changed
+- PERFORM's pads and behaviour, the lane's data, format and sound: stutter_test's render (stutter.wav) and punch_test's (punch-fx.wav) are byte for byte the same as on ben (md5 aef33537... and 2b6bf946...); perf_test's lane render still hashes as on the wave 5 merge; old lanes converted as wave 13 did. HOME's DECAY.
+
+Memory, measured on the rv32 -Os stand-in against ben (6bfe28a's tree): code +760 B, constants +66 B (an image of about 550,130 of 581,564), .data+.bss +4 B (about 96,936 of 98,304), the pool unchanged, .noinit unchanged. No 64-bit divide.
+
+Not checked
+- No device build (no toolchain here); the simulator's stand-in compile is clean. Long tests (soak, stress, regress, web) not run. tests/stress_test.c does not compile on ben either (black_keys redeclared: the test's array against wave 11's function), not touched.
+
 ## For Ben to confirm
 Every call waves 2 to 7 made that the spec did not cover, and every device-only limit or lossy conversion, one line each. The detail is in each wave's section above.
 
@@ -830,3 +866,11 @@ Wave 13, the PERFORM set and the mixer
 - Backup object 11 carries the user kits; a backup without it leaves the kits as they are.
 - Patterns A to D still share one kit (options above).
 - CPU on the FM-1 unmeasured: every colour effect stacked costs about 2.3 x the default mix on the host; the compromise to offer is four at once.
+Wave 14, the stutter sequence on FX
+- The header on the lane: tag MIX, title STUTTER (the same tag as FX's MIX pages), rather than STUT. The tab says STUT.
+- The tab row's last resort: when the names cannot fit even at three letters, the -/+ legend keeps its boxes and drops its word (the drums' FX rows; a synth MIX, SLICER or SENDS page after a knob was turned).
+- ALGORITHM on the lane changes the voice and the lane stays.
+- REC on the lane records the lane alone (no voice armed; stopped, only PLAY starts it); REC anywhere else as before.
+- Hold SEQ's halve / double refused on the lane; hold ARP, EDIT and the rest act on the selected voice.
+- A lane step held now blocks the page buttons until let go (as a step held on the steps), so the lights can say it.
+- HOME's PERFORM zone says FX>STUT while no pad is latched.
