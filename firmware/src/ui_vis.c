@@ -1,12 +1,13 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The screensavers (PHEBUS, Ben, 21 Nov 2026: "Drop all 11, new only"). (Wave 8, Ben 22 Nov 2026: no double presses; HOME
- * tapped on HOME opened one) They are HOME's pages: on HOME, SELECT right opens FLOW, then EYES, DESERT, THIRD EYE; SELECT
+ * tapped on HOME opened one) They are HOME's pages: on HOME, SELECT right opens FLOW, then EYES, DESERT, THIRD EYE, BEACH; SELECT
  * left from FLOW is HOME again, as SELECT walks every screen's pages (the name shows a second). HOME or any page closes it;
  * a layer held shows its screen as ever, then the screensaver comes back. The keys, PLAY and REC work as always.
  *   1 FLOW    liquid marble, wavy stripes and swaying rows, a band per voice
  *   2 EYES    four watching eyes in a turning lattice, an eye per voice
  *   3 DESERT  dunes in four strata under a ringed sun, a stratum per voice
  *   4 THIRD EYE  the three fused: a great eye as the sun on the dunes, FLOW for a sky
+ *   5 BEACH   the four characters dancing on a tropical beach by a trippy ocean (23 Nov 2026)
  * Ben: "acid psychedelic modern glitch art fused with ... psychedellic eyes and desert art vibe", "These but flowing
  * and morphing"; the four voice colours only (plus black and a little white), "each driven by its own voice's level";
  * no busier than the boot picture he set as "the limit". Original designs, not copies of anyone's artwork.
@@ -19,7 +20,7 @@
  * what the audio already leaves for the UI: the tracks' peaks (fx.c / drums.c, as the TRACKS meters read them), the
  * notes that started and the kick (voice.c vis_hit). Drawn in the main loop every other frame, in two bands of 120
  * rows: no cost to the audio. */
-static const char *const VIS_NAME[VIS_N] = {"FLOW", "EYES", "DESERT", "THIRD EYE"};
+static const char *const VIS_NAME[VIS_N] = {"FLOW", "EYES", "DESERT", "THIRD EYE", "BEACH"};
 /* vis_on, vis_shown_last, vis_name_t: ui_draw.c; vis_style, VIS_N: panel.c (kept with the settings) */
 static struct {
     uint16_t e[4];                                  /* each voice's level, smoothed: 0..256 (fast up, slow down) */
@@ -516,6 +517,143 @@ static void third_prep(void)
     ey[0].k1 = ey[0].k1e = ey[0].k2 = ey[0].k2e = 0;   /* black outlines"): the eye a flat shape on the sky */
 }
 
+
+/* ---- 5 BEACH (Ben, 23 Nov 2026, 20:56: "could you make one more artwork that is all 4 of them dancing together? Maybe on
+ * a tropical beach? With a trippy ocean lapping the shore line?"): the four characters in a row on the sand (voice order:
+ * the robot, the alien, the snake, the crocodile, each in its voice's colour), two black palms, a sunset sky in flat
+ * bands with a few stars, and the ocean: FLOW's bands (the voices, black between) laid flat into the distance, rolling
+ * in to a shoreline that laps in and out slowly. Flat shapes, no outlines, as Ben asked of the dunes the same evening.
+ * The dance: on the beat while the song plays, each character only while its own voice sounds (the crocodile with the
+ * drums): lean, arms up, lean the other way, arms up, the robot and the snake leaning one way while the alien and the
+ * crocodile lean the other; a note: a little hop; otherwise a gentle sway. DISCO QUIET: all of it stands still. The
+ * pictures (op_sprites.h, tools/gen_sprites.py) are run-length coded rows, read here row by row as the bands are drawn;
+ * the characters are on this screen only (Ben: "Heads in the strip only" stands for the working screens). */
+#define BH_HOR 92                                   /* the horizon */
+#define BH_SHORE 150                                /* the shoreline's middle */
+#define BH_FEET 228                                 /* the characters stand here */
+static const uint8_t *bh_p[6];                      /* each picture's next row (the four characters, the two palms) */
+static int16_t bh_x[6], bh_y[6];                    /* its top left */
+static uint8_t bh_f, bh_nochar;                     /* bit k: picture k mirrored; 1: the characters left out (the boot) */
+static int8_t bh_sw;                                /* the palms' sway at their crowns (px) */
+static uint8_t bh_b[3];                             /* the ocean's bands: where each voice's ends (of 256; louder: wider) */
+static uint32_t bh_t;                               /* the clock (still in QUIET) */
+static void beach_prep(void)
+{
+    uint32_t i, quiet = disco == DISCO_QUIET, T = quiet ? 3000u : vs.tq >> 8;
+    bh_t = T;
+    {                                               /* the ocean's bands: a voice each, wider as it plays (as FLOW's) */
+        uint32_t w[4], sum = 0, acc = 0;
+        for (i = 0; i < 4u; i++)
+            sum += w[i] = 40u + vs.e[i] * 40u / 256u;
+        for (i = 0; i < 3u; i++)
+            bh_b[i] = (uint8_t)((acc += w[i]) * 256u / sum);
+    }
+    bh_f = 0;
+    for (i = 0; i < 4u; i++) {
+        uint32_t b = (clk_beat + (i & 1u) * 2u) & 3u, pose = 0;
+        int32_t x = 2 + (int32_t)i * 60, y = BH_FEET - OP_BCH_H + 1;
+        if (!quiet && song.playing && (vs.e[i] > 24u || vs.flash[i])) {   /* dancing: its voice sounds */
+            pose = b & 1u ? 2u : 1u;
+            bh_f |= (uint8_t)((b >= 2u) << i);
+        } else if (!quiet) {                        /* the sway: a pixel or two, each in its own time */
+            x += (isin(T * 6u + i * 300u) * 2 + 16384) >> 15;
+        }
+        if (!quiet && vs.flash[i] > 4u)             /* a note: a hop */
+            y -= 2;
+        bh_p[i] = OP_BCH[i][pose];
+        bh_x[i] = (int16_t)x, bh_y[i] = (int16_t)y;
+    }
+    bh_p[4] = bh_p[5] = OP_PALM;
+    bh_x[4] = -22, bh_y[4] = 4;                     /* the palms: one leaning in from the left, one (mirrored) from the right */
+    bh_x[5] = 240 - OP_PALM_W + 26, bh_y[5] = 26;
+    bh_f |= 1u << 5;
+    bh_sw = (int8_t)(quiet ? 0 : isin(T * 4u) * 3 >> 15);
+}
+/* one row of a picture (run-length coded: (colour << 5) | (length - 1), 255 the row's end) into q, from x0, mirrored
+ * when flip, in pal; returns the next row */
+static const uint8_t *beach_spr(const uint8_t *p, uint16_t *q, int32_t x0, int32_t w, uint32_t flip, const uint16_t *pal)
+{
+    int32_t x = 0, k;
+    uint32_t b;
+    while ((b = *p++) != 255u) {
+        int32_t n = (int32_t)(b & 31u) + 1;
+        if (b >> 5) {
+            uint16_t c = pal[b >> 5];
+            for (k = 0; k < n; k++) {
+                int32_t xx = flip ? x0 + w - 1 - x - k : x0 + x + k;
+                if ((uint32_t)xx < 240u)
+                    q[xx] = c;
+            }
+        }
+        x += n;
+    }
+    return p;
+}
+static void beach_row(uint16_t *q, int32_t sy)      /* rows sy, sy + 1 */
+{
+    uint32_t T = bh_t, x, i, k;
+    int32_t lap = isin(T * 5u) * 6 >> 15, td = 0, D = 0, dz = sy - BH_HOR;
+    uint16_t sand = mix565(TE_DIM[2], TE_MID[2], 190), wet = mix565(sand, C_BLACK, 56), pal[6];
+    if (sy >= BH_HOR - 2 && sy < BH_SHORE + 12) {   /* the ocean's row: its distance (bands narrower far off), the rare tear */
+        D = 94000 / (dz + 48);
+        td = vis_tear((uint32_t)sy);
+    }
+    for (x = 0; x < 240u; x += 2u) {
+        int32_t xi = (int32_t)x, shore = BH_SHORE + lap + (isin(x * 2u + T * 2u) * 3 >> 15);
+        uint16_t c;
+        if (sy < BH_HOR) {                          /* the sky: bands of a sunset, their edges swaying a little; a low sun; stars */
+            int32_t w = isin(x * 3u + (uint32_t)sy * 2u + T) * 3 >> 15, cx = xi - 120, cy = sy - BH_HOR - 6;
+            c = cx * cx + cy * cy < 34 * 34 ? vp[2][2] : sy + w >= 68 ? vp[0][0] : sy + w >= 40 ? vp[1][0] : C_BLACK;
+            if (c == C_BLACK) {
+                uint32_t hs = vis_hash(x >> 1, (uint32_t)sy >> 1);
+                if ((hs >> 24) < 2u)
+                    c = ((hs >> 8) + T) % 40u < 4u ? C_WHITE : vp[hs & 3u][2];
+            }
+        } else if (sy < shore) {                    /* the ocean: bands of the voices laid flat, rolling in, morphing */
+            int32_t u = (xi + td - 120) * 64 / (dz + 48), v, j = 0;
+            v = D + (isin((uint32_t)(u * 6 + D * 2) + T * 3u) * 110 >> 15);
+            v += isin((uint32_t)(u * 3 - D * 3 + (v >> 1)) + T * 2u + 300u) * 80 >> 15;   /* (a second wave on the first: they curl) */
+            v = (int32_t)(((uint32_t)(v + (int32_t)(T * 2u)) >> 2) & 255u);
+            while (j < 3 && v >= bh_b[j])
+                j++;
+            c = vp[j][1];
+        } else if (sy < BH_SHORE + 9 + (isin(x * 2u + 500u) * 2 >> 15)) {
+            c = wet;                                /* the sand the water reaches: darker */
+        } else {
+            c = sand;
+            if (!bh_nochar && sy >= BH_FEET - 3 && sy <= BH_FEET + 3)
+                for (i = 0; i < 4u; i++) {          /* the shadows: flat ovals under their feet */
+                    int32_t dx = xi - (2 + (int32_t)i * 60 + OP_BCH_W / 2), dy = sy - BH_FEET;
+                    if (dx * dx + dy * dy * 40 < 420)
+                        c = wet;
+                }
+        }
+        q[x] = q[x + 1u] = swap16(c);
+    }
+    VIS_ROW2(q);
+    pal[1] = swap16(C_BLACK);
+    for (k = 0; k < 2u; k++, q += 240, sy++) {      /* the palms, then the characters, pixel by pixel */
+        for (i = 4; i < 6u; i++)
+            if (sy >= bh_y[i] && sy < bh_y[i] + OP_PALM_H) {
+                int32_t r = sy - bh_y[i];
+                bh_p[i] = beach_spr(bh_p[i], q, bh_x[i] + (i == 4u ? bh_sw : -bh_sw) * (OP_PALM_H - r) / OP_PALM_H,
+                                    OP_PALM_W, (bh_f >> i) & 1u, pal);
+            }
+        if (bh_nochar)
+            continue;
+        for (i = 0; i < 4u; i++)
+            if (sy >= bh_y[i] && sy < bh_y[i] + OP_BCH_H) {
+                pal[1] = swap16(mix565(TE_COL[i], C_BLACK, 160));   /* (op_pal's shades) */
+                pal[2] = swap16(TE_COL[i]);
+                pal[3] = swap16(mix565(TE_COL[i], C_WHITE, 128));
+                pal[4] = swap16(C_WHITE);
+                pal[5] = swap16(C_BLACK);
+                bh_p[i] = beach_spr(bh_p[i], q, bh_x[i], OP_BCH_W, (bh_f >> i) & 1u, pal);
+                pal[1] = swap16(C_BLACK);
+            }
+    }
+}
+
 /* the picture st's setup (its levels and clock in vs, its colours in vp), then its rows of one band (pass 0: screen rows 0..119,
  * 1: 120..239) into the canvas; the screensaver (vis_paint) and the boot (boot_frame) share them */
 static void vis_prep(uint32_t st)
@@ -527,8 +665,10 @@ static void vis_prep(uint32_t st)
         eyes_prep();
     else if (st == 2u)
         desert_prep();
-    else
+    else if (st == 3u)
         third_prep();
+    else
+        beach_prep();
 }
 static void vis_rows(uint32_t st, uint32_t pass)
 {
@@ -542,6 +682,8 @@ static void vis_rows(uint32_t st, uint32_t pass)
             eyes_back_row(q, sy), eyes_over(q, sy);
         else if (st == 2u)
             desert_row(q, sy, 1), VIS_ROW2(q);
+        else if (st == 4u)
+            beach_row(q, sy);
         else {
             if (sy < DS_HOR) {                  /* (not under the eye's black) */
                 int32_t ay = vis_abs(sy - ey[0].y) + ey[0].c, w2 = ey[0].r2 - (ay + 1) * (ay + 1), w;
@@ -730,6 +872,7 @@ static void boot_frame(uint32_t t)
 {
     int32_t fade = t < 16u ? 256 - (int32_t)t * 16 : t > BOOT_END - 20u ? (int32_t)(t - (BOOT_END - 20u)) * 256 / 20 : 0;
     uint32_t pass, i, st = boot_vis % VIS_N;
+    bh_nochar = 1;                                      /* (BEACH behind the wordmark: its sea and sky, the characters left out) */
     if (st) {                                           /* the screensavers: their voices breathe, the clock runs on */
         for (i = 0; i < 4u; i++) {
             vs.e[i] = (uint16_t)(120 + (isin(t * 9u + i * 256u) * 60 >> 15));
@@ -755,6 +898,7 @@ static void boot_frame(uint32_t t)
         sloop_logo_knock(0, pass * 120u, 120u);
         cv_blit(0, pass * 120u);
     }
+    bh_nochar = 0;
 }
 static int boot_draw(void)
 {
