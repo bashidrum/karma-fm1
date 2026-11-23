@@ -263,6 +263,7 @@ static int32_t black_idx(uint32_t k)
 /* a key of the layers the UI runs (seq.c lk_q): GLO the mixer, SAVE the store, SEQ's black keys */
 static int combo_live(uint32_t h, uint32_t c);          /* (wave 11, ui_lights.c) */
 #define HC_LY(l) (6u + (l))                             /* (ui_lights.c HC_LY0 + a layer) */
+#define HC_STEPS 2u                                     /* (ui_lights.c HC_STEP: a step held) */
 static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
 {
     int32_t w = punch_key(k), bi = black_idx(k);

@@ -242,6 +242,22 @@ static void nav_button(uint32_t b)
         ;
     nav_go(i < ng ? g[(i + 1u) % ng] : g[0], 0);
 }
+/* (wave 11) button b pressed now would show another page (the lights: a page button with nothing to move to stays dark) */
+static int nav_moves(uint32_t b)
+{
+    uint32_t k, n, ng, c = nav_cat(&k, &n), i;
+    const uint8_t *g = nav_group(b, &ng);
+    if (!ng)
+        return 0;
+    for (i = 0; i < ng && g[i] != c; i++)
+        ;
+    return (i < ng ? g[(i + 1u) % ng] : g[0]) != c || k != 0u;
+}
+static int nav_page_moves(void)
+{
+    uint32_t k, n, c = nav_cat(&k, &n);
+    return c != CT_NONE && n >= 2u;
+}
 /* (Ben, 08:42) SEL, the PAGE button: the next page of the category shown, round; one page: nothing */
 static void nav_page(void)
 {

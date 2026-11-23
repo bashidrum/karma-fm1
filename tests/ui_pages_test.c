@@ -92,11 +92,12 @@ static void ppm(const char *name) {
     fclose(f);
 }
 /* one UI frame (~16 ms): the audio between (as the ISR does), then input, LEDs, draw */
+static uint32_t frame_blocks = 22u;                /* (wave 11: the lights' trials run fewer audio blocks a frame) */
 static void frame(void)
 {
     uint32_t q;
     static int32_t o[CTL * 2];
-    for (q = 0; q < 22u; q++) {
+    for (q = 0; q < frame_blocks; q++) {
         uint32_t i;
         mix_block(o, CTL);
         for (i = 1; i < CTL; i += 2u) {             /* the scope, as audio.c fills it (the visualiser) */
@@ -201,6 +202,191 @@ static void lane_set_ui(uint32_t s, uint32_t code)   /* a STUTTER lane step lit 
     stl.lc[s >> 2] = (uint8_t)((stl.lc[s >> 2] & ~(3u << 2u * (s & 3u))) | (code & 3u) << 2u * (s & 3u));
 }
 #ifndef UI_PAGES_HARNESS_ONLY                       /* (tests/stress_test.c: the harness, its own main) */
+
+/* ---- (wave 11) the lights against the behaviour: what a control does, as state (UI, sequencer, matrix, mixer, the keys'
+ * jobs, the voices sounding) */
+static uint32_t h32(uint32_t h, const void *p, uint32_t n)
+{
+    const uint8_t *b = p;
+    while (n--) h = (h ^ *b++) * 16777619u;
+    return h;
+}
+static uint32_t st_part[6];
+static uint32_t lt_hold_k = 99u;                    /* (the lights' trials: the key held, its own job not counted) */                         /* (the parts of the last hash: which one differs) */
+static uint32_t st_hash(void)
+{
+    uint32_t h = 2166136261u, i, v[24];
+    uint8_t kk[27];
+    v[0] = (uint32_t)song.octave + 7u, v[1] = song.playing | transport_req << 2, v[2] = fill_held | fill_lat << 1 | fill_arm << 2;
+    v[3] = perf.held, v[4] = perf.lat, v[5] = ui.page | ui.home << 8 | ui.ask << 9 | ui.menu << 12, v[6] = (uint32_t)live_req + 3u;
+    v[7] = (uint32_t)live_sec + 3u, v[8] = sec_stores, v[9] = undo.valid | undo.undone << 1 | undo.trk << 2;
+    v[10] = drum_mute | (uint32_t)drum_solo << 16, v[11] = song.solo | mix_pan << 8 | mix_dsolo << 9, v[12] = map_lfo2 | map_fenv << 1;
+    v[13] = ly_lock, v[14] = fx_wet, v[15] = (uint32_t)(mac_env[0] + 100) | (uint32_t)(mac_dep[0] + 100) << 8;
+    v[16] = syn_tab | syn_pg << 8, v[17] = drum_lane, v[18] = sg_held, v[19] = (uint32_t)song.sel | drum_keys << 4;
+    v[20] = cur_cat(), v[21] = sr_on, v[22] = syn_half[0] | (uint32_t)syn_hcur() << 8, v[23] = drum_pg | dpg_half() << 8;
+    st_part[0] = h32(h, v, sizeof v);
+    h = 2166136261u;
+    for (i = 0; i < NTRK; i++) {
+        h = h32(h, trk[i].p, sizeof trk[i].p);
+        h = h32(h, trk[i].step, sizeof trk[i].step);
+        h = h32(h, trk[i].lock, sizeof trk[i].lock);
+    }
+    h = h32(h, &dpat, sizeof dpat);
+    for (i = 0; i < NPART; i++)                     /* (the stored part: not LFO 2's phase, the last voice's sources) */
+        h = h32(h, &mxt[i], (uint32_t)((const uint8_t *)&mxt[0].l2ph - (const uint8_t *)&mxt[0]));
+    st_part[1] = h;
+    for (i = 0; i < 27u; i++)                       /* (a key the UI took and did nothing with: none) */
+        kk[i] = kb_kind[i] == KS_UI || (kb_kind[i] == KS_FX && !kb_n[i]) || i + 14u == lt_hold_k ? KS_NONE : kb_kind[i];   /* (FX: a key
+                                                    * with no pad; the key held itself: not what is pressed) */
+    h = h32(2166136261u, kk, sizeof kk);
+    for (i = 0; i < NROLL; i++)
+        h = h32(h, &roll[i].on, 1);
+    st_part[2] = h;
+    h = 2166136261u;
+    for (i = 0; i < NPART; i++) {
+        uint32_t j;
+        for (j = 0; j < NVOICE; j++)
+            if (trk[i].v[j].active)
+                h = h32(h, &trk[i].v[j].note, 1), h = h32(h, &trk[i].v[j].vel, sizeof trk[i].v[j].vel);
+    }
+    st_part[3] = h;
+    st_part[4] = h32(2166136261u, &drums, sizeof drums);
+    st_part[5] = ui.msg_t ? h32(2166136261u, ui.msg, (uint32_t)strlen(ui.msg)) : 0u;
+    for (i = 0, h = 0; i < 6u; i++)
+        h = h * 31u + st_part[i];
+    return h;
+}
+static void ctl_down(uint32_t c) { if (c < 14u) { edges_btn |= BT(c); fm1_in.buttons |= BT(c); } else fm1_in.notes |= 1u << (c - 14u); frame(); }
+static void ctl_up(uint32_t c) { if (c < 14u) fm1_in.buttons &= ~BT(c); else fm1_in.notes &= ~(1u << (c - 14u)); frame(); }
+static void (*lt_setup)(void);                     /* a screen, a sound, a pattern: before the hold */
+static uint32_t lt_hold;                           /* what is held: a control (0..40) */
+static uint32_t lt_nosound, lt_step;
+/* mode 0: the hold alone; 1: the hold, then c pressed and let go, then the hold let go; 2: the hold let go, then c (at the same
+ * moment as 1). Returns the state's hash (at c's press and at the end); *lv: c's light while the hold is on (mode 1) */
+static uint32_t lt_trial(uint32_t c, uint32_t mode, uint32_t *lv, uint32_t *ctx)
+{
+    int fd[2];
+    pid_t pid;
+    uint32_t r[3] = {0, 0, 0};
+    fflush(stdout);
+    if (pipe(fd))
+        return 0;
+    pid = fork();
+    if (!pid) {
+        uint32_t h1, i;
+        close(fd[0]);
+        frame_blocks = 3u;
+        lt_setup();
+        ctl_down(lt_hold);
+        frames(12);
+        r[1] = led_lv[c], r[2] = led_ctx;
+        if (mode == 2u)
+            ctl_up(lt_hold);
+        else
+            frame();
+        if (mode)
+            ctl_down(c);
+        else
+            frame();
+        frame();
+        st_hash();
+        h1 = ((st_part[0] * 31u + st_part[1]) * 31u + st_part[2]) * 31u + st_part[5];   /* (at the press: no sound yet) */
+        if (getenv("LT_DEBUG"))
+            printf("    press parts %08x %08x %08x %08x kinds", st_part[0], st_part[1], st_part[2], st_part[5]);
+        if (getenv("LT_DEBUG")) { for (i = 0; i < 27u; i++) printf(" %u", kb_kind[i]); printf(" page %u cat %u\n", ui.page, cur_cat()); fflush(stdout); }
+        if (mode)
+            ctl_up(c);
+        else
+            frame();
+        frames(3);
+        st_hash();                                     /* (c let go, the hold still on: what a tap of c did) */
+        h1 = h1 * 31u + ((st_part[0] * 31u + st_part[1]) * 31u + st_part[2]) * 31u + st_part[5];
+        if (getenv("LT_DEBUG"))
+            printf("    after parts %08x %08x %08x %08x\n", st_part[0], st_part[1], st_part[2], st_part[5]), fflush(stdout);
+        if (mode != 2u)
+            ctl_up(lt_hold);
+        else
+            frame();
+        frames(6);
+        for (i = 0; i < 6u; i++)
+            if (fm1_in.buttons || fm1_in.notes) break;
+        st_hash();
+        if (lt_nosound)                                /* (a key held: its own note sounds differently long; not compared) */
+            st_part[3] = st_part[4] = 0;
+        r[0] = h1 * 31u + ((((st_part[0] * 31u + st_part[1]) * 31u + st_part[2]) * 31u + st_part[3]) * 31u + st_part[4]) * 31u + st_part[5];
+        if (getenv("LT_DEBUG")) {
+            uint32_t q;
+            for (q = 0; q < NTRK; q++)
+                printf("    trk%u p %08x st %08x lk %08x\n", (unsigned)q, h32(1, trk[q].p, sizeof trk[q].p), h32(1, trk[q].step, sizeof trk[q].step), h32(1, trk[q].lock, sizeof trk[q].lock));
+            printf("    dpat %08x mxt %08x\n", h32(1, &dpat, sizeof dpat), h32(1, mxt, sizeof mxt));
+        }
+        if (getenv("LT_DEBUG"))
+            printf("    [%u %u] parts %08x %08x %08x %08x %08x %08x msg '%s'\n", (unsigned)c, (unsigned)mode, st_part[0], st_part[1], st_part[2], st_part[3], st_part[4], st_part[5], ui.msg_t ? ui.msg : ""), fflush(stdout);
+        if (write(fd[1], r, sizeof r) != (ssize_t)sizeof r) _exit(1);
+        _exit(0);
+    }
+    close(fd[1]);
+    if (read(fd[0], r, sizeof r) != (ssize_t)sizeof r) r[0] = 1u;
+    close(fd[0]);
+    waitpid(pid, 0, 0);
+    if (lv) *lv = r[1];
+    if (ctx) *ctx = r[2];
+    return r[0];
+}
+
+static void lt_pattern(void)                       /* voice 1: notes on C4 E4 G4; the drums: kick, snare, hat */
+{
+    uint32_t j;
+    track_t *t = &trk[0];
+    steps_clear(t);
+    t->p[P_SLEN] = 16;
+    for (j = 0; j < 16u; j += 2u) { t->step[j].n = 1; t->step[j].note[0] = (uint8_t)(60 + (j % 3u) * 4u); t->step[j].time = ST_NOTE; t->step[j].vel = 100; }
+    dpat_clear(&dpat);
+    for (j = 0; j < 16u; j += 4u) { dt_set(j, 0, 100); dt_set(j + 2u, 2, 90); }
+    ly_lock = LY_PLAY; perf_unlatch(); fill_lat = 0; song.octave = 0; ui.ask = 0; ui.msg_t = 0;
+}
+static void su_filt(void) { lt_pattern(); song.sel = 0; go_home(); frames(2); chain_goto(FAM_FLT, "FILT"); frames(2); }
+static void su_lfo2(void) { lt_pattern(); song.sel = 0; go_home(); frames(2); chain_goto(FAM_MOD, "LFO 2"); frames(2); }
+static void su_home(void) { lt_pattern(); song.sel = 0; go_home(); frames(4); }
+static void su_home_drum(void) { lt_pattern(); song.sel = TRK_DRUM; go_home(); frames(4); }
+static void su_grid(void) { lt_pattern(); song.sel = 0; go_home(); frames(2); tap(B_SEQ); frames(3); }
+static void su_dscreen(void) { lt_pattern(); song.sel = TRK_DRUM; go_home(); frames(2); drum_screen_open(); frames(3); }
+static void su_perf_lat(void) { lt_pattern(); song.sel = 0; go_home(); frames(2); perf.lat = 1u; }
+static uint32_t lt_bad;
+/* every control under the hold of setup su, held control hc: lit <=> it does something with it (not what it does alone) */
+static uint32_t lt_check(const char *name, void (*su)(void), uint32_t hc, uint32_t *litset)
+{
+    uint32_t c, h0, bad = 0, nlit = 0, ctx = 0;
+    lt_setup = su, lt_hold = hc, lt_nosound = hc >= 14u, lt_hold_k = hc, lt_step = su == su_grid || su == su_dscreen;
+    if (getenv("LT_ONLY") && !strstr(name, getenv("LT_ONLY")))
+        return 0;
+    h0 = lt_trial(0, 0, 0, &ctx);
+    if (getenv("LT_DEBUG")) printf("  ^ none\n");
+    for (c = 0; c <= 40u; c++) {
+        uint32_t lv, hw, ha, did, lit;
+        if (c == hc || c == B_HOME)                    /* (the held one; HOME: acts on its release, never under a hold) */
+            continue;
+        if (getenv("LT_CTL") && (uint32_t)atoi(getenv("LT_CTL")) != c)
+            continue;
+        if ((c == B_PLAY && hc != B_SEQ) || (c == B_REC && lt_step))   /* (PLAY is the transport under every hold but SEQ's, REC
+                                                       * records: what they do alone, not combos) */
+            continue;
+        hw = lt_trial(c, 1, &lv, 0);
+        ha = lt_step ? 0u : lt_trial(c, 2, 0, 0);     /* (a step held: what a button does is its lock page; against none) */
+        did = hw != h0 && (lt_step || hw != ha);
+        lit = lv == LL_LIT;
+        nlit += lit;
+        if (lit)
+            litset[c >> 5] |= 1u << (c & 31u);
+        if (did != lit) {
+            printf("  %s: %s%s %s\n", name, c < 14u ? B_NAME[c] : "key ", c < 14u ? "" : (char[3]){(char)('0' + (c - 14u) / 10u), (char)('0' + (c - 14u) % 10u), 0},
+                   lit ? "lit but does nothing with it" : "does something with it but dark");
+            bad++;
+        }
+    }
+    lt_bad += bad;
+    return nlit;
+}
 int main(int argc, char **argv)
 {
     uint32_t i;
@@ -3364,6 +3550,7 @@ int main(int argc, char **argv)
                 int fd[2];
                 pid_t pid;
                 if (pipe(fd)) { h[r] = r; continue; }
+                fflush(stdout);
                 pid = fork();
                 if (!pid) {
                     uint32_t hh = 2166136261u, q, j, t0 = fm1_ms;
@@ -3371,23 +3558,34 @@ int main(int argc, char **argv)
                     track_t *t = &trk[0];
                     close(fd[0]);
                     song.sel = 0; go_home(); frames(2);
+                    dpat_clear(&dpat);                  /* (wave 11: the drums silent, what earlier tests left there out) */
+                    for (q = 0; q < NTRK; q++) { memset(trk[q].v, 0, sizeof trk[q].v); trk[q].p[P_MUTE] = 0; trk[q].nheld = 0; trk[q].arp_phys = 0; }
+                    for (q = 0; q < NROLL; q++) roll[q].on = 0;
+                    memset(kb_kind, 0, sizeof kb_kind); song.solo = 0; perf_unlatch(); fill_lat = fill_arm = 0;
+                    for (q = 0; q < NXSLOT; q++)        /* (the slots as a fresh sound's: what earlier tests set there out) */
+                        xs_type_set(t->p, q, XT_OFF);
+                    t->p[P_SLCR] = 0;
+                    memset(xst, 0, sizeof xst);
+                    for (q = 0; q < NTRK; q++) trk[q].ins_run = trk[q].tail = 0;
                     steps_clear(t); t->p[P_SLEN] = 16;
                     for (j = 0; j < 16u; j += 2u) { t->step[j].n = 1; t->step[j].note[0] = (uint8_t)(48 + j); t->step[j].time = ST_NOTE; t->step[j].vel = 100; }
                     if (!r) {                           /* straight */
-                        t->p[P_FTYPE] = (int16_t)(t->p[P_FTYPE] + 1); t->p[P_LWAVE] = (int16_t)(t->p[P_LWAVE] + 1);
-                        xs_type_set(t->p, 0, XT_DIST); t->p[P_SSWING] = (int16_t)(t->p[P_SSWING] + 3);
+                        t->p[P_FTYPE] = (int16_t)(t->p[P_FTYPE] + 1);
+                        t->p[P_LWAVE] = (int16_t)(t->p[P_LWAVE] + 1);
+                        xs_type_set(t->p, 0, XT_DIST);
+                        t->p[P_SSWING] = (int16_t)(t->p[P_SSWING] + 3);
                         for (q = 0; q < NPART; q++) trk[q].p[P_ROOT] = 2;
-                        for (j = 0; j < 16u; j++) { t->step[16 + j] = t->step[j]; }
-                        t->p[P_SLEN] = 32;
+                        { for (j = 0; j < 16u; j++) { t->step[16 + j] = t->step[j]; }
+                        t->p[P_SLEN] = 32; }
                     } else {                            /* by the new routes */
                         for (q = 0; q < NPART; q++) trk[q].p[P_ROOT] = 0;
-                        tap(B_EDIT); tap(B_EDIT); frames(16); encs[panel.enc[EN_SELECT]] = 1; frames(2);   /* FILT TYPE */
-                        tap(B_LFO); frames(2); encs[panel.enc[EN_SELECT]] = 1; frames(2);                 /* LFO WAVE */
-                        go_home(); tap(B_FX); frames(2);
-                        while (t->p[P_X1TYPE] != XT_DIST) { encs[panel.enc[EN_SELECT]] = 1; frames(2); }  /* FX 1 TYPE */
-                        tap(B_SEQ); tap(B_SEQ); frames(16); encs[panel.enc[EN_K3]] = 3; frames(2);       /* PATTERN SWING */
-                        go_home(); tap(B_ARP); tap(B_ARP); frames(16); encs[panel.enc[EN_K1]] = 2; frames(2);   /* KEY ROOT */
-                        go_home(); press(B_SEQ); frames(10); press(B_OCTUP); release(B_OCTUP); release(B_SEQ); frames(2);
+                        { tap(B_EDIT); tap(B_EDIT); frames(16); encs[panel.enc[EN_SELECT]] = 1; frames(2); }   /* FILT TYPE */
+                        { tap(B_LFO); frames(2); encs[panel.enc[EN_SELECT]] = 1; frames(2); }                 /* LFO WAVE */
+                        { go_home(); tap(B_FX); frames(2);
+                        while (t->p[P_X1TYPE] != XT_DIST) { encs[panel.enc[EN_SELECT]] = 1; frames(2); } }  /* FX 1 TYPE */
+                        { tap(B_SEQ); tap(B_SEQ); frames(16); encs[panel.enc[EN_K3]] = 3; frames(2); }       /* PATTERN SWING */
+                        { go_home(); tap(B_ARP); tap(B_ARP); frames(16); encs[panel.enc[EN_K1]] = 2; frames(2); }   /* KEY ROOT */
+                        { go_home(); press(B_SEQ); frames(10); press(B_OCTUP); release(B_OCTUP); release(B_SEQ); frames(2); }
                     }
                     go_home(); frames(2);
                     while (fm1_ms < t0 + 8000u) frame();     /* (the same time passed on both: free LFOs, tails) */
@@ -3715,6 +3913,7 @@ int main(int argc, char **argv)
             key(PUNCH_BLACK[1]);
             release(B_GLO); frames(4);
             track_select(TRK_DRUM); frames(2);
+            mix_dsolo = 0;                              /* (wave 11: as the earlier tests may have left it) */
             press(B_GLO); frames(12);
             key(PUNCH_BLACK[0]); frames(2);
             check(mix_dsolo && (bk_shown & 1u), "w10: the mixer, drums: F#3 SOLO (drawn): the keys solo");
@@ -4150,6 +4349,121 @@ int main(int argc, char **argv)
         }
         #undef KT
         go_home(); frames(2);
+    }
+    {   /* ---- wave 11: the confirm, the black keys and the strip, the DISCO setting */
+        uint32_t c, ok, f, i;
+        static uint8_t snap[3][FM1_NCOL];
+        song.sel = 0; ly_lock = LY_PLAY; go_home(); frames(4);
+        lt_pattern();
+        press(B_EDIT); frames(2); tap(B_OCTDN); release(B_EDIT); frames(3);
+        for (c = 0, ok = ui.ask != 0; c <= 40u; c++)
+            ok &= c == B_SAVE ? led_lv[c] != LL_OFF : led_lv[c] == LL_OFF;
+        check(ok, "w11: a question waiting: SAVE alone lit (it pulses), every other button and key dark");
+        ui.force = 1; frame(); ppm("w11-lights-ask");
+        tap(B_HOME); frames(4); ui.ask = 0; ui.msg_t = 0; frames(2);
+        /* the black keys' lights are the strip drawn, on every screen that draws one; elsewhere only a note's */
+        {
+            uint32_t bad = 0, n = 0;
+            #define BKCHK(what) do { uint32_t q_, live_ = 0; frames(2); \
+                for (q_ = 0; q_ < 11u; q_++) live_ |= (uint32_t)(led_lv[14u + PUNCH_BLACK[q_]] != LL_OFF) << q_; \
+                if (bk_drawn_f + 2u >= ui.frame) { n++; if (live_ != bk_drawn) { printf("  %s: lights %03x strip %03x\n", what, live_, bk_drawn); bad++; } } \
+                else if (live_) { printf("  %s: black keys lit, no strip\n", what); bad++; } } while (0)
+            go_home(); frames(2); BKCHK("HOME, nothing held");
+            press(B_SEQ); frames(12); BKCHK("SEQ held"); release(B_SEQ); frames(3);
+            press(B_GLO); frames(12); BKCHK("GLO held (voice 1)"); release(B_GLO); frames(3);
+            press(B_FX); frames(12); BKCHK("PERFORM"); release(B_FX); frames(3);
+            song.sel = TRK_DRUM; go_home(); frames(2);
+            press(B_GLO); frames(12); BKCHK("GLO held (drums)"); release(B_GLO); frames(3);
+            fm1_in.notes |= 1u << PUNCH_BLACK[2]; BKCHK("the drums, a black key pressed (no job)");
+            printf("  lv %u keys %u lk %u\n", led_lv[14 + PUNCH_BLACK[2]], drum_keys, lights_keys); fm1_in.notes = 0; frames(2);
+            drum_screen_open(); frames(3); fm1_in.notes |= 1u << PUNCH_BLACK[2]; BKCHK("the drum screen, a black key pressed"); fm1_in.notes = 0; frames(2);
+            song.sel = 0; go_home(); frames(2); tap(B_SEQ); frames(3);
+            fm1_in.notes |= 1u << PUNCH_BLACK[1]; BKCHK("the GRID, a black key pressed"); fm1_in.notes = 0; frames(2);
+            go_home(); frames(2); trk[0].p[P_CHORD] = 1; chain_goto(FAM_SCL, "KEY"); frames(3);
+            BKCHK("ARP > KEY, chord mode (the modifiers drawn)");
+            trk[0].p[P_CHORD] = 0; go_home(); frames(3);
+            #undef BKCHK
+            check(!bad && n >= 5u, "w11: the black keys' lights are the strip drawn (SEQ, the mixers, PERFORM, KEY), dark where none is drawn");
+        }
+        /* QUIET: nothing changes while a pattern plays (HOME, the GRID); SHOW: the keys move; the level persists */
+        song.sel = 0; go_home(); frames(2);
+        for (i = 0; i < 2u; i++) {
+            disco = DISCO_QUIET;
+            if (i) { tap(B_SEQ); frames(3); }
+            transport_req = 1; frames(6);
+            memcpy(snap[0], fm1_led, FM1_NCOL); memcpy(snap[1], fm1_led_dim, FM1_NCOL); memcpy(snap[2], fm1_led_bg, FM1_NCOL);
+            for (f = 0, ok = song.playing != 0u; f < 120u; f++) {
+                frame();
+                ok &= !memcmp(snap[0], fm1_led, FM1_NCOL) && !memcmp(snap[1], fm1_led_dim, FM1_NCOL) && !memcmp(snap[2], fm1_led_bg, FM1_NCOL);
+            }
+            check(ok, i ? "w11: QUIET, the GRID playing: no light changes in 2 s (no play head, no beat, no blink)"
+                        : "w11: QUIET, HOME playing: no light changes in 2 s (no hits, no notes, no beat)");
+            transport_req = 2; frames(4); go_home(); frames(2);
+        }
+        {
+            uint32_t sn = 0, sh = 0, ch = 0;
+            uint8_t prev[41];
+            disco = DISCO_NORMAL; transport_req = 1; frames(4);
+            for (f = 0; f < 120u; f++) { frame(); for (c = 14; c <= 40u; c++) sn += led_lv[c] != LL_OFF; }
+            disco = DISCO_SHOW; memcpy(prev, led_lv, 41);
+            for (f = 0; f < 120u; f++) {
+                frame();
+                for (c = 14; c <= 40u; c++) sh += led_lv[c] != LL_OFF;
+                ch += memcmp(prev, led_lv, 41) != 0;
+                memcpy(prev, led_lv, 41);
+                if (f == 60u) { ui.force = 1; ppm("w11-show-home"); }
+            }
+            check(sh > sn * 2u && ch > 10u && fm1_led_bg_ns == LIGHTS_NS[LIGHTS_HIGH],
+                  "w11: SHOW, HOME playing: the keys dance (far more lit than NORMAL, changing), every button's backlight HIGH");
+            press(B_SEQ); frames(12);
+            for (c = 14, ok = 1; c <= 40u; c++)
+                ok &= (led_lv[c] == LL_LIT) == (uint32_t)combo_live(led_ctx, c) || (led_lv[c] != LL_OFF) == 0;
+            check(ok && led_ctx == HC_LY0 + LY_SEQ, "w11: SHOW: a hold wins, its hints and nothing else");
+            release(B_SEQ); frames(3);
+            transport_req = 2; frames(4);
+        }
+        {
+            uint32_t w;
+            disco = DISCO_SHOW; w = lights_word(); disco = DISCO_NORMAL; lights_from_word(w);
+            ok = disco == DISCO_SHOW;
+            disco = DISCO_QUIET; w = lights_word(); disco = DISCO_NORMAL; lights_from_word(w);
+            ok &= disco == DISCO_QUIET;
+            lights_from_word(w & 0x3FFFFFFFu);
+            check(ok && disco == DISCO_NORMAL, "w11: DISCO kept in the settings word (SHOW, QUIET read back; a word from before: NORMAL)");
+        }
+        disco = DISCO_NORMAL; go_home(); frames(4);
+    }
+    {   /* ---- PHEBUS wave 11 (SPEC.md, "23 Nov 2026, 10:45: the lights"): every control under every hold: lit <=> it does something
+         * together with what is held (what it does alone, as PLAY's transport under GLO, does not count); dark <=> nothing */
+        static const struct { const char *n; void (*su)(void); uint32_t hc; } LT[] = {
+            {"FILT: FX", su_filt, B_FX}, {"FILT: SEQ", su_filt, B_SEQ}, {"FILT: ARP", su_filt, B_ARP}, {"FILT: EDIT", su_filt, B_EDIT},
+            {"FILT: GLO", su_filt, B_GLO}, {"FILT: SAVE", su_filt, B_SAVE}, {"FILT: ENV (map)", su_filt, B_ENV},
+            {"FILT: LFO (map)", su_filt, B_LFO}, {"LFO 2: LFO (map)", su_lfo2, B_LFO}, {"FILT: OCT-", su_filt, B_OCTDN},
+            {"FILT: OCT+", su_filt, B_OCTUP}, {"FILT: a key (C4) held", su_filt, 14u + 7u},
+            {"HOME: LFO (pair)", su_home, B_LFO}, {"HOME: ENV (pair)", su_home, B_ENV}, {"HOME: SEQ", su_home, B_SEQ},
+            {"HOME, drums: SEQ", su_home_drum, B_SEQ}, {"HOME, drums: GLO", su_home_drum, B_GLO},
+            {"HOME, drums: ARP", su_home_drum, B_ARP}, {"HOME, drums: OCT-", su_home_drum, B_OCTDN},
+            {"HOME, drums: OCT+", su_home_drum, B_OCTUP}, {"HOME, drums: FX", su_home_drum, B_FX},
+            {"HOME, drums: a key held", su_home_drum, 14u + 2u},
+            {"PERFORM, a pad latched: FX", su_perf_lat, B_FX},
+            {"GRID: a step held", su_grid, 14u + 2u}, {"drum screen: a step held", su_dscreen, 14u + 2u},
+        };
+        uint32_t i, c;
+        static uint32_t litset[NELEM(LT)][2];
+        lt_bad = 0;
+        for (i = 0; i < NELEM(LT); i++) {
+            char b[200];
+            uint32_t n = lt_check(LT[i].n, LT[i].su, LT[i].hc, litset[i]), o = 0;
+            o += (uint32_t)snprintf(b + o, sizeof b - o, "  lit: %s:", LT[i].n);
+            for (c = 0; c <= 40u && o < 180u; c++)
+                if ((litset[i][c >> 5] >> (c & 31u)) & 1u) {
+                    if (c < 14u) o += (uint32_t)snprintf(b + o, sizeof b - o, " %s", B_NAME[c]);
+                    else o += (uint32_t)snprintf(b + o, sizeof b - o, " k%u", (unsigned)(c - 14u));
+                }
+            printf("%s (%u)\n", b, (unsigned)n);
+        }
+        check(!lt_bad, "w11: the lights under every hold (25 holds x 40 controls): each lit control does something with it, each dark one nothing");
+        go_home(); frames(4);
     }
     printf("ui: %s\n", fails ? "FAILED" : "pages, layers (punch, steps, erase, roll, key, mix), layer lock, song layer, REC hold, drums, REC, 20000-frame fuzz PASS");
     return fails;

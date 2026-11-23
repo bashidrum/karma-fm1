@@ -21,13 +21,23 @@
  *           sweeping up from the lowest key, at the glow. A hold always wins: its hints, nothing else. */
 enum { LL_OFF, LL_BG, LL_GLOW, LL_LIT };
 enum { LK_STATE, LK_HINT, LK_MOTION, LK_BACK };
-#define QUIET_HINT_NS 1500u                             /* (QUIET's hints: the backlight's pulse, LIGHTS off or not) */
+#define QUIET_HINT_NS 1500u
+static int combo_live(uint32_t h, uint32_t c);                             /* (QUIET's hints: the backlight's pulse, LIGHTS off or not) */
 static uint8_t led_lv[41];                              /* the level each control got last frame (the tests read it) */
 static uint8_t led_ctx;                                 /* the hold the lights showed (HC_*) */
 
 /* ---- the holds, and what works under each */
 enum { HC_NONE, HC_ASK, HC_STEP, HC_KEY, HC_OCTDN, HC_OCTUP, HC_LY0 };   /* HC_LY0 + LY_*: a layer held (or kept open) */
-_Static_assert(HC_LY0 == HC_LY(0), "HC_LY (ui_layers.c) is HC_LY0 + a layer");
+_Static_assert(HC_LY0 == HC_LY(0) && HC_STEP == HC_STEPS, "HC_LY, HC_STEPS (ui_layers.c) are these");
+static uint32_t black_keys(void);
+/* (Ben: black keys "Only live when drawn") the black keys with no job here: the GRID, the drum voice's sounds (not CHROMATIC),
+ * a chord mode where the modifiers are not drawn */
+static int key_strip_on(void);
+static uint32_t keys_dead(void)
+{
+    return kb_grid || (is_drum(TSEL) && drum_keys != DK_CHROM) || (TSEL->p[P_CHORD] && !key_strip_on() && !is_drum(TSEL))
+               ? black_keys() : 0u;
+}
 static uint32_t hold_ctx(void)
 {
     uint32_t ob = 1u << panel.btn[B_OCTDN], pb = 1u << panel.btn[B_OCTUP], b = fm1_in.buttons;
@@ -43,7 +53,7 @@ static uint32_t hold_ctx(void)
         return HC_OCTDN;
     if ((b & pb) && !(b & ob))
         return HC_OCTUP;
-    if (fm1_in.notes && !kb_grid && !sr_on && !rec_wait)
+    if ((fm1_in.notes & ~keys_dead()) && !kb_grid && !sr_on && !rec_wait)
         return HC_KEY;
     return HC_NONE;
 }
@@ -62,8 +72,9 @@ static int combo_live(uint32_t h, uint32_t c)
         return c == B_SAVE;
     case HC_STEP:                                       /* a step: the page buttons its locks are made from, SEL, OCT- erases;
                                                          * the other steps (held together, one lock for all) */
-        if (c < 14u)
-            return c == B_EDIT || c == B_ENV || c == B_LFO || c == B_FX || c == B_SEQ || c == B_SCL || c == B_OCTDN;
+        if (c < 14u)                                    /* (a page button or SEL: only if there is another page to show) */
+            return ((c == B_EDIT || c == B_ENV || c == B_LFO || c == B_FX || c == B_SEQ) && nav_moves(c)) ||
+                   (c == B_SCL && nav_page_moves()) || c == B_OCTDN;
         return w >= 0 && sg_page() * 16u + (uint32_t)w < trk_len(t) && !((sg_held >> w) & 1u);
     case HC_KEY:                                        /* a note or a drum sound held: OCT- erases it from the pattern */
         return c == B_OCTDN;
@@ -199,14 +210,13 @@ static void ui_leds(void)
                 if ((sg_held >> k) & 1u)
                     ll_set(14u + key_of_lane(k), LL_LIT, LK_STATE);
         if (h == HC_KEY)                                /* the keys held */
-            ll_keys(fm1_in.notes, LL_LIT, LK_STATE);
+            ll_keys(fm1_in.notes & ~keys_dead(), LL_LIT, LK_STATE);
     } else {                                            /* ---- nothing held: as before wave 11, then the DISCO */
         uint32_t keys, guide, back, lnotes = lights_notes && !quiet;
         uint32_t lk = ly_lock == LY_PLAY, bk = black_keys();
         /* (Ben: black keys "Only live when drawn") a black key with no job here (the GRID, the drum voice's sounds) stays dark,
          * pressed or not; the KEY page's chord modifiers (drawn) glow */
-        uint32_t dead = kb_grid || (is_drum(TSEL) && drum_keys != DK_CHROM) || (TSEL->p[P_CHORD] && !key_strip_on() && !is_drum(TSEL))
-                            ? bk : 0u;
+        uint32_t dead = keys_dead();
         ll_set(ui.layer != LY_PLAY ? LAYER_BTN[ui.layer] : cur_btn(), lk || ((fm1_ms / 300u) & 1u) ? LL_LIT : LL_OFF,
                lk ? LK_STATE : LK_MOTION);              /* (kept open: blinks) */
         if (play_led() || (ci_on && ci_u % BEAT_U < BEAT_U / 4u))
@@ -261,7 +271,7 @@ static void ui_leds(void)
         }
         guide = keys_guide() & 0x7FFFFFFu;              /* the landmarks: dim */
         ll_keys(guide, LL_GLOW, LK_BACK);
-        back = lights_keys_mask();                      /* the menu's KEYS */
+        back = lights_keys_mask() & ~dead;              /* the menu's KEYS (not a dead black key) */
         ll_keys(back, LL_BG, LK_BACK);
         if (lights_lvl || disco == DISCO_SHOW)          /* the menu's LIGHTS (SHOW: every button's backlight) */
             for (k = 0; k < NB; k++)

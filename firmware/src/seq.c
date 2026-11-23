@@ -158,7 +158,8 @@ static volatile uint8_t ly_lock = LY_PLAY;
  * to the UI through step_in_q; ly_off: the layer buttons that are not layers meanwhile (SEQ: rest, ARP: tie) */
 static volatile uint8_t sr_on;
 static volatile uint32_t ly_off;
-static uint32_t layer_buttons(void) { return (fm1_in.buttons & ~ly_off) | (ly_lock != LY_PLAY ? ly_bit[ly_lock % LY_COUNT] : 0u); }
+static volatile uint32_t ly_eatm;          /* (wave 11) layer buttons the UI ate (pressed with nothing to do with what is held) */
+static uint32_t layer_buttons(void) { return (fm1_in.buttons & ~ly_off & ~ly_eatm) | (ly_lock != LY_PLAY ? ly_bit[ly_lock % LY_COUNT] : 0u); }
 /* the layer the keys are in: the held function button (FX, EDIT, ARP, SEQ, SEL, GLO in that order),
  * else the locked one */
 static uint32_t layer_now(void)

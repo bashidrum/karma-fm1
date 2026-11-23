@@ -605,6 +605,7 @@ static void layer_unlock(void)
 static uint32_t ly_quiet_t;
 static uint8_t ly_held_now;                               /* (the layer held or kept open this frame, LY_PLAY none) */
 static uint8_t seq_fill;                                  /* (wave 10) the FILL PLAY holds while SEQ is held */
+static uint32_t ly_prev_b;                                /* the buttons last frame (a press of OCT- OCT+ PLAY SEL under a layer) */
 static int ly_quiet(void)
 {
     if (ly_quiet_t && fm1_ms - (ly_quiet_t & ~1u) >= LY_QUIET_MS)
@@ -618,8 +619,9 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
     static uint8_t down[LY_COUNT], used[LY_COUNT];
     static uint16_t shown;                                 /* a bit a layer, shown in this hold (no tap then) */
     static uint32_t t0[LY_COUNT];
-    uint32_t l, now = fm1_ms, held = LY_PLAY, eat = 0;
+    uint32_t l, now = fm1_ms, held = LY_PLAY, eat = 0, was_lock = ly_lock != LY_PLAY, prevh;
     ly_eat &= fm1_in.buttons;                             /* (a press the menu took: eaten only while it is still down) */
+    ly_eatm = ly_eat;                                     /* (seq.c: an eaten button is no layer for the keys either) */
     if (ui.ask || ui.hold_kind)                           /* (wave 10: SAVE down with a question: the confirm's, not a layer) */
         ly_eat |= ly_bit[LY_SAVE] & fm1_in.buttons;
     if (ly_lock != LY_PLAY) {
@@ -633,11 +635,20 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
             *pressed &= ~eat;
         }
     }
+    for (l = LY_FX; l < LY_COUNT && !down[l]; l++)
+        ;
+    prevh = l < LY_COUNT ? l : LY_PLAY;                   /* (the layer held last frame, if any) */
     for (l = LY_FX; l < LY_COUNT; l++) {
         uint32_t d = (fm1_in.buttons & ly_bit[l] & ~ly_off) != 0u;   /* (STEP REC: SEQ and ARP are no layers) */
-        if (l == LY_SAVE && (ly_eat & ly_bit[l]))
+        if (d && !down[l] && ly_bit[l] &&
+            ((prevh != LY_PLAY && prevh != l && !was_lock && !combo_live(HC_LY(prevh), LAYER_BTN[l])) ||
+             (kb_grid && sg_held && !combo_live(HC_STEPS, LAYER_BTN[l])))) {
+            ly_eat |= ly_bit[l];
+        }                          /* (wave 11: a button with nothing to do with what is held (a layer, a
+                                                         * step) does nothing, as its light says: dark) */
+        if (ly_eat & ly_bit[l])
             d = 0;                                        /* (wave 10: SAVE pressed or held for the confirm: no layer, no tap,
-                                                         * until it is let go) */
+                                                         * until it is let go; wave 11: any button eaten) */
         if (d && !down[l]) {
             t0[l] = now;
             shown &= (uint16_t)~(1u << l);
@@ -681,6 +692,7 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         shown |= (uint16_t)(1u << ui.layer);              /* (seen: its button let go is no tap) */
     ly_held_now = LY_PLAY;
     if (held == LY_PLAY) {
+        ly_prev_b = fm1_in.buttons;
         while (lk_r != lk_w) {                            /* a key let go after its layer: its release only */
             uint32_t e = lk_q[lk_r % LKQ];
             lk_r++;
@@ -722,6 +734,8 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         uint32_t v = used[held] || ui.layer_used || now - t0[held] >= SHOW_MS;
         if (v != map_vis)
             map_vis = (uint8_t)v, ui.force = 1;
+        if (v)
+            shown |= (uint16_t)(1u << held);              /* (shown: its release is no tap, as a layer's) */
     } else if (ui.layer == LY_PLAY && (used[held] || now - t0[held] >= SHOW_MS)) {
         ui.layer = (uint8_t)held;                         /* show it (not for a quick tap) */
         shown |= (uint16_t)(1u << held);
@@ -730,9 +744,9 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
          * plus (layer_pm names them on its screen); PLAY with SEQ held: the FILL */
         uint32_t ob = 1u << panel.btn[B_OCTDN], pb = 1u << panel.btn[B_OCTUP], yb = 1u << panel.btn[B_PLAY];
         uint32_t sb = 1u << panel.btn[B_SCL];
-        static uint32_t prev;
-        uint32_t b = fm1_in.buttons & (ob | pb | yb | sb), press = b & ~prev;
-        prev = b;
+        uint32_t b = fm1_in.buttons & (ob | pb | yb | sb), press = b & ~ly_prev_b;
+        ly_prev_b = b;                                    /* (wave 11: kept every frame, a layer held or not: OCT- already
+                                                           * down when a layer starts is no press of it) */
         if (press & sb)
             used[held] = 1;
         if (press & (ob | pb))
