@@ -647,10 +647,12 @@ static volatile uint8_t ci_on;                /* the count-in runs (armed, COUNT
 static volatile uint8_t ci_beat;              /* its beats clicked so far - 1 (the UI shows 4 - ci_beat) */
 static uint32_t ci_u;                         /* clock units since it started */
 static volatile uint8_t rec_go;               /* recording just started (the UI says so) */
+static uint8_t rec_lane;                      /* (wave 14) REC pressed on the STUTTER lane: the take is the lane's (REC_LANE),
+                                               * no voice armed; set by REC (ui_studio.c rec_toggle) */
 static void seq_start(void);
 static void rec_begin(void)
 {
-    song.rec = (uint8_t)(1u << (song.sel % NTRK));
+    song.rec = (uint8_t)(rec_lane ? REC_LANE : 1u << (song.sel % NTRK));
     rec_wait = 0;
     rec_go = 1;
 }
@@ -1125,8 +1127,8 @@ static void arp_tick(track_t *t, uint32_t adv)
 /* armed and stopped, a note on the selected track: the note is the downbeat (the transport starts, recording on) */
 static void arm_start(track_t *t)
 {
-    if (!rec_wait || t != TSEL || song.playing || ci_on)
-        return;
+    if (!rec_wait || rec_lane || t != TSEL || song.playing || ci_on)
+        return;                                   /* (wave 14: the lane's take: PLAY starts it, a note only sounds) */
     if (rec_count) {
         return;                                   /* COUNT: PLAY counts in; a note only sounds */
     } else {
@@ -1463,7 +1465,7 @@ static void key_down(uint32_t k)
     default:
         break;
     }
-    if (layer == LY_PLAY && kb_grid && stl_view && sel == TRK_DRUM && punch_key(k) < 0) {   /* (wave 13, Ben: "The black keys
+    if (layer == LY_PLAY && kb_grid && stl_view && punch_key(k) < 0) {   /* (wave 14: any voice) */   /* (wave 13, Ben: "The black keys
                                                        * on the stutter sequencer should just do stutters / beat repeat fx")
                                                        * the STUTTER lane: a black key repeats the mix, as PERFORM's stutter
                                                        * pads (punch.c perf_lane_press; OCT+ held: latch) */
@@ -1739,7 +1741,7 @@ static void keyboard_block(void)
  * (an arm follows too: it waits for a note on the track selected) */
 static void rec_follow(uint32_t sel)
 {
-    if (song.rec)
+    if (song.rec && song.rec != REC_LANE)              /* (wave 14: the lane's take stays the lane's) */
         song.rec = (uint8_t)(1u << (sel % NTRK));
 }
 

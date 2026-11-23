@@ -31,7 +31,7 @@ PHEBUS is Ben's fork of KARMA by Ariel Muchnik, itself a fork of SLOOP by isod89
 
 ## 1. What PHEBUS is
 
-PHEBUS has four **voices**: three melodic voices and one drum voice. Each voice has its own sequencer part of up to 64 steps. On top of the four voices sit the **PERFORM** pads, effects you play on the keys like an MPC's pads, and the **STUTTER lane**, a fifth sequencer part that plays stutters and the pads you recorded.
+PHEBUS has four **voices**: three melodic voices and one drum voice. Each voice has its own sequencer part of up to 64 steps. On top of the four voices sit the **PERFORM** pads, effects you play on the keys like an MPC's pads, and the **STUTTER lane**, a sequencer part of the whole mix that plays stutters and the pads you recorded (FX's last category, STUT; it is not a voice).
 
 | Voice | Head in the strip | Colour | Starts as |
 | --- | --- | --- | --- |
@@ -104,7 +104,7 @@ The tab row above the dials always shows **the categories of the button you pres
 | **EDIT** | sound | synth: **OSC**, FILT. Drums: **SRC**, FLTR | OSC: OSC 2, 3, 4. FILT: FILT 2. SRC: 2/3, 3/3. FLTR: 2/2 (CLASSIC sounds) | MASTER's pair | - CLEAR the voice (asks: hold SAVE) | LEVEL | synth: OSC the Type, FILT the filter TYPE. Drums: the sound |
 | **ENV** | envelopes | synth: **AMP**, FILT envelope. Drums: **AMP** | drums: AMP 2/2 | on a synth sound page: **MAP** the envelope last shown (SEL: the other); elsewhere MASTER's pair | - REMOVE its mappings on this page | ENV LENGTH (drums: the sound's decay) | nothing (synth); the sound (drums) |
 | **LFO** | modulation | synth: **LFO 1**, LFO 2, MATRIX. Drums: **LFO** | LFO 1: its sync page. Drums: LFO 2/2 | on a synth sound page: **MAP** the LFO last shown (SEL: the other); elsewhere MASTER's pair | - REMOVE its mappings on this page | MOD DEPTH (drums: the sound's LFO DEPTH) | synth: the WAVE. Drums: the sound |
-| **FX** | effects | synth: **INS**, SENDS, SLICER, **MIX**. Drums: **FILTER**, INS, SENDS, SLICER, **MIX** | INS: FX 1, 2, 3. Drums INS: INSERT 2. MIX: DELAY, REV/CHO, MASTER | PERFORM (the pads) | - every latch off, + LATCH | FX MIX | synth: FX 1 to 3 the insert TYPE, SLICER its mode. Drums: the sound |
+| **FX** | effects | synth: **INS**, SENDS, SLICER, then the whole mix: **MIX**, **STUT** (the STUTTER lane). Drums: **FILTER**, INS, SENDS, SLICER, **MIX**, **STUT** | INS: FX 1, 2, 3. Drums INS: INSERT 2. MIX: DELAY, REV/CHO, MASTER. STUT: one page (SEL nothing; OCT- / OCT+ its steps' pages) | PERFORM (the pads) | - every latch off, + LATCH | FX MIX | synth: FX 1 to 3 the insert TYPE, SLICER its mode. Drums: the sound |
 | **SEQ** | rhythm | the steps on **TRIG**, PATTERN, **A-D** (the patterns) | TRIG: 2/2. PATTERN: 2/2 (SHIFT) | white keys ROLL (drums RETRIG); F#3 G#3 A#3 C#4 play A B C D; D#4 fill bar; PLAY: FILL; K1 RATE, K2 SHIFT, K3 SWING, K4 STEPS | - HALVE (asks), + DOUBLE; with PLAY held: + latch the fill, - let it go | SWING | nothing (synth); the sound (drums) |
 | **ARP** | notes | synth: **ARP**, KEY (key, scale, chord). Drums: **CHROMATIC** (again: off) | ARP: ARP 2. KEY: KEY 2 | -/+ and MASTER only | - / + the pattern a semitone (twice quickly: two) | TRANSP | nothing |
 | **SEL** | page | **PAGE**: the next page of the category shown | | nothing | | | |
@@ -124,7 +124,7 @@ The tab row above the dials always shows **the categories of the button you pres
 | Buttons | **ENV**, **LFO**, **FX**, **EDIT**, **ARP**, **SEQ**, **GLO** | tap: the button's categories, one a press. Hold: a layer (below) |
 | Button | **SEL (PAGE)** | the next page of the category shown. Held: nothing |
 | Buttons | **OCT-**, **OCT+** | minus and plus of the screen; twice quickly: the octave; OCT+ is the latch, OCT- removes |
-| Knob | **ALGORITHM** | choose the voice: 1, 2, 3, DRUM (on the GRID, past DRUM: the STUTTER lane) |
+| Knob | **ALGORITHM** | choose the voice: 1, 2, 3, DRUM, and nothing else, on every screen (the STUTTER lane is FX's **STUT**) |
 | Knob | **PRESETS** | the voice's sounds. The drums: on the drum screen the selected slot's **sound**; on HOME the whole **kit** |
 | Knob | **SELECT** | knob 5: the TYPE of a synth page; the SOUND on the drum screen. Never a page, never the tempo |
 | Knobs | **KNOB 1** to **KNOB 4** | the four values on the screen, under the four dials |
@@ -210,9 +210,9 @@ A black key does something **only where the screen draws it**, in the two-row st
 
 Every screen has the same frame, top to bottom:
 
-1. **The header.** A boxed **tag** says what the screen acts on: **1**, **2**, **3** (a synth voice), **DRUM**, **HOME**, **STUT** (the STUTTER lane), **MIX** (the whole mix's effects, white), **GLO** (settings), **REC**, or on a layer the button you hold (**FX**, **EDIT**, **ENV**, **LFO**, **ARP**, **SEQ**, **GLO**, **SAVE**). Then the title (the sound's name, the kit, the page or the layer) or, where SELECT turns something, **the SELECT chip** in its place (on a layer: **MASTER's chip**, its pair: FX MIX, SWING, TRANSP, LEVEL, LENGTH, DEPTH, TEMPO, filled for a moment as MASTER turns): a little dial and the value SELECT turns (LP24, ACID, DIST, SINE, SNARE), on the dark shade of the voice's colour, filled for a moment as you turn it. Then the tempo, a play or stop symbol, four beat lights (beat 1 red only while recording), a red disc while recording or a small white **unsaved dot**, and the battery. While a fill is on, **FILL** shows inverted in white; while PERFORM pads are latched, **PERF** and how many.
+1. **The header.** A boxed **tag** says what the screen acts on: **1**, **2**, **3** (a synth voice), **DRUM**, **HOME**, **MIX** (the whole mix: FX's MIX pages and its STUTTER lane, white, with the page or STUTTER as the title), **GLO** (settings), **REC**, or on a layer the button you hold (**FX**, **EDIT**, **ENV**, **LFO**, **ARP**, **SEQ**, **GLO**, **SAVE**). Then the title (the sound's name, the kit, the page or the layer) or, where SELECT turns something, **the SELECT chip** in its place (on a layer: **MASTER's chip**, its pair: FX MIX, SWING, TRANSP, LEVEL, LENGTH, DEPTH, TEMPO, filled for a moment as MASTER turns): a little dial and the value SELECT turns (LP24, ACID, DIST, SINE, SNARE), on the dark shade of the voice's colour, filled for a moment as you turn it. Then the tempo, a play or stop symbol, four beat lights (beat 1 red only while recording), a red disc while recording or a small white **unsaved dot**, and the battery. While a fill is on, **FILL** shows inverted in white; while PERFORM pads are latched, **PERF** and how many.
 2. **The body.** What the screen is about: the steps, a graph, the pads. Where black keys have jobs, the **black-key strip** is its top two rows.
-3. **The tabs** (on every page screen, the steps, the drum screen and the lane): the categories of the button you pressed, the one shown filled, "2/4": the page inside it (SEL's), and at the far right the **-/+ legend**: a boxed minus, the word, a boxed plus (**[-] STEPS [+]**), what a tap of OCT- and OCT+ does here; no legend, a tap does nothing. On FX the voice's categories come first in the voice's colour, then a divider and **MIX** in white: the whole mix. When the names do not fit beside the legend, the ones not shown are cut to their first letters (the drums' FX row: FILTER INS SEN SLI | MIX). With a step held on a synth voice's steps: **LOCK:** and the page. On a layer, the line under the header says what it does now, with the legend at its right; a message shows there as a white bar.
+3. **The tabs** (on every page screen, the steps, the drum screen and the lane): the categories of the button you pressed, the one shown filled, "2/4": the page inside it (SEL's), and at the far right the **-/+ legend**: a boxed minus, the word, a boxed plus (**[-] STEPS [+]**), what a tap of OCT- and OCT+ does here; no legend, a tap does nothing. On FX the voice's categories come first in the voice's colour, then a divider and **MIX STUT** in white: the whole mix (on the whole-mix screens the voice's names are grey too). When the names do not fit beside the legend, the ones not shown are cut to their first letters, four then three (STUT stays whole); if they still do not fit, the legend keeps its boxed minus and plus and drops its word (the drums' FX rows: FIL INS SEN SLI | MIX STUT 1/3 [-] [+]; a synth MIX page after a knob was turned). With a step held on a synth voice's steps: **LOCK:** and the page. On a layer, the line under the header says what it does now, with the legend at its right; a message shows there as a white bar.
 4. **The dials.** Four dials, one over each knob: the name above, the value beside it in one tall face, always in a fixed 40-pixel column, so a value never runs into the next one. The knob you are turning has its name inverted and its value underlined. A grey value does nothing in the current setting. A value **locked** on the step you hold is drawn **inverted**. A short message replaces the dials as a white bar.
 5. **The strip.** The four voices' heads, numbered 1 2 3 DR. The selected voice is underlined and its number is in its colour. A yellow **M** means muted, an ice-blue **S** soloed, a red dot recording.
 
@@ -225,7 +225,7 @@ Tap **HOME**. The header says **PATTERN A** (to D) while a pattern plays, otherw
 | **deck** | BAR and the bar of the selected voice's loop; a strip of the **FLOW** backdrop, a band per voice in its colour that swells as that voice gets louder (it flows while something plays and stands still otherwise), with a **>** after it: HOME again opens it full screen; the patterns **A B C D**: the one playing filled white, the one asked for next outlined white, the stored ones outlined grey |
 | **SYNTH** | the three melodic voices side by side: each sound's name in its voice's colour, with **M**, **S** or a red dot, and under it the 16 steps in view (a note in the voice's colour, a tie dim, the step playing white). **The selected voice's name is inverted.** A muted voice's name is grey |
 | **DRUM** | DRUM (inverted when the drums are selected), M or S for the drum voice, the kit's name while the 16 slots are the kit you loaded, **CUSTOM** once one differs, how many sounds the mixer has muted (yellow M and a number) or soloed (ice-blue S), the selected sound's name, and the 16 steps in view: a step with the selected sound's hit in teal, with other sounds' hits dim teal, with only muted sounds grey, the step playing underlined white |
-| **PERFORM** | **LANE ON** or **LANE OFF** for the STUTTER lane, the latched pads by name at the right (or "3 LATCHED" when the names do not fit), and the lane's 16 steps in view: lit steps grey, a run of lit steps of one length drawn as one bar, the step playing underlined |
+| **PERFORM** | **LANE ON** or **LANE OFF** for the STUTTER lane, at the right **FX>STUT** in grey (where the lane lives: FX, its STUT category) or, while pads are latched, their names in white (or "3 LATCHED" when the names do not fit), and the lane's 16 steps in view: lit steps grey, a run of lit steps of one length drawn as one bar, the step playing underlined |
 
 The HOME knobs play the selected voice while it plays:
 
@@ -260,7 +260,7 @@ This takes you from a new project to a saved groove. Start with **SAVE > TOOLS >
 
 **5. A chord track (two minutes).** Turn **ALGORITHM** to **2** (JUNO, polyphonic). Tap **SEQ** for its GRID, stop the song and tap **REC**. Hold three keys together and let go: the chord goes onto the step when the last key comes up. Write four chords, using **SEQ** for rests. Tap **REC** to finish and press **PLAY**.
 
-**6. PERFORM pads, played and recorded (one minute).** While it plays, tap **REC** (recording starts at once). **Hold FX**: the keys are now pads. Press **key 3** (the **1/4** pad) for a beat, then **key 9** (**ISO LO**: only the lows) and **C#4** (**KICKS**: the kicks out) together. Let go of FX and tap **REC** to stop. The pads you played are now in the STUTTER lane and play back every loop. **KNOB 3 STUT** on HOME switches them off and on.
+**6. PERFORM pads, played and recorded (one minute).** While it plays, tap **REC** (recording starts at once). **Hold FX**: the keys are now pads. Press **key 3** (the **1/4** pad) for a beat, then **key 9** (**ISO LO**: only the lows) and **C#4** (**KICKS**: the kicks out) together. Let go of FX and tap **REC** to stop. The pads you played are now in the STUTTER lane and play back every loop: tap **FX** until **STUT** is lit to see them (on voice 1: five taps). **KNOB 3 STUT** on HOME switches them off and on.
 
 **7. Save (one minute).** Stop the song. The working project saves itself a moment later: the white unsaved dot in the header goes out. To keep this groove as pattern A, **hold SAVE** and press **key 1**. To play pattern A again later, **hold SEQ** and press **F#3** (the first black key, drawn as A), or tap SEQ until **A-D** shows and turn KNOB 1.
 
@@ -643,9 +643,9 @@ The knob settings last until power-off and are not saved, except those recorded 
 
 ## 7. The STUTTER lane
 
-The STUTTER lane is PHEBUS's FX track: a fifth sequencer part that plays no notes. Its lit steps repeat a slice of what you just heard, and the PERFORM pads you play while recording are recorded into it.
+The STUTTER lane is PHEBUS's FX track: a sequencer part that plays no notes, and no voice. Its lit steps repeat a slice of what you just heard, and the PERFORM pads you play while recording are recorded into it.
 
-On the GRID, turn **ALGORITHM** past DRUM to reach it (left goes back). The tag is **STUT**, white and grey.
+**How to get there** (Ben, 23 Nov 2026, 15:55: "Both on FX as you've recommended but don't walk the PERFORM page"): **tap FX** until the tab row's **STUT** is lit: on a synth voice INS, SENDS, SLICER, MIX, then STUT (the fifth tap from anywhere else); on the drums FILTER, INS, SENDS, SLICER, MIX, then STUT. It is a whole-mix screen: the tag **MIX**, the title **STUTTER**, white and grey, whichever voice is selected. The voice stays selected (its name underlined in the strip): ALGORITHM still picks 1, 2, 3 or DRUM and the lane stays on screen. FX again goes round to the voice's first category; any other button leaves it as from any category. PERFORM is not on the way: it is **hold FX** only, from here too.
 
 | You do | Result |
 | --- | --- |
@@ -673,7 +673,11 @@ The five straight lengths sit on the first octave's five black keys (one hand sh
 
 **How it plays.** Steps are 1/16 and ignore swing. A lit run repeats the span played just before it, the whole mix. 1/4 to 1/32 are audio stutters; **1/2 and 1/1 replay the sequencer** (every voice plays the half bar or bar before again, and carries on afterwards from where it would have been). A pad you play live comes before the same pad recorded, and any pad before the lit steps.
 
-**Recording pads.** While the sequencer records (REC while playing, any voice), each pad you play is written as a span: which pad, from press to release (to the nearest 1/16), and the knob you turned while it played. A latched pad records from latch to unlatch. A pad recorded over its own earlier span replaces it; other pads overdub. The 32nd says LANE FULL: 31 PADS.
+**Recording on the lane.** **Tap REC on STUT** and the take is the lane's alone: no voice is armed (the strip shows no red dot; the header's red disc says it records). Playing, it records at once; stopped, the REC screen says **press play / stutters, pads: lane** (a key is a lane step, so no note starts it): PLAY starts the take. Turning ALGORITHM during it does not arm a voice. REC again stops it. REC anywhere else arms the selected voice, as ever, and its take records the pads into the lane too.
+
+**What the other buttons do on STUT.** Hold **SEQ**, **ARP**, **EDIT**, **GLO**, **SAVE**, **ENV**, **LFO**: their layers, on the voice still selected, as on any FX page (hold ARP + OCT+: that voice's pattern up a semitone; hold EDIT + OCT-: HOLD SAVE: CLEAR VOICE 1). Hold SEQ's OCT- / OCT+ (halve, double) are refused on the lane, dark: its length is its own KNOB 4. **Hold FX**: PERFORM over it. **PRESETS** and **SELECT** do nothing here. **SAVE + OCT- / OCT+** undo and redo the lane's own edits. A **lane step held**: OCT- lit (its pads), the other steps and the black keys lit, every page button dark and ignored until you let go (as with a step held on the GRID).
+
+**Recording pads.** While the sequencer records (REC while playing, any voice, or the lane's own take), each pad you play is written as a span: which pad, from press to release (to the nearest 1/16), and the knob you turned while it played. A latched pad records from latch to unlatch. A pad recorded over its own earlier span replaces it; other pads overdub. The 32nd says LANE FULL: 31 PADS.
 
 ---
 
@@ -701,7 +705,7 @@ While a pattern plays, what you change in it is kept in it. **Tap SAVE** on its 
 | **tap REC again** | stops or cancels |
 | **hold REC** | nothing more (Ben: "I don't like the record button taking things away"). To clear the selected voice: **hold EDIT and press OCT-** (HOLD SAVE: CLEAR VOICE 1), then hold SAVE until the ring fills; SAVE + OCT- brings it back |
 
-The REC screen: KNOB 3 **START** (NOTE or COUNT); the length is SEQ's PATTERN page (or hold SEQ). Notes are quantised to the voice's DIV. Rolls are recorded as retrigs. PERFORM pads go into the STUTTER lane.
+The REC screen: KNOB 3 **START** (NOTE or COUNT); the length is SEQ's PATTERN page (or hold SEQ). Notes are quantised to the voice's DIV. Rolls are recorded as retrigs. PERFORM pads go into the STUTTER lane. REC tapped on FX's STUT records the lane alone (no voice armed; stopped, PLAY starts it).
 
 **Erase a note or a sound** (it was hold EDIT): hold its **key** on a screen where the keys play (HOME, a sound page), then press **OCT-**: playing, it goes from each step the playhead passes while you hold the key; stopped, from the whole pattern. SAVE + OCT- undoes it.
 
@@ -725,7 +729,12 @@ Projects saved by PHEBUS use a new format: PHEBUS reads older KARMA projects, st
 
 ### The FX button: this voice, then the whole mix
 
-Ben: "Voice FX, then mix FX". **Tap FX** for the selected voice's own effects, in its colour: **INS** (its three inserts, SEL: FX 1, 2, 3), then **SENDS**, then **SLICER** (on the drums: FILTER, INS, SENDS, SLICER). One more press is **MIX**: the whole mix's effects, white and grey with the tag **MIX**, after a divider in the tab row, whichever voice is selected. FX again goes round to INS. **Hold FX** for PERFORM ([section 6](#6-perform-the-pads)).
+Ben: "Voice FX, then mix FX". **Tap FX** for the selected voice's own effects, in its colour: **INS** (its three inserts, SEL: FX 1, 2, 3), then **SENDS**, then **SLICER** (on the drums: FILTER, INS, SENDS, SLICER). One more press is **MIX**: the whole mix's effects, white and grey with the tag **MIX**, after a divider in the tab row, whichever voice is selected. One more is **STUT**, the **STUTTER lane** ([section 7](#7-the-stutter-lane)), the whole mix's stutter sequence (Ben, 23 Nov 2026, 15:55: "Both on FX"). FX again goes round to INS. **Hold FX** for PERFORM ([section 6](#6-perform-the-pads)): PERFORM is never a tap category ("The perform page is only in the long press for FX button").
+
+| FX taps (synth voice) | 1 | 2 | 3 | 4 | 5 | 6 |
+| --- | --- | --- | --- | --- | --- | --- |
+| category | INS | SENDS | SLICER | MIX | STUT | INS again |
+| colour | the voice's | the voice's | the voice's | white | white | |
 
 | MIX page (SEL) | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
 | --- | --- | --- | --- | --- |
@@ -929,7 +938,7 @@ The four ways ([section 2](#2-the-controls-and-the-screen)): a labelled button (
 | hold HOME | nothing (the menu is GLO's DEVICE) |
 | tap EDIT, ENV, LFO, FX, SEQ, ARP, GLO, SAVE | that button's categories, one a press (the button map, section 2) |
 | tap SEL | the next page |
-| ALGORITHM | the voice (on the steps, past DRUM: the STUTTER lane) |
+| ALGORITHM | the voice: 1, 2, 3, DRUM, on every screen (never the lane: FX's STUT) |
 | PRESETS | the sound (drums: on the drum screen the selected slot's sound, on HOME and SAVE > PRESETS the whole kit) |
 | MASTER | the volume; with a button held, its pair |
 | a key held, then OCT- | that note or sound erased from the pattern |
@@ -977,11 +986,15 @@ The four ways ([section 2](#2-the-controls-and-the-screen)): a labelled button (
 
 | Gesture | Does |
 | --- | --- |
+| tap FX (from INS, SENDS, SLICER, MIX) | reach it: STUT, after MIX; again: round to INS |
 | tap a step | light it / put it out on release |
 | a black key | repeat the mix at its length while held (1/1 1/2 1/4 1/8 1/16, 1/4T 1/8T 1/16T, 1/8D 1/16D, 1/32); OCT+ held: latch |
 | hold a step + KNOB 1 / OCT- | its length / erase its pads |
 | KNOB 1 to 4 | LEN for new steps, ON, PADS (turned: asks to clear; hold SAVE), STEPS |
 | OCT- / OCT+ tapped | page |
+| tap REC | the lane's own take (no voice armed); stopped: PLAY starts it |
+| ALGORITHM | the voice changes, the lane stays |
+| any other page button, HOME | leave, as from any category |
 
 ### PERFORM (hold FX)
 
@@ -1108,8 +1121,8 @@ The screen font is Terminus. The PHEBUS wordmark is drawn from TeX Gyre Adventor
 | **roll** | a held key repeated (hold SEQ on a synth voice; on the drums the same is RETRIG) |
 | **layer** | what the keys, knobs, OCT- / OCT+ and MASTER do while a button is held |
 | **PERFORM** | the pads layer, opened by holding FX: the effects on the white keys, the mutes and four extras on the black keys. Its effects are **pads** |
-| **FX** | the button: this voice's own effects (INS, SENDS, SLICER; drums FILTER, INS, SENDS, SLICER), then **MIX**, the whole mix's (DELAY, REV/CHO, MASTER); held, PERFORM |
-| **MIX** | FX's last category, the whole mix's effects, white; also the mixer's title (hold GLO) |
+| **FX** | the button: this voice's own effects (INS, SENDS, SLICER; drums FILTER, INS, SENDS, SLICER), then **MIX**, the whole mix's (DELAY, REV/CHO, MASTER), then **STUT**, the STUTTER lane; held, PERFORM |
+| **MIX** | FX's whole-mix category, the shared effects, white; the tag of its pages and of the STUTTER lane; also the mixer's title (hold GLO) |
 | **insert** | one of a voice's three FX slots, in series: its own effect |
 | **send** | how much of a voice goes to the whole mix's delay, reverb or chorus: its SENDS page |
 | **confirm** | hold SAVE until the ring fills, when a white bar says HOLD SAVE: ... (red ring: something goes; white: it only keeps) |
@@ -1122,7 +1135,7 @@ The screen font is Terminus. The PHEBUS wordmark is drawn from TeX Gyre Adventor
 | **mixer** | hold GLO: the 16 drum sounds on the white keys, the voices on F#3 to C#4; a tap mutes, OCT+ with a key solos, OCT- clears, SEL the pans |
 | **lock view** | a synth voice's steps with a step held and a page button pressed: that page's knobs under the steps (LOCK: in the tab row) |
 | **A-D** | SEQ's third category: the patterns to play |
-| **STUTTER lane** | the fifth sequencer part, tag STUT; STUT on HOME's KNOB 3 |
+| **STUTTER lane** | the whole mix's stutter sequence, a part that plays no notes: FX's last category **STUT** (tag MIX, title STUTTER); on/off on HOME's KNOB 3 STUT |
 | **pattern** | one of A to D: all four voices' sounds and steps, the kit and the lane. SEQ plays them, SAVE stores them |
 | **kit** | the drum voice's 16 slots, the project's own; HOME names the kit you loaded, CUSTOM once a slot differs. Your kits: SAVE > KITS (MY KIT 1 to 6) |
 | **slot** | one of the kit's 16 places (one per white key; SELECT picks it on the drum screen). It holds one whole sound of either machine |

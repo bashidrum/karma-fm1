@@ -2,13 +2,14 @@
 /* The STUTTER lane on the GRID (PHEBUS, 21 Nov 2026, Ben: "would be cool if there was a stutter sequencer tbh where you
  * could set the length of the stutter pattern and then turn stutter on my step?"; picker: length "Per step", a step
  * repeats "The whole mix"). Included by ui_studio.c after ui_grid.c; the lane itself and its sound: punch.c stl_*.
- * On the GRID, ALGORITHM goes 1, 2, 3, DRUM, then STUTTER (left: back to DRUM). It is not a voice: white and grey.
+ * (wave 14) FX's last category, STUT, after MIX: tag MIX, white and grey, whichever voice is selected. It is not a voice
+ * (ALGORITHM picks 1, 2, 3, DRUM only, and the lane stays on screen).
  *   tap a step       an unlit one lights with the length for new steps; a lit one goes when its key comes up (unless
  *                    KNOB 1 turned meanwhile)
  *   hold a step      KNOB 1: that step's length (1/1 1/2 1/4 1/8 1/16 1/32; right: shorter), the steps held together
  *   KNOB 1           the length for new steps (1/4 to start); KNOB 2 the lane ON / OFF (its steps kept); KNOB 4 its
  *                    length, 1..64 steps, looping by itself under the tracks
- *   black keys 1..4  the page of steps; OCT- / OCT+ the page before / after
+ *   OCT- / OCT+      the page of steps before / after (wave 13: the black keys are hand-played stutters)
  * (wave 6, Ben: "Keep, and record played FX into it") the PERFORM pads played while the sequencer records land here as
  * spans of steps (punch.c stl.ev), drawn under the steps, each named; they play with the pattern while the lane is ON.
  *   hold a step + OCT-   the recorded pads over that step go
@@ -32,7 +33,7 @@ static uint8_t stl_pg;                                  /* the page of steps sho
 static uint32_t stl_sess;                               /* the undo session (one hold, or one knob's turns) */
 _Static_assert(sizeof stl <= sizeof undo.st, "the lane fits the undo's room");
 
-static int stl_shown(void) { return stl_view && song.sel == TRK_DRUM; }
+static int stl_shown(void) { return stl_view && on_drum_page(); }   /* (wave 14: whichever voice is selected) */
 static uint32_t stl_pages(void) { return (stl.len + 15u) / 16u; }
 static void stl_mark(void)                              /* undo (EDIT + OCT-): the lane before this edit (ui.c undo_swap) */
 {
@@ -94,23 +95,28 @@ static void stl_put_step(uint32_t s, int32_t code)      /* code < 0: off (bytes:
     }
     ui.force = 1;
 }
-/* ALGORITHM on the GRID (ui_studio.c): right from DRUM onto the lane, left off it. 1: taken */
-static int stl_algo(int32_t s)
+/* (wave 14, Ben 23 Nov 2026, 15:55: "Both on FX ... don't walk the PERFORM page") FX's last category opens the lane, from any
+ * screen and whichever voice is selected (the voice stays selected: ALGORITHM still picks 1, 2, 3, DRUM; the lane stays) */
+static void stl_open(void)
 {
-    if (stl_view) {
-        if (s < 0) {
-            stl_view = 0;
-            stl_held = stl_pend = stl_fresh = 0;
-            ui.force = 1;
-        }
-        return 1;
-    }
-    if (song.sel != TRK_DRUM || s <= 0)
-        return 0;
+    if (!on_drum_page())
+        studio_open(SC_DRUM);
+    if (!stl_view)
+        stl_pg = 0;
     stl_view = 1;
-    stl_pg = 0;
     ui.force = 1;
-    return 1;
+}
+static void stl_leave(void)                             /* another category, HOME, a page: the lane's screen goes, its held
+                                                         * steps let go */
+{
+    if (stl_view)
+        stl_held = stl_pend = stl_fresh = 0, ui.force = 1;
+    stl_view = 0;
+}
+static void stl_fix(void)                               /* once a frame (ui_input.c): left by any way off its screen */
+{
+    if (stl_view && !on_drum_page())
+        stl_leave();
 }
 /* a key on the lane (ui_grid.c grid_key) */
 static void stl_key(uint32_t k, uint32_t down)
@@ -254,10 +260,9 @@ static void stl_draw(void)
         if ((stl_held >> j) & 1u)
             hs = stl_pg * 16u + j;
     c = hs < NSTEP ? stl_code(hs) : stl_new;
-    fmt_int(t, (int32_t)stl_pg + 1);
-    str_cpy(t + str_len(t), "/", 2);
-    fmt_int(t + str_len(t), (int32_t)stl_pages());
-    op_header("STUT", TE_G4, t, &head);       /* (the tag box holds five letters: STUT, not SYN) */
+    /* (wave 14) tag MIX as DELAY, REV/CHO and MASTER: FX's whole-mix group; the title the category (the page of steps
+     * shown: the four slots under the steps) */
+    op_header("MIX", TE_G4, "STUTTER", &head);
     sig = studio_hash(stl.len * 7u + stl.act * 131u + stl_pg * 977u + stl_held * 3u + stl_new * 7919u +
                       (song.playing ? stl_pos + 1u : 0u) * 71u + (perf.held | perf.lat) * 13u + (uint32_t)perf.par[PF_LSTUT][0], "");
     bk_drawn = 0x7FFu, bk_drawn_f = ui.frame;          /* (wave 13: every black key a repeat, drawn: live, lit) */

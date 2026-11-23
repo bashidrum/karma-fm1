@@ -215,7 +215,7 @@ static uint32_t st_part[6];
 static uint32_t lt_hold_k = 99u;                    /* (the lights' trials: the key held, its own job not counted) */                         /* (the parts of the last hash: which one differs) */
 static uint32_t st_hash(void)
 {
-    uint32_t h = 2166136261u, i, v[24];
+    uint32_t h = 2166136261u, i, v[26];
     uint8_t kk[27];
     v[0] = (uint32_t)song.octave + 7u, v[1] = song.playing | transport_req << 2, v[2] = fill_held | fill_lat << 1 | fill_arm << 2;
     v[3] = perf.held, v[4] = perf.lat, v[5] = ui.page | ui.home << 8 | ui.ask << 9 | ui.menu << 12, v[6] = (uint32_t)live_req + 3u;
@@ -224,6 +224,7 @@ static uint32_t st_hash(void)
     v[13] = ly_lock, v[14] = fx_wet, v[15] = (uint32_t)(mac_env[0] + 100) | (uint32_t)(mac_dep[0] + 100) << 8;
     v[16] = syn_tab | syn_pg << 8, v[17] = drum_lane, v[18] = sg_held, v[19] = (uint32_t)song.sel | drum_keys << 4;
     v[20] = cur_cat(), v[21] = sr_on, v[22] = syn_half[0] | (uint32_t)syn_hcur() << 8, v[23] = drum_pg | dpg_half() << 8;
+    v[24] = stl_pg | (uint32_t)stl_new << 8 | (uint32_t)stl_view << 16 | (uint32_t)stl_held << 17, v[25] = song.rec | (uint32_t)rec_wait << 8;   /* (wave 14) */
     st_part[0] = h32(h, v, sizeof v);
     h = 2166136261u;
     for (i = 0; i < NTRK; i++) {
@@ -232,6 +233,7 @@ static uint32_t st_hash(void)
         h = h32(h, trk[i].lock, sizeof trk[i].lock);
     }
     h = h32(h, &dpat, sizeof dpat);
+    h = h32(h, &stl, sizeof stl);                   /* (wave 14: the STUTTER lane's steps and pads) */
     for (i = 0; i < NPART; i++)                     /* (the stored part: not LFO 2's phase, the last voice's sources) */
         h = h32(h, &mxt[i], (uint32_t)((const uint8_t *)&mxt[0].l2ph - (const uint8_t *)&mxt[0]));
     st_part[1] = h;
@@ -352,6 +354,15 @@ static void su_home_drum(void) { lt_pattern(); song.sel = TRK_DRUM; go_home(); f
 static void su_grid(void) { lt_pattern(); song.sel = 0; go_home(); frames(2); tap(B_SEQ); frames(3); }
 static void su_dscreen(void) { lt_pattern(); song.sel = TRK_DRUM; go_home(); frames(2); drum_screen_open(); frames(3); }
 static void su_perf_lat(void) { lt_pattern(); song.sel = 0; go_home(); frames(2); perf.lat = 1u; }
+/* (wave 14) FX's STUT: the STUTTER lane on voice 1 (the voice stays selected), a lit step and a recorded pad on it */
+static void su_lane(void)
+{
+    lt_pattern(); memset(&stl, 0, sizeof stl); stl.len = 16; stl.act = 1; lane_set_ui(4, 1);
+    stl.ev[0] = (pev_t){PF_S8 + 1u, 1, 2, 0};
+    song.sel = 0; go_home(); frames(2); nav_go(CT_STUT, 0); frames(3);
+}
+static void su_lane_s(void) { su_lane(); }          /* (the same, for a lane step held: lt_step's comparison) */
+static void su_lane_drum(void) { su_lane(); track_select(TRK_DRUM); frames(3); }
 static uint32_t lt_bad;
 static void lights_dump(const char *name)          /* (wave 11) a scenario's 41 levels into DIR/lights.txt (tools/lights_sheet.py) */
 {
@@ -370,7 +381,7 @@ static void lights_dump(const char *name)          /* (wave 11) a scenario's 41 
 static uint32_t lt_check(const char *name, void (*su)(void), uint32_t hc, uint32_t *litset)
 {
     uint32_t c, h0, bad = 0, nlit = 0, ctx = 0;
-    lt_setup = su, lt_hold = hc, lt_nosound = hc >= 14u, lt_hold_k = hc, lt_step = su == su_grid || su == su_dscreen;
+    lt_setup = su, lt_hold = hc, lt_nosound = hc >= 14u, lt_hold_k = hc, lt_step = su == su_grid || su == su_dscreen || su == su_lane_s;
     if (getenv("LT_ONLY") && !strstr(name, getenv("LT_ONLY")))
         return 0;
     h0 = lt_trial(0, 0, 0, &ctx);
@@ -983,7 +994,9 @@ int main(int argc, char **argv)
     tap(B_SCL); ui.force = 1; frame(); ppm("page-fx-master");
     check(!strcmp(PAGES[ui.page].title, "MASTER") && PAGES[ui.page].id[0] == G_DUST && PAGES[ui.page].id[1] == G_DUCK,
           "MIX, SEL: MASTER (DUST, DUCK)");
-    tap(B_FX); check(cur_cat() == CT_INS && !strcmp(PAGES[ui.page].title, "FX 1"), "FX again: round to INS, FX 1");
+    tap(B_FX); check(cur_cat() == CT_STUT && stl_shown() && song.sel == 0u, "FX again (wave 14): STUT, the STUTTER lane, voice 1 still selected");
+    tap(B_SCL); check(cur_cat() == CT_STUT && stl_shown(), "STUT, SEL: one page, nothing moves");
+    tap(B_FX); check(cur_cat() == CT_INS && !strcmp(PAGES[ui.page].title, "FX 1") && !stl_view, "FX again: round to INS, FX 1");
     go_home(); frame(); track_select(TRK_DRUM); frame(); tap(B_FX); check(on_drum_page() && cur_cat() == CT_DFILT, "FX on the drum voice: its own FX first (FILTER)");
     tap(B_FX); tap(B_FX); tap(B_FX); tap(B_FX);
     check(on_drum_page() && cur_cat() == CT_MIX && PAGES[dbus_page(dpg_half())].fam == FAM_MFX, "FX on the drum voice, then MIX");
@@ -1362,8 +1375,9 @@ int main(int argc, char **argv)
         tap(B_FX); frames(2); ok &= cur_cat() == CT_DSLICER;
         tap(B_FX); frames(2); ok &= cur_cat() == CT_MIX;
         ui.force = 1; frame(); ppm("drum-fx-mix");
-        tap(B_FX); frames(2); ok &= cur_cat() == CT_DFILT;
-        check(ok, "drum pages: FX steps FILTER > INS (SEL: INSERT 2) > SENDS > SLICER > MIX > round (the voice's, then the mix)");
+        tap(B_FX); frames(2); ok &= cur_cat() == CT_STUT && stl_shown() && song.sel == TRK_DRUM;
+        tap(B_FX); frames(2); ok &= cur_cat() == CT_DFILT && !stl_view;
+        check(ok, "drum pages: FX steps FILTER > INS (SEL: INSERT 2) > SENDS > SLICER > MIX > STUT > round (the voice's, then the mix)");
         tap(B_ENV); frames(2); ok = drum_pg == 3u && dpg_half() == 0u;
         tap(B_SCL); frames(2); ok &= drum_pg == 3u && dpg_half() == 1u;
         tap(B_ENV); frames(2); ok &= drum_pg == 3u && dpg_half() == 0u;   /* (one category: again, its first page) */
@@ -2433,14 +2447,15 @@ int main(int argc, char **argv)
                   "STUTTER (Ben, 21 Nov: \"1/4 is preferably\"): new steps start at 1/4");
             memset(&stl, 0, sizeof stl); stl.len = 16; stl.act = 1; stl_new = 1;
             ui.force = 1; frame();
-            encs[panel.enc[EN_ALGO]] = 1; frames(2);
+            for (j = 0; j < 8u && cur_cat() != CT_STUT; j++) tap(B_FX);   /* (wave 14: FX's last category) */
+            frames(2);
             check(stl_shown() && song.sel == TRK_DRUM && grid_keys_on() && kb_grid,
-                  "STUTTER: ALGORITHM right of DRUM on the GRID: the lane, the keys its steps");
+                  "STUTTER: FX to its last category, STUT: the lane, the keys its steps");
             ui.force = 1; frame(); ppm("grid-stutter-empty");
-            check(px_count(0, OP_BAR_Y + 24, 240, 3, TE_COL[3]) == 0 && px_count(0, OP_BAR_Y + 24, 240, 3, TE_COL[0]) == 0,
-                  "STUTTER: the track strip underlines no track (the lane is not DR)");
+            check(px_count(0, OP_BAR_Y + 24, 240, 3, TE_COL[3]) > 100u && px_count(0, OP_BAR_Y + 24, 240, 3, TE_COL[0]) == 0,
+                  "STUTTER: the track strip underlines the voice still selected (DR), as on the MIX pages");
             check(px_count(2, 1, 46, 18, TE_G4) > 40u && px_count(48, 0, 4, 20, TE_G4) == 0,
-                  "STUTTER: its header tag drawn in the box (STUT, not SYN)");
+                  "STUTTER: its header tag drawn in the box (MIX, the whole mix's)");
             key(kw12);
             check(stl_lit(12) && stl_code(12) == 1u, "STUTTER: tap step 13: lit, 1/8 (the length for new steps)");
             check(!dt_mask(12), "STUTTER: ... and no drum hit set");
@@ -2513,11 +2528,12 @@ int main(int argc, char **argv)
             }
             /* (saved with the project and its sections: tests/project_test.c) */
             encs[panel.enc[EN_ALGO]] = -1; frames(2);
-            check(!stl_shown() && song.sel == TRK_DRUM && drum_keys == DK_PLAY, "STUTTER: ALGORITHM left: the drum GRID again");
+            check(stl_shown() && song.sel == 2u, "STUTTER (wave 14): ALGORITHM left: voice 3 selected, the lane stays");
             encs[panel.enc[EN_ALGO]] = 1; frames(2);
-            check(stl_shown(), "STUTTER: right again: the lane");
-            track_select(0); frames(1); track_select(TRK_DRUM); frames(1);
-            check(!stl_shown(), "STUTTER: another track picked and back: the drum GRID");
+            encs[panel.enc[EN_ALGO]] = 1; frames(2);
+            check(stl_shown() && song.sel == TRK_DRUM, "STUTTER (wave 14): right, right: DRUM, no fifth voice past it, the lane stays");
+            tap(B_SEQ); frames(2);
+            check(!stl_shown() && song.sel == TRK_DRUM && drum_keys == DK_PLAY && cur_cat() == CT_TRIG, "STUTTER: SEQ: the drum steps again");
             memset(&stl, 0, sizeof stl); stl.len = 16; stl.act = 1;
             ui.force = 1; frame();
         }
@@ -3086,6 +3102,12 @@ int main(int argc, char **argv)
                         uint32_t first = ui.page;
                         okw &= nav_btn_of(cur_cat()) == GB[g];
                         for (p2 = 0; p2 < 8u; p2++) {
+                            if (cur_cat() == CT_STUT) {   /* (wave 14) FX's STUT: the lane, one page (SEL: nothing) */
+                                okw &= stl_shown();
+                                tap(B_SCL);
+                                okw &= stl_shown() && cur_cat() == CT_STUT;
+                                break;
+                            }
                             cnt[ui.page]++;
                             ui.force = 1; frames(2);
                             snprintf(nm, sizeof nm, "chain-%s-%02u", VN[v], (unsigned)nshot++);
@@ -3401,8 +3423,8 @@ int main(int argc, char **argv)
             for (p = 0; p < NPAGES; p++)
                 if (PAGES[p].fam == FAM_GLO || PAGES[p].fam == FAM_MFX) { go_home(); page_go(p); frames(2); ui.force = 1; frame(); n++; }
             go_home(); frames(2);
-            song.sel = TRK_DRUM; studio_open(SC_DRUM); frames(2); stl_algo(1); ui.force = 1; frame(); n++;
-            stl_algo(-1); go_home(); track_select(0); frames(2);
+            song.sel = TRK_DRUM; studio_open(SC_DRUM); frames(2); stl_open(); ui.force = 1; frame(); n++;
+            stl_leave(); go_home(); track_select(0); frames(2);
             over0 = dial_over;
             snprintf(b, sizeof b, "no value past its 40 px column: HOME, PERFORM's 22 pads, every layer, GLO and FX pages, the lane (%u)", n);
             check(over0 == 0u, b);
@@ -3424,9 +3446,9 @@ int main(int argc, char **argv)
             bad += px_count(70, 40, 169, 15, TE_COL[TRK_DRUM]) < 48u;
             release(B_FX); frames(2);
             check(bad == 0u, "colour rule: PERFORM: a voice colour only on that voice's mute chip (V1 V2 V3, the drum mutes teal)");
-            song.sel = TRK_DRUM; studio_open(SC_DRUM); frames(2); stl_algo(1); ui.force = 1; frame();
+            song.sel = TRK_DRUM; studio_open(SC_DRUM); frames(2); stl_open(); ui.force = 1; frame();
             for (v = 0, bad = 0; v < NTRK; v++) bad += px_count(0, 0, 240, OP_BAR_Y, TE_COL[v]);
-            stl_algo(-1); go_home(); track_select(0); frames(2);
+            stl_leave(); go_home(); track_select(0); frames(2);
             check(bad == 0u, "colour rule: the STUTTER lane has no voice colour above the strip");
             for (p = 0; p < NPAGES; p++)
                 if (PAGES[p].fam == FAM_GLO && shared_page(&PAGES[p])) {
@@ -4848,6 +4870,11 @@ int main(int argc, char **argv)
             {"HOME, drums: a key held", su_home_drum, 14u + 2u},
             {"PERFORM, a pad latched: FX", su_perf_lat, B_FX},
             {"GRID: a step held", su_grid, 14u + 2u}, {"drum screen: a step held", su_dscreen, 14u + 2u},
+            {"STUT (v1): FX", su_lane, B_FX}, {"STUT (v1): SEQ", su_lane, B_SEQ}, {"STUT (v1): ARP", su_lane, B_ARP},
+            {"STUT (v1): EDIT", su_lane, B_EDIT}, {"STUT (v1): GLO", su_lane, B_GLO}, {"STUT (v1): SAVE", su_lane, B_SAVE},
+            {"STUT (v1): ENV", su_lane, B_ENV}, {"STUT (v1): LFO", su_lane, B_LFO}, {"STUT (v1): OCT-", su_lane, B_OCTDN},
+            {"STUT (v1): OCT+", su_lane, B_OCTUP}, {"STUT (v1): a lane step held", su_lane_s, 14u + 2u},
+            {"STUT (drums): SEQ", su_lane_drum, B_SEQ}, {"STUT (drums): ARP", su_lane_drum, B_ARP},
         };
         uint32_t i, c;
         static uint32_t litset[NELEM(LT)][2];
@@ -4863,7 +4890,7 @@ int main(int argc, char **argv)
                 }
             printf("%s (%u)\n", b, (unsigned)n);
         }
-        check(!lt_bad, "w11: the lights under every hold (25 holds x 40 controls): each lit control does something with it, each dark one nothing");
+        check(!lt_bad, "w11, w14: the lights under every hold (38 holds x 40 controls, 13 on FX's STUT): each lit control does something with it, each dark one nothing");
         go_home(); frames(4);
     }
     {   /* ---- wave 12 (Ben, 23 Nov 2026, 11:02 and 11:10): sounds on the drum screen, kits on HOME, SAVE > KITS */
@@ -4953,6 +4980,194 @@ int main(int argc, char **argv)
         check(scr_dim == 0u && maxn == 31u && maxq <= 18u && maxq >= 14u,
               "w12: DISCO QUIET draws the screen at 9/16 (white 31 -> 17 of 31: dim, readable); NORMAL: full again");
         disco = d0; frames(2);
+    }
+    {   /* ---- wave 14 (SPEC.md, "23 Nov 2026, 15:44" and the answers at 15:55): the stutter sequence on FX. "Both on FX ... but
+         * don't walk the PERFORM page. The perform page is only in the long press for FX button"; FX opens on the voice's
+         * effects first. FX steps INS SENDS SLICER (drums FILTER INS SENDS SLICER), MIX, STUT, round; ALGORITHM picks the four
+         * voices only */
+        static const uint8_t SYN_FX[6] = {CT_INS, CT_SENDS, CT_SLICER, CT_MIX, CT_STUT, CT_INS};
+        static const uint8_t DRM_FX[7] = {CT_DFILT, CT_DINS, CT_DSENDS, CT_DSLICER, CT_MIX, CT_STUT, CT_DFILT};
+        uint32_t v, j, ok, bad, perf_seen = 0, kw4 = key_of_white(4), kb0 = PUNCH_BLACK[0];
+        char nm[32];
+        memset(&stl, 0, sizeof stl); stl.len = 16; stl.act = 1;
+        transport_req = 2; frames(2); song.rec = 0; rec_wait = 0;
+        for (v = 0, ok = 1; v < NTRK; v++) {             /* every voice, from HOME: the order, round; PERFORM never by a tap */
+            const uint8_t *want = v == TRK_DRUM ? DRM_FX : SYN_FX;
+            uint32_t n = v == TRK_DRUM ? 7u : 6u;
+            go_home(); track_select(v); frames(2);
+            for (j = 0; j < n; j++) {
+                tap(B_FX); frames(2);
+                ok &= cur_cat() == want[j] && song.sel == v && (cur_cat() == CT_STUT) == (stl_shown() != 0);
+                perf_seen |= ui.layer == LY_FX || layer_shown || ly_lock == LY_FX;
+            }
+        }
+        check(ok, "w14: FX tapped, every voice: INS SENDS SLICER MIX STUT, round to INS (drums: FILTER INS SENDS SLICER MIX STUT)");
+        for (j = 0; j < 24u; j++) { tap(B_FX); frames(1); perf_seen |= ui.layer == LY_FX || layer_shown || ly_lock == LY_FX; }
+        check(!perf_seen, "w14: PERFORM is never reached by tapping FX (36 taps over the four voices)");
+        go_home(); track_select(0); frames(2);
+        nav_go(CT_STUT, 0); frames(2);
+        press(B_FX); frames(12);
+        check(ui.layer == LY_FX && layer_shown && stl_view, "w14: hold FX on STUT: PERFORM (the lane under it, kept)");
+        ui.force = 1; frame(); ppm("w14-stut-hold-fx");
+        frames(40); release(B_FX); frames(2);
+        check(ly_lock == LY_FX, "w14: hold FX 0.7 s untouched: PERFORM stays open, as before");
+        tap(B_FX); frames(2);
+        check(ly_lock == LY_PLAY && stl_shown() && cur_cat() == CT_STUT, "w14: FX again lets it go: back on the lane");
+        /* ALGORITHM: the four voices only, from every screen, the steps (SEQ) included; never the lane */
+        {
+            static const uint8_t FROM[6] = {B_HOME, B_EDIT, B_SEQ, B_FX, B_ARP, B_GLO};
+            uint32_t f, q, seen = 0, lane = 0;
+            for (f = 0, ok = 1; f < 6u; f++) {
+                go_home(); track_select(0); frames(2);
+                if (FROM[f] != B_HOME) { tap(FROM[f]); frames(2); }
+                for (q = 0; q < 6u; q++) {
+                    encs[panel.enc[EN_ALGO]] = 1; frames(2);
+                    seen |= 1u << song.sel;
+                    lane |= stl_view;
+                }
+                ok &= song.sel == TRK_DRUM;
+                for (q = 0; q < 6u; q++) { encs[panel.enc[EN_ALGO]] = -1; frames(2); seen |= 1u << song.sel; lane |= stl_view; }
+                ok &= song.sel == 0u;
+            }
+            check(ok && seen == 15u && !lane, "w14: ALGORITHM from HOME, EDIT, SEQ (the steps), FX, ARP, GLO: 1, 2, 3, DRUM and no further; never the lane");
+            go_home(); track_select(0); frames(2); nav_go(CT_STUT, 0); frames(2);
+            for (q = 0, ok = 1; q < 5u; q++) { encs[panel.enc[EN_ALGO]] = 1; frames(2); ok &= stl_shown() != 0; }
+            check(ok && song.sel == TRK_DRUM, "w14: ALGORITHM on STUT: the voice changes (to DRUM, no further), the lane stays");
+        }
+        /* the lane, a whole-mix screen: no voice colour above the strip, whichever voice; the voice stays selected */
+        for (v = 0, bad = 0, ok = 1; v < NTRK; v++) {
+            uint32_t o;
+            go_home(); track_select(v); frames(2);
+            for (j = 0; j < 8u && cur_cat() != CT_STUT; j++) tap(B_FX);
+            ui.force = 1; frames(2);
+            for (o = 0; o < NTRK; o++)
+                bad += px_count(0, 0, 240, OP_BAR_Y, TE_COL[o]) + px_count(0, 0, 240, OP_BAR_Y, TE_MID[o]) + px_count(0, 0, 240, OP_BAR_Y, TE_DIM[o]);
+            ok &= song.sel == v && px_count(0, OP_BAR_Y + 24, 240, 3, TE_COL[v]) > 100u && nav_tabs_fit && !nav_tabs_bare == (v != TRK_DRUM);
+            ok &= px_count(2, 1, 46, 18, TE_G4) > 40u;    /* (the tag MIX, white-grey) */
+            snprintf(nm, sizeof nm, "w14-stut-v%u", (unsigned)v + 1u);
+            ppm(nm);
+            tap(B_FX); frames(2);
+            ok &= song.sel == v && !stl_view && cur_cat() == (v == TRK_DRUM ? CT_DFILT : CT_INS);
+        }
+        check(bad == 0u, "w14: STUT on each voice: no voice colour above the strip (tag MIX, white and grey)");
+        check(ok, "w14: STUT on each voice: the strip underlines the voice still selected, the tabs fit; FX again: INS, the same voice");
+        {   /* the tab rows of FX: voice group, divider, MIX STUT, beside the page and the legend, on every voice and screen */
+            uint32_t ok2 = 1, wb = 0;
+            for (v = 0; v < NTRK; v++) {
+                go_home(); track_select(v); frames(2);
+                for (j = 0; j < 6u; j++) {
+                    tap(B_FX); frames(2);
+                    encs[panel.enc[EN_K3]] = 1; frames(2);   /* (a knob turned: the legend has its word) */
+                    ui.force = 1; frame();
+                    ok2 &= nav_tabs_fit;
+                    wb += nav_tabs_bare;
+                    if (v == TRK_DRUM && j == 4u) ppm("w14-drum-mix-tabs");
+                    if (v == 0u && j == 3u) ppm("w14-synth-mix-tabs");
+                }
+                encs[panel.enc[EN_K3]] = -6; frames(2);
+            }
+            check(ok2, "w14: every FX category's tab row on every voice fits (names shortened to three letters, STUT kept whole)");
+            printf("ui:   (the legend kept its boxes, not its word, on %u of 24 FX rows: the drums' six categories)\n", (unsigned)wb);
+        }
+        /* its keys, black keys, dials, lights, on voice 1 */
+        go_home(); track_select(0); frames(2); nav_go(CT_STUT, 0); frames(2);
+        {
+            uint32_t s0 = trk[0].step[4].n | trk[0].step[4].time << 8;
+            key(kw4); frames(1);
+            check(stl_lit(4) && (trk[0].step[4].n | trk[0].step[4].time << 8) == s0, "w14: STUT on voice 1: a white key lights the lane's step 5 (voice 1's steps untouched)");
+            frames(2);
+            check(led_lv[14u + kw4] == LL_LIT, "w14: ... and its key is lit (the lane's steps on the white keys)");
+            fm1_in.notes |= 1u << kb0; frame(); frame();
+            ok = perf.held == PFB(PF_S1) && kb_kind[kb0] == KS_FX;
+            ppm("w14-stut-black-key");
+            fm1_in.notes &= ~(1u << kb0); frame(); frame();
+            check(ok && !perf.held, "w14: STUT on voice 1: F#3 plays the 1/1 stutter while held (not a note of voice 1)");
+            check(!keys_dead(), "w14: ... every black key live (drawn in the strip): lit by the lights");
+            encs[panel.enc[EN_K2]] = -1; frame();
+            ok = !stl.act;
+            encs[panel.enc[EN_K2]] = 1; frame();
+            check(ok && stl.act, "w14: STUT: KNOB 2 the lane OFF and ON (its dials as before)");
+            for (j = 0; j < 10u && stl.len < 32u; j++) { encs[panel.enc[EN_K4]] = 1; frame(); }
+            tap(B_OCTUP); frames(20);
+            check(stl.len == 32u && stl_pg == 1u, "w14: STUT: KNOB 4 its length (32), OCT+ its next page of steps");
+            tap(B_OCTDN); frames(20);
+            stl.len = 16; stl_pg = 0; frames(2);
+        }
+        /* hold SEQ, ARP, EDIT on STUT: the selected voice's, as on any FX page; SEQ's halve / double refused (the lane's
+         * length is KNOB 4's) */
+        {
+            int16_t len0 = trk[0].p[P_SLEN];
+            uint8_t n0 = trk[0].step[0].note[0];
+            lt_pattern(); n0 = trk[0].step[0].note[0]; len0 = trk[0].p[P_SLEN];
+            nav_go(CT_STUT, 0); frames(2);
+            press(B_ARP); frames(12); tap(B_OCTUP); frames(2); release(B_ARP); frames(2);
+            check(trk[0].step[0].note[0] == (uint8_t)(n0 + 1u) && stl_shown(), "w14: STUT, hold ARP + OCT+: voice 1's pattern up a semitone (the voice selected); the lane stays");
+            press(B_SAVE); tap(B_OCTDN); release(B_SAVE); frames(2);
+            press(B_SEQ); frames(12); tap(B_OCTDN); frames(2); release(B_SEQ); frames(2);
+            check(trk[0].p[P_SLEN] == len0 && stl.len == 16u, "w14: STUT, hold SEQ + OCT-: refused (dark), nothing halved");
+            frames(20);
+            press(B_EDIT); frames(12); tap(B_OCTDN); frames(2); release(B_EDIT); frames(2);
+            check(ui.ask && !strcmp(ui.msg, "HOLD SAVE: CLEAR VOICE 1"), "w14: STUT, hold EDIT + OCT-: asks HOLD SAVE: CLEAR VOICE 1 (the voice named)");
+            ask_drop(); frames(2);
+            check(stl_shown(), "w14: ... the lane still on screen");
+        }
+        /* REC on STUT: the lane's own take; no voice armed */
+        {
+            uint32_t s1 = 0;
+            go_home(); track_select(0); frames(2); nav_go(CT_STUT, 0); frames(2);
+            memset(&stl, 0, sizeof stl); stl.len = 16; stl.act = 1;
+            transport_req = 1; frames(4);
+            tap(B_REC); frames(2);
+            check(song.rec == REC_LANE && !((song.rec >> 0) & 1u), "w14: STUT, playing, REC: recording the lane only (no voice armed)");
+            ui.force = 1; frame(); ppm("w14-stut-rec");
+            check(px_count(0, OP_BAR_Y, 240, 28, TE_RED) == 0u, "w14: ... the strip shows no voice armed (no red dot)");
+            for (j = 0; j < 4u; j++) { s1 |= trk[0].step[j].time; }
+            fm1_in.notes |= 1u << kb0; frames(40); fm1_in.notes &= ~(1u << kb0); frames(20);
+            check(pev_count() == 1u && (stl.ev[0].fx & 31u) == PF_S1 + 1u, "w14: ... F#3 played: its 1/1 stutter recorded into the lane");
+            encs[panel.enc[EN_ALGO]] = 1; frames(2);
+            check(song.rec == REC_LANE, "w14: ... ALGORITHM turned: the take stays the lane's (no voice armed by it)");
+            tap(B_REC); frames(2);
+            check(!song.rec, "w14: REC again: off");
+            transport_req = 2; frames(4);
+            track_select(0); frames(2);
+            tap(B_REC); frames(2);
+            check(rec_wait && rec_lane && !song.rec, "w14: STUT, stopped, REC: armed for the lane (the REC screen)");
+            ui.force = 1; frame(); ppm("w14-stut-rec-armed");
+            check(px_count(0, 78, 240, 76, TE_RED) == 0u, "w14: ... the REC screen frames no voice");
+            key(kw4); frames(2);
+            check(rec_wait && !song.playing, "w14: ... a white key (a lane step) does not start it");
+            tap(B_PLAY); frames(4);
+            check(song.playing && song.rec == REC_LANE, "w14: ... PLAY: the lane's take starts");
+            tap(B_REC); transport_req = 2; frames(4);
+            go_home(); frames(2);
+            tap(B_REC); frames(2);
+            check(rec_wait && !rec_lane, "w14: REC off the lane (HOME): armed for the selected voice, as before");
+            tap(B_REC); frames(2);
+            memset(&stl, 0, sizeof stl); stl.len = 16; stl.act = 1;
+        }
+        /* lane steps held: OCT- erases its pads; a page button does nothing (dark) */
+        {
+            go_home(); track_select(1); frames(2); nav_go(CT_STUT, 0); frames(2);
+            stl.ev[0] = (pev_t){PF_S8 + 1u, 4, 2, 0};
+            fm1_in.notes |= 1u << kw4; frame(); frame();
+            ui.force = 1; frame(); ppm("w14-stut-v2-step-held");
+            tap(B_EDIT); frames(2);
+            ok = stl_shown() && cur_cat() == CT_STUT;
+            tap(B_OCTDN); frames(2);
+            fm1_in.notes &= ~(1u << kw4); frames(2);
+            check(ok && !stl.ev[0].fx && song.sel == 1u, "w14: STUT on voice 2: a step held: EDIT does nothing (dark), OCT- erases its pads");
+            tap(B_EDIT); frames(2);
+            check(!stl_view && cur_cat() == CT_OSC && song.sel == 1u, "w14: EDIT (nothing held): leaves the lane for voice 2's OSC, as from any category");
+            nav_go(CT_STUT, 0); frames(2); go_home(); frames(2);
+            check(!stl_view, "w14: HOME leaves it too");
+        }
+        /* HOME's PERFORM zone says where the lane lives */
+        {
+            go_home(); track_select(0); perf_unlatch(); frames(2); ui.force = 1; frame(); ppm("w14-home-perform");
+            check(px_count(170, OP_BODY_Y + HZ_DECK + 2 * HZ_H, 66, 18, TE_G3) > 30u, "w14: HOME's PERFORM zone: FX>STUT at the right while no pad is latched");
+        }
+        memset(&stl, 0, sizeof stl); stl.len = 16; stl.act = 1;
+        go_home(); track_select(0); frames(2);
     }
     printf("ui: %s\n", fails ? "FAILED" : "pages, layers (punch, steps, erase, roll, key, mix), layer lock, song layer, REC hold, drums, REC, 20000-frame fuzz PASS");
     return fails;

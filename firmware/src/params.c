@@ -552,7 +552,9 @@ typedef struct {
 enum { CT_NONE, CT_OSC, CT_FILT, CT_AMP, CT_FENV, CT_LFO1, CT_LFO2, CT_MATRIX, CT_INS, CT_SENDS, CT_SLICER, CT_MIX,
        CT_DFILT, CT_DINS, CT_DSENDS, CT_DSLICER, CT_ARP, CT_KEY, CT_GLOBAL, CT_SYSTEM, CT_MIDI, CT_PRESETS, CT_USER,
        CT_TOOLS, CT_HOME, CT_GRID,
-       CT_TRIG, CT_PATT, CT_PATTS, CT_SRC, CT_FLTR, CT_DAMP, CT_DLFO, CT_CHROM, CT_DEVICE, CT_SAVER, CT_SPATT, CT_KITS, CT_N };
+       CT_TRIG, CT_PATT, CT_PATTS, CT_SRC, CT_FLTR, CT_DAMP, CT_DLFO, CT_CHROM, CT_DEVICE, CT_SAVER, CT_SPATT, CT_KITS,
+       CT_STUT,                 /* (wave 14, Ben 23 Nov 2026, 15:55: "Both on FX") the STUTTER lane, FX's last category: a screen of its own */
+       CT_N };
 #define PG_ENG(e) ((uint8_t)((e) + 1u))
 #define PG_OTHER 0xFFu
 

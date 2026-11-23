@@ -531,7 +531,8 @@ static void edit_param(uint32_t slot, int32_t steps) { edit_param_pg(cur_page(),
  * sound, and set the GRID's pen, in seq.c (the old STEP page's entry is gone: REVIEW.md 2, 21 Nov 2026) */
 static void midi_entry(void)                              /* (top of ui_input: every frame) */
 {
-    int rec_arm = song.rec || rec_wait;                   /* (2.6) recording or armed: on which track */
+    int rec_arm = (song.rec & ~REC_LANE) || (rec_wait && !rec_lane);   /* (2.6) recording or armed: on which track (wave 14:
+                                                         * the lane's take: none) */
     uint32_t rec_trk = song.sel % NTRK;
     static uint8_t rh_st, rh_trk;                         /* its hint: 0 off, 1 not said yet, 2 said (or not needed) */
     if (!rec_arm)
@@ -651,7 +652,7 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         uint32_t d = (fm1_in.buttons & ly_bit[l] & ~ly_off) != 0u;   /* (STEP REC: SEQ and ARP are no layers) */
         if (d && !down[l] && ly_bit[l] &&
             ((prevh != LY_PLAY && prevh != l && !was_lock && !combo_live(HC_LY(prevh), LAYER_BTN[l])) ||
-             (kb_grid && sg_held && !combo_live(HC_STEPS, LAYER_BTN[l])))) {
+             (kb_grid && (sg_held || (stl_held && stl_shown())) && !combo_live(HC_STEPS, LAYER_BTN[l])))) {
             ly_eat |= ly_bit[l];
         }                          /* (wave 11: a button with nothing to do with what is held (a layer, a
                                                          * step) does nothing, as its light says: dark) */
@@ -1163,6 +1164,7 @@ static void ui_input(void)
     learn_shown = mlu.on;                               /* (wave 9: GLO > MIDI 3 LEARN shows it) */
     page_fix();                                         /* (a page the track does not have: its neighbour, 2.6) */
     drum_keys_fix();                                    /* (PHEBUS wave 3: MUTE / CHROMATIC end with the drum screen) */
+    stl_fix();                                          /* (wave 14: the STUTTER lane's screen left by any way: gone) */
     midi_entry();                                       /* (the MIDI notes' queue: read every frame, 2.6) */
     map_seen();                                         /* (wave 11: the LFO / envelope last shown, for hold to map) */
     if (disco == DISCO_SHOW && ui.home && !ui.menu && ui.layer == LY_PLAY && song.playing && !ui.ask &&
@@ -1187,7 +1189,7 @@ static void ui_input(void)
     chord_mods_drawn = (uint8_t)key_strip_on();         /* (wave 10: the chord modifiers live where drawn, ARP's KEY pages) */
     if (ui.home || ui.menu || on_drum_page() || vis_shown())
         pm_touch = 0xFF;                                /* (wave 10: a page opened again starts with nothing touched) */
-    kb_grid = (uint8_t)(grid_keys_on() && !sr_on && !(song.rec && sr_here()));   /* (seq.c: the keys are the grid's
+    kb_grid = (uint8_t)(grid_keys_on() && !sr_on && !(((song.rec >> song.sel) & 1u) && sr_here()));   /* (seq.c: the keys are the grid's
                                                          * steps; STEP REC and a live take on a synth GRID: notes) */
     if (sg_held && (!kb_grid || song.sel != sg_trk))
         sg_drop();                                      /* (the GRID left with steps held: their keys clear nothing) */

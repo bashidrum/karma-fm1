@@ -15,7 +15,8 @@ static const uint8_t NAV_SYN[NB][5] = {
     [B_EDIT] = {CT_OSC, CT_FILT},
     [B_ENV] = {CT_AMP, CT_FENV},
     [B_LFO] = {CT_LFO1, CT_LFO2, CT_MATRIX},
-    [B_FX] = {CT_INS, CT_SENDS, CT_SLICER, CT_MIX},     /* (Ben: "Voice FX, then mix FX") */
+    [B_FX] = {CT_INS, CT_SENDS, CT_SLICER, CT_MIX, CT_STUT},   /* (Ben: "Voice FX, then mix FX"; wave 14, 15:55: the
+                                                         * stutter sequence "on FX", after MIX; PERFORM stays hold FX) */
     [B_SEQ] = {CT_TRIG, CT_PATT, CT_PATTS},             /* (wave 10, Ben: "in charge of patterns") */
     [B_ARP] = {CT_ARP, CT_KEY},                         /* (Ben: key, scale and chord "Under ARP") */
     [B_GLO] = {CT_GLOBAL, CT_SYSTEM, CT_MIDI, CT_DEVICE},
@@ -26,7 +27,7 @@ static const uint8_t NAV_DRUM[NB][6] = {               /* the drum voice, parall
     [B_EDIT] = {CT_SRC, CT_FLTR},
     [B_ENV] = {CT_DAMP},
     [B_LFO] = {CT_DLFO},
-    [B_FX] = {CT_DFILT, CT_DINS, CT_DSENDS, CT_DSLICER, CT_MIX},
+    [B_FX] = {CT_DFILT, CT_DINS, CT_DSENDS, CT_DSLICER, CT_MIX, CT_STUT},
     [B_SEQ] = {CT_TRIG, CT_PATT, CT_PATTS},             /* (wave 10, Ben: "in charge of patterns") */
     [B_ARP] = {CT_CHROM},
     [B_GLO] = {CT_GLOBAL, CT_SYSTEM, CT_MIDI, CT_DEVICE},
@@ -40,7 +41,7 @@ static const char *const CT_NAME[CT_N] = {
     [CT_KEY] = "KEY", [CT_GLOBAL] = "GLOBAL", [CT_SYSTEM] = "SYSTEM", [CT_MIDI] = "MIDI", [CT_PRESETS] = "PRESETS",
     [CT_USER] = "USER", [CT_TOOLS] = "TOOLS", [CT_HOME] = "HOME", [CT_TRIG] = "TRIG", [CT_PATT] = "PATTERN", [CT_PATTS] = "A-D", [CT_SRC] = "SRC",
     [CT_FLTR] = "FLTR", [CT_DAMP] = "AMP", [CT_DLFO] = "LFO", [CT_CHROM] = "CHROM", [CT_DEVICE] = "DEVICE",
-    [CT_SAVER] = "SAVER", [CT_SPATT] = "PATT", [CT_KITS] = "KITS",
+    [CT_SAVER] = "SAVER", [CT_SPATT] = "PATT", [CT_KITS] = "KITS", [CT_STUT] = "STUT",
 };
 /* the drum screen's FX tab: where each category starts among its halves (ui_drum.c dbus_page: FILTER, INSERT, INSERT 2,
  * SENDS, SLICER, then the whole mix's DELAY, REV/CHO, MASTER) */
@@ -48,6 +49,7 @@ static uint32_t dfx_first(uint32_t c) { return c == CT_DFILT ? 0u : c == CT_DINS
 static uint32_t dfx_cat(uint32_t h) { return h < 1u ? CT_DFILT : h < 3u ? CT_DINS : h < 4u ? CT_DSENDS : h < 5u ? CT_DSLICER : CT_MIX; }
 static int nav_grid(void) { return on_drum_page() && !stl_shown(); }   /* the GRID or the drum screen shown */
 static int nav_voice_cat(uint32_t c) { return c >= CT_OSC && c <= CT_MIX; }   /* a synth voice's (and the mix's) PAGES */
+static int nav_mix_cat(uint32_t c) { return c == CT_MIX || c == CT_STUT; }    /* (wave 14) the whole mix's group: white */
 
 static const uint8_t *nav_group(uint32_t b, uint32_t *n)
 {
@@ -90,7 +92,7 @@ static uint32_t nav_cat(uint32_t *k, uint32_t *n)
         return CT_HOME;
     if (on_drum_page()) {
         if (stl_shown())
-            return CT_NONE;
+            return CT_STUT;                             /* (wave 14: one page; its steps' pages are -/+'s) */
         if (!is_drum(TSEL)) {                           /* the synth GRID */
             if (!syn_tab) {
                 if (syn_half[0] >= TH_AD)
@@ -147,9 +149,12 @@ static uint32_t nav_cat(uint32_t *k, uint32_t *n)
 static void nav_go(uint32_t c, uint32_t k)
 {
     uint8_t idx[8];
-    uint32_t n, drum = is_drum(TSEL), grid = nav_grid();
+    uint32_t n, drum = is_drum(TSEL), grid;
     if (ui.menu && c != CT_DEVICE)
         menu_close();
+    if (c != CT_STUT)
+        stl_leave();                                    /* (wave 14: another category: the lane's screen goes, as any page) */
+    grid = nav_grid();
     if (c != CT_SAVER)
         vis_on = 0;
     if (drum && c != CT_CHROM && drum_keys == DK_CHROM)
@@ -158,12 +163,8 @@ static void nav_go(uint32_t c, uint32_t k)
     case CT_TRIG:
     case CT_PATT:
     case CT_PATTS:
-        if (!on_drum_page() || stl_shown()) {
+        if (!on_drum_page())
             studio_open(SC_DRUM);
-            if (stl_view)
-                stl_held = stl_pend = stl_fresh = 0;
-            stl_view = 0;
-        }
         if (drum)
             dpg_go(0u, c == CT_PATTS ? TH_AD : c == CT_PATT ? TH_PATT + k % 2u : k % 2u);
         else
@@ -203,6 +204,9 @@ static void nav_go(uint32_t c, uint32_t k)
         return;
     case CT_HOME:
         go_home();
+        return;
+    case CT_STUT:                                       /* (wave 14) the STUTTER lane, whichever voice is selected */
+        stl_open();
         return;
     default:
         break;
@@ -280,7 +284,8 @@ static uint32_t nav_btn_of(uint32_t c)
     return NB;
 }
 static uint32_t nav_tabs_shown;                         /* (the host tests: the categories last drawn, CT_* a byte) */
-static uint8_t nav_tabs_fit = 1;                        /* (the host tests: the names ended before the page and the legend) */
+static uint8_t nav_tabs_fit = 1;
+static uint8_t nav_tabs_bare;                           /* (the host tests: the legend drew its boxes without its word) */                        /* (the host tests: the names ended before the page and the legend) */
 static const char *pm_shown_m, *pm_shown_p;             /* (the host tests: the -/+ legend last drawn on a page screen) */
 static void pm_words(const char **m, const char **p);   /* (ui_input.c) */
 /* the tab row (y 131, 23 px): the group's categories, the one shown filled in col (the whole mix's: white, after a divider:
@@ -306,11 +311,10 @@ static void nav_tabs(uint16_t col, const char *banner, uint32_t *cache)
     nav_tabs_shown = 0;
     cv_begin(240, 23, C_BLACK);
     cv_rect(0, 0, 240, 1, TE_G1);
-    if (pm || pp)
-        xr = pm_draw(236, 5, pm, pp) - 6;
     if (banner && nav_map_hint) {                       /* (wave 11) MAP: outlined in the voice's colour (a LOCK banner is
                                                          * filled), then what SEL flips to, grey; LOCK while kept open */
         int32_t x = 2 + text_w(&FONT_S, banner) + 6;
+        xr = pm_draw(236, 5, pm, pp) - 6;
         op_box(2, 4, x - 2, 17, col);
         cv_text(5, 5, &FONT_S, banner, col);
         if (nav_map_hint[0]) {                          /* (the drums: one LFO, nothing for SEL to flip to) */
@@ -325,47 +329,60 @@ static void nav_tabs(uint16_t col, const char *banner, uint32_t *cache)
         return;
     }
     if (banner) {
+        pm_draw(236, 5, pm, pp);
         cv_rect(2, 4, text_w(&FONT_S, banner) + 4, 17, col);
         cv_text(4, 5, &FONT_S, banner, C_BLACK);
         cv_blit(0, 131);
         return;
     }
-    if (n > 1u) {
-        char p[6];
-        fmt_int(p, (int32_t)k + 1);
-        str_cpy(p + str_len(p), "/", 2);
-        fmt_int(p + str_len(p), (int32_t)n);
-        xr -= (int32_t)text_w(&FONT_S, p);
-        cv_text(xr, 5, &FONT_S, p, c == CT_MIX ? C_WHITE : col == TE_G4 ? TE_G4 : col);
-        xr -= 6;
-    }
     if (ng > 6u)
         ng = 6u;
-    for (i = 0; i < ng; i++)
-        str_cpy(nm[i], CT_NAME[g[i]] ? CT_NAME[g[i]] : "", sizeof nm[i]);
-    {   /* the gap between names: 9 px, less when the row is long; then the names not shown shortened */
-        int32_t tw, room = xr - 4, cut = 5;
-        for (;;) {
-            tw = 0;
-            for (i = 0; i < ng; i++)
-                tw += text_w(&FONT_S, nm[i]) + (g[i] == CT_MIX && i ? 5 : 0);
-            for (gap = 9; gap > 3 && tw + gap * (int32_t)(ng ? ng - 1u : 0u) > room; gap--)
-                ;
-            if (tw + gap * (int32_t)(ng ? ng - 1u : 0u) <= room || cut < 3)
-                break;
-            for (i = 0; i < ng; i++)
-                if (g[i] != c && str_len(nm[i]) > (uint32_t)cut)
-                    nm[i][cut] = 0;
-            cut--;
+    {   /* the gap between names: 9 px, less when the row is long; then the names not shown shortened (to four letters,
+         * then three); (wave 14) still too long (the drums' six FX categories beside the page and the legend): the legend
+         * keeps its boxed minus and plus and drops its word */
+        int32_t tw, room, cut, pw = 0, bare;
+        char p[6];
+        if (n > 1u) {
+            fmt_int(p, (int32_t)k + 1);
+            str_cpy(p + str_len(p), "/", 2);
+            fmt_int(p + str_len(p), (int32_t)n);
+            pw = (int32_t)text_w(&FONT_S, p) + 6;
         }
+        for (bare = 0;; bare = 1) {
+            xr = (pm || pp ? 236 - pm_width(pm && bare ? "" : pm, pp && bare ? "" : pp) - 6 : 236) - pw;
+            room = xr - 4, cut = 5;
+            for (i = 0; i < ng; i++)
+                str_cpy(nm[i], CT_NAME[g[i]] ? CT_NAME[g[i]] : "", sizeof nm[i]);
+            for (;;) {
+                tw = 0;
+                for (i = 0; i < ng; i++)
+                    tw += text_w(&FONT_S, nm[i]) + (g[i] == CT_MIX && i ? 5 : 0);
+                for (gap = 9; gap > 3 && tw + gap * (int32_t)(ng ? ng - 1u : 0u) > room; gap--)
+                    ;
+                if (tw + gap * (int32_t)(ng ? ng - 1u : 0u) <= room || cut < 3)
+                    break;
+                for (i = 0; i < ng; i++)
+                    if (g[i] != c && str_len(nm[i]) > (uint32_t)cut && !(nav_mix_cat(g[i]) && cut < 4))   /* (STUT
+                                                         * stays whole: STU reads as nothing) */
+                        nm[i][cut] = 0;
+                cut--;
+            }
+            if (tw + gap * (int32_t)(ng ? ng - 1u : 0u) <= room || bare || !(pm || pp))
+                break;
+        }
+        if (pm || pp)
+            pm_draw(236, 5, pm && bare ? "" : pm, pp && bare ? "" : pp);
+        nav_tabs_bare = (uint8_t)bare;
+        if (n > 1u)
+            cv_text(xr + 6, 5, &FONT_S, p, nav_mix_cat(c) ? C_WHITE : col == TE_G4 ? TE_G4 : col);
     }
     for (i = 0; i < ng; i++) {
         int32_t w = text_w(&FONT_S, nm[i]);
-        int mix = g[i] == CT_MIX;
+        int mix = nav_mix_cat(g[i]);
         uint16_t cc = mix ? C_WHITE : col;
         if (i < 4u)
             nav_tabs_shown |= (uint32_t)g[i] << (8u * i);
-        if (mix && i) {                                 /* the boundary: this voice | the whole mix */
+        if (g[i] == CT_MIX && i) {                      /* the boundary: this voice | the whole mix */
             cv_rect(x - 2, 3, 2, 19, TE_G4);
             x += 5;
         }

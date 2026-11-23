@@ -49,7 +49,7 @@ static uint32_t hold_ctx(void)
         return HC_ASK;
     if (ly_held_now != LY_PLAY)
         return HC_LY0 + ly_held_now;
-    if (kb_grid && sg_held)
+    if (kb_grid && (sg_held || (stl_held && stl_shown())))   /* (wave 14: a STUTTER lane step too) */
         return HC_STEP;
     if ((b & ob) && !(b & pb))
         return HC_OCTDN;
@@ -74,6 +74,15 @@ static int combo_live(uint32_t h, uint32_t c)
         return c == B_SAVE;
     case HC_STEP:                                       /* a step: the page buttons its locks are made from, SEL, OCT- erases;
                                                          * the other steps (held together, one lock for all) */
+        if (stl_shown()) {                              /* (wave 14) a lane step: OCT- erases its pads, the other steps of the
+                                                         * page join the hold (KNOB 1: their length), the black keys stay
+                                                         * the stutters; no page button (none has a lock here) */
+            if (c < 14u)
+                return c == B_OCTDN;
+            if (w < 0)
+                return bi >= 0 && bi < 11;
+            return stl_pg * 16u + (uint32_t)w < stl.len && !((stl_held >> w) & 1u);
+        }
         if (c < 14u)                                    /* (a page button or SEL: only if there is another page to show) */
             return ((c == B_EDIT || c == B_ENV || c == B_LFO || c == B_FX || c == B_SEQ) && nav_moves(c)) ||
                    (c == B_SCL && nav_page_moves()) || c == B_OCTDN;
@@ -81,7 +90,11 @@ static int combo_live(uint32_t h, uint32_t c)
     case HC_KEY:                                        /* a note or a drum sound held: OCT- erases it from the pattern */
         return c == B_OCTDN;
     case HC_OCTDN:
-    case HC_OCTUP:                                      /* the other: octave 0 (wave 12: no ghost / hard hits on the keys) */
+    case HC_OCTUP:                                      /* the other: octave 0 (wave 12: no ghost / hard hits on the keys);
+                                                         * (wave 13, lit since wave 14) OCT+ held on the STUTTER lane: its
+                                                         * black keys latch their stutter */
+        if (h == HC_OCTUP && kb_grid && stl_shown() && c >= 14u && bi >= 0 && bi < 11)
+            return 1;
         return c == (h == HC_OCTDN ? B_OCTUP : B_OCTDN);
     case HC_LY0 + LY_FX:                                /* PERFORM: the pads; OCT+ latches the held ones, OCT- lets latches go */
         if (c == B_OCTUP)
