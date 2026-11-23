@@ -175,7 +175,7 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
     <tr><td>ARP</td><td><b>notes</b> · ARP (SEL: ARP 2) · KEY: ROOT SCALE QNT CHORD (SEL: KEY 2). Drums: CHROMATIC (again: off) · hold: OCT- / OCT+ the pattern a semitone · MASTER: TRANSP</td></tr>
     <tr><td>SEL</td><td>PAGE: the next page of the category shown (round). Held: nothing</td></tr>
     <tr><td>GLO</td><td><b>global</b> · GLOBAL (K1 BPM) · SYSTEM · MIDI (SEL: MIDI 2, MIDI 3 with LEARN) · DEVICE, the menu · hold: the mixer · MASTER: TEMPO</td></tr>
-    <tr><td>SAVE</td><td><b>keep, confirm</b> · PRESETS · USER · PATTERNS (store A-D) · TOOLS · hold: keys 1-4 store A-D, OCT- undo, OCT+ redo; a question showing: the ring</td></tr>
+    <tr><td>SAVE</td><td><b>keep, confirm</b> · PRESETS · USER · KITS (your drum kits) · PATTERNS (store A-D) · TOOLS · hold: keys 1-4 store A-D, OCT- undo, OCT+ redo; a question showing: the ring</td></tr>
     <tr><td>HOME</td><td>HOME · the screensaver (SEL: the next one) · hold: nothing</td></tr>
     <tr><td>REC</td><td><b>record</b> only: tap to record or arm (a synth's steps, stopped: STEP REC). Held: nothing more</td></tr>
     <tr><td>OCT- / OCT+</td><td><b>minus, plus</b> of the screen (the legend at the tab row's right says what). Twice quickly: the octave. With something held: minus removes it</td></tr>
@@ -188,7 +188,7 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
   <h2>Getting around</h2>
   <table>
     <tr><td>ALGORITHM</td><td>Voice: 1, 2, 3, DRUM (on the steps, one more: STUTTER)</td></tr>
-    <tr><td>PRESETS</td><td>The voice's sounds (drums: the kit)</td></tr>
+    <tr><td>PRESETS</td><td>The voice's sounds. Drums: on the drum screen the selected slot's SOUND; on HOME the whole KIT (asks only over a kit you changed)</td></tr>
     <tr><td>OCT- / OCT+</td><td>Tap: the screen's minus / plus (steps page, pattern, step, sound, preset, or the knob last touched one fine step). Twice within 0.3 s: octave -3 to +3 (both: 0)</td></tr>
     <tr><td>- + legend</td><td>At the tab row's right: [-] WORD [+], what a tap does. None: a tap does nothing there</td></tr>
     <tr><td>tab row</td><td>The categories of the button you pressed (the one shown filled) and the page inside ("2/4")</td></tr>
@@ -203,7 +203,7 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
   <h2>HOME <small>three zones: SYNTH, DRUM, PERFORM</small></h2>
   <div class="roles">
     <div class="ca"><b>SYNTH</b><span>The three voices' sounds in their colours, the selected one inverted; M (yellow), S (ice blue), a red dot recording; each voice's 16 steps in view.</span></div>
-    <div class="c4"><b>DRUM</b><span>The kit (* when your copy plays), the sounds muted or soloed on the mixer, the selected sound, the 16 steps: its hits teal, other sounds' dim.</span></div>
+    <div class="c4"><b>DRUM</b><span>The kit's name (CUSTOM once a slot differs from it), the sounds muted or soloed on the mixer, the selected sound, the 16 steps: its hits teal, other sounds' dim.</span></div>
     <div class="ca"><b>PERFORM</b><span>STUTTER lane ON / OFF, the latched pads by name, the lane's steps as spans.</span></div>
   </div>
   <div class="knobs"><div class="c1">CUTOFF<span>K1: the voice filter</span></div><div class="c1">DECAY<span>K2: the moving envelope</span></div><div class="ca">STUT<span>K3: lane on / off</span></div><div class="c1">LEVEL<span>K4: the voice</span></div></div>
@@ -246,10 +246,11 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
   <div class="knobs"><div class="c4">PAGE<span>KNOB 1</span></div><div class="c4">PAGE<span>KNOB 2</span></div><div class="c4">PAGE<span>KNOB 3</span></div><div class="c4">PAGE<span>KNOB 4</span></div></div>
   <ul>
     <li>SELECT: the sound (1 of 16, heard while stopped; the header's chip names it). EDIT = SRC, again FLTR. ENV = AMP. LFO = LFO. FX = FILTER, INS, SENDS, SLICER, then MIX. SEQ = TRIG, again PATTERN. SEL: the page inside (SRC 1/3 .., AMP 2/2, TRIG 2/2).</li>
-    <li>Nothing held: a knob edits the selected sound. The first turn on a built-in kit makes your own copy (kit name gets a *).</li>
+    <li>The kit is 16 slots, the project's own; each holds any sound from any kit, HEX or CLASSIC. Nothing held: a knob edits the selected slot's sound at once.</li>
+    <li>PRESETS on the drum screen: the selected slot's sound (SOUND 808 SNARE): INIT HEX, INIT CLASSIC, then its kind from every kit, then every other kind. Turn back: the sound you had. SAVE + OCT-: undo.</li>
     <li>Hold a step + turn: a lock on that sound's hit (shown inverted). OCT-: that lock off; again: every lock; again (or on TRIG): the hit. On TRIG: VEL RETRIG NUDGE COND / CHANCE LENGTH CURVE NOTE.</li>
     <li>Mutes and solos: hold GLO (the drums selected: the keys mute the 16 sounds; F#3 SOLO, drawn, makes them solo). ARP tapped: CHROMATIC (keys play the sound at pitches; -/+ the sound, twice quickly the octave). SEQ held + key: RETRIG (K1 the rate).</li>
-    <li>FILL: hold SEQ and PLAY (OCT+ latches). A sound's key held + OCT- (where the keys play sounds): its hits erased. PRESETS picks the kit (power-on: 606). FLTR: CUTOFF RESO ENV TYPE (2/2 DRIVE); FX: the drum voice's own FILTER, INSERT, SENDS, SLICER, then MIX. Another kit over your edited one: HOLD SAVE.</li>
+    <li>FILL: hold SEQ and PLAY (OCT+ latches). A sound's key held + OCT- (where the keys play sounds): its hits erased. PRESETS on HOME loads a whole kit (power-on: 606). FLTR: CUTOFF RESO ENV TYPE (2/2 DRIVE); FX: the drum voice's own FILTER, INSERT, SENDS, SLICER, then MIX. A whole kit over a changed one: HOLD SAVE. Your kits: SAVE > KITS (MY KIT 1-6: KIT, LOAD, ERASE, SAVE).</li>
     <li>Keys 1-16: KICK, KICK 2, SNARE, CLAP, HAT, OPEN HAT, PEDAL, RIM, SNARE 2, LOW TOM, HI TOM, CRASH, RIDE, SHAKER, CONGA, COWBELL.</li>
   </ul>
 </section>
