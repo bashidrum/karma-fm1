@@ -17,6 +17,7 @@
  *   pair only, as wave 10 built them. With a step held: the step's (a page button there opens that page's locks): no map */
 static uint8_t map_lfo2, map_fenv;                      /* the LFO / envelope last shown (the page seen): 0 LFO 1 / AMP */
 static uint8_t map_lyr;                                 /* LY_LFO or LY_ENV while mapping (ui_input.c), else 0 */
+static uint8_t map_vis;                                 /* the MAP view shows (a hold, not a tap: a knob, SEL, or SHOW_MS) */
 static const char *nav_map_hint;                        /* (ui_nav.c nav_tabs) the banner is a MAP one: outlined, then "SEL" and
                                                          * this (what SEL flips to) */
 static uint32_t map_src_of(uint32_t lyr) { return lyr == LY_LFO ? (map_lfo2 ? MS_LFO2 : MS_LFO1) : (map_fenv ? MS_FENV : MS_AENV); }
@@ -42,7 +43,7 @@ static int map_page_ok(void)
 static void map_seen(void)
 {
     uint32_t c;
-    if (ui.home || ui.menu || is_drum(TSEL))
+    if (ui.home || ui.menu || is_drum(TSEL) || map_lyr)  /* (while held: SEL's flip stands) */
         return;
     c = cur_page()->cat;
     if (c == CT_LFO1 || c == CT_LFO2)

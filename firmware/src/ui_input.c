@@ -709,9 +709,10 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
     {   /* (wave 11) LFO or ENV held on a synth voice's sound page: HOLD TO MAP (ui_map.c); the page stays, no layer shows */
         uint32_t mp = (held == LY_LFO || held == LY_ENV) && map_page_ok() ? held : 0u;
         if (mp != map_lyr) {
-            if (map_lyr && !mp)
+            if (map_lyr && !mp && map_vis)
                 ly_quiet_t = fm1_ms | 1u;                 /* (as a layer let go: the knobs' last turns are not the page's) */
             map_lyr = (uint8_t)mp;
+            map_vis = 0;
             ui.force = 1;
         }
     }
@@ -757,9 +758,12 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         ui.layer_used = 1, mp_used = 0;
     if (ui.layer_used)
         used[held] = 1;
-    if (map_lyr)
-        shown |= (uint16_t)(1u << held);                  /* (mapping: seen, never a tap; the page stays) */
-    else if (ui.layer == LY_PLAY && (used[held] || now - t0[held] >= SHOW_MS)) {
+    if (map_lyr) {                                        /* (mapping: the page stays; the MAP view once it is a hold, not a
+                                                           * tap: a knob or SEL used, or held SHOW_MS) */
+        uint32_t v = used[held] || ui.layer_used || now - t0[held] >= SHOW_MS;
+        if (v != map_vis)
+            map_vis = (uint8_t)v, ui.force = 1;
+    } else if (ui.layer == LY_PLAY && (used[held] || now - t0[held] >= SHOW_MS)) {
         ui.layer = (uint8_t)held;                         /* show it (not for a quick tap) */
         shown |= (uint16_t)(1u << held);
     }
@@ -1080,7 +1084,7 @@ static void pm_words(const char **m, const char **p)
     int16_t *vp;
     const param_desc_t *d;
     *m = *p = 0;
-    if (map_lyr) {                                      /* (wave 11) mapping: OCT- removes this source's mappings here */
+    if (map_vis) {                                      /* (wave 11) mapping: OCT- removes this source's mappings here */
         *m = "REMOVE";
         return;
     }

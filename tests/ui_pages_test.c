@@ -3925,6 +3925,230 @@ int main(int argc, char **argv)
         song.octave = 0; fx_wet = 100;
         go_home(); frames(2);
     }
+    {   /* ---- PHEBUS wave 11 (SPEC.md, "23 Nov 2026, 10:41: hold to map", the answers at 10:50): HOLD LFO / ENV TO MAP */
+        track_t *t = &trk[0];
+        uint32_t pg0, k, nmap = 0, nref = 0, bad = 0;
+        #define KT(n, v) do { encs[panel.enc[n]] = (v); frame(); } while (0)
+        song.sel = 0; ly_lock = LY_PLAY; go_home(); frames(8);
+        fm1_irq_off(); mx_clear_sound(0); t->p[P_LD_FLT] = t->p[P_LD_PIT] = t->p[P_ED_FLT] = t->p[P_LD_AMP] = 0; fm1_irq_on();
+        map_lfo2 = map_fenv = 0;
+        check(chain_goto(FAM_FLT, "FILT"), "w11: the FILT page");
+        pg0 = ui.page;
+        press(B_LFO); frames(3);
+        check(map_lyr == LY_LFO && ui.page == pg0 && ui.layer == LY_PLAY && map_src() == MS_LFO1,
+              "w11: hold LFO on FILT: the page stays (no layer, no other page), mapping LFO 1 (none shown yet)");
+        ui.force = 1; frame(); ppm("w11-map-empty");
+        KT(EN_K1, 3);
+        check(t->p[P_LD_FLT] > 0 && mx_get(0, MS_LFO1, MD_CUT) == t->p[P_LD_FLT],
+              "w11: LFO held, CUTOFF turned right: LFO 1 > CUT positive (the matrix's own cell, P_LD_FLT)");
+        KT(EN_K2, -4);
+        check(mx_get(0, MS_LFO1, MD_RES) < 0, "w11: ... RESO turned left: LFO 1 > RES negative (bipolar)");
+        KT(EN_K4, 5);
+        check(mx_as_find(0, P_FDRV) >= 0 && mx_get(0, MS_LFO1, (uint32_t)mx_as_find(0, P_FDRV)) > 0,
+              "w11: ... DRIVE: an assignable column for DRIVE, LFO 1 on it");
+        {
+            int16_t e0 = t->p[P_ED_FLT];
+            KT(EN_K3, 4);
+            check(t->p[P_ED_FLT] == e0 && strstr(ui.msg, "NOT MAPPABLE") != 0,
+                  "w11: ... ENV (a modulation amount): refused, and it says so (ENV: NOT MAPPABLE)");
+        }
+        ui.msg_t = 0; ui.force = 1; frame(); ppm("w11-map-filt");
+        check(pm_shown_m && !strcmp(pm_shown_m, "REMOVE") && !pm_shown_p, "w11: mapping: the legend says - REMOVE");
+        release(B_LFO); frames(3);
+        check(map_lyr == 0 && ui.page == pg0 && ui.layer == LY_PLAY, "w11: LFO let go: the page, as it was (a hold never navigates)");
+        check(map_marks(cur_page()) == 0xBu, "w11: outside the hold: CUTOFF, RESO and DRIVE carry the mark (ENV, a fixed cell's own: no)");
+        ui.force = 1; frame(); ppm("w11-filt-marks");
+        check(chain_goto(FAM_MOD, "MATRIX"), "w11: the MATRIX page");
+        {
+            uint8_t cols[MD_N];
+            uint32_t n = mx_vis(0, cols);
+            check(n == MD_NFIX + 2u && cols[MD_NFIX] == (uint8_t)mx_as_find(0, P_FDRV) && cols[MD_NFIX + 1u] >= MD_AS1,
+                  "w11: MATRIX: the fixed columns, DRIVE's column, then + (one empty)");
+            mx_row = MS_LFO2; mx_col = (int16_t)mx_as_find(0, P_FDRV);
+            frames(20);
+            KT(EN_K3, 4);
+            check(mx_get(0, MS_LFO2, (uint32_t)mx_col) > 0, "w11: MATRIX: LFO2 > DRIVE set on the grid");
+            mx_row = MS_LFO1;
+        }
+        ui.force = 1; frame(); ppm("w11-matrix");
+        check(chain_goto(FAM_FLT, "FILT"), "w11: back to FILT");
+        map_lfo2 = 1;
+        press(B_LFO); frames(3);
+        {
+            int32_t a, st;
+            uint32_t id;
+            st = (int32_t)map_knob(cur_page(), 3, MS_LFO2, &a, &id);
+            check(map_src() == MS_LFO2 && st == 2 && a > 0, "w11: the grid's LFO2 > DRIVE shows on the FILT page held with LFO 2 (both ways)");
+        }
+        tap(B_SCL); frames(2);
+        check(map_src() == MS_LFO1 && ui.page == pg0 && map_lyr, "w11: SEL while held: LFO 2 > LFO 1 (the page stays)");
+        tap(B_SCL); frames(2);
+        check(map_src() == MS_LFO2, "w11: SEL again: LFO 2");
+        ui.force = 1; frame(); ppm("w11-map-lfo2");
+        tap(B_SCL); frames(2);
+        while (mx_get(0, MS_LFO1, MD_RES) < 0) KT(EN_K2, 1);
+        while (mx_get(0, MS_LFO1, MD_RES) > 0) KT(EN_K2, -1);
+        check(mx_get(0, MS_LFO1, MD_RES) == 0 && mx_col_cells(0, MD_RES) == 0, "w11: back to 0: the mapping gone (the cell freed)");
+        release(B_LFO); frames(3);
+        check(ui.page == pg0, "w11: let go after SEL: no page walked");
+        /* the one last shown */
+        check(chain_goto(FAM_MOD, "LFO 2"), "w11: LFO 2 shown");
+        check(chain_goto(FAM_FLT, "FILT") && map_lfo2 == 1, "w11: ... then FILT: LFO 2 is the one last shown");
+        check(chain_goto(FAM_MOD, "LFO"), "w11: LFO 1 shown");
+        check(chain_goto(FAM_FLT, "FILT") && map_lfo2 == 0, "w11: ... then FILT: LFO 1");
+        /* ENV: the amp envelope (last shown) cannot move its own times; the filter's can */
+        check(chain_goto(FAM_ENV, "ENV"), "w11: ENV (AMP)");
+        press(B_ENV); frames(3);
+        check(map_lyr == LY_ENV && map_src() == MS_AENV && ui.layer == LY_PLAY, "w11: hold ENV on AMP: mapping the amp envelope");
+        {
+            int16_t a0 = t->p[P_ATK];
+            KT(EN_K1, 3);
+            check(mx_map_get(0, MS_AENV, P_ATK) == 0 && t->p[P_ATK] == a0 && strstr(ui.msg, "ITSELF") != 0,
+                  "w11: ... ATTACK from the amp envelope: refused (NOT FROM ITSELF)");
+        }
+        ui.msg_t = 0;
+        tap(B_SCL); frames(2);
+        KT(EN_K1, 3);
+        check(map_src() == MS_FENV && mx_map_get(0, MS_FENV, P_ATK) > 0, "w11: SEL: the filter envelope; ATTACK from it: mapped");
+        ui.force = 1; frame(); ppm("w11-map-env");
+        master_in(512); master_in(700); frames(2);
+        check(mac_env[0] != 0, "w11: ENV held while mapping: MASTER still ENV LENGTH (wave 10's pair)");
+        mac_env[0] = 0;
+        release(B_ENV); frames(3);
+        /* OCT- removes this source's mappings on this page; SAVE + OCT- brings them back */
+        check(chain_goto(FAM_FLT, "FILT"), "w11: FILT again");
+        map_lfo2 = 0;
+        press(B_LFO); frames(2);
+        {
+            int16_t f0 = t->p[P_LD_FLT];
+            int32_t dr = mx_map_get(0, MS_LFO1, P_FDRV);
+            tap(B_OCTDN); frames(2);
+            check(f0 && dr && !t->p[P_LD_FLT] && !mx_map_get(0, MS_LFO1, P_FDRV) && mx_map_get(0, MS_LFO2, P_FDRV) > 0,
+                  "w11: LFO + OCT-: LFO 1's mappings on FILT gone (CUTOFF, DRIVE); LFO 2's stay");
+            release(B_LFO); frames(3);
+            press(B_SAVE); frames(2); tap(B_OCTDN); frames(2); release(B_SAVE); frames(4);
+            check(t->p[P_LD_FLT] == f0 && mx_map_get(0, MS_LFO1, P_FDRV) == dr, "w11: SAVE + OCT-: they come back (undo)");
+        }
+        /* every synth page: each knob mappable maps onto its own column, one cell and only one changes; the rest refuse */
+        {
+            static const char *const TI[][2] = {{"OSC", 0}, {"OSC 2", 0}, {"OSC 3", 0}, {"OSC 4", 0}, {"FILT", 0}, {"FILT 2", 0},
+                                                 {"ENV", 0}, {"FILT ENV", 0}, {"FX 1", 0}, {"FX 2", 0}, {"FX 3", 0}, {"SENDS", 0},
+                                                 {"SLICER", 0}, {"LFO", 0}, {"LFO SYNC", 0}, {"LFO 2", 0}, {"MATRIX", 0}};
+            static const uint8_t FA[] = {FAM_OSC, FAM_OSC, FAM_OSC, FAM_OSC, FAM_FLT, FAM_FLT, FAM_ENV, FAM_ENV, FAM_FX, FAM_FX,
+                                         FAM_FX, FAM_FX, FAM_FX, FAM_MOD, FAM_MOD, FAM_MOD, FAM_MOD};
+            uint32_t i;
+            fm1_irq_off(); mx_clear_sound(0); t->p[P_LD_FLT] = t->p[P_LD_PIT] = t->p[P_ED_FLT] = 0;
+            xs_type_set(t->p, 0, XT_PHASER); xs_type_set(t->p, 1, XT_DIST); xs_type_set(t->p, 2, XT_CRUSH);
+            t->p[P_SLCR] = 1; fm1_irq_on();
+            for (i = 0; i < NELEM(FA); i++) {
+                if (!chain_goto(FA[i], TI[i][0])) { printf("  (no page %s)\n", TI[i][0]); bad++; continue; }
+                press(B_LFO); frames(2);
+                if (map_lyr != LY_LFO) { printf("  %s: no map\n", TI[i][0]); bad++; }
+                for (k = 0; k < 4u; k++) {
+                    int32_t a;
+                    uint32_t id, st = map_knob(cur_page(), k, map_src(), &a, &id), j, ch = 0;
+                    mxt_t m0 = mxt[0];
+                    int16_t p0[P_COUNT];
+                    memcpy(p0, t->p, sizeof p0);
+                    if (!st)
+                        continue;
+                    KT(EN_K1 + k, 2);
+                    for (j = 0; j < MX_NCELL; j++)
+                        ch += m0.c[j].at != mxt[0].c[j].at || m0.c[j].amt != mxt[0].c[j].amt;
+                    for (j = 0; j < P_COUNT; j++)
+                        ch += p0[j] != t->p[j];
+                    if (st == 2u) {
+                        nmap++;
+                        if (ch != 1u || !mx_map_get(0, map_src(), id)) { printf("  %s knob %u: %u changes\n", TI[i][0], (unsigned)k + 1, (unsigned)ch); bad++; }
+                        KT(EN_K1 + k, -40); KT(EN_K1 + k, -40);
+                        if (mx_map_get(0, map_src(), id) >= 0) { printf("  %s knob %u: not negative\n", TI[i][0], (unsigned)k + 1); bad++; }
+                        fm1_irq_off(); mx_map_set(0, map_src(), id, 0); fm1_irq_on();
+                        if (mx_map_get(0, map_src(), id) || mx_used(0)) bad++;
+                    } else {
+                        nref++;
+                        if (ch || !strstr(ui.msg, "NOT")) { printf("  %s knob %u: refused but %u changes\n", TI[i][0], (unsigned)k + 1, (unsigned)ch); bad++; }
+                    }
+                    ui.msg_t = 0;
+                }
+                if (i == 8u) { ui.force = 1; frame(); ppm("w11-map-fx1"); }
+                if (i == 0u) { ui.force = 1; frame(); ppm("w11-map-osc"); }
+                release(B_LFO); frames(3);
+            }
+            printf("  %u knobs mapped, %u refused\n", (unsigned)nmap, (unsigned)nref);
+            check(!bad && nmap >= 20u && nref >= 10u, "w11: every synth page: each mappable knob maps (one cell, its own), each other one refuses visibly");
+        }
+        /* the limit: 19 cells */
+        {
+            uint32_t j;
+            static const uint8_t IDS[] = {P_ATK, P_DEC, P_SUS, P_REL, P_FATK, P_FDEC, P_FSUS, P_FREL, P_FDRV, P_GLIDE, P_DETUNE,
+                                          P_DLY, P_REV, P_CHOR, P_LRATE, P_LFADE, P_L2RATE, P_SLDEPTH, P_X1TIME};
+            fm1_irq_off(); mx_clear_sound(0);
+            for (j = 0; j < NELEM(IDS); j++) mx_map_set(0, MS_LFO2, IDS[j], 9);
+            fm1_irq_on();
+            check(chain_goto(FAM_FLT, "FILT"), "w11: FILT for the limit");
+            map_lfo2 = 1;
+            press(B_LFO); frames(2);
+            KT(EN_K2, 3);
+            check(!mx_get(0, MS_LFO2, MD_RES) && strstr(ui.msg, "MATRIX FULL") != 0, "w11: the 20th cell: MATRIX FULL: 19 CELLS, said (nothing changed)");
+            ui.force = 1; frame(); ppm("w11-map-full");
+            release(B_LFO); frames(3);
+            fm1_irq_off(); mx_clear_sound(0); fm1_irq_on();
+        }
+        /* where there is no map: HOME, the GRID, the drums: wave 10's pair layer as it was */
+        go_home(); frames(4);
+        press(B_LFO); frames(SHOW_MS / 16u + 4u);
+        check(!map_lyr && ui.layer == LY_LFO, "w11: hold LFO on HOME: the MASTER pair layer (wave 10), no map");
+        release(B_LFO); frames(4);
+        song.sel = TRK_DRUM; drum_screen_open(); frames(4);
+        press(B_LFO); frames(SHOW_MS / 16u + 4u);
+        check(!map_lyr && ui.layer == LY_LFO, "w11: hold LFO on the drums: the pair only (the drum question is Ben's)");
+        release(B_LFO); frames(4);
+        song.sel = 0; go_home(); frames(4);
+        /* the sound: a mapping made by the hold plays exactly as the same cell set on the grid, and differs from none */
+        {
+            uint32_t h[3], r;
+            fm1_irq_off(); mx_clear_sound(0); fm1_irq_on();
+            t->p[P_FDRV] = 30;
+            for (r = 0; r < 3u; r++) {
+                int fd[2];
+                pid_t pid;
+                if (pipe(fd)) break;
+                pid = fork();
+                if (!pid) {
+                    uint32_t hh = 2166136261u, q, j;
+                    static int32_t o3[CTL * 2];
+                    close(fd[0]);
+                    if (r == 1u) {                       /* (the hold: FILT, LFO held, DRIVE right) */
+                        chain_goto(FAM_FLT, "FILT"); map_lfo2 = 0;
+                        press(B_LFO); frames(2); KT(EN_K4, 6); release(B_LFO); frames(2);
+                    } else if (r == 2u) {                /* (the grid: the same amount on DRIVE's column) */
+                        int32_t a = 0;
+                        chain_goto(FAM_FLT, "FILT"); map_lfo2 = 0;
+                        press(B_LFO); frames(2); KT(EN_K4, 6); a = mx_map_get(0, MS_LFO1, P_FDRV); release(B_LFO); frames(2);
+                        fm1_irq_off(); mx_clear_sound(0); mxt[0].as[0] = P_FDRV + 1u; mx_set(0, MS_LFO1, MD_AS1, a); fm1_irq_on();
+                    } else {
+                        chain_goto(FAM_FLT, "FILT");
+                    }
+                    for (j = 0; j < NPART; j++) trk[j].p[P_DLY] = trk[j].p[P_REV] = trk[j].p[P_CHOR] = 0;
+                    t->p[P_LRATE] = 100;
+                    trk_note_on(t, 48, 110);
+                    for (q = 0; q < 600u; q++) {
+                        mix_block(o3, CTL);
+                        for (j = 0; j < CTL * 2u; j++) hh = (hh ^ (uint32_t)o3[j]) * 16777619u;
+                    }
+                    if (write(fd[1], &hh, sizeof hh) != (ssize_t)sizeof hh) _exit(1);
+                    _exit(0);
+                }
+                close(fd[1]);
+                if (read(fd[0], &h[r], sizeof h[r]) != (ssize_t)sizeof h[r]) h[r] = r + 7u;
+                close(fd[0]);
+                waitpid(pid, 0, 0);
+            }
+            check(h[1] == h[2] && h[0] != h[1], "w11: the sound: LFO 1 > DRIVE by the hold = the same cell set on the grid; differs from none");
+        }
+        #undef KT
+        go_home(); frames(2);
+    }
     printf("ui: %s\n", fails ? "FAILED" : "pages, layers (punch, steps, erase, roll, key, mix), layer lock, song layer, REC hold, drums, REC, 20000-frame fuzz PASS");
     return fails;
 }

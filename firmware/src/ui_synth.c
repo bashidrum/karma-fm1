@@ -594,7 +594,7 @@ static void syn_page_draw(void)
         if (stage_page(st, k) == ui.page)
             h = k;
     op_names_str(t, name);
-    if (map_lyr) {                                      /* (wave 11) HOLD TO MAP: the page as it is, its dials the amounts */
+    if (map_lyr && map_vis) {                           /* (wave 11) HOLD TO MAP: the page as it is, its dials the amounts */
         static uint32_t mhead, mtabs, mdials;
         uint32_t s = map_src();
         char bn[16];
