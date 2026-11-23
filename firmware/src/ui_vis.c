@@ -492,11 +492,11 @@ static void desert_row(uint16_t *q, int32_t sy, int sky)   /* (sky 0: the sky le
  * white outline. And if the eye was slightly bigger. And remove the 2 black outlines to the eye shape also ... a little
  * less noisy and minimalist all over": no lid line, no echoes; the eye 72 x 34 half (was 64 x 30, +12 %), iris and
  * pupil with it, 2 px higher so its lower lid stays where it was over the dunes; the gaze and the blink as they were.
- * Its white is a flat deep shade (TE_SCLERA) so the almond still reads on the sky's black bands without a line.) */
+ * Its body is black, as it always was (an agent had made it slate; Ben had it put back).) */
 #define TE_Y 98
 #define TE_HW 72
 #define TE_HH 34
-#define TE_SCLERA RGB(40, 36, 56)                  /* (a slate no voice colour takes, at any level) */
+#define TE_SCLERA C_BLACK                           /* (Ben, 23 Nov 2026 21:46: "Make it black again. If I wanted it slate... I'd have asked for slate.") */
 static void third_prep(void)
 {
     uint32_t T = vs.tq >> 8, i;

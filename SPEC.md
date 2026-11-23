@@ -469,3 +469,7 @@ Applied to the drum voice as: the kit's FILTER leaves FX and lives under EDIT, a
 ### 23 Nov 2026, 21:41: the drums' layout, the rule, in Ben's words
 
 "Just mirror the synths as closely as possible where possible"
+
+### 23 Nov 2026, 21:46: the eye's body, in Ben's words
+
+Told that an agent had made the body of the THIRD EYE a dark slate so it would show without its outline: "Make it black again. If I wanted it slate... I'd have asked for slate."

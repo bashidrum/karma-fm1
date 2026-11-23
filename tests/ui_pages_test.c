@@ -685,18 +685,15 @@ static void art_checks(void)
                     int32_t dx = (int32_t)x - ey[0].x - ey[0].gx, dy = (int32_t)y - ey[0].y - ey[0].gy;
                     if ((c >> 11) >= 28u && ((c >> 5) & 63u) >= 56u && (c & 31u) >= 28u && dx * dx + dy * dy > ey[0].ri2 + 40)
                         white++;
-                    if (c == TE_SCLERA) {
-                        x0 = (int32_t)x < x0 ? (int32_t)x : x0, x1 = (int32_t)x > x1 ? (int32_t)x : x1;
-                        y0 = (int32_t)y < y0 ? (int32_t)y : y0, y1 = (int32_t)y > y1 ? (int32_t)y : y1;
-                    }
+                    (void)x0; (void)x1; (void)y0; (void)y1;
                 }
-            if (x1 - x0 + 1 > w) w = x1 - x0 + 1;
-            if (y1 - y0 + 1 > h) h = y1 - y0 + 1;
         }
+        w = TE_HW * 2 - 1, h = TE_HH * 2;               /* (the eye's body is black again, so it is measured from its shape) */
         snprintf(nm, sizeof nm, "THIRD EYE: no white outline (%u near-white pixels outside the iris in 24 frames)", white);
         check(!white, nm);
         snprintf(nm, sizeof nm, "THIRD EYE: the eye %d x %d px, was 129 x 61 (+%d %%, +%d %%: 10 to 15 asked)", w, h, (w * 100 + 64) / 129 - 100, (h * 100 + 30) / 61 - 100);
         check(w * 100 >= 129 * 110 && w * 100 <= 129 * 116 && h * 100 >= 61 * 110 && h * 100 <= 61 * 116, nm);
+        check(ey[0].sc == C_BLACK, "THIRD EYE: the eye's body is black (Ben: \"Make it black again\")");
     }
     for (st = 2; st <= 3u; st++) {                  /* the dunes, both pictures: flat faces only (no crest line, no contour) */
         for (bad = 0, white = 0, k = 0; k < 16u; k++) {
