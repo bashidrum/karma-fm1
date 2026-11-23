@@ -167,10 +167,10 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
 <section class="sl wide">
   <h2>The button map <small>idea · tap · SEL · hold · -/+ held · MASTER held · SELECT</small></h2>
   <table>
-    <tr><td>EDIT</td><td><b>sound</b> · OSC · FILT (drums: SRC · FLTR) · SEL: OSC 1-4, FILT 1-2 · hold: OCT- clears the voice (then hold SAVE) · MASTER: LEVEL · SELECT: OSC Type, FILT TYPE</td></tr>
+    <tr><td>EDIT</td><td><b>sound</b> · OSC · FILT (drums: SRC · FLTR | KIT FLT, the kit's filter) · SEL: OSC 1-4, FILT 1-2 · hold: OCT- clears the voice (then hold SAVE) · MASTER: LEVEL · SELECT: OSC Type, FILT TYPE</td></tr>
     <tr><td>ENV</td><td><b>envelopes</b> · AMP · FILT envelope (drums: AMP, SEL its 2/2) · MASTER: ENV LENGTH (every amp stage; drums: the sound's decay)</td></tr>
     <tr><td>LFO</td><td><b>modulation</b> · LFO 1 (SEL: sync page) · LFO 2 · MATRIX (drums: LFO) · hold on a synth sound page: MAP (turn a knob) · MASTER: MOD DEPTH · SELECT: the WAVE</td></tr>
-    <tr><td>FX</td><td><b>effects</b> · INS (SEL: FX 1 2 3) · SENDS · SLICER | MIX · STUT, the STUTTER lane (white). Drums: FILTER · INS · SENDS · SLICER | MIX · STUT · hold (only): PERFORM, OCT+ latch, OCT- latches off · MASTER: FX MIX · SELECT: insert TYPE, SLICER mode</td></tr>
+    <tr><td>FX</td><td><b>effects</b> · INS (SEL: FX 1 2 3) · SENDS · SLICER | MIX · STUT, the STUTTER lane (white). Drums, the same order: INS (the kit's) · SENDS (the selected sound's: DELAY REVERB KIT FX) · SLICER (the kit's) | MIX · STUT · hold (only): PERFORM, OCT+ latch, OCT- latches off · MASTER: FX MIX · SELECT: insert TYPE, SLICER mode</td></tr>
     <tr><td>SEQ</td><td><b>rhythm</b> · the steps on TRIG (SEL: TRIG 2/2) · PATTERN (GATE DIV SWING STEPS; SEL: SHIFT) · A-D (the patterns) · hold: white keys ROLL (drums RETRIG), F#3-C#4 play A-D, D#4 fill bar, PLAY fill (OCT+ latches), K1 RATE K2 SHIFT K3 SWING K4 STEPS, OCT- halve, OCT+ double · MASTER: SWING</td></tr>
     <tr><td>ARP</td><td><b>notes</b> · ARP (SEL: ARP 2) · KEY: ROOT SCALE QNT CHORD (SEL: KEY 2). Drums: CHROMATIC (again: off) · hold: OCT- / OCT+ the pattern a semitone · MASTER: TRANSP</td></tr>
     <tr><td>SEL</td><td>PAGE: the next page of the category shown (round). Held: nothing</td></tr>
@@ -245,12 +245,13 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
   <div class="how">tap SEQ (or EDIT) with DRUM selected: the drum screen. The 16 keys are the selected sound's steps</div>
   <div class="knobs"><div class="c4">PAGE<span>KNOB 1</span></div><div class="c4">PAGE<span>KNOB 2</span></div><div class="c4">PAGE<span>KNOB 3</span></div><div class="c4">PAGE<span>KNOB 4</span></div></div>
   <ul>
-    <li>SELECT: the sound (1 of 16, heard while stopped; the header's chip names it), in key order down the grid's columns: HAT, PEDAL, KICK 2, KICK, OP HAT ... SNARE, round. A new project starts on KICK. EDIT = SRC, again FLTR. ENV = AMP. LFO = LFO. FX = FILTER, INS, SENDS, SLICER, then MIX, STUT. SEQ = TRIG, again PATTERN. SEL: the page inside (SRC 1/3 .., AMP 2/2, TRIG 2/2).</li>
+    <li>SELECT: the sound (1 of 16, heard while stopped; the header's chip names it), in key order down the grid's columns: HAT, PEDAL, KICK 2, KICK, OP HAT ... SNARE, round. A new project starts on KICK. EDIT = SRC, again FLTR, again KIT FLT (the kit's filter). ENV = AMP. LFO = LFO. FX = INS, SENDS, SLICER, then MIX, STUT (a synth voice's order). SEQ = TRIG, again PATTERN. SEL: the page inside (SRC 1/3 .., AMP 2/2, TRIG 2/2).</li>
     <li>The kit is 16 slots, the project's own; each holds any sound from any kit, HEX or CLASSIC. Nothing held: a knob edits the selected slot's sound at once.</li>
     <li>PRESETS on the drum screen: the selected slot's sound (SOUND 808 SNARE): INIT HEX, INIT CLASSIC, then its kind from every kit, then every other kind. Turn back: the sound you had. SAVE + OCT-: undo.</li>
     <li>Hold a step + turn: a lock on that sound's hit (shown inverted). OCT-: that lock off; again: every lock; again (or on TRIG): the hit. On TRIG: VEL RETRIG NUDGE COND / CHANCE LENGTH CURVE NOTE.</li>
     <li>Mutes and solos: hold GLO (the white keys mute the 16 sounds; OCT+ held with a key: solo; OCT-: all off). ARP tapped: CHROMATIC (keys play the sound at pitches; -/+ the sound, twice quickly the octave). SEQ held + key: RETRIG (K1 the rate).</li>
-    <li>FILL: hold SEQ and PLAY (OCT+ latches). A sound's key held + OCT- (where the keys play sounds): its hits erased. PRESETS on HOME loads a whole kit (power-on: 606). FLTR: CUTOFF RESO ENV TYPE (2/2 DRIVE); FX: the drum voice's own FILTER, INSERT, SENDS, SLICER, then MIX. A whole kit over a changed one: HOLD SAVE. Your kits: SAVE > KITS (MY KIT 1-6: KIT, LOAD, ERASE, SAVE).</li>
+    <li>FILL: hold SEQ and PLAY (OCT+ latches). A sound's key held + OCT- (where the keys play sounds): its hits erased. PRESETS on HOME loads a whole kit (power-on: 606). FLTR: CUTOFF RESO ENV TYPE (2/2 DRIVE). No sends on AMP: they are FX &gt; SENDS. A whole kit over a changed one: HOLD SAVE. Your kits: SAVE > KITS (MY KIT 1-6: KIT, LOAD, ERASE, SAVE).</li>
+    <li>FX &gt; SENDS is the selected sound's: DELAY, REVERB, KIT FX (ON: through the kit's FILTER, INSERT, SLICER; OFF: straight to the mix. Stutter the tops, leave the kick alone: KICK's KIT FX OFF, then the SLICER on). The kit's pages (INS, SLICER, KIT FLT) say KIT, SELECT does nothing there, and count the sounds through them (13 OF 16 SOUNDS). No kit-wide sends.</li>
     <li>The drum grid (as the Rytm's pads): HAT OP HAT RIDE CRASH / PEDAL CONGA C-BELL SHAKER / KICK 2 LO TOM HI TOM CLAP / KICK RIM SNARE 2 SNARE. The white keys run down its columns: keys 1-4 HAT, PEDAL, KICK 2, KICK; 5-8 OP HAT, CONGA, LO TOM, RIM; 9-12 RIDE, C-BELL, HI TOM, SNARE 2; 13-16 CRASH, SHAKER, CLAP, SNARE. Wherever a key plays or picks a drum sound (HOME, recording, RETRIG, the mixer), it is that sound. On the drum screen the keys are still the steps.</li>
   </ul>
 </section>
@@ -424,6 +425,7 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
     <tr><td>Z ... ' · Q ... O</td><td>The keyboard's notes</td></tr>
     <tr><td>[ ]</td><td>OCT- / OCT+ (twice quickly: the octave)</td></tr>
     <tr><td>PgUp PgDn, \ `</td><td>MASTER up / down (hold a button's key first: its pair)</td></tr>
+    <tr><td>Drum sends</td><td>Right (ALGORITHM) to DRUM, then <kbd>1</kbd> (FX) twice: SENDS. Up / Down picks the sound; KNOB 3 KIT FX. <kbd>5</kbd> (EDIT) three times: KIT FLT</td></tr>
     <tr><td>Up Down / Left Right</td><td>SELECT (the type; drums: the slot) / ALGORITHM</td></tr>
     <tr><td>Shift + Left Right</td><td>PRESETS (drums: the slot's sound on the drum screen, the whole kit on HOME)</td></tr>
   </table>
