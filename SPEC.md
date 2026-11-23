@@ -266,3 +266,7 @@ His answers by picker, 23 Nov 2026, 09:20:
 - MASTER pairs: "Yes, those pairs". Hold a button and turn MASTER: FX = whole-mix effect dry/wet; SEQ = swing; ARP = transpose; EDIT = this voice's level; ENV = envelope length (all stages); LFO = modulation depth; GLO = tempo.
 
 Proposed by Claude from his 09:08 words and not objected to (to be built, for him to confirm): fill is hold SEQ and press PLAY; patterns A to D are a SEQ category, storing a pattern stays with SAVE; the confirm is hold SAVE with the ring; REC only records; clear a voice is OCT- with EDIT then confirm; erase is OCT- with the thing held; MASTER acts relatively so volume never jumps; the settings menu behind hold HOME moves into GLO.
+
+### 23 Nov 2026, 10:16: the filter page on drums and synths
+
+Asked whether the fourth filter knob should match (DRIVE on synths with TYPE on SELECT; TYPE on drums), Ben said: "Keep it as is, drums will always feel a little different and that's ok".
