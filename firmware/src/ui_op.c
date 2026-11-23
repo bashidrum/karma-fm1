@@ -317,8 +317,8 @@ static void op_trackbar(uint32_t *cache)
     cv_blit(0, OP_BAR_Y);
 }
 
-/* the tracks' heads (op_sprites.h, drawn by tools/gen_sprites.py): a robot (track 1), an alien (2), a crocodile (3), a
- * snake (the drums), each in its track's colour; 18 x 16 in flash, 4 bits a pixel: 1 dark, 2 the colour, 3 light
+/* the tracks' heads (op_sprites.h, drawn by tools/gen_sprites.py): a robot (track 1), an alien (2), a snake (3), a
+ * crocodile (the drums; wave 12, Ben 23 Nov 13:35: "the crocodile the new drummer"), each in its track's colour; 18 x 16 in flash, 4 bits a pixel: 1 dark, 2 the colour, 3 light
  * (shades of the track's colour), 4 white, 5 black. Only in the track strip and HOME's lanes (KARMA's full-size
  * characters, their dance and STRIKE poses and the mixer's figures are cut) */
 static uint8_t op_dim;                                  /* the next pictures dim (a muted, a silent track) */

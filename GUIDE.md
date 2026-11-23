@@ -37,8 +37,8 @@ PHEBUS has four **voices**: three melodic voices and one drum voice. Each voice 
 | --- | --- | --- | --- |
 | **1** | robot | purple | ACID INIT: a plain saw through the 303 filter, mono, an octave down. A bass |
 | **2** | alien | blue | JUNO INIT: a plain saw, polyphonic. Chords |
-| **3** | crocodile | coral | PLAITS VA: a plain saw, mono, about 6 dB quieter. A lead |
-| **DR** | snake | teal | the 606's 16 sounds in the kit's 16 slots |
+| **3** | snake | coral | PLAITS VA: a plain saw, mono, about 6 dB quieter. A lead |
+| **DR** | crocodile | teal | the 606's 16 sounds in the kit's 16 slots |
 
 Every voice starts with no effects on and an empty mod matrix. **SAVE > TOOLS > NEW** puts a project back to this start.
 

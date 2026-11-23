@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""Writes firmware/src/op_sprites.h: the four tracks' heads (1 the robot, 2 the alien, 3 the crocodile, DRUM the
-snake), 18 x 16, drawn by hand below, for the track strip and HOME's lanes. (KARMA's full-size characters, their
+"""Writes firmware/src/op_sprites.h: the four tracks' heads (1 the robot, 2 the alien, 3 the snake, DRUM the
+crocodile: wave 12, Ben's "the crocodile the new drummer"), 18 x 16, drawn by hand below, for the track strip and HOME's lanes. (KARMA's full-size characters, their
 poses and the mixer's figures are cut; only the heads are left.)
   tools/gen_sprites.py [PREVIEW.png]     (the preview: the four heads, 8x, in the tracks' colours; needs Pillow)
 4 bits a pixel, kept in flash; the colours are shades of the track's own colour and white and black (op_pal in
@@ -13,7 +13,7 @@ T, DARK, COL, LIGHT, WHITE, BLACK = range(6)       # 0 = see-through; the shades
 HW, HH = 18, 16                                     # the head
 OUT = Path(__file__).resolve().parent.parent / "firmware/src/op_sprites.h"
 TRACK_RGB = [(140, 118, 240), (40, 160, 245), (255, 128, 108), (20, 196, 170)]   # TE_COL in ui_studio.c (wave 11: 3 coral, drums teal)
-NAMES = ["ROBOT", "ALIEN", "CROC", "SNAKE"]
+NAMES = ["ROBOT", "ALIEN", "SNAKE", "CROC"]   # (wave 12, Ben 13:35: "the crocodile the new drummer": the snake is voice 3)
 
 
 def shades(c):
