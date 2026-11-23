@@ -1493,13 +1493,13 @@ int main(int argc, char **argv)
             dpg_go(DPG_FX, 3); frame(); ui.force = 1; frame(); ppm("drum-fx-sends");
             encs[panel.enc[EN_K1]] = 4; frame();
             check(TDRUM->p[P_TFLT] < f0 && song.g[G_DRDLY] > d0 && px_count(0, SG_KNOB_Y, 240, 58, TE_DRUM) > 40u,
-                  "DRUM FX tab: FILTER turns the drum voice's filter; SENDS its delay send (drawn in the drum voice's coral)");
+                  "DRUM FX tab: FILTER turns the drum voice's filter; SENDS its delay send (drawn in the drum voice's teal)");
             TDRUM->p[P_TFLT] = f0, song.g[G_DRDLY] = d0;
         }
         for (i = 0; i < 6u && cur_cat() != CT_MIX; i++) tap(B_FX);
         ui.force = 1; frames(2);
         check(on_drum_page() && cur_cat() == CT_MIX && px_count(0, SG_KNOB_Y, 240, 58, TE_DRUM) == 0u,
-              "DRUM: FX, four more: MIX on the drum screen, its dials white-grey (no coral)");
+              "DRUM: FX, four more: MIX on the drum screen, its dials white-grey (no teal)");
         tap(B_SEQ); frames(2);
         check(on_drum_page() && drum_keys == DK_PLAY && grid_keys_on(), "DRUM: SEQ from them: back to the drum screen");
         encs[panel.enc[EN_ALGO]] = -1; frames(2);
@@ -3077,7 +3077,7 @@ int main(int argc, char **argv)
         for (i = 0; i < NTRK; i++) trk[i].p[P_MUTE] = 0;
         song.solo = 0; drum_mute = drum_solo = 0; perf.lat = 0; stl.act = 1; live_sec = -1; live_req = -1;
         ui.force = 1; frame(); ppm("home-zones");
-        /* the zones: each voice's colour in SYNTH only on its own column; coral in DRUM; PERFORM white and grey only */
+        /* the zones: each voice's colour in SYNTH only on its own column; teal in DRUM; PERFORM white and grey only */
         ok = 1;
         for (i = 0; i < NPART; i++) {
             uint32_t v, x0 = 4 + i * 79;
@@ -3088,7 +3088,7 @@ int main(int argc, char **argv)
         }
         check(ok, "HOME SYNTH: three voices, each in its own colour in its own column, no other voice's colour there");
         check(px_count(0, ZY[1], 240, 38, TE_DRUM) > 100u && px_count(0, ZY[1], 240, 38, TE_COL[0]) + px_count(0, ZY[1], 240, 38, TE_COL[1]) +
-              px_count(0, ZY[1], 240, 38, TE_COL[2]) == 0u, "HOME DRUM: the drum voice's coral, no melodic voice's colour");
+              px_count(0, ZY[1], 240, 38, TE_COL[2]) == 0u, "HOME DRUM: the drum voice's teal, no melodic voice's colour");
         for (i = 0; i < NTRK; i++) vcols += px_count(0, ZY[2], 240, 38, TE_COL[i]);
         check(vcols == 0u, "HOME PERFORM: white and grey only (everyone's: the colour rule)");
         check(px_count(4, ZY[0] + 17, 70, 16, TE_COL[0]) > 300u && px_count(83, ZY[0] + 17, 70, 16, TE_COL[1]) < 300u,
@@ -3188,7 +3188,7 @@ int main(int argc, char **argv)
             }
             go_home(); track_select(0); frames(2);
             check(bad == 0u, "colour rule: the FX button's DELAY, REV/CHO, MASTER (the whole mix's) no voice colour, from any voice");
-            {   /* the drum screen's FX tab: the drum voice's own pages, coral (and no melodic voice's colour) */
+            {   /* the drum screen's FX tab: the drum voice's own pages, teal (and no melodic voice's colour) */
                 uint32_t h;
                 song.sel = TRK_DRUM; studio_open(SC_DRUM); frames(2);
                 for (h = 0; h < NDBUS; h++) {
@@ -3196,11 +3196,11 @@ int main(int argc, char **argv)
                     for (o2 = 0; o2 < NPART; o2++) bad += px_count(0, 0, 240, OP_BAR_Y, TE_COL[o2]);
                     if (h < 5u)
                         bad += px_count(0, SG_KNOB_Y, 240, 58, TE_DRUM) < 20u;
-                    else                                 /* (wave 9) MIX: the whole mix's, white-grey dials, no coral */
+                    else                                 /* (wave 9) MIX: the whole mix's, white-grey dials, no teal */
                         bad += px_count(0, SG_KNOB_Y, 240, 58, TE_DRUM) != 0u;
                 }
                 dpg_go(1, 0); go_home(); track_select(0); frames(2);
-                check(bad == 0u, "colour rule: the drum FX tab's five own pages in coral only, its three MIX pages in white-grey");
+                check(bad == 0u, "colour rule: the drum FX tab's five own pages in teal only, its three MIX pages in white-grey");
             }
             for (v = 0; v < NPART; v++) {               /* each voice's every sound page: no other voice's colour, in any
                                                          * of its shades (wave 7 found voice 1's OSC drawing dim coral) */
@@ -3483,7 +3483,7 @@ int main(int argc, char **argv)
             check(!sel_chip(cv, &cr, &cc) && px_count(50, 0, 90, 20, TE_DIM[0]) == 0u, "ENV (no type): no chip, the sound's name");
             track_select(TRK_DRUM); go_home(); tap(B_SEQ); frames(2); ui.force = 1; frame(); ppm("sel-chip-drum");
             check(sel_chip(cv, &cr, &cc) && cc == TE_DRUM && str_eq(cv, LANE_SHORT[drum_lane & 15u]),
-                  "drum screen: the chip names the selected sound (SELECT's), in coral");
+                  "drum screen: the chip names the selected sound (SELECT's), in teal");
             track_select(0); go_home(); frames(2);
         }
         {   /* SEQ + OCT- halves (asks when it would drop something: the one confirm), SEQ + OCT+ clones (steps, locks, nudges,
@@ -4350,6 +4350,9 @@ int main(int argc, char **argv)
         #undef KT
         go_home(); frames(2);
     }
+    check(TE_COL[0] == RGB(140, 118, 240) && TE_COL[1] == RGB(40, 160, 245) && TE_COL[2] == RGB(255, 128, 108) &&
+          TE_DRUM == RGB(20, 196, 170) && TE_DRUM == TE_COL[TRK_DRUM],
+          "w11: the colour code (Ben, 11:33): voice 1 purple, 2 blue, 3 coral, the drums teal (one place: TE_COL)");
     {   /* ---- wave 11: the confirm, the black keys and the strip, the DISCO setting */
         uint32_t c, ok, f, i;
         static uint8_t snap[3][FM1_NCOL];

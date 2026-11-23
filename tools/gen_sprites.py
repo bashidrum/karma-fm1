@@ -12,7 +12,7 @@ from pathlib import Path
 T, DARK, COL, LIGHT, WHITE, BLACK = range(6)       # 0 = see-through; the shades of the track's colour, then eyes
 HW, HH = 18, 16                                     # the head
 OUT = Path(__file__).resolve().parent.parent / "firmware/src/op_sprites.h"
-TRACK_RGB = [(140, 118, 240), (40, 160, 245), (20, 196, 170), (255, 128, 108)]   # TE_COL in ui_studio.c
+TRACK_RGB = [(140, 118, 240), (40, 160, 245), (255, 128, 108), (20, 196, 170)]   # TE_COL in ui_studio.c (wave 11: 3 coral, drums teal)
 NAMES = ["ROBOT", "ALIEN", "CROC", "SNAKE"]
 
 

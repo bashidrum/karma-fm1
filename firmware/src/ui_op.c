@@ -1274,8 +1274,8 @@ static void home_band(int32_t x0, int32_t y0, uint32_t w, uint32_t h);
  *            M (yellow) muted, S (ice blue) soloed, a red dot recording; under each its 16 steps in view (a note lit in the
  *            voice's colour, a tie dim, the step that plays white)
  *   DRUM     the kit (a * when the project's copy plays), M / S for the drum track, how many sounds are muted (M) or
- *            soloed (S) in MUTE mode, the selected sound's name; the 16 trigs in view: the selected sound's in coral, the
- *            other sounds' dim coral, only muted sounds' grey, the playhead white. Inverted DRUM: the drums are selected
+ *            soloed (S) in MUTE mode, the selected sound's name; the 16 trigs in view: the selected sound's in teal, the
+ *            other sounds' dim teal, only muted sounds' grey, the playhead white. Inverted DRUM: the drums are selected
  *   PERFORM  the STUTTER lane ON / OFF and the PERFORM pads latched (their names, or how many), white and grey (everyone's);
  *            the lane's 16 steps in view as spans (lit steps in a row with one length: one loop, one bar), the playhead
  * The colour rule: a voice's colour only on that voice's things; the deck, PERFORM and the zone names white and grey. */
