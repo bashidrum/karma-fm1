@@ -258,7 +258,7 @@ static void nav_tabs(uint16_t col, const char *banner, uint32_t *cache)
     uint32_t k, n, c = nav_cat(&k, &n), b = nav_btn_of(c), ng = 0, i, v = song.sel & 3u;
     uint32_t sig = c * 7u + k * 131u + n * 977u + col * 31u + v * 7919u;
     const uint8_t *g = b < NB ? nav_group(b, &ng) : 0;
-    int32_t x = 4;
+    int32_t x = 4, gap = 9;
     sig = studio_hash(sig, banner ? banner : "");
     if (!ui.force && sig == *cache)
         return;
@@ -272,6 +272,13 @@ static void nav_tabs(uint16_t col, const char *banner, uint32_t *cache)
         cv_blit(0, 131);
         return;
     }
+    {   /* the gap between names: 9 px, less when the row is long (the drum FX group, five names and a divider) */
+        int32_t tw = 0, room = 230 - (n > 1u ? 30 : 0);
+        for (i = 0; i < ng; i++)
+            tw += text_w(&FONT_S, CT_NAME[g[i]] ? CT_NAME[g[i]] : "") + (g[i] == CT_MIX && i ? 5 : 0);
+        for (gap = 9; gap > 3 && tw + gap * (int32_t)(ng ? ng - 1u : 0u) > room; gap--)
+            ;
+    }
     for (i = 0; i < ng; i++) {
         const char *nm = CT_NAME[g[i]] ? CT_NAME[g[i]] : "";
         int32_t w = text_w(&FONT_S, nm);
@@ -280,8 +287,8 @@ static void nav_tabs(uint16_t col, const char *banner, uint32_t *cache)
         if (i < 4u)
             nav_tabs_shown |= (uint32_t)g[i] << (8u * i);
         if (mix && i) {                                 /* the boundary: this voice | the whole mix */
-            cv_rect(x - 1, 3, 2, 19, TE_G4);
-            x += 7;
+            cv_rect(x - 2, 3, 2, 19, TE_G4);
+            x += 5;
         }
         if (g[i] == c) {
             cv_rect(x - 2, 4, w + 4, 17, cc);
@@ -289,7 +296,7 @@ static void nav_tabs(uint16_t col, const char *banner, uint32_t *cache)
         } else {
             cv_text(x, 5, &FONT_S, nm, mix ? TE_G4 : col == TE_G4 ? TE_G3 : TE_MID[v]);
         }
-        x += w + 9;
+        x += w + gap;
     }
     if (n > 1u) {
         char p[6];
