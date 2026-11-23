@@ -500,3 +500,13 @@ His answers by picker, 23 Nov 2026, 22:45:
 - Key order through the drum grid: "Rytm order: bottom row first". Keys 1 to 4 KICK, RIM, SNARE 2, SNARE; 5 to 8 KICK 2, LO TOM, HI TOM, CLAP; 9 to 12 PEDAL, CONGA, C-BELL, SHAKER; 13 to 16 HAT, OP HAT, RIDE, CRASH. The picture stays as he typed it. (This replaces "Top to bottom" in columns from 21:15.)
 - The hold-SAVE screen: "Plain words". Press a key: store this as pattern A, B, C or D; tiles named PATTERN A to D showing which are stored; a line saying the project itself saves when you stop.
 - Project slots: "Just enough so that I can keep one in the bank. So one live one and one dead one. Or even just the option of turning the device off and on again without having lost what I was working on"
+
+### 23 Nov 2026, 22:46 and 22:48: which key order goes where, in Ben's words
+
+"Wait a second. Are you undoing the very specific order that I've specified for the mixer for muting the drums?"
+
+On SELECT's order through the drum sounds: "It should follow the Rytm order"
+
+So, over the one picture he typed:
+- The mixer's drum mutes keep his order from 21:10: columns, top to bottom (keys 1 to 4 HAT, PEDAL, KICK 2, KICK; 5 to 8 OP HAT, CONGA, LO TOM, RIM; 9 to 12 RIDE, C-BELL, HI TOM, SNARE 2; 13 to 16 CRASH, SHAKER, CLAP, SNARE). The 22:45 answer does not apply to the mixer.
+- Playing the drum sounds by hand, retrig, and SELECT's order follow the Rytm order: bottom row first (KICK, RIM, SNARE 2, SNARE; KICK 2, LO TOM, HI TOM, CLAP; PEDAL, CONGA, C-BELL, SHAKER; HAT, OP HAT, RIDE, CRASH).
