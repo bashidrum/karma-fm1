@@ -144,44 +144,6 @@ static void syn_trig_vals(int32_t first, uint32_t half, const char *lab[4], char
     ratio[3] = step_on(st) ? (int32_t)step_vel_shown(st) * 1000 / 127 : 0;
 }
 
-/* ---- the tabs (as the drum screen's): the names, the one shown inverted in the voice's colour, the half at the right;
- * from: the first tab drawn (1: no TRIG, a sound page) */
-static void syn_tabs(uint32_t from, uint32_t sel, uint32_t h, uint32_t nh, const char *banner, uint32_t *cache)
-{
-    uint32_t i, v = song.sel & 3u, sig = from * 7u + sel * 31u + h * 131u + nh * 977u + v * 7919u;
-    uint16_t col = TE_COL[v];
-    int32_t x = 4;
-    sig = studio_hash(sig, banner ? banner : "");
-    if (!ui.force && sig == *cache)
-        return;
-    *cache = sig;
-    cv_begin(240, 23, C_BLACK);
-    cv_rect(0, 0, 240, 1, TE_G1);
-    if (banner) {                                       /* (STEP REC: what the knobs are) */
-        cv_rect(2, 4, text_w(&FONT_S, banner) + 4, 17, col);
-        cv_text(4, 5, &FONT_S, banner, C_BLACK);
-    } else {
-        for (i = from; i < 6u; i++) {
-            int32_t w = text_w(&FONT_S, SYN_TAB[i]);
-            if (i == sel) {
-                cv_rect(x - 2, 4, w + 4, 17, col);
-                cv_text(x, 5, &FONT_S, SYN_TAB[i], C_BLACK);
-            } else {
-                cv_text(x, 5, &FONT_S, SYN_TAB[i], i ? TE_G4 : TE_G3);
-            }
-            x += w + (from ? 12 : 9);             /* (the GRID's six: closer) */
-        }
-        if (nh > 1u) {
-            char b[6];
-            fmt_int(b, (int32_t)h + 1);
-            str_cpy(b + str_len(b), "/", 2);
-            fmt_int(b + str_len(b), (int32_t)nh);
-            cv_text(236 - text_w(&FONT_S, b), 5, &FONT_S, b, TE_G3);
-        }
-    }
-    cv_blit(0, 131);
-}
-
 /* ---- what the knobs do, drawn (the body's lower rows: sp_t .. sp_b) */
 /* an ADSR (the four ids) as voice.c makes it: the attack linear, decay and release exponential; x0 .. x1, top .. bot */
 static void syn_adsr(const track_t *t, uint32_t a_id, int32_t x0, int32_t x1, int32_t top, int32_t bot, uint16_t c, int w2)
@@ -615,8 +577,10 @@ static void syn_page_draw(void)
     op_names_str(t, name);
     op_header(tag, TE_COL[v], mlu.on ? "LEARN" : name, &head);
     syn_body(t, pg, h, &body);
-    syn_tabs(1, st + 1u, h, n, 0, &tabs);
+    nav_tabs(TE_COL[v], 0, &tabs);                    /* (wave 9: the group's categories, the page in it) */
     syn_vals(pg, -1, lab, vb, ratio, &locked, &dim);
     op_dials(lab, val, ratio, locked, dim, TE_COL[v], ui.page * 977u + song.sel * 31u, &dials);
     op_trackbar(&bar);
 }
+
+#include "ui_sel.c"                                      /* (wave 9) SELECT: the type knob; on the drum screen the sound */

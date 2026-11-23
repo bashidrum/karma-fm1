@@ -535,9 +535,24 @@ typedef struct {
     const char *title;
     uint8_t fam, scope, graph;
     uint8_t id[4];               /* param ids; 0xFF = empty slot */
+    uint8_t sel;                 /* (wave 9, Ben 23 Nov 2026: "the select knob ... acting as a knob 5 effectively changing
+                                  * parameters within the category that have a type") the id SELECT turns on this page: its
+                                  * TYPE (V_TYPE, a slot's TYPE, the filter's, the LFO's WAVE, the SLICER's mode, the INSERT's);
+                                  * SEL_NONE: a page with no type, SELECT does nothing there */
+    uint8_t cat;                 /* (wave 9, Ben 23 Nov 2026, 08:42: "Hit the edit key, which brings Osc and Filter categories.
+                                  * And if the Osc category has 4 pages, you cycle through those using the Sel ... if you press
+                                  * edit again it moves to the next category") its category (CT_*): a labelled button steps
+                                  * through its categories (ui_nav.c), SEL (PAGE) through the pages of one, in PAGES order */
     uint8_t eng;                 /* 0: every synth engine; PG_ENG(e): engine e's own page; PG_OTHER: an engine without
                                   * its own pages (none a track can choose today: ENG_GONE, the host tests' engine 0) */
 } page_t;
+#define SEL_NONE 0xFFu
+/* (wave 9) the categories: a labelled button's group is a list of them (ui_nav.c NAV_GROUP); those after CT_GRID live on the
+ * GRID and the drum screen only (their pages are tabs and halves, not PAGES) or are screens of their own */
+enum { CT_NONE, CT_OSC, CT_FILT, CT_AMP, CT_FENV, CT_LFO1, CT_LFO2, CT_MATRIX, CT_INS, CT_SENDS, CT_SLICER, CT_MIX,
+       CT_DFILT, CT_DINS, CT_DSENDS, CT_DSLICER, CT_ARP, CT_KEY, CT_GLOBAL, CT_SYSTEM, CT_MIDI, CT_PRESETS, CT_USER,
+       CT_TOOLS, CT_HOME, CT_GRID,
+       CT_TRIG, CT_PATT, CT_SRC, CT_FLTR, CT_DAMP, CT_DLFO, CT_CHROM, CT_DEVICE, CT_SAVER, CT_N };
 #define PG_ENG(e) ((uint8_t)((e) + 1u))
 #define PG_OTHER 0xFFu
 
@@ -547,6 +562,8 @@ enum { V_TYPE = 0xF0, V_M1, V_M2, V_M3, V_M4, V_M5,
        /* (wave 5) an FX slot's TIME INTENS AMOUNT (as its TYPE means them: xs_knob_id); LFO 2's SYNC and TRIG (mxt_t); the
         * matrix page's SOURCE DEST AMOUNT and its fourth knob (CLEAR, or on an assignable column TARGET) */
        V_XA, V_XB, V_XC, V_L2SYNC, V_L2TRIG, V_MSRC, V_MDST, V_MAMT, V_MK4 };
+#define V_LEARN 0xEEu          /* (wave 9) GLO > MIDI 3: MIDI LEARN on / off (it was GLO + F#3); 0xFF is an empty knob */
+_Static_assert(P_COUNT < V_LEARN && G_COUNT < V_LEARN, "V_LEARN above every parameter");
 _Static_assert(P_COUNT <= V_TYPE, "the virtual knob ids above every parameter");
 
 static const page_t PAGES[] = {
@@ -555,64 +572,67 @@ static const page_t PAGES[] = {
      * knobs in the same places, whatever its Type; the drum track's are its own FILTER, INSERT and SLICER (its sounds'
      * pages are the drum screen's, SRC FLTR AMP LFO: PHEBUS wave 3, ui_drum.c) */
     /* OSC: the Type and its three macros (mock-synth-osc-A); the pitch and the voice; the Type's other controls */
-    {"OSC", FAM_OSC, SC_TRACK, GR_NONE, {V_TYPE, V_M1, V_M2, V_M3}},
-    {"OSC 2", FAM_OSC, SC_TRACK, GR_NONE, {P_OCT, P_TUNE, P_GLIDE, P_VOICE}},
-    {"OSC 3", FAM_OSC, SC_TRACK, GR_NONE, {V_M4, V_M5, P_DETUNE, P_PRIO}},
-    {"OSC 4", FAM_OSC, SC_TRACK, GR_NONE, {P_GLMODE, P_ALLOC, 0xFF, 0xFF}},   /* (wave 5) the voicing settings: GLIDE's mode,
+    {"OSC", FAM_OSC, SC_TRACK, GR_NONE, {V_M1, V_M2, V_M3, V_M4}, V_TYPE, CT_OSC},
+    {"OSC 2", FAM_OSC, SC_TRACK, GR_NONE, {P_OCT, P_TUNE, P_GLIDE, P_GLMODE}, V_TYPE, CT_OSC},
+    {"OSC 3", FAM_OSC, SC_TRACK, GR_NONE, {V_M5, P_VOICE, P_DETUNE, P_PRIO}, V_TYPE, CT_OSC},
+    {"OSC 4", FAM_OSC, SC_TRACK, GR_NONE, {P_ALLOC, 0xFF, 0xFF, 0xFF}, V_TYPE, CT_OSC},   /* (wave 5) the voicing settings: GLIDE's mode,
                                                          * the poly allocation (the MiniFreak keeps them in its Sound settings) */
     /* FILT: the voice filter (vfilt.c; mock-synth-filt-A): CUTOFF RESO ENV TYPE, then KEY DRIVE and the envelope's LINK */
-    {"FILT", FAM_FLT, SC_TRACK, GR_NONE, {P_FCUT, P_FRES, P_ED_FLT, P_FTYPE}},
-    {"FILT 2", FAM_FLT, SC_TRACK, GR_NONE, {P_FDRV, P_FKEY, P_FLINK, 0xFF}},   /* (wave 8: DRIVE first, as the drum FLTR's 2/2) */
+    {"FILT", FAM_FLT, SC_TRACK, GR_NONE, {P_FCUT, P_FRES, P_ED_FLT, P_FDRV}, P_FTYPE, CT_FILT},
+    {"FILT 2", FAM_FLT, SC_TRACK, GR_NONE, {P_FKEY, P_FLINK, 0xFF, 0xFF}, P_FTYPE, CT_FILT},   /* (wave 8: DRIVE first, as the drum FLTR's 2/2) */
     /* ENV: the amp envelope, then the filter's own (mock-synth-env-A: AMP | FILT) */
-    {"ENV", FAM_ENV, SC_TRACK, GR_ADSR, {P_ATK, P_DEC, P_SUS, P_REL}},
-    {"FILT ENV", FAM_ENV, SC_TRACK, GR_ADSR, {P_FATK, P_FDEC, P_FSUS, P_FREL}},
+    {"ENV", FAM_ENV, SC_TRACK, GR_ADSR, {P_ATK, P_DEC, P_SUS, P_REL}, SEL_NONE, CT_AMP},
+    {"FILT ENV", FAM_ENV, SC_TRACK, GR_ADSR, {P_FATK, P_FDEC, P_FSUS, P_FREL}, SEL_NONE, CT_FENV},
     /* FX: (PHEBUS wave 5, mock-synth-fx-A) three slots in series, each a TYPE and its three knobs (fx.c xs_run). (Wave 8, Ben
      * 22 Nov 2026: "FX = whole mix only"; "each voice's fx sends should be on their own edit page") the slots are this voice's
      * inserts only; SENDS: how much of this voice goes to the shared delay, reverb and chorus (whose settings are the FX
      * button's pages, never a voice's); then the SLICER, the voice's own */
-    {"FX 1", FAM_FX, SC_TRACK, GR_XSLOT, {P_X1TYPE, V_XA, V_XB, V_XC}},
-    {"FX 2", FAM_FX, SC_TRACK, GR_XSLOT, {P_X2TYPE, V_XA, V_XB, V_XC}},
-    {"FX 3", FAM_FX, SC_TRACK, GR_XSLOT, {P_X3TYPE, V_XA, V_XB, V_XC}},
-    {"SENDS", FAM_FX, SC_TRACK, GR_SENDS, {P_DLY, P_REV, P_CHOR, 0xFF}},
-    {"SLICER", FAM_FX, SC_TRACK, GR_SLCR, {P_SLCR, P_SLPAT, P_SLRATE, P_SLDEPTH}},   /* drum track too (its FX tab) */
+    {"FX 1", FAM_FX, SC_TRACK, GR_XSLOT, {V_XA, V_XB, V_XC, 0xFF}, P_X1TYPE, CT_INS},
+    {"FX 2", FAM_FX, SC_TRACK, GR_XSLOT, {V_XA, V_XB, V_XC, 0xFF}, P_X2TYPE, CT_INS},
+    {"FX 3", FAM_FX, SC_TRACK, GR_XSLOT, {V_XA, V_XB, V_XC, 0xFF}, P_X3TYPE, CT_INS},
+    {"SENDS", FAM_FX, SC_TRACK, GR_SENDS, {P_DLY, P_REV, P_CHOR, 0xFF}, SEL_NONE, CT_SENDS},
+    {"SLICER", FAM_FX, SC_TRACK, GR_SLCR, {P_SLPAT, P_SLRATE, P_SLDEPTH, 0xFF}, P_SLCR, CT_SLICER},   /* drum track too (its FX tab) */
     /* MOD: the LFO (RATE WAVE PHASE FADE; SYNC TRIG POL, and ENV SYNC), the second LFO, then the matrix (mock-synth-mod-A:
      * the grid, Ben's pick). Where the LFO and the envelopes go is the matrix's (the old LFO DEST and ENV DEST are cells) */
-    {"LFO", FAM_MOD, SC_TRACK, GR_LFO, {P_LRATE, P_LWAVE, P_LPHASE, P_LFADE}},
-    {"LFO SYNC", FAM_MOD, SC_TRACK, GR_LFO, {P_LSYNC, P_LTRIG, P_LPOL, P_ESYNC}},   /* SYNC TRIG POL, ENV SYNC */
-    {"LFO 2", FAM_MOD, SC_TRACK, GR_LFO2, {P_L2RATE, P_L2WAVE, V_L2SYNC, V_L2TRIG}},
-    {"MATRIX", FAM_MOD, SC_TRACK, GR_MATRIX, {V_MSRC, V_MDST, V_MAMT, V_MK4}},
+    {"LFO", FAM_MOD, SC_TRACK, GR_LFO, {P_LRATE, P_LPHASE, P_LFADE, P_LPOL}, P_LWAVE, CT_LFO1},
+    {"LFO SYNC", FAM_MOD, SC_TRACK, GR_LFO, {P_LSYNC, P_LTRIG, P_ESYNC, 0xFF}, P_LWAVE, CT_LFO1},   /* SYNC TRIG POL, ENV SYNC */
+    {"LFO 2", FAM_MOD, SC_TRACK, GR_LFO2, {P_L2RATE, V_L2SYNC, V_L2TRIG, 0xFF}, P_L2WAVE, CT_LFO2},
+    {"MATRIX", FAM_MOD, SC_TRACK, GR_MATRIX, {V_MSRC, V_MDST, V_MAMT, V_MK4}, SEL_NONE, CT_MATRIX},
     /* ---- the drum voice's own (its bus: the Rytm's FX track), the drum screen's FX tab (ui_drum.c DBUS), with the SLICER
      * above: its FILTER (LP / HP), its INSERT (2.6, Felucca 1.5) and dry / wet, its sends to the shared delay and reverb (the
      * whole drum voice's, on top of each sound's own DEL and REV on AMP 2/2) */
-    {"FILTER", FAM_DRM, SC_TRACK, GR_NONE, {P_TFLT, 0xFF, 0xFF, 0xFF}},
-    {"INSERT", FAM_DRM, SC_TRACK, GR_INS, {P_ITYPE, P_IA, P_IB, P_IC}},
-    {"INSERT 2", FAM_DRM, SC_TRACK, GR_INS, {P_IMIX, 0xFF, 0xFF, 0xFF}},
-    {"SENDS", FAM_DRM, SC_GLOBAL, GR_NONE, {G_DRDLY, G_DRREV, 0xFF, 0xFF}},
+    {"FILTER", FAM_DRM, SC_TRACK, GR_NONE, {P_TFLT, 0xFF, 0xFF, 0xFF}, SEL_NONE, CT_DFILT},
+    {"INSERT", FAM_DRM, SC_TRACK, GR_INS, {P_ITYPE, P_IA, P_IB, P_IC}, SEL_NONE, CT_DINS},   /* (wave 9: the drum screen's SELECT picks the
+                                                         * sound, so the drum voice's types stay on knobs) */
+    {"INSERT 2", FAM_DRM, SC_TRACK, GR_INS, {P_IMIX, 0xFF, 0xFF, 0xFF}, SEL_NONE, CT_DINS},
+    {"SENDS", FAM_DRM, SC_GLOBAL, GR_NONE, {G_DRDLY, G_DRREV, 0xFF, 0xFF}, SEL_NONE, CT_DSENDS},
+    {"SLICER", FAM_DRM, SC_TRACK, GR_SLCR, {P_SLCR, P_SLPAT, P_SLRATE, P_SLDEPTH}, SEL_NONE, CT_DSLICER},   /* (wave 9) the drum voice's: its mode on
+                                                         * KNOB 1 (the synth SLICER's is SELECT's) */
     /* ---- the other pages */
-    {"SEL", FAM_SCL, SC_TRACK, GR_SCALE, {P_ROOT, P_SCALE, P_QUANT, P_CHORD}},
-    {"SEL 2", FAM_SCL, SC_TRACK, GR_SCALE, {P_TRANS, P_STRUM, P_VLEAD, 0xFF}},   /* (2.4: the chords played) */
+    {"KEY", FAM_SCL, SC_TRACK, GR_SCALE, {P_ROOT, P_SCALE, P_QUANT, P_CHORD}, SEL_NONE, CT_KEY},
+    {"KEY 2", FAM_SCL, SC_TRACK, GR_SCALE, {P_TRANS, P_STRUM, P_VLEAD, 0xFF}, SEL_NONE, CT_KEY},   /* (2.4: the chords played) */
     /* (wave 8) GLO is the settings (and, held, the mixer): the tempo lives here and only here (Ben: "tempo in one place");
      * the swing is the pattern's (hold SEQ), the effects the FX button's, the drums' level the mixer's */
-    {"GLOBAL", FAM_GLO, SC_GLOBAL, GR_NONE, {G_BPM, G_CLOCK, G_TUNE, 0xFF}},
-    {"SYSTEM", FAM_GLO, SC_GLOBAL, GR_NONE, {G_MIDI, G_SYNC, G_ROUTE, G_INFO}},
-    {"MIDI", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CH1, G_CH2, G_CH3, G_DRCH}},   /* 2.6: each track's channel, the drums' too */
-    {"MIDI 2", FAM_GLO, SC_GLOBAL, GR_NONE, {G_ROUTE, G_CHOTH, G_MIDI, G_BEND}},   /* 2.6: IN, OTHER, OUT, BEND: every MIDI
+    {"GLOBAL", FAM_GLO, SC_GLOBAL, GR_NONE, {G_BPM, G_CLOCK, G_TUNE, 0xFF}, SEL_NONE, CT_GLOBAL},
+    {"SYSTEM", FAM_GLO, SC_GLOBAL, GR_NONE, {G_MIDI, G_SYNC, G_ROUTE, G_INFO}, SEL_NONE, CT_SYSTEM},
+    {"MIDI", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CH1, G_CH2, G_CH3, G_DRCH}, SEL_NONE, CT_MIDI},   /* 2.6: each track's channel, the drums' too */
+    {"MIDI 2", FAM_GLO, SC_GLOBAL, GR_NONE, {G_ROUTE, G_CHOTH, G_MIDI, G_BEND}, SEL_NONE, CT_MIDI},   /* 2.6: IN, OTHER, OUT, BEND: every MIDI
                                                                            * setting in these two pages (IN and OUT on
                                                                            * SYSTEM too) */
-    {"MIDI 3", FAM_GLO, SC_GLOBAL, GR_NONE, {G_KNOBS, 0xFF, 0xFF, 0xFF}},   /* a controller's knobs (2026-10-20) */
+    {"MIDI 3", FAM_GLO, SC_GLOBAL, GR_NONE, {G_KNOBS, V_LEARN, 0xFF, 0xFF}, SEL_NONE, CT_MIDI},   /* a controller's knobs (2026-10-20) */
     /* (wave 8) the FX button: the whole mix's effects, white and grey. The delay, the reverb and chorus every voice sends to
      * (each voice's SENDS page; PERFORM's ECHO and VERB throw into them), the master bus (DUST, DUCK) */
-    {"DELAY", FAM_MFX, SC_GLOBAL, GR_NONE, {G_DTIME, G_DFDBK, G_DCOLOR, G_DMIX}},
-    {"REV/CHO", FAM_MFX, SC_GLOBAL, GR_NONE, {G_RSIZE, G_RDAMP, G_CRATE, G_CDEPTH}},
-    {"MASTER", FAM_MFX, SC_GLOBAL, GR_NONE, {G_DUST, G_DUCK, 0xFF, 0xFF}},
-    {"PRESETS", FAM_SAVE, SC_GLOBAL, GR_BROWSE, {0xFF, 0xFF, 0xFF, 0xFF}},   /* browser: PRESETS knob / KNOB 1 */
-    {"USER", FAM_SAVE, SC_GLOBAL, GR_USER, {0xFF, 0xFF, 0xFF, 0xFF}},       /* user presets: SLOT LOAD ERASE SAVE */
+    {"DELAY", FAM_MFX, SC_GLOBAL, GR_NONE, {G_DTIME, G_DFDBK, G_DCOLOR, G_DMIX}, SEL_NONE, CT_MIX},
+    {"REV/CHO", FAM_MFX, SC_GLOBAL, GR_NONE, {G_RSIZE, G_RDAMP, G_CRATE, G_CDEPTH}, SEL_NONE, CT_MIX},
+    {"MASTER", FAM_MFX, SC_GLOBAL, GR_NONE, {G_DUST, G_DUCK, 0xFF, 0xFF}, SEL_NONE, CT_MIX},
+    {"PRESETS", FAM_SAVE, SC_GLOBAL, GR_BROWSE, {0xFF, 0xFF, 0xFF, 0xFF}, SEL_NONE, CT_PRESETS},   /* browser: PRESETS knob / KNOB 1 */
+    {"USER", FAM_SAVE, SC_GLOBAL, GR_USER, {0xFF, 0xFF, 0xFF, 0xFF}, SEL_NONE, CT_USER},       /* user presets: SLOT LOAD ERASE SAVE */
     /* (3.0.5) PROJECT (PARTS) is gone from SAVE: the sections are SAVE held + keys 1..8. SAVE here is the sound's */
-    {"TOOLS", FAM_SAVE, SC_GLOBAL, GR_NONE, {G_CLRSEQ, G_INITSND, 0xFF, G_NEWPRJ}},
-    {"ARP", FAM_ARP, SC_TRACK, GR_ARP, {P_AMODE, P_ARATE, P_AOCT, P_AGATE}},
-    {"ARP 2", FAM_ARP, SC_TRACK, GR_NONE, {P_ASWING, P_APROB, P_AHOLD, P_AORDER}},
-    {"TRACKS", FAM_TRK, SC_TRK, GR_TRK, {0, 1, 2, 3}},   /* REC button; TRACK LEVEL LEN PAN */
-    {"DRUMS", FAM_TRK, SC_DRUM, GR_NONE, {0xFF,0xFF,0xFF,0xFF}},
+    {"TOOLS", FAM_SAVE, SC_GLOBAL, GR_NONE, {G_CLRSEQ, G_INITSND, 0xFF, G_NEWPRJ}, SEL_NONE, CT_TOOLS},
+    {"ARP", FAM_ARP, SC_TRACK, GR_ARP, {P_AMODE, P_ARATE, P_AOCT, P_AGATE}, SEL_NONE, CT_ARP},
+    {"ARP 2", FAM_ARP, SC_TRACK, GR_NONE, {P_ASWING, P_APROB, P_AHOLD, P_AORDER}, SEL_NONE, CT_ARP},
+    {"TRACKS", FAM_TRK, SC_TRK, GR_TRK, {0, 1, 2, 3}, SEL_NONE, CT_HOME},   /* REC button; TRACK LEVEL LEN PAN */
+    {"DRUMS", FAM_TRK, SC_DRUM, GR_NONE, {0xFF,0xFF,0xFF,0xFF}, SEL_NONE, CT_GRID},
 };
 #define NPAGES (sizeof(PAGES) / sizeof(PAGES[0]))
 
@@ -645,7 +665,7 @@ static int page_shown(const page_t *pg)
 #include "modmx.c"             /* (PHEBUS wave 5) the mod matrix */
 static int16_t mx_row, mx_col;   /* (wave 5) the MATRIX page's cursor: the cell SOURCE and DEST point at (the UI's) */
 /* (wave 5) an FX page's slot (0..2) */
-static uint32_t pg_slot(const page_t *pg) { return ((uint32_t)pg->id[0] - P_X1TYPE) / 4u % NXSLOT; }
+static uint32_t pg_slot(const page_t *pg) { return ((uint32_t)pg->sel - P_X1TYPE) / 4u % NXSLOT; }   /* (wave 9: its TYPE is SELECT's) */
 static uint32_t pg_id(const page_t *pg, uint32_t k)
 {
     uint32_t id = pg->id[k & 3u];
@@ -655,7 +675,7 @@ static uint32_t pg_id(const page_t *pg, uint32_t k)
     }
     if (id >= V_XA && id <= V_XC) {                   /* (wave 5) an FX slot's knob, its own (wave 8: every type an insert,
                                                        * no shared setting on a voice's page); OFF: none */
-        int32_t ty = TSEL->p[pg->id[0]];
+        int32_t ty = TSEL->p[pg->sel];
         if (is_drum(TSEL) || ty <= XT_OFF || ty >= XT_N || xt_send(ty))
             return 0xFFu;
         return P_XS(pg_slot(pg), id - V_XA + 1u);
@@ -666,6 +686,7 @@ static uint32_t pg_id(const page_t *pg, uint32_t k)
     }
     return id;
 }
+static uint8_t learn_shown;                             /* (wave 9: MIDI LEARN on, for GLO > MIDI 3: ui.c ml_toggle sets it) */
 static const param_desc_t VTYPE_DESC = {"TYPE", F_INT, 0, NVTYPE - 1u, 0, 0, 0};   /* (formatted by vtype_fmt) */
 static int16_t vtype_shown;                            /* (TYPE's value, as page_desc hands it out: vtype_of) */
 static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **valp)
@@ -675,6 +696,13 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
         vtype_shown = (int16_t)vtype_of(TSEL);
         *valp = &vtype_shown;
         return &VTYPE_DESC;
+    }
+    if (id == V_LEARN) {                                  /* (wave 9) MIDI LEARN on / off (ui.c mlu, not saved) */
+        static const char *const OO[] = {"OFF", "ON"};
+        static const param_desc_t L = PE("LEARN", OO, 0);
+        vtype_shown = (int16_t)(learn_shown != 0);
+        *valp = &vtype_shown;
+        return &L;
     }
     if (id == 0xFFu || (is_drum(TSEL) && (!page_for_drum(pg) || (pg->scope == SC_GLOBAL && id == G_INITSND)))) {
         *valp = 0;
