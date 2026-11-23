@@ -33,6 +33,8 @@ static void check(int ok, const char *what) { printf("perform: %-96s %s\n", what
 #define NS (FS * 10u)                                 /* 10 s a render */
 #define NB (NS / CTL)
 static int32_t *ref, *out, *refm, *outm, *mixto, *pos;       /* (shared with the forked renders) the output; the mix before the master */
+static int32_t *refx, *refxm;                                  /* (wave 13) a mute's reference: those parts never played */
+static uint32_t strip_lanes, strip_trks;                       /* .. the drum slots, the voices it leaves out (song_setup) */
 static void song_setup(void)
 {
     static const uint8_t BASS[32] = {36, 0, 36, 48, 0, 36, 39, 0, 36, 0, 43, 36, 0, 46, 36, 0,
@@ -54,16 +56,31 @@ static void song_setup(void)
         put_step(&trk[0], j, BASS[j] ? 1u : 0u, &BASS[j], BASS[j] ? ST_NOTE : ST_REST, 0);
     for (j = 0; j < 16u; j++)                         /* track 2: a chord on 1 and 9 */
         put_step(&trk[1], j, j % 8u == 0u ? 3u : 0u, CH, j % 8u == 0u ? ST_NOTE : ST_REST, 0);
-    TDRUM->p[P_SLEN] = 16, trk[0].p[P_SLEN] = 32, trk[1].p[P_SLEN] = 16;
+    for (j = 0; j < 16u; j++) {                       /* (wave 13) voice 3: a note on 3 and 11 (its mute has something) */
+        static const uint8_t V3N[1] = {72};
+        put_step(&trk[2], j, j % 8u == 2u ? 1u : 0u, V3N, j % 8u == 2u ? ST_NOTE : ST_REST, 0);
+    }
+    TDRUM->p[P_SLEN] = 16, trk[0].p[P_SLEN] = 32, trk[1].p[P_SLEN] = 16, trk[2].p[P_SLEN] = 16;
     trk[0].p[P_VOICE] = V_MONO;
-    trk[0].seq_active = trk[1].seq_active = 1, TDRUM->seq_active = 1;
+    trk[0].seq_active = trk[1].seq_active = trk[2].seq_active = 1, TDRUM->seq_active = 1;
+    if (strip_lanes || strip_trks) {                  /* (wave 13: the reference for a mute: those parts never played) */
+        for (j = 0; j < NSTEP; j++) {
+            uint32_t l;
+            for (l = 0; l < DRUM_LANES; l++)
+                if ((strip_lanes >> l) & 1u)
+                    dt_clr(j, l);
+        }
+        for (j = 0; j < 3u; j++)
+            if ((strip_trks >> j) & 1u)
+                steps_clear(&trk[j]);
+    }
     memset(&stl, 0, sizeof stl);
     stl.len = 16, stl.act = 1;
     perf.held = perf.lat = 0;
     clk_beat = 0, clk_pos = 0;
     transport_req = 1;
 }
-typedef struct { int32_t pad; uint32_t on, off; int latch; } act_t;   /* a pad from block on to off */
+typedef struct { int32_t pad; uint32_t on, off; int latch; int32_t pad2; } act_t;   /* a pad (and a second) from block on to off */
 static void render_in(int32_t *o, const act_t *a)
 {
     uint32_t b;
@@ -72,8 +89,12 @@ static void render_in(int32_t *o, const act_t *a)
         if (a && a->pad >= 0) {
             if (b == a->on)
                 perf_press((uint32_t)a->pad, (uint32_t)a->latch);
+            if (b == a->on && a->pad2 > 0)
+                perf_press((uint32_t)a->pad2, 0);
             if (b == a->off)
                 a->latch ? perf_unlatch() : perf_release((uint32_t)a->pad);
+            if (b == a->off && a->pad2 > 0)
+                perf_release((uint32_t)a->pad2);
         }
         mix_block(blk, CTL);
         memcpy(o + b * CTL * 2u, blk, sizeof blk);
@@ -85,8 +106,8 @@ static void render_in(int32_t *o, const act_t *a)
     }
     pos[o == ref ? 0 : 1] = (int32_t)(trk[0].seq_abs * 1000u + TDRUM->seq_abs);   /* (where the tracks are at the end) */
     if (a && a->pad >= 0) {                           /* (the stuck-state check, in the child: after its render) */
-        int idle = punch.cur == -1 && !perf.act && !perf.thr[0] && !perf.thr[1] && !perf_kill && !rep_l16 && !thr_rev &&
-                   !thr_dly;
+        int idle = punch.cur == -1 && !perf.act && !perf.thr[0] && !perf.thr[1] && !perf_kill && !perf_dmute && !rep_l16 &&
+                   !thr_rev && !thr_dly;
         uint32_t j;
         for (j = 0; j < PP_N; j++)
             idle &= punch.pg[j] == 0;
@@ -97,7 +118,7 @@ static int render(int32_t *o, const act_t *a)          /* from power-on state ea
 {
     pid_t p = fork();
     int st = 0;
-    mixto = o == ref ? refm : outm;
+    mixto = o == ref ? refm : o == refx ? refxm : outm;
     if (p == 0) {
         song_setup();
         render_in(o, a);
@@ -173,17 +194,19 @@ static void pads_audible(void)
     int idle;
     render(ref, 0);
     for (p = 0; p < PF_NPAD; p++) {
-        act_t a = {(int32_t)p, on, off, 0};
+        act_t a = {(int32_t)p, on, off, 0, 0};
         uint32_t s0 = on * CTL + 4096u, s1 = off * CTL, after = off * CTL, settle = 2u * CTL + 64u, tail = 0, last;
         double de, e, rel;
         int32_t md;
-        int seq = p == PF_S1 || p == PF_S2, thr = p == PF_ECHO || p == PF_VERB, kill = p == PF_KDRUM || p == PF_KBASS;
+        int seq = p == PF_S1 || p == PF_S2, thr = p == PF_ECHO || p == PF_VERB, kill = (PF_MUTES >> p) & 1u;
         idle = render(out, &a);
         de = diff_energy(out, ref, s0, s1);
         e = energy(ref, s0, s1);
         rel = e > 0 ? 10.0 * log10(de / e + 1e-30) : -999;
         if (kill)
             settle = 10u * CTL;                       /* (a mute's fade: 8 blocks; the notes played on unheard) */
+        if (p == PF_SWDN || p == PF_SWUP)
+            settle = 70u * CTL;                       /* (wave 13: a sweep goes back smoothly, 46 ms) */
         if (thr)
             tail = 5u * FS;                           /* (the echoes and the reverb ring out) */
         if (seq)
@@ -194,7 +217,8 @@ static void pads_audible(void)
         check(rel > -20.0, b);
         if (!thr && !seq) {
             snprintf(b, sizeof b, "%-14s let go: the dry mix again, sample for sample, %u samples after release (%s)",
-                     PFD[p].name, last > after ? last - after : 0u, kill ? "a mute's fade: 320" : "the fade: 128");
+                     PFD[p].name, last > after ? last - after : 0u, kill ? "a mute's fade: 320" :
+                     p == PF_SWDN || p == PF_SWUP ? "the sweep's return: 2,304" : "the fade: 128");
             check(last <= after + settle, b);
         } else if (thr) {
             snprintf(b, sizeof b, "%-14s let go: %.0f s on, within %d of the dry mix (tolerance 64: the echoes' and reverb's last bits)",
@@ -218,13 +242,13 @@ static void pads_audible(void)
         check(full_scale(out, s0, NS) <= full_scale(ref, s0, NS) && idle, b);
     }
     {   /* latch: OCT+ held as the pad is pressed; it plays on after the key is up, until unlatched */
-        act_t a = {PF_LP, on, off, 1};
+        act_t a = {PF_PHASER, on, off, 1, 0};
         uint32_t last;
         idle = render(out, &a);
         last = last_diff(outm, refm, off * CTL, NS);
         check(diff_energy(out, ref, on * CTL + 4096u, off * CTL) > 0.01 * energy(ref, on * CTL + 4096u, off * CTL) &&
               last <= off * CTL + 2u * CTL + 64u && idle,
-              "LATCH: the low-pass pressed with OCT+ plays on with no key held; unlatched, the dry mix again");
+              "LATCH: the phaser pressed with OCT+ plays on with no key held; unlatched, the dry mix again");
     }
 }
 
@@ -294,8 +318,8 @@ static int bars_same(uint32_t x, uint32_t y)
 {
     return !memcmp(bars + x * BAR_B * CTL * 2u, bars + y * BAR_B * CTL * 2u, BAR_B * CTL * 2u * sizeof(int32_t));
 }
-/* bar 1, recording: the 1/4 pad from step 4 for 2 steps (its PITCH turned to -5 while held), LP latched from step 8 to
- * 14, CRUSH from step 12 to 15 */
+/* bar 1, recording: the 1/4 pad from step 4 for 2 steps (its PITCH turned to -5 while held), ISO LO latched from step 8
+ * to 14, CRUSH from step 12 to 15 */
 static void rec_act(uint32_t b)
 {
     if (b == BAR_B)
@@ -308,7 +332,7 @@ static void rec_act(uint32_t b)
     if (b == step_block(1, 6))
         perf_release(PF_S4), perf.par[PF_S4][0] = 0;  /* (the knob back: the lane keeps the recorded -5) */
     if (b == step_block(1, 8))
-        perf_press(PF_LP, 1);
+        perf_press(PF_ISOL, 1);
     if (b == step_block(1, 12))
         perf_press(PF_CRUSH, 0);
     if (b == step_block(1, 14))
@@ -322,7 +346,7 @@ static void live_act(uint32_t b)                      /* the same, played live, 
 {
     if (b == step_block(1, 4)) perf_press(PF_S4, 0), perf.par[PF_S4][0] = -5;
     if (b == step_block(1, 6)) perf_release(PF_S4), perf.par[PF_S4][0] = 0;
-    if (b == step_block(1, 8)) perf_press(PF_LP, 1);
+    if (b == step_block(1, 8)) perf_press(PF_ISOL, 1);
     if (b == step_block(1, 12)) perf_press(PF_CRUSH, 0);
     if (b == step_block(1, 14)) perf_unlatch();
     if (b == step_block(1, 15)) perf_release(PF_CRUSH);
@@ -354,8 +378,8 @@ static void engine_tests(void)
     snprintf(b, sizeof b, "recorded: 1/4 from step 5 for 2 steps, with its PITCH -5 (st %d len %d knob %d value %d)",
              e ? e->st : -1, e ? e->len : -1, e ? (e->fx >> 5) & 3 : -1, e ? e->kv : 0);
     check(e && e->st == 4u && e->len == 2u && (e->fx & 0x80u) && ((e->fx >> 5) & 3u) == 0u && e->kv == -5, b);
-    e = ev_of(PF_LP);
-    check(e && e->st == 8u && e->len == 6u && !(e->fx & 0x80u), "recorded: LP latched from step 9 to 14 (6 steps)");
+    e = ev_of(PF_ISOL);
+    check(e && e->st == 8u && e->len == 6u && !(e->fx & 0x80u), "recorded: ISO LO latched from step 9 to 14 (6 steps)");
     e = ev_of(PF_CRUSH);
     check(e && e->st == 12u && e->len == 3u, "recorded: CRUSH from step 13 to 15 (3 steps)");
     check(!memcmp(bars + BAR_B * CTL * 2u, live + BAR_B * CTL * 2u, BAR_B * CTL * 2u * sizeof(int32_t)),
@@ -419,7 +443,7 @@ static void engine_tests(void)
         if ((stl.ev[i].fx & 31u) == PF_CRUSH + 1u)
             stl.ev[i].fx = 0;
     play_bars(1, 0);
-    check(ev_of(PF_S4) && ev_of(PF_LP) && !ev_of(PF_CRUSH), "a span erased: gone, the others kept");
+    check(ev_of(PF_S4) && ev_of(PF_ISOL) && !ev_of(PF_CRUSH), "a span erased: gone, the others kept");
     /* the lane full: 31 spans, the 32nd refused with a message (perf.full) */
     eng_reset();
     stl.len = 64;
@@ -466,14 +490,14 @@ static void engine_tests(void)
     }
     /* latch by OCT+ while a pad is held (perf_latch_held), a latched pad pressed again: off; OCT- all off */
     eng_reset();
-    perf_press(PF_GATE, 0);
+    perf_press(PF_VOWEL, 0);
     perf_latch_held();
-    perf_release(PF_GATE);
-    check(perf.lat == PFB(PF_GATE) && !perf.held, "LATCH: OCT+ while GATE is held latches it; the key up, it stays");
-    perf_press(PF_GATE, 0);
+    perf_release(PF_VOWEL);
+    check(perf.lat == PFB(PF_VOWEL) && !perf.held, "LATCH: OCT+ while VOWEL is held latches it; the key up, it stays");
+    perf_press(PF_VOWEL, 0);
     check(!perf.lat && !perf.held, "LATCH: the latched pad pressed again: off");
-    perf_press(PF_LP, 1), perf_press(PF_HP, 1), perf_release(PF_LP), perf_release(PF_HP);
-    check(pf_count(perf.lat) == 2u, "LATCH: two latched with OCT+ (the header says PERF 2)");
+    perf_press(PF_ISOL, 1), perf_press(PF_MKICK, 1), perf_release(PF_ISOL), perf_release(PF_MKICK);
+    check(pf_count(perf.lat) == 2u, "LATCH: two latched with OCT+, an effect and a mute (the header says PERF 2)");
     perf_unlatch();
     check(!perf.lat, "LATCH: OCT- lets every latch go");
     /* the last TIME pad wins, and the one under it comes back when it is let go (the MPC's beat repeat) */
@@ -487,13 +511,182 @@ static void engine_tests(void)
     for (i = 0; i < 40u; i++) eng_block(i, bars);
     check(punch.cur == PX_LOOP4, "the 1/16 let go: the 1/4 still held plays again");
     perf_release(PF_S4);
-    perf_press(PF_LP, 0), perf_press(PF_GATE, 0), perf_press(PF_S8, 0);
+    perf_press(PF_MOTION, 0), perf_press(PF_PHASER, 0), perf_press(PF_S8, 0), perf_press(PF_MKICK, 0);
     for (i = 0; i < 40u; i++) eng_block(i, bars);
-    check(punch.cur == PX_LOOP8 && punch.pg[PP_LP] == 32767 && punch.pg[PP_GATE] == 32767,
-          "a TIME pad and COLOUR pads together: all of them play (1/8 + LP + GATE)");
-    perf_release(PF_LP), perf_release(PF_GATE), perf_release(PF_S8);
+    check(punch.cur == PX_LOOP8 && punch.pg[PP_MOTION] == 32767 && punch.pg[PP_PHASER] == 32767 && perf_dmute == DM_KICKS,
+          "a TIME pad, COLOUR pads and a mute together: all of them play (1/8 + MOTION + PHASER + KICKS)");
+    perf_release(PF_MOTION), perf_release(PF_PHASER), perf_release(PF_S8), perf_release(PF_MKICK);
     for (i = 0; i < 40u; i++) eng_block(i, bars);
-    check(punch.cur == -1 && !punch.pg[PP_LP] && !punch.pg[PP_GATE], "all let go: nothing left playing");
+    check(punch.cur == -1 && !punch.pg[PP_MOTION] && !punch.pg[PP_PHASER] && !perf_dmute, "all let go: nothing left playing");
+}
+
+
+/* ---------------------------------------------------------------- (wave 13) the seven mutes ---- */
+/* Ben, 14:13: "Mute kicks and low tom / Mute all drums but tops - snare, clap and hats, shaker / Mute all drums but shaker
+ * and clap / Mute all drums but hats and snare / Mute voice 1 / 2 / 3"; 14:25: "Hold to mute, latch with OCT+". Each held:
+ * after its fade (8 blocks) the mix is sample for sample the song with exactly its parts never played (the rest exact);
+ * let go: the song again, sample for sample (the parts played on unheard, so they come back in place: pads_audible). */
+static void mute_case(const char *what, int32_t p1, int32_t p2, uint32_t lanes, uint32_t trks)
+{
+    uint32_t on = 2u * FS / CTL + 7u, off = on + (uint32_t)(1.5 * FS / CTL), w0 = on * CTL + 10u * CTL, w1 = off * CTL;
+    act_t a = {p1, on, off, 0, p2};
+    char b[220];
+    int32_t md;
+    strip_lanes = lanes, strip_trks = trks;
+    render(refx, 0);
+    strip_lanes = strip_trks = 0;
+    render(out, &a);
+    md = max_abs_diff(outm, refxm, w0, w1);
+    snprintf(b, sizeof b, "%s held: the song without exactly those parts, sample for sample (largest difference %d); its parts were "
+             "heard before (%.0f dB)", what, md, 10.0 * log10(diff_energy(refm, refxm, w0, w1) / energy(refm, w0, w1) + 1e-30));
+    check(md == 0 && diff_energy(refm, refxm, w0, w1) > 0, b);
+}
+static void mutes_tests(void)
+{
+    render(ref, 0);
+    mute_case("KICKS (KICK, KICK 2, LO TOM)", PF_MKICK, 0, DM_KICKS, 0);
+    mute_case("TOPS (all but SNARE, SNARE 2, CLAP, HATS, SHAKER)", PF_MTOPS, 0, DM_TOPS, 0);
+    mute_case("SH+CL (all but SHAKER and CLAP)", PF_MSHCL, 0, DM_SHCL, 0);
+    mute_case("HT+SN (all but HAT, OPEN HAT, PEDAL, SNARE, SNARE 2)", PF_MHTSN, 0, DM_HTSN, 0);
+    mute_case("V1", PF_MV1, 0, 0, 1u);
+    mute_case("V2", PF_MV2, 0, 0, 2u);
+    mute_case("V3", PF_MV3, 0, 0, 4u);
+    /* held together: what each mutes adds up (what is heard is what all of them allow) */
+    mute_case("KICKS + HT+SN together (heard: what both allow)", PF_MKICK, PF_MHTSN, DM_KICKS | DM_HTSN, 0);
+    mute_case("V2 + SH+CL together", PF_MV2, PF_MSHCL, DM_SHCL, 2u);
+    check((DM_KICKS & 0xFFFFu) == 0x0203u && (~DM_TOPS & 0xFFFFu) == 0x217Cu && (~DM_SHCL & 0xFFFFu) == 0x2008u &&
+          (~DM_HTSN & 0xFFFFu) == 0x0174u, "the drum groups by slot: KICKS 1 2 10; TOPS keeps 3 4 5 6 7 9 14; SH+CL keeps 4 14; HT+SN keeps 3 5 6 7 9");
+    {   /* separate from the mixer's mutes: a PERFORM mute never changes them; both: silent if either mutes it */
+        int32_t o[CTL * 2u];
+        uint32_t bb;
+        song_setup();
+        drum_mute = 1u << 2;                          /* (the mixer: SNARE muted) */
+        perf_press(PF_MKICK, 0);
+        for (bb = 0; bb < FS / CTL; bb++) mix_block(o, CTL);
+        check(drum_mute == 1u << 2 && !trk[0].p[P_MUTE] && perf_dmute == DM_KICKS, "a PERFORM mute leaves the mixer's mutes as they are");
+        perf_release(PF_MKICK);
+        perf_press(PF_MV1, 0);
+        for (bb = 0; bb < 20u; bb++) mix_block(o, CTL);
+        check(!trk[0].p[P_MUTE] && perf_kill == 1u, "V1 fades voice 1 (perf_kill), its MUTE untouched");
+        perf_release(PF_MV1);
+        for (bb = 0; bb < 20u; bb++) mix_block(o, CTL);
+        check(drum_mute == 1u << 2 && !perf_kill && !perf_dmute, "let go: the mixer's SNARE mute still there, PERFORM's gone");
+        drum_mute = 0;
+        transport_req = 2;
+        mix_block(o, CTL);
+        {   /* both: the mixer's SNARE and PERFORM's KICKS held: the song without kicks, low tom and snare */
+            uint32_t on = 2u * FS / CTL + 7u, off = on + (uint32_t)(1.5 * FS / CTL);
+            act_t a = {PF_MKICK, on, off, 0, 0};
+            pid_t pp;
+            int st = 0;
+            strip_lanes = DM_KICKS | 1u << 2;
+            render(refx, 0);
+            strip_lanes = 0;
+            mixto = outm;
+            pp = fork();
+            if (!pp) {
+                song_setup();
+                drum_mute = 1u << 2;
+                render_in(out, &a);
+                _exit(0);
+            }
+            waitpid(pp, &st, 0);
+            check(max_abs_diff(outm, refxm, on * CTL + 10u * CTL, off * CTL) == 0,
+                  "the mixer's SNARE mute and PERFORM's KICKS at once: silent if either mutes it (the song without both)");
+        }
+    }
+}
+
+/* ---------------------------------------------------------------- (wave 13) a lane of waves 6 to 12 ---- */
+static void convert_tests(void)
+{
+    static proj_core_t c;
+    static const uint8_t OLD[12][4] = {               /* old pad + 1, st, len, (knob << 5 | 0x80 | kv) */
+        {9, 0, 4, 0}, {10, 4, 2, 0}, {17, 6, 2, 0}, {18, 8, 1, 0x80}, {12, 9, 1, 0}, {14, 10, 1, 0},
+        {19, 11, 1, 0}, {6, 12, 1, 0}, {21, 13, 1, 0}, {22, 14, 1, 0}, {20, 15, 1, 0}, {15, 1, 1, 0}};
+    static const int8_t KV[12] = {0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0};
+    uint32_t i;
+    song_setup();
+    proj_capture_core(&c);
+    memset(c.perf.fx, 0, sizeof c.perf.fx);
+    c.perf.rsv[0] = 0;                                /* (waves 6 to 12) */
+    for (i = 0; i < 12u; i++) {
+        pev_t *e = (pev_t *)c.perf.fx + i;
+        e->fx = (uint8_t)(OLD[i][0] | OLD[i][3]);
+        e->st = OLD[i][1], e->len = OLD[i][2], e->kv = KV[i];
+    }
+    pev_drop_n = 0;
+    proj_apply(&c, 1);
+    {
+        static const int8_t WANT[12] = {PF_SWDN, PF_SWUP, PF_MSHCL, PF_MV2, -1, -1, -1, PF_LSTUT, PF_LSTUT, PF_LSTUT, PF_JET, PF_ECHO};
+        int ok = pev_drop_n == 3u;
+        for (i = 0; i < 12u; i++)
+            ok &= WANT[i] < 0 ? !stl.ev[i].fx : (stl.ev[i].fx & 31u) == (uint32_t)WANT[i] + 1u && stl.ev[i].st == OLD[i][1];
+        ok &= stl.ev[7].kv == 5 && stl.ev[8].kv == 1 && stl.ev[9].kv == 2 && (stl.ev[7].fx & 0xE0u) == 0x80u;
+        check(ok, "an old lane: LP -> SWEEP DOWN, HP -> SWEEP UP, KILL DRUMS -> SH+CL, KILL BASS (VOICE 2) -> V2, FLNG -> JET, 1/32 8T 16T -> "
+                  "the lane's 1/32 1/8T 1/16T, ECHO kept; GATE, DROP, LCUT dropped, 3 counted (LANE: 3 OLD PADS DROPPED)");
+    }
+    proj_capture_core(&c);
+    pev_drop_n = 0;
+    proj_apply(&c, 1);
+    check(c.perf.rsv[0] == PEV_V13 && pev_drop_n == 0u && (stl.ev[0].fx & 31u) == PF_SWDN + 1u,
+          "saved again: marked as the PERFORM set's (loaded again: nothing converted twice)");
+    pev_drop_n = 0;
+}
+
+/* ---------------------------------------------------------------- (wave 13) the STUTTER lane's black keys ---- */
+static void lane_keys_tests(void)
+{
+    static const int8_t WANT[11] = {PF_S1, PF_S2, PF_S4, PF_S8, PF_S16, PF_LSTUT, PF_LSTUT, PF_LSTUT, PF_LSTUT, PF_LSTUT, PF_LSTUT};
+    uint32_t i, ok = 1, b;
+    int32_t o[CTL * 2u];
+    song_setup();
+    song.sel = TRK_DRUM, stl_view = 1, kb_grid = 1;
+    for (i = 0; i < 11u; i++) {                       /* each black key: a stutter, and nothing else */
+        uint32_t k = PUNCH_BLACK[i];
+        uint16_t s0 = dpat.vel[0][0];
+        key_down(k);
+        ok &= perf.held == PFB((uint32_t)WANT[i]) && (WANT[i] != PF_LSTUT || perf.par[PF_LSTUT][0] == (int8_t)(i - 5u));
+
+        ok &= kb_kind[k] == KS_FX && dpat.vel[0][0] == s0 && !drum_mute && !perf_dmute;   /* (a pad: no note, no step, no mute) */
+        perf.act = 0, perf_block();
+        ok &= WANT[i] < 2 ? perf.ring == -2 : perf.ring == (WANT[i] == PF_LSTUT ? (int8_t)LST_PX[i - 5u] : PF_RING[WANT[i]]);
+
+        key_up(k);
+        ok &= !perf.held && !perf.lkeys;
+    }
+    check(ok, "the lane's black keys: F#3 1/1, G#3 1/2, A#3 1/4, C#4 1/8, D#4 1/16, F#4 1/4T, G#4 1/8T, A#4 1/16T, C#5 1/8D, "
+              "D#5 1/16D, F#5 1/32: each a stutter of the whole mix, nothing else");
+    /* two held: the last pressed plays; it let go, the one still held again */
+    key_down(PUNCH_BLACK[6]), key_down(PUNCH_BLACK[8]);
+    perf_block();
+    ok = perf.ring == PX_LOOP8D;
+    key_up(PUNCH_BLACK[8]);
+    perf_block();
+    ok &= perf.ring == PX_LOOP8T;
+    key_up(PUNCH_BLACK[6]);
+    perf_block();
+    check(ok && perf.ring == -1 && !perf.held, "the lane's keys: two held, the last plays; let go, the other again; none: dry");
+    /* OCT+ held: latch */
+    fm1_in.buttons = dyn_bit[1] = 1u << 3;
+    key_down(PUNCH_BLACK[7]), key_up(PUNCH_BLACK[7]);
+    fm1_in.buttons = 0;
+    check(perf.lat == PFB(PF_LSTUT) && perf.par[PF_LSTUT][0] == 2, "the lane's keys: OCT+ held latches (1/16T)");
+    perf_unlatch();
+    /* the played key wins over the lane's own lit step (as a PERFORM pad) */
+    memset(&stl, 0, sizeof stl), stl.len = 16, stl.act = 1;
+    for (i = 0; i < 16u; i++) stl.on[i >> 3] |= (uint8_t)(1u << (i & 7u));   /* every step lit, 1/4 */
+    for (b = 0; b < 200u; b++) mix_block(o, CTL);
+    ok = punch.cur == PX_LOOP4;
+    key_down(PUNCH_BLACK[10]);
+    for (b = 0; b < 40u; b++) mix_block(o, CTL);
+    ok &= punch.cur == PX_LOOP32;
+    key_up(PUNCH_BLACK[10]);
+    for (b = 0; b < 40u; b++) mix_block(o, CTL);
+    check(ok && punch.cur == PX_LOOP4, "the lane's own lit 1/4 steps, the F#5 key (1/32) held: the key wins; let go, the steps again");
+    stl_view = 0, kb_grid = 0, song.sel = 0;
+    transport_req = 2;
+    mix_block(o, CTL);
 }
 
 /* ---------------------------------------------------------------- stuck states: STOP, a pattern change ---- */
@@ -505,14 +698,17 @@ static void stuck_tests(void)
     song_setup();
     for (b = 0; b < FS / CTL; b++) mix_block(o, CTL);
     stl.ev[0] = (pev_t){PF_S2 + 1u, 0, 16, 0};       /* the lane replays the half bar all bar */
-    perf_press(PF_LP, 1), perf_release(PF_LP);        /* LP latched */
+    perf_press(PF_PHASER, 1), perf_release(PF_PHASER);   /* PHASER latched */
     perf_press(PF_VERB, 1), perf_release(PF_VERB);    /* a reverb throw latched */
-    perf_press(PF_KDRUM, 1), perf_release(PF_KDRUM);  /* the drums killed, latched */
+    perf_press(PF_MTOPS, 1), perf_release(PF_MTOPS);  /* TOPS (all but the tops muted), latched */
+    perf_press(PF_MV1, 1), perf_release(PF_MV1);      /* voice 1 muted, latched */
     for (b = 0; b < FS / CTL; b++) mix_block(o, CTL);
-    check(rep_l16 == 8u && perf_kill && thr_rev && punch.pg[PP_LP], "(before STOP: the lane's 1/2 replays, LP, VERB, KILL DRUMS latched)");
+    check(rep_l16 == 8u && perf_kill && perf_dmute && thr_rev && punch.pg[PP_PHASER],
+          "(before STOP: the lane's 1/2 replays, PHASER, VERB, TOPS, V1 latched)");
     transport_req = 2;
     for (b = 0; b < 40u; b++) mix_block(o, CTL);
-    idle = punch.cur == -1 && !perf.act && !perf.lat && !perf_kill && !rep_l16 && !thr_rev && !thr_dly;
+    idle = punch.cur == -1 && !perf.act && !perf.lat && !perf_kill && !perf_dmute && !rep_l16 && !thr_rev && !thr_dly;
+    for (j = 0; j < DRUM_LANES; j++) idle &= dm_att[j] == 0;
     for (j = 0; j < PP_N; j++) idle &= punch.pg[j] == 0;
     check(idle, "STOP: every latch off, the lane's pads stop, the replay ends, nothing left playing");
     /* a pattern change: a pattern with recorded pads playing, then one without */
@@ -521,7 +717,7 @@ static void stuck_tests(void)
         song_setup();
         proj_capture_core(&empty);                    /* (no recorded pads) */
         stl.ev[0] = (pev_t){PF_S8 + 1u, 0, 16, 0};
-        stl.ev[1] = (pev_t){PF_HP + 1u, 0, 16, 0};
+        stl.ev[1] = (pev_t){PF_SWUP + 1u, 0, 16, 0};
         stl.ev[2] = (pev_t){PF_S1 + 1u, 8, 8, 0};
         for (b = 0; b < 2u * FS / CTL; b++) mix_block(o, CTL);
         check(perf.lane != 0u && (punch.cur >= 0 || rep_l16), "(the pattern's recorded pads play)");
@@ -532,7 +728,7 @@ static void stuck_tests(void)
         seq_reset_tracks(clk_pos);
         song.rec = 0;
         perf_release(PF_S4);
-        for (b = 0; b < 40u; b++) mix_block(o, CTL);
+        for (b = 0; b < 80u; b++) mix_block(o, CTL);   /* (wave 13: SWEEP UP's return, 46 ms) */
         idle = punch.cur == -1 && !perf.act && !perf.lane && !rep_l16 && !perf.ropen;
         for (j = 0; j < PP_N; j++) idle &= punch.pg[j] == 0;
         check(idle, "a pattern change to one with no recorded pads: they stop at once, a span open is dropped, nothing stuck");
@@ -595,8 +791,13 @@ int main(void)
     outm = mmap(0, NS * 2u * sizeof(int32_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
     pos = mmap(0, 4096, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
     out = mmap(0, NS * 2u * sizeof(int32_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    refx = mmap(0, NS * 2u * sizeof(int32_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    refxm = mmap(0, NS * 2u * sizeof(int32_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
     lane_golden();
     pads_audible();
+    mutes_tests();
+    convert_tests();
+    lane_keys_tests();
     engine_tests();
     stuck_tests();
     printf("perform: %s\n", fails ? "FAILED" : "all ok");
