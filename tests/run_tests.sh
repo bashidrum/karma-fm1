@@ -88,6 +88,8 @@ $CC -O1 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/kit12_test
 run "PHEBUS wave 12: projects of waves 3 to 11 sound as wave 11 played them, converted to the 16 slots (tests/kit12_ref.txt)" "$OUT/kit12_test" tests/kit12_ref tests/kit12_ref.txt
 $CC -O1 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/kitmix_test" tests/kitmix_test.c $PLX -lm
 run "PHEBUS wave 12: a slot of the other machine, a mixed kit, chokes, the sound and kit lists, INIT, locks across machines, user kits" "$OUT/kitmix_test"
+$CC -O1 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/ukit_test" tests/ukit_test.c $PLX -lm
+run "PHEBUS wave 12: the user drum kits in flash (stored, read, a power cut, erased)" "$OUT/ukit_test"
 run "PHEBUS wave 8: the sends a voice's own (no slot), inserts independent, wave 5 to 7 projects converted, CC 74 the voice filter" "$OUT/fx8_test"
 run "PHEBUS wave 4: every Type on every track, the voice filter moves (CUTOFF RESO ENV LFO TYPE) on every engine family, LINK / OWN, OCT / TUNE" "$OUT/voice4_test"
 

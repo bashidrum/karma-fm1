@@ -20,17 +20,18 @@
  * (upreset.c); the FM6 patch bank's object number (unused since FM6 went). PHEBUS wave 2 (the new project format, project.c
  * "FUN8"): the projects are "big" objects (below), each copy two neighbouring sectors, all in 0xA0000..0xB3FFF (where KARMA's
  * user sample slots were, cut in PHEBUS wave 1): the four project slots (sections A..D) 0xA0000..0xAFFFF, the working
- * project (autosave) 0xB0000..0xB3FFF. 0xB4000..0xDBFFF is free.
+ * project (autosave) 0xB0000..0xB3FFF. (Wave 12) the user drum kits 0xB4000 / 0xB5000 (OBJ_UKIT). 0xB6000..0xDBFFF is free.
  * The objects of the old format (FUN7 and older) stay where they were, read once to convert and never written again: the
  * slots 0x97000..0x9EFFF, the working project's copy A 0x9F000, copy B 0xFE000. (KARMA 3.0.5's saved songs, one sector
  * each at 0xE5000, 0xE6000, 0xFB000, are released: PHEBUS wave 1 cut the songs, wave 2 drops their objects) */
 /* object numbers are stored in each header (h.type): never renumber one. 9..11 were the songs (released) */
 enum { OBJ_SETTINGS, OBJ_PROJECT0, OBJ_UPRESET0 = OBJ_PROJECT0 + 4, OBJ_AUTOSAVE = OBJ_UPRESET0 + 2, OBJ_FM6BANK,
-       OBJ_PRJ0 = OBJ_FM6BANK + 4, OBJ_WORK = OBJ_PRJ0 + 4, OBJ_COUNT };
+       OBJ_PRJ0 = OBJ_FM6BANK + 4, OBJ_WORK = OBJ_PRJ0 + 4, OBJ_UKIT, OBJ_COUNT };   /* (wave 12: OBJ_UKIT, the user drum
+                                                * kits, ukit_flash.c: a plain object at 0xB4000 / 0xB5000) */
 #define ST_BIG_BASE 0xA0000u                   /* the big objects, 4 sectors each (2 copies of 2) */
 #define ST_BIG_MAX (2u * ST_SECTOR - ST_PAYLOAD_OFF)   /* a big object's payload: offset 256 of its first sector to the end
                                                         * of its second, 7936 bytes */
-static int st_big(uint32_t obj) { return obj >= OBJ_PRJ0 && obj < OBJ_COUNT; }
+static int st_big(uint32_t obj) { return obj >= OBJ_PRJ0 && obj <= OBJ_WORK; }
 static int st_gone(uint32_t obj) { return obj > OBJ_FM6BANK && obj < OBJ_PRJ0; }   /* (the songs' numbers: no object) */
 static uint32_t st_max(uint32_t obj) { return st_big(obj) ? ST_BIG_MAX : ST_PAYLOAD_MAX; }
 
@@ -70,6 +71,8 @@ static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy 
         return 0xE5000u + copy * ST_SECTOR;
     if (st_big(obj))
         return ST_BIG_BASE + (obj - OBJ_PRJ0) * 4u * ST_SECTOR + copy * 2u * ST_SECTOR;
+    if (obj == OBJ_UKIT)
+        return 0xB4000u + copy * ST_SECTOR;
     if (obj >= OBJ_UPRESET0 && obj < OBJ_AUTOSAVE)
         return 0xDC000u + (obj - OBJ_UPRESET0) * 2u * ST_SECTOR + copy * ST_SECTOR;
     return 0x97000u + (obj - OBJ_PROJECT0) * 2u * ST_SECTOR + copy * ST_SECTOR;

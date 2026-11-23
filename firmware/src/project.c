@@ -1285,6 +1285,9 @@ _Static_assert(__builtin_offsetof(persist_t, song_rsv) == 48u, "the old song ord
 #if FELUCCA_FLASH
 static persist_t persist_saved;
 static void dsu_boot(void);
+#ifndef UKIT_RAM
+#include "ukit_flash.c"                            /* (wave 12) the user drum kits in flash */
+#endif
 #endif
 
 static void persist_boot(void)                    /* before settings_init / panel_init */
@@ -1345,6 +1348,9 @@ static void persist_boot(void)                    /* before settings_init / pane
             }
     }
     dsu_boot();                                    /* SLOOP 2.5: the SYN kits (after the settings) */
+#ifndef UKIT_RAM
+    ukit_boot();                                   /* (wave 12) the user kits' states */
+#endif
     up_boot();                                     /* user presets */
 #endif
 }
