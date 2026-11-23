@@ -444,3 +444,28 @@ KICK 2, LO TOM, HI TOM, CLAP
 KICK, RIM, SNARE 2, SNARE
 
 With keys running top to bottom in each column: keys 1 to 4 are HAT, PEDAL, KICK 2, KICK; keys 5 to 8 OP HAT, CONGA, LO TOM, RIM; keys 9 to 12 RIDE, C-BELL, HI TOM, SNARE 2; keys 13 to 16 CRASH, SHAKER, CLAP, SNARE.
+
+### 23 Nov 2026, 21:30 and 21:35: drum effects belong under FX, in Ben's words
+
+"I'm fairly certain that the drum's sends and stutter are all working globally and changing one voice's settings is changing them as global settings for the kit"
+
+"I don't like that the FX are in env. ENV should be for dry sound design / modulation. Edit should be for the same. FX should be for FX. Why is it different for the kit, I vaguely remember you suggesting it would be a good compromise?"
+
+His answers by picker, 23 Nov 2026, 21:45:
+
+- The kit-wide drum SENDS: "Remove them". Only per-sound sends remain; old projects fold the kit amount into each sound.
+- "Yes, a KIT FX switch per sound". On the sound's SENDS page: KIT FX ON or OFF. OFF sends that sound straight to the mix.
+
+So on the drum voice: EDIT and ENV are dry sound design only (SRC, FLTR, AMP, LFO; no sends on AMP). FX steps: SENDS (the selected sound's delay and reverb, and its KIT FX switch), then the kit's FILTER, INS, SLICER (header says KIT), then MIX, STUT.
+
+### 23 Nov 2026, 21:40: where filter, filter envelope and sends live, in Ben's words
+
+(Sent in reply to the proposed drum FX order SENDS, FILTER, INS, SLICER, MIX, STUT.)
+
+"FILTER should live under Edit. Filter envelope should live under ENV. Sends should live under FX"
+
+Applied to the drum voice as: the kit's FILTER leaves FX and lives under EDIT, after the sound's own SRC and FLTR; anything that is a filter envelope's own shape lives under ENV; sends live under FX. So drum FX steps: SENDS (the selected sound's), then the kit's INS and SLICER, then MIX, STUT.
+
+### 23 Nov 2026, 21:41: the drums' layout, the rule, in Ben's words
+
+"Just mirror the synths as closely as possible where possible"

@@ -531,7 +531,7 @@ static void vis_rare_checks(void)
                 bad += vr_line();
             }
         vr_loud = 0;
-        check(bad == 0u, "lines, all four pictures, all voices loud with a kick: no bright full-width row");
+        check(bad == 0u, "lines, all five pictures, all voices loud with a kick: no bright full-width row");
     }
     for (st = 0; st < VIS_N; st++) {                /* the boot's pictures too */
         uint32_t t, bad = 0;
@@ -556,15 +556,15 @@ static void vis_rare_checks(void)
             cnt[boot_vis]++;
         }
         for (seen = 0, a = 0; a < VIS_N; a++) seen += cnt[a] != 0u;
-        snprintf(nm, sizeof nm, "boot pick: seeds 1..64 give %u/%u/%u/%u (FLOW/EYES/DESERT/THIRD EYE), never the last shown", cnt[0], cnt[1], cnt[2], cnt[3]);
-        check(!same && cnt[1] && cnt[2] && cnt[3], nm);      /* (never FLOW here: FLOW was the last shown) */
+        snprintf(nm, sizeof nm, "boot pick: seeds 1..64 give %u/%u/%u/%u/%u (FLOW/EYES/DESERT/THIRD EYE/BEACH), never the last shown", cnt[0], cnt[1], cnt[2], cnt[3], cnt[4]);
+        check(!same && cnt[1] && cnt[2] && cnt[3] && cnt[4], nm);      /* (never FLOW here: FLOW was the last shown) */
         for (i = 0; i < 64u; i++) {                 /* the last shown moves round: every one of the four comes up */
             vis_style = (uint8_t)(i % VIS_N);
             boot_choose(i * 40503u + 5u);
             cnt[boot_vis]++;
         }
         for (seen = 0, a = 0; a < VIS_N; a++) seen += cnt[a] > 8u;
-        check(seen == VIS_N, "boot pick: with the last shown moving, all four come up, each many times");
+        check(seen == VIS_N, "boot pick: with the last shown moving, all five come up, each many times");
         {   uint32_t b1, b2, d = 0;
             for (i = 1; i <= 32u; i++) {            /* the same last shown, two seeds: they differ */
                 vis_style = 1; boot_choose(i); b1 = boot_vis;
@@ -596,8 +596,8 @@ static void vis_rare_checks(void)
             rep += vis_style == last;
             cnt[vis_style % VIS_N]++;
         }
-        snprintf(nm, sizeof nm, "screensaver from HOME: 200 openings %u/%u/%u/%u, never the same twice running", cnt[0], cnt[1], cnt[2], cnt[3]);
-        check(!rep && cnt[0] > 20u && cnt[1] > 20u && cnt[2] > 20u && cnt[3] > 20u, nm);
+        snprintf(nm, sizeof nm, "screensaver from HOME: 200 openings %u/%u/%u/%u/%u, never the same twice running", cnt[0], cnt[1], cnt[2], cnt[3], cnt[4]);
+        check(!rep && cnt[0] > 20u && cnt[1] > 20u && cnt[2] > 20u && cnt[3] > 20u && cnt[4] > 20u, nm);
         for (n = 0, i = 1; i <= 16u; i++) {          /* (the same moment, other dice: other pictures) */
             vis_last = 0; vis_on = 0; fm1_ms = 123456u; vis_rng = i * 7919u;
             vis_open();
@@ -632,6 +632,163 @@ static void vis_rare_checks(void)
         ui.force = 1;
     }
     fm1_ms = ms0; vis_last = (uint8_t)vl; vis_rng = vrng; vis_style = vst; vis_on = von; vis_name_t = vnt; boot_vis = bv; vs.kt = 0;
+}
+/* (PHEBUS, Ben 23 Nov 2026, 20:56: THIRD EYE "no white outline ... slightly bigger ... remove the 2 black outlines",
+ * the dunes of both deserts without their outlines and thin black lines, DESERT's sun "a tiny bit bigger"; BEACH, the
+ * four characters dancing by a trippy ocean) the pictures held still, painted at the start of a tear slot (no tear) */
+static void art_paint(uint32_t st, uint32_t tq, uint32_t lvl, uint32_t rip)   /* lvl: every voice's (0: a mix, 1: silent) */
+{
+    uint32_t i;
+    vis_style = (uint8_t)st;
+    fm1_ms = 300u * 32768u;
+    for (i = 0; i < 4u; i++) { vs.e[i] = (uint16_t)(lvl == 1u ? 0u : lvl ? lvl : 60u + i * 40u); vs.flash[i] = 0; }
+    vs.kick = 0; vs.tq = tq << 8; vs.rip = rip; vs.kt = 0;
+    memset(ey, 0, sizeof ey);
+    vis_name_t = 0;
+    vis_paint();
+}
+static uint32_t art_cell(uint32_t i, const uint16_t *a, const uint16_t *b, uint16_t col)   /* character i's cell: pixels that
+                                                                                            * differ (b), or of colour col */
+{
+    uint32_t x, y, n = 0;
+    for (y = BH_FEET - 58u; y <= BH_FEET + 1u; y++)
+        for (x = 2u + i * 60u; x < 2u + i * 60u + 58u && x < 240u; x++)
+            n += b ? a[y * 240u + x] != b[y * 240u + x] : a[y * 240u + x] == swap16(col);
+    return n;
+}
+static uint32_t art_pose(uint32_t i)               /* the pose character i was drawn in (its picture read to the end) */
+{
+    uint32_t p, r;
+    for (p = 0; p < 3u; p++) {
+        const uint8_t *q = OP_BCH[i][p];
+        for (r = 0; r < OP_BCH_H; q++)
+            r += *q == 255u;
+        if (q == bh_p[i])
+            return p;
+    }
+    return 9u;
+}
+static void art_checks(void)
+{
+    uint32_t ms0 = fm1_ms, st, k, x, y, i, bad, white;
+    uint8_t vst = vis_style, dsc = disco, pl = song.playing;
+    uint32_t cb = clk_beat;
+    char nm[160];
+    {   /* THIRD EYE: no white line round the eye (near-white only in the glint, inside the iris), and it is bigger */
+        int32_t w = 0, h = 0;
+        for (white = 0, k = 0; k < 24u; k++) {
+            int32_t x0 = 240, x1 = -1, y0 = 240, y1 = -1;
+            art_paint(3u, 300u + k * 211u, k & 1u ? 256u : 0u, 17u);
+            for (y = 0; y < 240u; y++)
+                for (x = 0; x < 240u; x++) {
+                    uint16_t c = swap16(screen[y * 240u + x]);
+                    int32_t dx = (int32_t)x - ey[0].x - ey[0].gx, dy = (int32_t)y - ey[0].y - ey[0].gy;
+                    if ((c >> 11) >= 28u && ((c >> 5) & 63u) >= 56u && (c & 31u) >= 28u && dx * dx + dy * dy > ey[0].ri2 + 40)
+                        white++;
+                    if (c == TE_SCLERA) {
+                        x0 = (int32_t)x < x0 ? (int32_t)x : x0, x1 = (int32_t)x > x1 ? (int32_t)x : x1;
+                        y0 = (int32_t)y < y0 ? (int32_t)y : y0, y1 = (int32_t)y > y1 ? (int32_t)y : y1;
+                    }
+                }
+            if (x1 - x0 + 1 > w) w = x1 - x0 + 1;
+            if (y1 - y0 + 1 > h) h = y1 - y0 + 1;
+        }
+        snprintf(nm, sizeof nm, "THIRD EYE: no white outline (%u near-white pixels outside the iris in 24 frames)", white);
+        check(!white, nm);
+        snprintf(nm, sizeof nm, "THIRD EYE: the eye %d x %d px, was 129 x 61 (+%d %%, +%d %%: 10 to 15 asked)", w, h, (w * 100 + 64) / 129 - 100, (h * 100 + 30) / 61 - 100);
+        check(w * 100 >= 129 * 110 && w * 100 <= 129 * 116 && h * 100 >= 61 * 110 && h * 100 <= 61 * 116, nm);
+    }
+    for (st = 2; st <= 3u; st++) {                  /* the dunes, both pictures: flat faces only (no crest line, no contour) */
+        for (bad = 0, white = 0, k = 0; k < 16u; k++) {
+            art_paint(st, 500u + k * 377u, k & 1u ? 256u : 0u, 17u);
+            for (y = DS_HOR; y < 240u; y++)
+                for (x = 3; x < 237u; x++) {
+                    uint16_t c = swap16(screen[y * 240u + x]);
+                    uint32_t s, j, in = 1, ok = 0;
+                    for (j = x - 3u; j <= x + 3u && in; j++) {   /* (under a crest here and 3 px each side: shimmer aside) */
+                        for (s = 0; s < 4u && y < (uint32_t)(ds_r[s][j >> 1] & ~1); s++)
+                            ;
+                        in = s < 4u;
+                    }
+                    if (!in)
+                        continue;
+                    if (st == 3u) {                 /* (not the eye over them) */
+                        int32_t dx = (int32_t)x - ey[0].x, dy = vis_abs((int32_t)y - ey[0].y) + ey[0].c;
+                        if (dx * dx + dy * dy <= ey[0].r2 + 8 * TE_HW)
+                            continue;
+                    }
+                    for (s = 0; s < 4u; s++)
+                        ok |= c == vp[s][1] || c == ds_sh[s];
+                    bad += !ok;
+                    white += (c >> 11) >= 28u && ((c >> 5) & 63u) >= 56u && (c & 31u) >= 28u;
+                }
+        }
+        snprintf(nm, sizeof nm, "%s: the dunes flat colour only (%u pixels of a crest line or contour, %u near-white, 16 frames)", VIS_NAME[st], bad, white);
+        check(!bad && !white, nm);
+    }
+    {   /* DESERT's sun: its outermost ring's reach over the horizon, as the rings flow, the largest */
+        int32_t r = 0;
+        for (k = 0; k < 96u; k += 3u) {
+            art_paint(2u, 2000u, 0u, k);
+            for (y = DS_HOR - 90; y < DS_HOR; y++) {
+                uint32_t n = 0;
+                for (x = 116; x <= 124u; x += 2u)
+                    n += screen[y * 240u + x] != 0u;
+                if (n >= 3u) {
+                    if (DS_HOR - (int32_t)y > r) r = DS_HOR - (int32_t)y;
+                    break;
+                }
+            }
+        }
+        snprintf(nm, sizeof nm, "DESERT: the sun reaches %d px over the horizon, was 66 (+%d %%: 8 to 12 asked)", r, (r * 100 + 33) / 66 - 100);
+        check(r * 100 >= 66 * 107 && r * 100 <= 66 * 113, nm);
+    }
+    {   /* BEACH: the four characters, each in its voice's colour in its place; each dances with its own voice only;
+         * stopped they sway; QUIET: still */
+        static uint16_t a[240 * 240], b[240 * 240];
+        uint32_t n[4], own = 1, moves = 1, sway = 0;
+        song.playing = 0; disco = DISCO_NORMAL;
+        art_paint(4u, 2000u, 0u, 17u);
+        for (i = 0; i < 4u; i++) {
+            n[i] = art_cell(i, screen, 0, TE_COL[i]);
+            own &= n[i] >= 200u && art_cell(i, screen, 0, TE_COL[(i + 1u) & 3u]) < 10u;
+        }
+        snprintf(nm, sizeof nm, "BEACH: the robot, alien, snake, crocodile in their voices' colours (%u/%u/%u/%u px)", n[0], n[1], n[2], n[3]);
+        check(own, nm);
+        song.playing = 1;
+        for (i = 0; i < 4u; i++) {                  /* one voice sounding: the beat moves its character, no other */
+            uint32_t j;
+            clk_beat = 0; art_paint(4u, 2000u, 1u, 17u); vs.e[i] = 200u; vis_paint(); memcpy(a, screen, sizeof a);
+            clk_beat = 1; vis_paint();
+            for (j = 0; j < 4u; j++)
+                moves &= j == i ? art_cell(j, screen, a, 0) > 100u : art_cell(j, screen, a, 0) == 0u;
+        }
+        check(moves, "BEACH: each character dances on the beat with its own voice (the crocodile the drums), the others stay");
+        for (k = 0, i = 0; i < 4u; i++) {           /* all playing: never two side by side in the same pose, on any beat */
+            uint32_t j;
+            clk_beat = i; art_paint(4u, 2000u, 220u, 17u);
+            for (j = 0; j < 3u; j++)
+                k += art_pose(j) > 2u || (art_pose(j) == art_pose(j + 1u) && ((bh_f >> j) & 1u) == ((bh_f >> (j + 1u)) & 1u));
+        }
+        clk_beat = 0; art_paint(4u, 2000u, 220u, 17u);
+        check(!k, "BEACH: all playing, each a beat on from its neighbour: no two side by side in the same pose");
+        ppm("beach-all-playing");
+        song.playing = 0;
+        art_paint(4u, 2000u, 0u, 17u); memcpy(a, screen, sizeof a);
+        art_paint(4u, 2043u, 0u, 17u);
+        for (i = 0; i < 4u; i++)
+            sway += art_cell(i, screen, a, 0) != 0u;
+        snprintf(nm, sizeof nm, "BEACH: stopped, they sway gently (%u of 4 moved in a second)", sway);
+        check(sway >= 3u, nm);
+        disco = DISCO_QUIET; song.playing = 1;
+        clk_beat = 0; art_paint(4u, 2000u, 220u, 17u); for (i = 0; i < 4u; i++) vs.flash[i] = 8u; vis_paint(); memcpy(a, screen, sizeof a);
+        clk_beat = 3; art_paint(4u, 5000u, 220u, 30u); for (i = 0; i < 4u; i++) vs.flash[i] = 8u; vis_paint(); memcpy(b, screen, sizeof b);
+        check(!memcmp(a, b, sizeof a), "BEACH: DISCO QUIET, playing loud: the picture stands still (no dance, no hop, no waves)");
+        disco = DISCO_NORMAL; song.playing = 0;
+        check(VIS_N == 5u && !strcmp(VIS_NAME[VIS_N - 1u], "BEACH"), "BEACH: the fifth screensaver (HOME's random pick, SEL's walk, SHOW, the boot)");
+    }
+    fm1_ms = ms0; vis_style = vst; disco = dsc; song.playing = pl; clk_beat = cb; vs.kt = 0;
+    memset(vs.e, 0, sizeof vs.e); memset(vs.flash, 0, sizeof vs.flash);
 }
 int main(int argc, char **argv)
 {
@@ -2299,7 +2456,7 @@ int main(int argc, char **argv)
         SEL(-1); SEL(1);
         check(song.g[G_BPM] == bpm && !vis_on && ui.home + (cur_page()->scope == SC_TRK), "SELECT on HOME: nothing (no type there; never the tempo)");
         tap(B_HOME);
-        check(vis_shown() && vis_style < VIS_N, "HOME on HOME (wave 9): its next category, the screensaver (one of the four, at random: 23 Nov)");
+        check(vis_shown() && vis_style < VIS_N, "HOME on HOME (wave 9): its next category, the screensaver (one of the five, at random: 23 Nov)");
         { uint8_t s0 = vis_style; tap(B_SCL); check(vis_shown() && vis_style == (s0 + 1u) % VIS_N, "screensaver, SEL (PAGE): the next one"); }
         tap(B_HOME); check(!vis_on && cur_page()->scope == SC_TRK, "screensaver, HOME: round to HOME");
         vis_style = 0;
@@ -2603,7 +2760,7 @@ int main(int argc, char **argv)
             check(op < 64u && pk > 2000u && lit > 1500u, "visualiser: MASTER at 0: no sound, the picture as at full volume");
             song.master_q12 = m0; frames(4);
         }
-        check(vis_style == VIS_N - 1u && vis_shown(), "visualiser: SEL walked them, the last THIRD EYE");
+        check(vis_style == VIS_N - 1u && vis_shown(), "visualiser: SEL walked them, the last BEACH");
         check((lights_word() >> 17 & 15u) == VIS_N - 1u, "visualiser: kept in the settings word");
         lights_from_word(lights_word());
         check(vis_style == VIS_N - 1u, "visualiser: the style read back");
@@ -2660,6 +2817,7 @@ int main(int argc, char **argv)
         for (j = 0; j < NTRK; j++) steps_clear(&trk[j]);
         vis_style = 0; song.sel = 0; go_home(); frames(20);
         vis_rare_checks();
+        art_checks();
     }
 
     {   /* 2.6, after Felucca 1.4 / 1.5 (Leo Kuroshita): STEP LEN, SEQ VEL, the drum mutes (EDIT + a black key), MIDI
