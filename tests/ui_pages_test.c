@@ -4686,6 +4686,19 @@ int main(int argc, char **argv)
         ukit_put(4, 0);
         kit_set(DRUM_DEFAULT_KIT); song.sel = 0; ui.msg_t = 0; go_home(); frames(4);
     }
+    {   /* ---- wave 12 (Ben 13:35: "QUIET also dims the screen"): QUIET dims every band, NORMAL brings it back, still readable */
+        uint32_t k, maxq = 0, maxn = 0;
+        uint8_t d0 = disco;
+        go_home(); frames(4);
+        disco = DISCO_QUIET; frames(2); ui.force = 1; frame();
+        for (k = 0; k < 240u * 240u; k++) { uint32_t c = swap16(screen[k]); maxq = (c >> 11) > maxq ? (c >> 11) : maxq; }
+        ppm("w12-quiet-dim");
+        disco = DISCO_NORMAL; frames(2); ui.force = 1; frame();
+        for (k = 0; k < 240u * 240u; k++) { uint32_t c = swap16(screen[k]); maxn = (c >> 11) > maxn ? (c >> 11) : maxn; }
+        check(scr_dim == 0u && maxn == 31u && maxq <= 18u && maxq >= 14u,
+              "w12: DISCO QUIET draws the screen at 9/16 (white 31 -> 17 of 31: dim, readable); NORMAL: full again");
+        disco = d0; frames(2);
+    }
     printf("ui: %s\n", fails ? "FAILED" : "pages, layers (punch, steps, erase, roll, key, mix), layer lock, song layer, REC hold, drums, REC, 20000-frame fuzz PASS");
     return fails;
 }

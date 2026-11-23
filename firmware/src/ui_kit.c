@@ -371,6 +371,10 @@ static void kit_ui_tick(void)
 {
     if (brw_t)
         brw_t--;
+    if ((disco == DISCO_QUIET) != scr_dim) {            /* (wave 12, Ben: "QUIET also dims the screen") */
+        scr_set_dim(disco == DISCO_QUIET);
+        ui.force = 1;
+    }
     if (pkit_old_kept) {
         char b[30] = "OLD KIT COPY: MY KIT ";
         if (pkit_old_kept == 0xFFu)
