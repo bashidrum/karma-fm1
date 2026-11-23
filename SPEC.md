@@ -329,3 +329,13 @@ Coral for vocals
 Happy to keep it with just swapping the surf green to drums"
 
 Applied as: the drum voice is teal (20,196,170) and voice 3 is coral (255,128,108). Voice 1 stays purple and voice 2 blue. This replaces the earlier colour rule wherever it named coral for the drums and teal for voice 3.
+
+### 23 Nov 2026, 13:35: five open questions, answered by picker in Ben's words
+
+- Coral beside record red: "I think it's fine tbh. The red for recording is very different. I would prefer the crocodile to stay as the green character and the snake as the coral one though, which would make the crocodile the new drummer please."
+- The drum screen's step row: "I don't need to see the sequence on screen, it's shown on my keys. It would be nicer to be able to change the sound of the individual drums though? I thought we changed that to the preset knob when we had a specific sound in view?"
+- Drum erase against ghost hits: "Move ghost hits elsewhere". OCT- with a key is only ever erase. Ghost and hard hits come from velocity on the TRIG page.
+- "QUIET also dims the screen".
+- "Hold LFO maps on drums too". On a drum sound, hold LFO and wiggle a knob to make that knob the sound's LFO destination (one per sound).
+
+Claude's reading of the second answer, for him to confirm: the row of steps comes off the drum screen; the keys stay the steps and their lights show the pattern; the freed room on screen goes to the selected sound. PRESETS choosing the sound in view is the wave 12 work already decided at 11:10.
