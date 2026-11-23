@@ -106,13 +106,13 @@ static uint32_t keys_lit(void)
     switch (ui.layer) {
     case LY_FX:                                    /* (wave 6) PERFORM: the pads playing; latched ones blink */
         return perf_keys_lit(blink);
-    case LY_STEP:                                  /* (PHEBUS) SEQ held: its keys do nothing, none lit */
+    case LY_SEQ:                                  /* (PHEBUS) SEQ held: its keys do nothing, none lit */
         return 0u;
-    case LY_SCALE:                                 /* the keys in the scale; the root blinks */
+    case LY_SEL:                                 /* the keys in the scale; the root blinks */
         if (lights_notes)                          /* NOTES: the scale goes dim (keys_notes_dim), what sounds lit */
             return (blink ? scale_keys(1) : 0u) | keys_sounding(t) | fm1_in.notes;
         return scale_keys(0) & ~(blink ? 0u : scale_keys(1));
-    case LY_MIX:                                   /* tracks heard: 1..4; soloed: 5..8; a fill: 9, armed / on: 10; tap: the beat */
+    case LY_GLO:                                   /* tracks heard: 1..4; soloed: 5..8; a fill: 9, armed / on: 10; tap: the beat */
         if (is_drum(t)) {                          /* (wave 9) the drums: the sounds heard (not muted; soloed when any is) */
             for (i = 0; i < 16u; i++)
                 if (drum_solo ? (drum_solo >> i) & 1u : !((drum_mute >> i) & 1u))
@@ -132,7 +132,7 @@ static uint32_t keys_lit(void)
         if (play_led())
             m |= 1u << key_of_white(15);
         return m;
-    case LY_ERASE:                                 /* the sounds the pattern holds (NOTES: dim, the hits lit) */
+    case LY_EDIT:                                 /* the sounds the pattern holds (NOTES: dim, the hits lit) */
         return (lights_notes ? 0u : erase_lanes(t)) | fm1_in.notes | (lights_notes ? keys_sounding(t) : 0u);
     default:                                       /* playing, ARP roll, SAVE sections, every page and the menu */
         break;
@@ -154,11 +154,11 @@ static uint32_t keys_notes_dim(void)
         return 0u;
     switch (ui.layer) {
     case LY_FX:
-    case LY_MIX:
+    case LY_GLO:
         return keys_sounding(TSEL);
-    case LY_SCALE:
+    case LY_SEL:
         return scale_keys(0);
-    case LY_ERASE:
+    case LY_EDIT:
         return erase_lanes(TSEL);
     default:
         return 0u;
@@ -169,7 +169,7 @@ static uint32_t keys_notes_dim(void)
  * 1, 5, 9, 13) while a layer is held, and on the drum track (its 16 sounds, 4 x 4 as on KIT) */
 static uint32_t keys_guide(void)
 {
-    if ((ui.layer == LY_PLAY && !is_drum(TSEL) && !kb_grid) || ui.layer == LY_STEP)   /* (SEQ: no tiles, PHEBUS) */
+    if ((ui.layer == LY_PLAY && !is_drum(TSEL) && !kb_grid) || ui.layer == LY_SEQ)   /* (SEQ: no tiles, PHEBUS) */
         return 0u;
     return 1u << key_of_white(0) | 1u << key_of_white(4) | 1u << key_of_white(8) | 1u << key_of_white(12);
 }
@@ -591,7 +591,7 @@ static uint32_t btn_hold(uint32_t *t0, uint32_t label, uint32_t now, int hold_ok
 static void layer_tap(uint32_t layer)
 {
     static const uint8_t BTN[LY_COUNT] = {NB, B_FX, B_EDIT, B_ARP, B_SEQ, B_SCL, B_GLO, B_SAVE};
-    if (layer == LY_STEP && sr_on)
+    if (layer == LY_SEQ && sr_on)
         return;                                           /* (STEP REC: SEQ is the rest, ui_grid.c sr_input) */
     nav_button(BTN[layer % LY_COUNT]);
 }
@@ -726,7 +726,7 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
             ui_message("LATCH OFF");
         }
     }
-    if (held == LY_STEP && !stl_shown()) {                 /* (wave 9) SEQ + OCT- / OCT+: halve / double the pattern (a clone) */
+    if (held == LY_SEQ && !stl_shown()) {                 /* (wave 9) SEQ + OCT- / OCT+: halve / double the pattern (a clone) */
         uint32_t ob = 1u << panel.btn[B_OCTDN], pb = 1u << panel.btn[B_OCTUP];
         static uint32_t prev;
         uint32_t b = fm1_in.buttons & (ob | pb), press = b & ~prev;
@@ -739,7 +739,7 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
                 seq_double();
         }
     }
-    if (held == LY_ERASE) {                               /* EDIT + OCT- / OCT+: undo / redo */
+    if (held == LY_EDIT) {                               /* EDIT + OCT- / OCT+: undo / redo */
         uint32_t ob = 1u << panel.btn[B_OCTDN], pb = 1u << panel.btn[B_OCTUP];
         static uint32_t prev;
         uint32_t b = fm1_in.buttons & (ob | pb), press = b & ~prev;
@@ -914,8 +914,8 @@ static void ui_input(void)
             home = BT_NONE;
         home_eat = 0;
     }
-    pressed &= ~((ly_bit[LY_FX] | ly_bit[LY_ERASE] | ly_bit[LY_ROLL] | ly_bit[LY_STEP] | ly_bit[LY_SCALE] | ly_bit[LY_MIX] |
-                  ly_bit[LY_SONG]) & ~ly_off);           /* (STEP REC: SEQ and ARP reach the GRID, ui_grid.c sr_input) */
+    pressed &= ~((ly_bit[LY_FX] | ly_bit[LY_EDIT] | ly_bit[LY_ARP] | ly_bit[LY_SEQ] | ly_bit[LY_SEL] | ly_bit[LY_GLO] |
+                  ly_bit[LY_SAVE]) & ~ly_off);           /* (STEP REC: SEQ and ARP reach the GRID, ui_grid.c sr_input) */
     holds_input(pressed, fm1_ms);
     pressed &= ~((1u << panel.btn[B_REC]) | (1u << panel.btn[B_SAVE]));
     if (layered || ui.hold_kind) {                      /* a layer / a hold: the rest waits */

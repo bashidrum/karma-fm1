@@ -143,7 +143,7 @@ static uint32_t scale_mask(const track_t *t)
 }
 
 /* ---------------------------------------------------------- layers --- */
-enum { LY_PLAY, LY_FX, LY_ERASE, LY_ROLL, LY_STEP, LY_SCALE, LY_MIX, LY_SONG, LY_COUNT };
+enum { LY_PLAY, LY_FX, LY_EDIT, LY_ARP, LY_SEQ, LY_SEL, LY_GLO, LY_SAVE, LY_COUNT };
 static uint32_t ly_bit[LY_COUNT];        /* the button (fm1_in.buttons bit) of each layer: the UI sets them */
 static uint32_t dyn_bit[2];              /* OCT- / OCT+: ghost / hard on the drum track */
 /* a layer locked open (its button held + HOME tapped: ui_input.c), LY_PLAY = none: the keys and knobs
@@ -1432,15 +1432,15 @@ static void key_down(uint32_t k)
         }
         return;
     }
-    case LY_STEP:
-    case LY_SCALE:
-    case LY_MIX:
-    case LY_SONG:                                     /* the UI's: steps, the key, the mix, the sections */
+    case LY_SEQ:
+    case LY_SEL:
+    case LY_GLO:
+    case LY_SAVE:                                     /* the UI's: steps, the key, the mix, the sections */
         kb_kind[k] = KS_UI;
         kb_nt[k][0] = (uint8_t)layer;                 /* (its key-up goes to the same layer) */
         lk_push(layer, k, 1);
         return;
-    case LY_ERASE:
+    case LY_EDIT:
         if (is_drum(t) && punch_key(k) < 0)          /* (wave 9: EDIT + a black key no longer turns its keys into mutes:
                                                        * a combo with no obvious link; the sounds' mutes are the mixer's) */
             return;
@@ -1481,7 +1481,7 @@ static void key_down(uint32_t k)
         uint32_t lane = lane_of_key(k), lvl = key_lvl();
         kb_nt[k][0] = (uint8_t)lane;
         kb_n[k] = 1;
-        if (layer == LY_ROLL) {
+        if (layer == LY_ARP) {
             if (punch_key(k) < 0) {                   /* (PHEBUS wave 3) RETRIG: a black key picks the rate */
                 static const uint8_t RATE_OF_BLACK[11] = {4, 6, 7, 9, 10, 12, 13, 14, 15, 16, 17};   /* 1/4 .. 1/80 */
                 uint32_t b;
@@ -1524,7 +1524,7 @@ static void key_down(uint32_t k)
             }
             return;
         }
-        if (layer == LY_ROLL) {
+        if (layer == LY_ARP) {
             kb_kind[k] = KS_ROLL;
             kb_nt[k][0] = (uint8_t)n;
             kb_n[k] = 1;
@@ -1670,9 +1670,9 @@ static void keyboard_block(void)
 {
     uint32_t cur = fm1_in.notes, ch = cur ^ kb_prev, k, r;
     audition_block();
-    if (er_mute && layer_now() != LY_ERASE)
+    if (er_mute && layer_now() != LY_EDIT)
         er_mute = 0;                                  /* EDIT let go: its keys erase again (2.6) */
-    if (!(layer_buttons() & ly_bit[LY_ROLL]))         /* ARP up (and not locked): the rolls end (the keys stay silent) */
+    if (!(layer_buttons() & ly_bit[LY_ARP]))         /* ARP up (and not locked): the rolls end (the keys stay silent) */
         for (r = 0; r < NROLL; r++)
             if (roll[r].on)
                 roll_end(r);

@@ -599,7 +599,7 @@ int main(int argc, char **argv)
     tap(B_FX); frames(2);
     check(ly_lock == LY_PLAY && ui.layer == LY_PLAY && cur_fam() != FAM_MFX, "locked, FX tapped: unlocked, no FX page");
     {   /* (wave 8) the same keep-open on EVERY layer: EDIT, ARP, SEQ, SEL, GLO, SAVE */
-        static const uint8_t LB[5] = {B_EDIT, B_ARP, B_SEQ, B_GLO, B_SAVE}, LL[5] = {LY_ERASE, LY_ROLL, LY_STEP, LY_MIX, LY_SONG};
+        static const uint8_t LB[5] = {B_EDIT, B_ARP, B_SEQ, B_GLO, B_SAVE}, LL[5] = {LY_EDIT, LY_ARP, LY_SEQ, LY_GLO, LY_SAVE};
         uint32_t q, ok = 1;
         for (q = 0; q < 5u; q++) {
             go_home(); frame();
@@ -747,8 +747,8 @@ int main(int argc, char **argv)
     check(fill_held == 0u, "key 9 without GLO: no fill");
     fm1_in.notes = 0; frames(2);
     press(B_GLO); frames(45); release(B_GLO); frames(2);           /* (2026-10-28) ~0.7 s, nothing touched */
-    check(ui.layer == LY_MIX && ly_lock == LY_MIX, "GLO held 0.7 s, untouched, let go: the mixer stays");
-    key(0); check(trk[0].p[P_MUTE] == 1 && ui.layer == LY_MIX, "... its keys still mute (track 1)");
+    check(ui.layer == LY_GLO && ly_lock == LY_GLO, "GLO held 0.7 s, untouched, let go: the mixer stays");
+    key(0); check(trk[0].p[P_MUTE] == 1 && ui.layer == LY_GLO, "... its keys still mute (track 1)");
     key(0); check(!trk[0].p[P_MUTE], "... and unmute");
     tap(B_GLO); frames(2);
     check(ui.layer == LY_PLAY && ly_lock == LY_PLAY, "... GLO again: it goes (and no GLO pages open)");
@@ -831,7 +831,7 @@ int main(int argc, char **argv)
     /* ---- SAVE: tap = the SAVE pages (PRESETS / USER / TOOLS) everywhere; held = the sections layer (A..D: play / store) */
     go_home(); frame();
     song.playing = 0; live_sec = -1; live_req = -1;
-    press(B_SAVE); frames(15); check(ui.layer == LY_SONG, "SAVE held: the sections layer");
+    press(B_SAVE); frames(15); check(ui.layer == LY_SAVE, "SAVE held: the sections layer");
     key(key_of_white(4)); check(sec_stores == 0 && ui.ask == ASK_STORE && !strcmp(ui.msg, "HOLD REC: STORE A"),
                                 "store over a used A: it asks (HOLD REC: STORE A)");
     key(key_of_white(4)); check(sec_stores == 0, "the key again (wave 8: no double press): nothing stored");
@@ -851,9 +851,9 @@ int main(int argc, char **argv)
     {   /* (PHEBUS wave 1: song mode, SONG REC and the SONG screen are cut) keys 13, 14, 16 do nothing */
         uint32_t st0 = sec_stores, ld0 = sec_loads, pg0 = ui.page;
         key(key_of_white(12)); key(key_of_white(13)); key(key_of_white(15));
-        check(sec_stores == st0 && sec_loads == ld0 && live_req == 1 && ui.page == pg0 && ui.layer == LY_SONG,
+        check(sec_stores == st0 && sec_loads == ld0 && live_req == 1 && ui.page == pg0 && ui.layer == LY_SAVE,
               "SAVE held + keys 13, 14, 16: nothing (song mode, SONG REC and the song page are gone)");
-        check(str_eq(LAYER_NAME[LY_SONG], "pattern") && str_eq(sub_line(), "next bar"), "the layer reads \"pattern\", playing: \"next bar\"");
+        check(str_eq(LAYER_NAME[LY_SAVE], "pattern") && str_eq(sub_line(), "next bar"), "the layer reads \"pattern\", playing: \"next bar\"");
     }
     release(B_SAVE); frames(2);
     check(live_req == 1 && saves == 0, "SAVE let go: B still asked for, nothing saved");
@@ -1036,7 +1036,7 @@ int main(int argc, char **argv)
         press(B_ARP); frames(30);
         key(PUNCH_BLACK[2]);                           /* A#3: 1/8 */
         ui.force = 1; frame(); ppm("drum-retrig");
-        check(drt_live == 7u && str_eq(layer_name(LY_ROLL), "retrig"), "RETRIG: ARP held + the black key A#3: the rate 1/8");
+        check(drt_live == 7u && str_eq(layer_name(LY_ARP), "retrig"), "RETRIG: ARP held + the black key A#3: the rate 1/8");
         encs[panel.enc[EN_K1]] = 3; frame();
         check(drt_live == 10u, "RETRIG: KNOB 1 the rate (1/16)");
         release(B_ARP); frames(20);
@@ -1360,7 +1360,7 @@ int main(int argc, char **argv)
         {
             uint32_t pg = ui.page;
             press(B_SEQ); frames((SHOW_MS + 40u) / 16u);
-            check(ui.layer == LY_STEP, "bug (d): SEQ held 180 ms: its layer shows");
+            check(ui.layer == LY_SEQ, "bug (d): SEQ held 180 ms: its layer shows");
             release(B_SEQ); frames(2);
             check(on_drum_page() && ui.page == pg, "bug (d): ... let go: no tap (the GRID stays)");
             press(B_FX); frames((SHOW_MS + 40u) / 16u); release(B_FX); frames(2);
@@ -1623,8 +1623,8 @@ int main(int argc, char **argv)
         }
         {   /* every screen and layer: lit where the keys are notes, a glow under the tiles */
             static const struct { uint32_t ly; int lit; const char *name; } L[] = {
-                {LY_ERASE, 1, "EDIT erase"}, {LY_ROLL, 1, "ARP roll"}, {LY_SCALE, 1, "SEL key"}, {LY_SONG, 1, "SAVE song"},
-                {LY_FX, 0, "FX punch"}, {LY_MIX, 0, "GLO mix"}};
+                {LY_EDIT, 1, "EDIT erase"}, {LY_ARP, 1, "ARP roll"}, {LY_SEL, 1, "SEL key"}, {LY_SAVE, 1, "SAVE song"},
+                {LY_FX, 0, "FX punch"}, {LY_GLO, 0, "GLO mix"}};
             uint32_t k, ok = 1, ly0 = ui.layer;
             char what[96];
             for (k = 0; k < sizeof L / sizeof L[0]; k++) {
@@ -1636,14 +1636,14 @@ int main(int argc, char **argv)
                 snprintf(what, sizeof what, "NOTES on, %s layer: the sounding C4 %s", L[k].name, L[k].lit ? "lit" : "glows under the tiles");
                 check(ok, what);
             }
-            ui.layer = LY_STEP;
+            ui.layer = LY_SEQ;
             check(keys_lit() == 0u && keys_notes_dim() == 0u, "NOTES on, SEQ held: no key lit or glowing (its keys do nothing)");
-            ui.layer = LY_SCALE;
+            ui.layer = LY_SEL;
             check((keys_notes_dim() & scale_keys(0)) == scale_keys(0), "NOTES on, SEL: the scale glows");
             lights_notes = 0;
-            ui.layer = LY_ERASE;
+            ui.layer = LY_EDIT;
             check((keys_lit() >> 7 & 1u) == 0 && keys_notes_dim() == 0u, "NOTES off, EDIT erase: as before (no note lights)");
-            ui.layer = LY_SCALE;
+            ui.layer = LY_SEL;
             check(keys_notes_dim() == 0u, "NOTES off, SEL: as before");
             lights_notes = 1;
             ui.layer = (uint8_t)ly0;
@@ -2183,7 +2183,7 @@ int main(int argc, char **argv)
           encs[panel.enc[EN_K2]] = 5; frame();
           check(trk[0].p[P_LEVEL] == lv && song.g[G_BPM] == bpm, "visualiser: KNOB 2 (the hidden TRACKS screen) edits nothing, SELECT is not the tempo"); }
         press(B_GLO); frames(32);                  /* (held past a tap, not long enough to keep it) */
-        check(ui.layer == LY_MIX, "visualiser: a layer held shows its screen");
+        check(ui.layer == LY_GLO, "visualiser: a layer held shows its screen");
         release(B_GLO); frames(4);
         check(vis_shown(), "visualiser: ... and it comes back");
         tap(B_HOME); frames(2);

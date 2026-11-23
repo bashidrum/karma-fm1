@@ -71,8 +71,8 @@ static void reset(uint32_t kit)
     fill_held = fill_arm = fill_lat = 0;
     kb_grid = 0;
     song.sel = TRK_DRUM;
-    ly_bit[LY_ROLL] = 1u << 8;                     /* (the buttons: any bits, as seq2_test) */
-    ly_bit[LY_ERASE] = 1u << 4;
+    ly_bit[LY_ARP] = 1u << 8;                     /* (the buttons: any bits, as seq2_test) */
+    ly_bit[LY_EDIT] = 1u << 4;
 }
 static uint32_t step_blocks(void) { return div_samples(2) / CTL; }
 static uint32_t count(uint32_t note, uint64_t b0, uint64_t b1)
@@ -278,7 +278,7 @@ static void t_live_retrig(void)
     int x;
     reset(DRUM_DEFAULT_KIT);
     TDRUM->p[P_SLEN] = 16;
-    fm1_in.buttons |= ly_bit[LY_ROLL];             /* ARP held: the RETRIG layer */
+    fm1_in.buttons |= ly_bit[LY_ARP];             /* ARP held: the RETRIG layer */
     key_down(kb);                                   /* a rate */
     key_up(kb);
     check(drt_live == 13u, "live retrig: ARP + the black key G#4 picks 1/32");
@@ -288,7 +288,7 @@ static void t_live_retrig(void)
     key_down(key_of_lane(2));                      /* ARP + the snare's key, held a step and a half */
     run(sb + sb / 2u);
     key_up(key_of_lane(2));
-    fm1_in.buttons &= ~ly_bit[LY_ROLL];
+    fm1_in.buttons &= ~ly_bit[LY_ARP];
     run(4);
     song.rec = 0;
     transport_req = 2;

@@ -77,8 +77,8 @@ static void reset(uint32_t bpm)
     rec_wait = 0;
     fm1_in.notes = fm1_in.buttons = 0;
     kb_prev = 0;
-    ly_bit[LY_ROLL] = 1u << 8;                       /* (the buttons: any bits) */
-    ly_bit[LY_ERASE] = 1u << 4;
+    ly_bit[LY_ARP] = 1u << 8;                       /* (the buttons: any bits) */
+    ly_bit[LY_EDIT] = 1u << 4;
     dyn_bit[0] = 1u << 0;
     dyn_bit[1] = 1u << 1;
 }
@@ -243,7 +243,7 @@ static void t_roll(void)
     song.rec = 1u << TRK_DRUM;
     transport_req = 1;
     run_block();
-    fm1_in.buttons = ly_bit[LY_ROLL];                /* ARP held */
+    fm1_in.buttons = ly_bit[LY_ARP];                /* ARP held */
     fm1_in.notes = 1u << k;
     for (i = 0; i < div_samples(2) * 8u / CTL; i++)  /* 8 steps */
         run_block();
@@ -277,7 +277,7 @@ static void t_erase_undo(void)
     transport_req = 1;
     while (TDRUM->seq_idx != 4u)
         run_block();
-    fm1_in.buttons = ly_bit[LY_ERASE];               /* EDIT held + the hat key (C4 = key 7) */
+    fm1_in.buttons = ly_bit[LY_EDIT];               /* EDIT held + the hat key (C4 = key 7) */
     fm1_in.notes = 1u << 7;
     while (TDRUM->seq_idx != 7u)
         run_block();
@@ -306,7 +306,7 @@ static void t_erase_undo(void)
     check(left == 16u && undo.trk == TRK_DRUM, "undo: the erased hats are back");
     transport_req = 2;
     run_block();
-    fm1_in.buttons = ly_bit[LY_ERASE];               /* stopped: every hat of the pattern */
+    fm1_in.buttons = ly_bit[LY_EDIT];               /* stopped: every hat of the pattern */
     fm1_in.notes = 1u << 7;
     run_block();
     fm1_in.notes = fm1_in.buttons = 0;

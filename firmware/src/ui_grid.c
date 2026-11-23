@@ -715,7 +715,7 @@ static void sr_set(uint32_t on)
         sg_drop();
     }
     sr_on = (uint8_t)(on != 0u);
-    ly_off = on ? ly_bit[LY_STEP] | ly_bit[LY_ROLL] : 0u;
+    ly_off = on ? ly_bit[LY_SEQ] | ly_bit[LY_ARP] : 0u;
     ui.force = 1;
 }
 static void sr_next(const track_t *t)                   /* the cursor a step on, round at the end */
@@ -821,11 +821,11 @@ static void sr_input(uint32_t pressed)
             song.octave += (pressed >> panel.btn[B_OCTDN]) & 1u ? (song.octave > -3 ? -1 : 0) : (song.octave < 3 ? 1 : 0);
         ui.force = 1;
     }
-    if (pressed & ly_bit[LY_ROLL]) {                    /* ARP: a tie (keys held: their notes first) */
+    if (pressed & ly_bit[LY_ARP]) {                    /* ARP: a tie (keys held: their notes first) */
         if (sr_down && sr_n && !sr_done)
             sr_note(t);
         sr_tie(t);
-    } else if (pressed & ly_bit[LY_STEP]) {             /* SEQ: a rest (wave 9: keys held: their notes first, then the rest;
+    } else if (pressed & ly_bit[LY_SEQ]) {             /* SEQ: a rest (wave 9: keys held: their notes first, then the rest;
                                                          * the tie is ARP's alone, no second gesture for it) */
         if (sr_down && sr_n && !sr_done)
             sr_note(t);
