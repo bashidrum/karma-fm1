@@ -457,3 +457,11 @@ His answers by picker, 23 Nov 2026, 21:45:
 - "Yes, a KIT FX switch per sound". On the sound's SENDS page: KIT FX ON or OFF. OFF sends that sound straight to the mix.
 
 So on the drum voice: EDIT and ENV are dry sound design only (SRC, FLTR, AMP, LFO; no sends on AMP). FX steps: SENDS (the selected sound's delay and reverb, and its KIT FX switch), then the kit's FILTER, INS, SLICER (header says KIT), then MIX, STUT.
+
+### 23 Nov 2026, 21:40: where filter, filter envelope and sends live, in Ben's words
+
+(Sent in reply to the proposed drum FX order SENDS, FILTER, INS, SLICER, MIX, STUT.)
+
+"FILTER should live under Edit. Filter envelope should live under ENV. Sends should live under FX"
+
+Applied to the drum voice as: the kit's FILTER leaves FX and lives under EDIT, after the sound's own SRC and FLTR; anything that is a filter envelope's own shape lives under ENV; sends live under FX. So drum FX steps: SENDS (the selected sound's), then the kit's INS and SLICER, then MIX, STUT.
