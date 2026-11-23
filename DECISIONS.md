@@ -723,6 +723,16 @@ Memory, measured on the rv32 -Os stand-in against ben (6bfe28a's tree): code +76
 Not checked
 - No device build (no toolchain here); the simulator's stand-in compile is clean. Long tests (soak, stress, regress, web) not run. tests/stress_test.c does not compile on ben either (black_keys redeclared: the test's array against wave 11's function), not touched.
 
+## PERFORM in columns (23 Nov, 22:07): calls made that Ben did not specify
+Ben: "Group them by type into columns as much as possible. With the exception of the black keys which make sense being a row ... abbreviate the text on the black key row more on the screen to keep all the on screen labelling on one row ... Then the 16 white keys arranged in columns below would feel really nice."
+- No pad changed key. The old four rows were already the four types, so drawing them as columns (keys top to bottom, column 1 keys 1 to 4, as the drum grid) keeps 1/1 on key 1 ... VOWEL on key 16 and every black key's pad; checked against punch.c's key map before and asserted for all 27 keys. Saved lanes and projects untouched (pads keep their numbers).
+- The columns: REPEAT (1/1 1/2 1/4 1/8), TIME (1/16 HALF ECHO VERB), FILTER (ISO LO ISO MID ISO HI MOTION), COLOUR (CRUSH PHASER JET VOWEL). Headings yes: quiet grey, one over each column, paid for by the row the one-line black keys saved. Pads 57 x 18 (were 58 x 18), columns 4 px apart and rows 1 px apart (were 2 and 2), so the four types read as four blocks; no rule needed. ISO MID keeps a pixel each side.
+- The black row's names: 1 2 3 KIK TOP S+C H+S REV STP DN UP. The font is 8 px a letter, so the brief's V1 V2 V3 (28 letters in all) leaves 2 px between names: they read as one word. 1 2 3 in the voices' colours, as the bar at the foot of the screen numbers the voices, leaves 4 px between names and 7 between the three groups. The caption still names each in full (MUTE VOICE 1, SWEEP DOWN).
+- A black key not pressed is drawn black with a line under its name (its colour for the mutes, grey for the extras), so the row reads as black keys over the grey white-key pads; pressed or latched it fills as a pad does. Its latch dot sits at its foot (its letters fill its chip); its last-pressed frame goes round it, 1 px out.
+- Not shared: the STUTTER lane's strip and the mixer's are other files (ui_stut.c, ui_op.c), so the one-row form lives in ui_perf.c only. The lane's two-row strip could take it later.
+- GUIDE's mixer chapter says its tiles run "as PERFORM's pads" (keys 1 to 4 the top row); the mixer still runs in rows, PERFORM now in columns. Left for the mixer's own pass.
+- RAM: none added (the names and positions are constants). Not measured on a stand-in build.
+
 ## For Ben to confirm
 Every call waves 2 to 7 made that the spec did not cover, and every device-only limit or lossy conversion, one line each. The detail is in each wave's section above.
 
@@ -883,3 +893,7 @@ The artwork (23 Nov 2026, 20:56): THIRD EYE, DESERT, BEACH
 - The boot over BEACH shows the sea, sky and palms without the characters: they broke up the PHE / BUS letters.
 - Host frame time: BEACH about 0.09 ms against THIRD EYE's 0.12 to 0.13 (THIRD EYE was about 0.13 before, its echoes cost). Device speed unknown.
 - VIS_N is 5 in panel.c; the settings word's 4 bits hold it.
+PERFORM in columns (23 Nov 2026, 22:07)
+- The grid: REPEAT, TIME, FILTER, COLOUR as four columns, keys top to bottom; no pad moved.
+- The black row's short names 1 2 3 KIK TOP S+C H+S REV STP DN UP (V1 V2 V3 did not fit with room between them).
+- Black keys drawn black till pressed, a line under each name.
