@@ -81,11 +81,17 @@ static int32_t pm_draw(int32_t xr, int32_t y, const char *m, const char *p)   /*
  * has its word (lit: white, filled); a key with none here is an empty outline: it does nothing */
 #define BK_Y 40
 #define BK_H 26
+static uint16_t bk_drawn;                               /* (wave 11) the black keys with a job in the strip drawn this frame */
+static uint32_t bk_drawn_f;                             /* (the frame it was drawn: ui.frame; the lights read both) */
 static void bk_strip(const char *const lab[11], uint32_t on, uint32_t *cache)
 {
     uint32_t i, sig = on * 7u + 11u;
-    for (i = 0; i < 11u; i++)
+    bk_drawn = 0;
+    bk_drawn_f = ui.frame;
+    for (i = 0; i < 11u; i++) {
         sig = studio_hash(sig * 3u, lab[i] ? lab[i] : "\1");
+        bk_drawn |= (uint16_t)((lab[i] != 0) << i);
+    }
     if (!ui.force && sig == *cache)
         return;
     *cache = sig;
@@ -1321,7 +1327,8 @@ static void op_home_body(void)
     uint32_t i, j, playing = song.playing, slen = trk_len(ts), spos = ts->seq_idx % slen, sig, moving;
     uint32_t ready = arrangement_ready();
     op_band_tick();
-    moving = home_band_tick();                          /* (the voices' levels into the strip; 1: it flows) */
+    moving = disco == DISCO_QUIET ? 0u : home_band_tick();   /* (the voices' levels into the strip; 1: it flows. Wave 11: QUIET,
+                                                         * it stands still) */
     home_inv_zone = (uint8_t)(song.sel & 3u);
     sig = playing * 3u + (playing ? spos / 16u * 31u : 0u) + ready * 5u + (uint32_t)(live_sec + 1) * 77u + slen * 13u +
           (uint32_t)(live_req + 1) * 7u + (moving ? ui.frame / 2u * 7919u + 1u : 0u);

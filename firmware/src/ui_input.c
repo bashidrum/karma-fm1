@@ -186,50 +186,9 @@ static uint32_t lights_keys_mask(void)
     return m;
 }
 
-static void ui_leds(void)
-{
-    uint8_t nl[FM1_NCOL] = {0}, dl[FM1_NCOL] = {0}, bl[FM1_NCOL] = {0};
-    uint32_t k, c, keys, guide, back;
-    static uint8_t ready;
-    if (!ready) {
-        led_pos_init();
-        ready = 1;
-    }
-    led_put(nl, panel.btn[ui.layer != LY_PLAY ? LAYER_BTN[ui.layer] : cur_btn()],
-            ly_lock == LY_PLAY || ((fm1_ms / 300u) & 1u) != 0u || (fm1_in.buttons & ly_bit[ly_lock % LY_COUNT]) != 0u);   /* locked: blinks */
-    led_put(nl, panel.btn[B_PLAY], play_led() ||
-                                      (ci_on && ci_u % BEAT_U < BEAT_U / 4u));   /* (the count-in's beats) */
-    led_put(nl, panel.btn[B_REC], song.rec != 0u || (rec_wait && ((fm1_ms / 125u) & 1u)) ||
-                                     (ui.hold_kind == 1u && ((fm1_ms / 60u) & 1u)));   /* blinks: armed; fast: clearing */
-    if (ui.layer == LY_FX) {                       /* PERFORM: OCT- lit while something is latched (all off), OCT+ while
-                                                    * a pad is held (latch it) or held itself */
-        led_put(nl, panel.btn[B_OCTDN], perf.lat != 0u);
-        led_put(nl, panel.btn[B_OCTUP], perf.held != 0u || (fm1_in.buttons & dyn_bit[1]) != 0u);
-    } else if (is_drum(TSEL)) {                    /* the drum track: OCT- / OCT+ lit while ghost / hard */
-        led_put(nl, panel.btn[B_OCTDN], (fm1_in.buttons & dyn_bit[0]) != 0u);
-        led_put(nl, panel.btn[B_OCTUP], (fm1_in.buttons & dyn_bit[1]) != 0u);
-    } else {
-        led_put(nl, panel.btn[B_OCTDN], song.octave < 0);
-        led_put(nl, panel.btn[B_OCTUP], song.octave > 0);
-    }
-    keys = keys_lit();
-    guide = (keys_guide() | keys_notes_dim()) & ~keys;
-    back = lights_keys_mask() & ~keys & ~guide;
-    for (k = 0; k < 27u; k++) {
-        led_put(nl, 14u + k, (int)((keys >> k) & 1u));
-        led_put(dl, 14u + k, (int)((guide >> k) & 1u));
-        led_put(bl, 14u + k, (int)((back >> k) & 1u));
-    }
-    if (lights_lvl)                                /* menu LIGHTS: every button glows, the lit ones stay full */
-        for (k = 0; k < NB; k++)
-            led_put(bl, panel.btn[k], 1);
-    for (c = 0; c < FM1_NCOL; c++) {
-        fm1_led[c] = nl[c];
-        fm1_led_dim[c] = dl[c];
-        fm1_led_bg[c] = (uint8_t)(bl[c] & ~nl[c]);
-    }
-    fm1_led_bg_ns = LIGHTS_NS[lights_lvl % LIGHTS_N];
-}
+static void ui_leds(void);                              /* (wave 11: ui_lights.c) */
+#define SHOW_SAVER_MS 60000u                            /* (wave 11) DISCO SHOW: HOME untouched this long, playing: the saver */
+
 
 /* ---------------------------------------------------------- input --- */
 static int32_t accel(uint32_t role, int32_t s, int32_t range)
@@ -781,13 +740,13 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         switch (held) {
         case LY_FX:                                       /* PERFORM: OCT+ latches the pads held (a pad pressed with OCT+ held:
                                                            * seq.c); OCT- lets the held pads' latches go, or every latch */
-            if ((press & pb) && perf.held) {
+            if ((press & pb) && combo_live(HC_LY(LY_FX), B_OCTUP)) {
                 fm1_irq_off();
                 perf_latch_held();
                 fm1_irq_on();
                 ui.force = 1;
             }
-            if ((press & ob) && perf.lat) {
+            if ((press & ob) && combo_live(HC_LY(LY_FX), B_OCTDN)) {
                 uint32_t mine = perf.held & perf.lat;
                 fm1_irq_off();
                 if (mine)
@@ -814,29 +773,29 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
                 fill_held = 0;
             }
             if (b & yb) {
-                if ((press & pb) && !fill_lat) {
+                if ((press & pb) && combo_live(HC_LY(LY_SEQ), B_OCTUP)) {
                     fill_lat = 1;
                     ui_message("FILL LATCHED");
-                } else if ((press & ob) && fill_lat) {
+                } else if ((press & ob) && combo_live(HC_LY(LY_SEQ), B_OCTDN)) {
                     fill_lat = 0;
                     ui_message("FILL OFF");
                 }
-            } else if (press && !stl_shown()) {
-                if (press & ob)
+            } else if (press) {
+                if ((press & ob) && combo_live(HC_LY(LY_SEQ), B_OCTDN))
                     seq_halve();
-                else if (press & pb)
+                else if ((press & pb) && combo_live(HC_LY(LY_SEQ), B_OCTUP))
                     seq_double();
             }
             ui.force |= (press & yb) != 0u;
             break;
         case LY_ARP:                                      /* the selected voice's pattern a semitone down / up */
-            if ((press & (ob | pb)) && !is_drum(TSEL)) {
+            if ((press & (ob | pb)) && combo_live(HC_LY(LY_ARP), (press & pb) ? B_OCTUP : B_OCTDN)) {
                 pattern_transpose(TSEL, (press & pb) ? 1 : -1);
                 ui_message((press & pb) ? "PATTERN +1 SEMITONE" : "PATTERN -1 SEMITONE");
             }
             break;
         case LY_EDIT:                                     /* OCT-: clear the voice (asks: hold SAVE until the ring fills) */
-            if (press & ob) {
+            if ((press & ob) && combo_live(HC_LY(LY_EDIT), B_OCTDN)) {
                 char q[16] = "CLEAR VOICE 1";
                 q[12] = (char)('1' + song.sel);
                 ask_set(ASK_CLEAR, song.sel, song.sel == TRK_DRUM ? "CLEAR DRUMS" : q);
@@ -845,22 +804,20 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         case LY_LFO:
         case LY_ENV:                                      /* (wave 11) mapping: SEL the other LFO / envelope, OCT- this source's
                                                            * mappings on this page off */
-            if (!map_lyr)
-                break;
-            if (press & sb) {
+            if ((press & sb) && combo_live(HC_LY(held), B_SCL)) {
                 if (held == LY_LFO)
                     map_lfo2 = (uint8_t)!map_lfo2;
                 else
                     map_fenv = (uint8_t)!map_fenv;
                 ui.force = 1;
             }
-            if (press & ob)
+            if ((press & ob) && combo_live(HC_LY(held), B_OCTDN))
                 map_remove();
             break;
         case LY_SAVE:                                     /* OCT- undo, OCT+ redo (it was EDIT's) */
-            if (press & ob)
+            if ((press & ob) && combo_live(HC_LY(LY_SAVE), B_OCTDN))
                 ui_message(undo_swap(0) ? "UNDO" : "NOTHING TO UNDO");
-            else if (press & pb)
+            else if ((press & pb) && combo_live(HC_LY(LY_SAVE), B_OCTUP))
                 ui_message(undo_swap(1) ? "REDO" : "NOTHING TO REDO");
             break;
         default:
@@ -1155,6 +1112,12 @@ static void ui_input(void)
     drum_keys_fix();                                    /* (PHEBUS wave 3: MUTE / CHROMATIC end with the drum screen) */
     midi_entry();                                       /* (the MIDI notes' queue: read every frame, 2.6) */
     map_seen();                                         /* (wave 11: the LFO / envelope last shown, for hold to map) */
+    if (disco == DISCO_SHOW && ui.home && !ui.menu && ui.layer == LY_PLAY && song.playing && !ui.ask &&
+        fm1_ms - ui_input_ms > SHOW_SAVER_MS) {         /* (wave 11) SHOW: HOME untouched a minute while it plays: the
+                                                         * screensaver, as HOME again opens it (any button: back) */
+        nav_button(B_HOME);
+        ui_input_ms = fm1_ms;
+    }
     if (perf.full) {                                    /* (wave 6) a pad recorded found the STUTTER lane full */
         perf.full = 0;
         ui_message("LANE FULL: 31 PADS");
@@ -1376,3 +1339,5 @@ timeout:
     ui.force = 1;
     ui_message("SETUP CANCELLED");
 }
+
+#include "ui_lights.c"                                  /* (wave 11) the lights: what works under a hold, the DISCO */
