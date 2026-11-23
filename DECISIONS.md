@@ -419,6 +419,65 @@ Memory, measured on an rv32 -Os stand-in (clang, not the JieLi toolchain) agains
 Not checked
 - No device build. The long tests (soak, stress, regress, web) were not run; golden renders differ where presets now keep every send.
 
+## Rebuild wave 9, how to move around (23 Nov): calls made that Ben did not specify
+Ben's four ways (SPEC.md, "23 Nov 2026, 08:25") and his rule at 08:42 with its picker answers ("PAGE button: SEL", "Drum sound pick: SELECT knob", "Under ARP", "On the mixer"). Where they left a choice, the call that best fits the four ways was taken. The 08:42 rule replaced the 08:25 answer "EDIT: osc, filter, alternating": a labelled button steps through its categories, SEL through the pages of one.
+
+The rule in the code
+- Two actions, any button can be bound to either (ui_nav.c): nav_button (a group's first category; on it already, its next, round) and nav_page (SEL: the next page of the category shown, round; one page: nothing). Every page carries its category (params.c page_t cat); the drum screen's tabs and halves and the GRID's TRIG and PATTERN are categories too.
+- A category always opens on its first page (it no longer remembers the last page, on GLO, SAVE, ARP and KEY as on the sound pages).
+- The tab row on every page screen, the GRID and the drum screen names the categories of the button's group, the one shown filled in the voice's colour (MIX in white after a divider), and "2/4" the page inside. It replaced the stage tabs (TRIG OSC FILT ENV FX MOD, TRIG SRC FLTR AMP LFO FX) and the GLO pages' dots. Ben's drum tab names SRC FLTR AMP LFO are the drum categories' names.
+- Groups: EDIT OSC, FILT. ENV AMP, FILT (the filter's own envelope; one page each). LFO LFO 1 (SEL: its sync page), LFO 2, MATRIX. FX INS (FX 1 2 3), SENDS, SLICER, MIX (DELAY REV/CHO MASTER). SEQ TRIG (TRIG 1/2, 2/2), PATTERN. ARP ARP (ARP 2), KEY (KEY 2). GLO GLOBAL, SYSTEM, MIDI (MIDI 2, MIDI 3), DEVICE (the menu's four sections). SAVE PRESETS, USER, TOOLS. HOME HOME, the screensaver (SEL: its four). Drums: EDIT SRC, FLTR; ENV AMP; LFO LFO; FX FILTER, INS (INSERT, INSERT 2), SENDS, SLICER, MIX; SEQ TRIG, PATTERN; ARP CHROMATIC.
+- On the GRID and the drum screen the same buttons and SEL change the view, the keys stay steps, with a step held too (the Rytm's page keys): a lock on any page is hold the step, the button (and SEL) until the page shows, turn. MIX shows there too (white dials; the knobs are not lockable: NOT LOCKABLE).
+- SEQ opens TRIG from everywhere (it opened the GRID on the sound page's own tab before): its first category, always. TRIG is SEQ's first category because it is what the GRID's keys and knobs are with nothing chosen; PATTERN second.
+- A one-category group (drum ENV, LFO): the button again goes back to its first page. The drum ARP is CHROMATIC; ARP again ends it (the keys are steps again), as before.
+- The menu is GLO's DEVICE: SEL its sections (they were SELECT's), GLO on to GLOBAL, HOME or OCT- closes, any other page button closes it and opens its own group. Hold HOME stays its shortcut.
+- The screensaver is HOME's second category: HOME on HOME opens it (wave 8 had removed that as a double press; it is the rule now, no timing), SEL the next one, HOME again HOME. SELECT does nothing on HOME.
+
+SELECT: the type (Ben: "SELECT = type"; drums "SELECT knob")
+- Synth pages: OSC 1 to 4 the oscillator Type, FILT 1 and 2 the filter TYPE, FX 1 to 3 the insert TYPE, SLICER its mode, LFO 1 (both pages) and LFO 2 their WAVE. No type, SELECT does nothing: ENV (AMP, FILT), SENDS, MATRIX, the MIX pages, ARP, ARP 2, KEY, KEY 2 (ARP's MODE and KEY's SCALE and CHORD were candidates; none is the page's one type, so none was picked), GLO and SAVE pages, HOME, the screensaver, the menu, the TRIG and PATTERN views, the STUTTER lane, the layers.
+- The drum screen, every tab: the selected sound, one of 16 a detent, stopping at the ends, heard while stopped (as SEL + key heard it). With a step held it does nothing (LET GO OF THE STEP): the held step is that sound's.
+- With a step held on the synth GRID, SELECT locks the type where it can be locked (the filter's TYPE, the LFO's WAVE, the SLICER's mode); the oscillator Type and the inserts' TYPE cannot (TYPE: NOT LOCKABLE), as before.
+- Where it shows: the header's title place becomes a chip, the dials' little dial and the value, on the dark shade of the voice's colour, filled in it for a moment after a turn (as a touched dial's label). The SELECT knob sits at the screen's upper left on the FM-1. No chip: SELECT does nothing. The sound's name then shows only on pages without a type (and on HOME); the drum kit's name moved to the line under the sound's name.
+
+The pages re-planned (the knob each type took is freed)
+- OSC 1: M1 M2 M3 M4 (the Type's own controls together: the three macros and its fourth, T.ENV on Plaits, NOISE on JUNO). OSC 2: OCT TUNE GLIDE GLMODE (the pitch and the glide's mode beside GLIDE). OSC 3: M5 VOICE DTUNE PRIOR (the Type's fifth, then the voicing). OSC 4: ALLOC alone (13 controls need four pages; the rarest one is alone).
+- FILT 1: CUTOFF RESO ENV DRIVE. FILT 2: KEY LINK.
+- FX 1 to 3: the type's three knobs on KNOB 1 to 3 (left-aligned, as SENDS; KNOB 4 empty: there is no fourth stored value without a new parameter).
+- SLICER (synth): PAT RATE DEPTH. LFO 1: RATE PHASE FADE POL; its sync page SYNC TRIG ESYNC. LFO 2: RATE SYNC TRIG.
+- The drum screen keeps every knob as it was (SELECT is the sound there): SRC's WAVE and the HEX MODEL, FLTR's TYPE, the LFO's WAVE, the INSERT's TYPE, the drum SLICER's mode (a page of the drum voice's own now, as it was drawn).
+- CLASH with "same filter page" (22 Nov, "CUTOFF, RESO, ENV, TYPE on drums and synths"): Ben's 08:42 answer puts the drum sound pick on SELECT, so the drum FLTR keeps TYPE on KNOB 4 while the synth FILT's TYPE is SELECT's and DRIVE takes its knob. The first three knobs are the same on both; KNOB 4 and DRIVE's place differ. Built that way and put to Ben (below).
+
+SEL's old jobs, re-homed
+- Key, scale, chord (hold SEL, the KEY layer; tap SEL, the SEL pages): ARP's KEY category (the pages renamed KEY and KEY 2). ROOT and SCALE there now set all three synth voices, as the layer did (the page set the selected voice's only). The layer is gone: picking the key with a key was quicker but is not performance; KEY KNOB 1 ROOT does it.
+- Drum MUTE mode (SEL tapped) and solo (SEL + key in it): the mixer (below). Drum sound pick (SEL held + key): SELECT.
+- Hold SEL: unused (Ben: "Leave it unused"). The SEL button is no layer any more; it acts on its press.
+
+The mixer with the drums selected (Ben: "Hold GLO: with the drums selected, the keys mute the 16 sounds; voice mutes stay on keys 1 to 4 otherwise")
+- The 16 white keys mute and unmute the 16 sounds; the key row on screen shows 16 tiles, each the sound's initial, muted yellow, soloed ice blue, the selected sound framed white.
+- F#3 turns the keys into solo keys (SOLO lit, the word under the tiles ice blue), F#3 again back to mutes. G#3 fill while held, A#3 fill on the next bar, C#4 the knobs the pans: the jobs keys 9 to 11 have with a synth voice selected, on black keys because the 16 white keys are the sounds. They show as SOLO FILL BAR PAN boxes under the tiles, in black-key order.
+- The four podiums, levels and pans stay; the voices' own mutes are off the keys while the drums are selected (select a synth voice for them). The header says DRUM MIX.
+
+Holds (rule 3), every one
+- Performance layers: FX PERFORM, GLO the mixer, SAVE patterns A to D, EDIT erase (with SHIFT and TRANSP, its knobs), ARP roll / drum RETRIG, F#5 FILL, OCT- / OCT+ + a drum key ghost / hard, REC clear the voice, a step held (the lock).
+- Shortcuts to a page: SEQ held (STEPS: the PATTERN page's four knobs), HOME held (the menu: GLO's DEVICE).
+- The confirm (REC held with the ring) and keep-open (any layer held 0.7 s untouched) stay as wave 8 built them.
+- Power-on holds (OCT- rescue, OCT- and OCT+ calibration, 5 s UBOOT): the loader's and recovery's, not the UI's, left alone; calibration also has DEVICE > SYSTEM.
+- Removed: SEL held (the KEY layer, the drum sound pick).
+
+Combos (rule 4), every two-control gesture
+- Kept: SEQ + OCT- halve, SEQ + OCT+ double as a clone (Ben's own); EDIT + OCT- / OCT+ undo, redo (EDIT the constant, an edit taken back); OCT+ with a pad or F#5 held (the one latch); OCT- in PERFORM every latch off; a step + OCT- its locks off (the step the constant, minus takes away); OCT- + OCT+ the octave back to 0; OCT- / OCT+ held + a drum key ghost / hard (performance, softer / harder).
+- New: SEQ + OCT- halves the selected voice's pattern: if the second half holds a note, tie, trig, lock, nudge or condition it asks HOLD REC: HALVE TO n (SEQ kept held while REC is held, as SAVE for a pattern store), then the second half is cleared (it was kept hidden by the old DOUBLE knob); nothing there, it halves at once. SEQ + OCT+ doubles as a clone: the steps, their locks (as many as the 24 hold: DOUBLED: SOME LOCKS LEFT OUT otherwise), nudges and conditions; the drum trigs with their extras and sound locks; 64 steps: 64 STEPS: FULL. One undo each. Not on the STUTTER lane (its length is its KNOB 4). SEQ first, then OCT (OCT first moves the octave or the page of steps).
+- Removed, each capability kept elsewhere: EDIT's KNOB 2 DOUBLE (SEQ + OCT); EDIT + a black key, the drum mute mode (the mixer); GLO + F#3 MIDI LEARN (GLO > MIDI 3, KNOB 2 LEARN); a step held + OCT+, the next condition (TRIG's KNOB 4 COND); STEP REC's key held + SEQ, a tie (ARP is the tie; SEQ is always a rest, written after the held notes); SEL + key on the drums (SELECT; solos on the mixer).
+- Three controls: a step held + a page button or SEL + a knob (or SELECT): a lock on another page, as decided.
+
+SELECT's other jobs, re-homed
+- HOME: the screensavers (HOME again, then SEL). The screensaver: its next one (SEL). STEP REC: the cursor (KNOB 2, which already did it). The menu: its sections (SEL). The synth GRID with a step held: TRIG 1/2 to 2/2 (SEL). Every page walk (the buttons and SEL). The tempo stays GLO > GLOBAL KNOB 1 only.
+
+Memory, measured on an rv32 -Os stand-in (clang, the HAL's asm stubbed, felucca.c) against the wave 8 base: .bss +48 B, .sbss +20 B (.data+.bss about +68 B: about 96,090 of 98,304 on the device), code and constants about +2.1 KB (an image of about 517,700 of 581,564), the pool unchanged (nothing new in it), .noinit unchanged. No 64-bit divide added.
+
+Not checked
+- No device build (no toolchain here). The long tests (soak, stress, regress, web) were not run. The sound: a forked render proves the new routes (SELECT on FILT, LFO, FX 1; PATTERN SWING; KEY ROOT; SEQ + OCT+) give the same audio as the values written straight; no engine, project format or preset changed.
+
 ## For Ben to confirm
 Every call waves 2 to 7 made that the spec did not cover, and every device-only limit or lossy conversion, one line each. The detail is in each wave's section above.
 
@@ -490,3 +549,15 @@ Wave 8, the layout logic
 - The screensavers are HOME's pages (SELECT right); the hint is a ">" after the deck's FLOW band (the band was narrowed 12 px).
 - GLO > SYSTEM still shows OUT and IN, which MIDI 2 shows too (left as built; pages-unique would drop them from SYSTEM).
 - Lossy: a wave 5 to 7 matrix cell on a send slot when both assignable columns are used; a project's MASTER FILT; GLOBAL SWING for an old section loaded after a reboot with a newer project. User preset records 4 read as empty on older firmware.
+Wave 9, how to move around
+- The CLASH: the synth FILT is CUTOFF RESO ENV DRIVE with TYPE on SELECT; the drum FLTR stays CUTOFF RESO ENV TYPE (DRIVE on 2/2) because the drum screen's SELECT picks the sound. Choose: keep it so; or put the synth FILT's TYPE back on KNOB 4 as well (SELECT and KNOB 4 both turn it, DRIVE back to 2/2); or move the drum FLTR's TYPE to its 2/2 so KNOB 4 is DRIVE on both.
+- The re-planned OSC pages: M1 M2 M3 M4 / OCT TUNE GLIDE GLMODE / M5 VOICE DTUNE PRIOR / ALLOC.
+- FX 1 to 3 on KNOB 1 to 3 (KNOB 4 empty); the SLICER's knobs moved left a place.
+- SEQ always opens TRIG (no longer the GRID on the sound page's own tab).
+- A category opens on its first page (no memory of the last page anywhere).
+- ARP's MODE and KEY's SCALE are not SELECT types (no page has a single type there).
+- The mixer, drums selected: SOLO FILL BAR PAN on F#3 G#3 A#3 C#4; the voices' mutes off the keys meanwhile.
+- The SEL layer's quick key pick (SEL held + a key) is gone, not given a performance home; say if you want it back on a layer.
+- Halving clears the dropped half (the old DOUBLE knob kept it hidden); STEP REC's SEQ with keys held writes them then a rest.
+- The header shows the type (or the drum sound) instead of the sound's name on typed pages; the drum kit's name moved under the sound.
+- MIDI LEARN is GLO > MIDI 3 KNOB 2; the HOME screensaver is HOME pressed again (wave 8's "no second meaning" call reversed by the new rule).
