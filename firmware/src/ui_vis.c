@@ -3,13 +3,18 @@
  * tapped on HOME opened one) They are HOME's pages: on HOME, SELECT right opens FLOW, then EYES, DESERT, THIRD EYE; SELECT
  * left from FLOW is HOME again, as SELECT walks every screen's pages (the name shows a second). HOME or any page closes it;
  * a layer held shows its screen as ever, then the screensaver comes back. The keys, PLAY and REC work as always.
- *   1 FLOW    liquid marble, wavy stripes and glitch tears, a band per voice
+ *   1 FLOW    liquid marble, wavy stripes and swaying rows, a band per voice
  *   2 EYES    four watching eyes in a turning lattice, an eye per voice
  *   3 DESERT  dunes in four strata under a ringed sun, a stratum per voice
  *   4 THIRD EYE  the three fused: a great eye as the sun on the dunes, FLOW for a sky
  * Ben: "acid psychedelic modern glitch art fused with ... psychedellic eyes and desert art vibe", "These but flowing
  * and morphing"; the four voice colours only (plus black and a little white), "each driven by its own voice's level";
  * no busier than the boot picture he set as "the limit". Original designs, not copies of anyone's artwork.
+ * (Ben, 23 Nov 2026, 14:22: "these horizontal lines ... come over very harsh. They should be super infrequent. And I don't
+ * like the white one at all": no line is drawn across any picture now (the white one was FLOW's morph wipe, gone: the kinds
+ * dissolve into each other); the one glitch left is vis_tear, a few rows nudged a few pixels for a few frames, one event
+ * at most one every 20 s, 33 s on average (a kick may start one, 1 in 128, never twice within 8 s). "a different one at
+ * random every time behind the Phebus boot and for the screensaver on the home button": boot_choose, vis_open.)
  * Everything is computed into the canvas pixel by pixel (no pictures, no frame buffer), mostly in 2x2 blocks, from
  * what the audio already leaves for the UI: the tracks' peaks (fx.c / drums.c, as the TRACKS meters read them), the
  * notes that started and the kick (voice.c vis_hit). Drawn in the main loop every other frame, in two bands of 120
@@ -20,17 +25,32 @@ static struct {
     uint16_t e[4];                                  /* each voice's level, smoothed: 0..256 (fast up, slow down) */
     uint8_t flash[4], kick;                         /* a note started (8, counting down) / a kick, fading */
     uint32_t tq, last_ms, rip;                      /* the clock (1/256: ~40 a second, faster when loud); the sun's rings */
+    uint32_t kt;                                    /* when a kick started a tear (ms; 0: none yet) */
 } vs;
+static uint32_t vis_rng;                            /* the dice for the boot's and the screensaver's pick (vis_stir) */
+static uint8_t vis_last;                            /* the picture shown last: the next pick is another one */
 static uint16_t vp[4][4];                           /* this picture's colours of each voice: dark, body, bright, hot */
 
 static int vis_shown(void) { return vis_on && !ui.home && !ui.menu && cur_page()->scope == SC_TRK; }
+static uint32_t vis_hash(uint32_t a, uint32_t b);
+static void vis_stir(uint32_t v) { vis_rng = vis_hash(vis_rng ^ 0x9E3779B9u, v); }
+static uint32_t vis_roll(uint32_t n) { vis_stir(0xA5u); return (vis_rng >> 20) % n; }   /* 0..n-1 (n <= 16) */
+#define VIS_CAPTION 80u                             /* the caption's time: draws, every other frame: ~2.5 s, grey, fading */
+/* opened (HOME on HOME, or SELECT walking on, or DISCO SHOW's own): from HOME, a different picture than the last one shown,
+ * at random (the dice are stirred with the very moment of the press: a person's timing, a hundredth of a second and under,
+ * differs every time); SELECT's walk (vis_on already) goes where it was sent */
 static void vis_open(void)
 {
+    if (!vis_on) {
+        vis_stir(fm1_ticks());
+        vis_stir(fm1_ms);
+        vis_style = (uint8_t)((vis_last + 1u + vis_roll(VIS_N - 1u)) % VIS_N);
+    }
+    vis_last = vis_style;
     vis_on = 1;
-    vis_name_t = 30;
+    vis_name_t = VIS_CAPTION;
     ui.force = 1;
-}
-static int32_t isin(uint32_t a) { return SINE[a & 1023u]; }          /* a: 1024 a turn; Q15 */
+}static int32_t isin(uint32_t a) { return SINE[a & 1023u]; }          /* a: 1024 a turn; Q15 */
 static int32_t icos(uint32_t a) { return SINE[(a + 256u) & 1023u]; }
 static uint16_t mix565(uint16_t a, uint16_t b, int32_t k)              /* a -> b, k 0..256 */
 {
@@ -69,6 +89,31 @@ static uint32_t vis_sqrt(uint32_t v)
 static int32_t vis_abs(int32_t v) { return v < 0 ? -v : v; }
 static uint32_t vis_hash(uint32_t a, uint32_t b) { a = a * 2654435761u ^ b * 40503u; return (a ^ (a >> 15)) * 2246822519u; }
 
+/* ---- the one glitch: a tear. A few rows (8) nudged sideways a few pixels (4 to 12, softer at each end) for 160 ms, a few
+ * frames. When nothing plays: one event in each 32.8 s slot of the clock (ms), 10 to 22 s into it (so never closer than 20 s);
+ * playing: a kick may start one (1 in 128 kicks, and not within 8 s of the last), never while the slot's own is on, so one
+ * band at most. vis_tear(sy): the shift of screen row sy now (0: none). Stateless but for vs.kt; no divide by a variable */
+static int32_t vis_tear_at(uint32_t t0, uint32_t sy)
+{
+    uint32_t h = vis_hash(t0, 0x7EA2u), e = fm1_ms - t0, y0 = (h >> 8) % 200u;
+    int32_t d = (int32_t)((h >> 16) % 9u) + 4;
+    if (e >= 160u || sy - y0 >= 8u)                 /* (not now, or not this row: the unsigned wraps say both) */
+        return 0;
+    if (e < 48u || e >= 112u)
+        d >>= 1;
+    return (h >> 28) & 1u ? d : -d;
+}
+static uint8_t fl_still;                            /* (HOME's strip: it stands still when stopped, so no tear in it) */
+static int32_t vis_tear(uint32_t sy)
+{
+    if (fl_still)
+        return 0;
+    uint32_t t0 = (fm1_ms & ~32767u) + 10000u + (vis_hash(fm1_ms >> 15, 0x51u) >> 8) % 12000u;
+    if (fm1_ms - t0 < 160u)
+        return vis_tear_at(t0, sy);
+    return vs.kt ? vis_tear_at(vs.kt, sy) : 0;
+}
+
 /* ---- the frame's data ---- */
 /* the levels (0..256 a voice, or -1: the peaks, read here), the notes that started, the kick; the clock runs when go (the
  * screensaver: always; HOME's band: while playing or a voice sounds). Returns 1 while anything moves */
@@ -94,13 +139,15 @@ static uint32_t vis_step(const int32_t *lv, uint32_t go)
     fm1_irq_on();
     for (i = 0; i < 4u; i++) {
         int32_t v = lv ? lv[i] : trk_level(i) && !trk[i].p[P_MUTE] ? vis_lvl(pk[i]) * 256 / 1000 : 0;   /* (as the TRACKS meters) */
-        vs.e[i] = (uint16_t)(v > vs.e[i] ? vs.e[i] + (v - vs.e[i]) / 2 : vs.e[i] - (vs.e[i] - v) / 12);
+        vs.e[i] = (uint16_t)(v > vs.e[i] ? vs.e[i] + (v - vs.e[i]) / 2 : v == vs.e[i] ? v : vs.e[i] - ((vs.e[i] - v) / 12 ? (vs.e[i] - v) / 12 : 1));   /* (at least 1 a step: a level of 1..11 never stuck, the strip never stops) */
         vs.flash[i] = (uint8_t)((hit >> i) & 1u ? 8u : vs.flash[i] ? vs.flash[i] - 1u : 0u);
         fl |= vs.flash[i];
         if (vs.e[i] > emax)
             emax = vs.e[i];
     }
     vs.kick = (uint8_t)(vs.kick > 20 ? vs.kick - 20 : 0);
+    if (vs.kick == 235u && now - vs.kt >= 8000u && (vis_hash(now, 0x1CEu) >> 24) < 2u)   /* (a kick just came: rarely, a tear) */
+        vs.kt = now | 1u;
     dt = now - vs.last_ms;                          /* the clock: gentle when quiet, a little quicker when loud */
     vs.last_ms = now;
     if (dt > 200u)
@@ -140,21 +187,21 @@ static void vis_canvas(void)                        /* (cv_begin without the cle
 
 /* ---- FLOW's field: the boot's ripples of warped sines cut into bands, a band per voice with black between. A voice
  * playing swells its band (pushing the others aside), brightens it and, loud, lights a white vein in it; a quiet
- * voice thins to a dim line. Every 15 s or so it morphs to the next kind (a wipe down the screen): liquid marble,
- * wavy stripes, marble torn sideways in rows; a kick tears a few rows in any kind. At the boot's broadest scale
- * (x2): never busier than Ben's limit. */
+ * voice thins to a dim line. Every 15 s or so it morphs to the next kind (a slow dissolve, 3 s, in soft blobs: no line
+ * across the picture, Ben 23 Nov: no white one): liquid marble, wavy stripes, marble with its rows swaying sideways in
+ * slow waves; a kick swells the bands softly (and once in a long while starts a tear, vis_tear). At the boot's broadest
+ * scale (x2): never busier than Ben's limit. */
 static uint16_t fl_lut[256];                        /* the bands along one turn of the field (byte-swapped) */
-static uint32_t fl_t, fl_cyc, fl_wipe;
-static uint8_t fl_noline;                           /* (HOME's strip: the morph without its white line) */
+static uint32_t fl_t, fl_cyc, fl_mix;               /* (fl_mix: the morph's progress, 0..256: the next kind's share) */
 static void flow_prep(void)
 {
     uint32_t T = vs.tq >> 8, j, p = 0, w[4], sum = 0, rot;
     fl_t = T;
     fl_cyc = T / 600u;
     rot = fl_cyc / 3u;
-    fl_wipe = T % 600u < 40u ? T % 600u * 6u : 999u;   /* the morph: the new kind above a line going down (a second) */
+    fl_mix = T % 600u < 120u ? (T % 600u) * 256u / 120u : 256u;   /* the morph: 3 s of every 15 */
     for (j = 0; j < 4u; j++)
-        sum += w[j] = 26u + vs.e[(j + rot) & 3u] * 30u / 256u;
+        sum += w[j] = 26u + vs.e[(j + rot) & 3u] * 30u / 256u + vs.kick / 40u;   /* (a kick: a soft swell) */
     for (j = 0; j < 4u; j++) {
         uint32_t i = (j + rot) & 3u, q, edge = w[j] / 6u + 1u, hot = vs.e[i] > 170u ? (vs.e[i] - 170u) / 22u : 0u;
         for (q = 0; q < w[j]; q++)
@@ -171,23 +218,25 @@ static void flow_prep(void)
 static void flow_row(uint16_t *q, uint32_t sy, uint32_t xa, uint32_t xb, uint32_t xn)   /* (columns xa..xb-1 left: covered;
                                                                                            * xn: the row's width) */
 {
-    uint32_t T = fl_t, kind = sy < fl_wipe ? fl_cyc % 3u : (fl_cyc + 2u) % 3u, h = vis_hash(sy >> 2, (T >> 3) + kind) >> 24, x;
-    int32_t ra = (isin(sy * 5u + T * 3u) * 150) >> 15, tear = (kind == 2u && h < 14u) || h < vs.kick / 24u ? (int32_t)(h * 4u % 56u) - 28 : 0;
+    uint32_t T = fl_t, kn = fl_cyc % 3u, ko = (fl_cyc + 2u) % 3u, x;
+    int32_t ra = (isin(sy * 5u + T * 3u) * 150) >> 15, td = vis_tear(sy), sw = (isin(sy * 3u + T * 2u) * 24) >> 15;
     for (x = 0; x < xn; x += 2u) {
         int32_t a, b, v;
+        uint32_t kind = kn;
+        if (fl_mix < 256u) {                        /* the dissolve: the next kind grows in soft blobs (contours of a slow field) */
+            int32_t nz = isin(x * 5u + T * 3u) + isin(sy * 4u + T * 2u + 300u) + isin((x + sy) * 3u + 100u);
+            kind = (uint32_t)(((nz + 98304) >> 10) * 4 / 3) < fl_mix ? kn : ko;
+        }
         if (x == xa)
             x = xb;
         if (x >= xn)
             break;
-        a = ((int32_t)x + tear) * 2 + ra;
+        a = ((int32_t)x + td + (kind == 2u ? sw : 0)) * 2 + ra;   /* (kind 2: the rows sway, slowly, smoothly) */
         b = (int32_t)sy * 2 + ((isin((uint32_t)a + T * 2u) * 110) >> 15);
         a += (isin((uint32_t)b + T * 5u) * 90) >> 15;
         v = kind == 1u ? a * 2 + b : (isin((uint32_t)a) + isin((uint32_t)(b + (a >> 1)))) >> 6;
         q[x] = q[x + 1u] = fl_lut[((uint32_t)(v + (int32_t)(T * 4u)) >> 2) & 255u];
     }
-    if (sy - fl_wipe < 2u && !fl_noline)            /* (the morph's edge: a white line) */
-        for (x = 0; x < xn; x++)
-            q[x] = C_WHITE;
 }
 
 /* ---- the eyes: almond eyes, each the lens where two circles cross, outlined, with two echo contours round it; an
@@ -366,7 +415,7 @@ static void eyes_back_row(uint16_t *q, int32_t sy)   /* the rings and the star, 
 /* ---- 3 DESERT: a horizon at dusk. A ringed sun half set on it, its rings flowing outward (a kick pushes a ripple
  * through them) and a faint halo; a few stars; four strata of dunes drifting at their own speeds (the nearer, the
  * faster), lit on the faces turned to the low sun, with a bright crest and a contour under it; heat shimmer near the
- * horizon and, now and then (and on a kick), a glitch scanline torn sideways. The sun's rings and the strata are the
+ * horizon and, very rarely, a few rows nudged sideways (vis_tear). The sun's rings and the strata are the
  * voices, purple farthest, the drums (teal) nearest: a voice playing raises its dunes and brightens them and its rings. */
 #define DS_HOR 116
 static uint8_t ds_r[4][121];                        /* each stratum's crest, every 2 columns (bit 0: the face is lit) */
@@ -393,14 +442,13 @@ static void desert_prep(void)
 }
 static void desert_row(uint16_t *q, int32_t sy, int sky)   /* (sky 0: the sky left black, no sun or stars) */
 {
-    uint32_t T = vs.tq >> 8, x, h = vis_hash((uint32_t)sy / 3u, T / 5u) >> 24;
+    uint32_t T = vs.tq >> 8, x;
     int32_t rs = 44 + vs.kick / 40, rh = rs + 22, rip = (int32_t)(vs.rip % 96u) / 4, dh = sy - DS_HOR, dx = 0, r = 0, xs, s0 = 3;
     while (s0 >= 0 && sy < ds_top[s0])            /* (the strata that reach up to this row) */
         s0--;
-    if (dh > -14 && dh < 24)                        /* the shimmer, the glitch scanlines */
+    if (dh > -14 && dh < 24)                        /* the shimmer */
         dx = isin((uint32_t)sy * 90u + T * 24u) * 2 >> 15;
-    if (h < 4u + vs.kick / 28u)
-        dx += (int32_t)(h * 37u % 48u) - 24;
+    dx += vis_tear((uint32_t)sy);                   /* (the rare tear) */
     for (x = 0; x < 240u; x += 2u) {
         int32_t sx = dx ? clamp((int32_t)x + dx, 0, 239) : (int32_t)x, s = s0, cx = sx - 120;
         uint32_t xi = (uint32_t)sx >> 1;
@@ -456,10 +504,10 @@ static void third_prep(void)
     ey[0].e1 = ey[0].e2 = C_BLACK;
 }
 
-/* the screensaver, every other frame: the update, then both bands */
-static void vis_paint(void)
+/* the picture st's setup (its levels and clock in vs, its colours in vp), then its rows of one band (pass 0: screen rows 0..119,
+ * 1: 120..239) into the canvas; the screensaver (vis_paint) and the boot (boot_frame) share them */
+static void vis_prep(uint32_t st)
 {
-    uint32_t pass, st = vis_style % VIS_N, y;
     vis_palette();
     if (st == 0u)
         flow_prep();
@@ -469,40 +517,66 @@ static void vis_paint(void)
         desert_prep();
     else
         third_prep();
+}
+static void vis_rows(uint32_t st, uint32_t pass)
+{
+    uint32_t y;
+    for (y = 0; y < 120u; y += 2u) {
+        uint16_t *q = &cv_px[y * 240u];
+        int32_t sy = (int32_t)(pass * 120u + y);
+        if (st == 0u)
+            flow_row(q, (uint32_t)sy, 1u, 1u, 240u), VIS_ROW2(q);
+        else if (st == 1u)
+            eyes_back_row(q, sy), eyes_over(q, sy);
+        else if (st == 2u)
+            desert_row(q, sy, 1), VIS_ROW2(q);
+        else {
+            if (sy < DS_HOR) {                  /* (not under the eye's black) */
+                int32_t ay = vis_abs(sy - ey[0].y) + ey[0].c, w2 = ey[0].r2 - (ay + 1) * (ay + 1), w;
+                w = w2 > 0 ? (int32_t)vis_sqrt((uint32_t)w2) - 2 : 0;
+                w = w > 0 ? w : 0;
+                flow_row(q, (uint32_t)sy, (uint32_t)(ey[0].x - w + 1) & ~1u, (uint32_t)(ey[0].x + w) & ~1u, 240u);
+            }
+            else
+                desert_row(q, sy, 0);
+            eyes_over(q, sy);
+        }
+    }
+}
+/* the caption over the top: "1/4 FLOW   SEL: NEXT", small, grey with a black edge (no bar), fading out over its last
+ * 20 draws: where the other screensavers are (Ben, 23 Nov: "don't know where to find the other screensavers") */
+static void vis_caption(uint32_t st)
+{
+    char n[40];
+    int32_t x, k = vis_name_t > 20u ? 256 : (int32_t)vis_name_t * 256 / 20;
+    uint16_t c = mix565(C_BLACK, C_WHITE, k * 140 / 256);   /* (a mid grey at most, never white) */
+    fmt_int(n, (int32_t)st + 1);
+    str_cpy(n + str_len(n), "/", 2);
+    fmt_int(n + str_len(n), (int32_t)VIS_N);
+    str_cpy(n + str_len(n), " ", 2);
+    str_cpy(n + str_len(n), VIS_NAME[st], 12);
+    str_cpy(n + str_len(n), "   SEL: NEXT", 14);
+    x = 120 - text_w(&FONT_S, n) / 2;
+    cv_text(x - 1, 2, &FONT_S, n, C_BLACK);
+    cv_text(x + 1, 2, &FONT_S, n, C_BLACK);
+    cv_text(x, 1, &FONT_S, n, C_BLACK);
+    cv_text(x, 3, &FONT_S, n, C_BLACK);
+    cv_text(x, 2, &FONT_S, n, c);
+}
+
+/* the screensaver, every other frame: the update, then both bands */
+static void vis_paint(void)
+{
+    uint32_t pass, st = vis_style % VIS_N;
+    vis_prep(st);
     for (pass = 0; pass < 2u; pass++) {
         vis_canvas();
-        for (y = 0; y < 120u; y += 2u) {
-            uint16_t *q = &cv_px[y * 240u];
-            int32_t sy = (int32_t)(pass * 120u + y);
-            if (st == 0u)
-                flow_row(q, (uint32_t)sy, 1u, 1u, 240u), VIS_ROW2(q);
-            else if (st == 1u)
-                eyes_back_row(q, sy), eyes_over(q, sy);
-            else if (st == 2u)
-                desert_row(q, sy, 1), VIS_ROW2(q);
-            else {
-                if (sy < DS_HOR) {                  /* (not under the eye's black) */
-                    int32_t ay = vis_abs(sy - ey[0].y) + ey[0].c, w2 = ey[0].r2 - (ay + 1) * (ay + 1), w;
-                    w = w2 > 0 ? (int32_t)vis_sqrt((uint32_t)w2) - 2 : 0;
-                    w = w > 0 ? w : 0;
-                    flow_row(q, (uint32_t)sy, (uint32_t)(ey[0].x - w + 1) & ~1u, (uint32_t)(ey[0].x + w) & ~1u, 240u);
-                }
-                else
-                    desert_row(q, sy, 0);
-                eyes_over(q, sy);
-            }
-        }
-        if (!pass && (vis_name_t || ui.msg_t)) {    /* the piece's name a second (or a message) */
-            char n[8];
-            const char *s = ui.msg_t ? ui.msg : VIS_NAME[st];
+        vis_rows(st, pass);
+        if (!pass && ui.msg_t) {                    /* a message: its bar */
             cv_rect(0, 0, 240, 20, C_BLACK);
-            cv_text(120 - text_w(&FONT_S, s) / 2, 2, &FONT_S, s, C_WHITE);
-            if (!ui.msg_t) {
-                fmt_int(n, (int32_t)st + 1);
-                str_cpy(n + str_len(n), "/", 2);
-                fmt_int(n + str_len(n), (int32_t)VIS_N);
-                cv_text(4, 2, &FONT_S, n, C_DIM);
-            }
+            cv_text(120 - text_w(&FONT_S, ui.msg) / 2, 2, &FONT_S, ui.msg, C_WHITE);
+        } else if (!pass && vis_name_t) {
+            vis_caption(st);
         }
         cv_blit(0, pass * 120u);
     }
@@ -530,7 +604,8 @@ static void vis_select(int32_t s)                       /* SELECT on a screensav
         return;
     }
     vis_style = (uint8_t)(v < (int32_t)VIS_N ? v : (int32_t)VIS_N - 1);
-    vis_name_t = 30;
+    vis_last = vis_style;
+    vis_name_t = VIS_CAPTION;
     ui.force = 1;
     settings_later = 1;                                 /* (kept with the settings, once stopped) */
 }
@@ -553,18 +628,18 @@ static void home_band(int32_t x0, int32_t y0, uint32_t w, uint32_t h)
     uint32_t y;
     vis_palette();
     flow_prep();
-    fl_noline = 1;                                  /* (a white line standing still across it, stopped: no) */
+    fl_still = 1;                                   /* (the strip stands still when stopped: no tear in it either) */
     for (y = 0; y < h; y += 2u) {
         uint16_t *q = &cv_px[(uint32_t)(y0 + (int32_t)y) * cv_w + (uint32_t)x0];
         flow_row(q, y, w, w, w);                    /* (the screensaver's scale: no busier than Ben's limit) */
         memcpy(q + cv_w, q, w * sizeof(uint16_t));
     }
-    fl_noline = 0;
+    fl_still = 0;
 }
 
 /* ---- the boot's FLOW (Ben, 20 Nov 2026: "acid psychedelic modern glitch art ... flowing and morphing"; the four voices'
  * colours only): a field of warped sines, posterised into bands of the voices' colours and black. Three kinds by the
- * seed: 0 liquid marble, 1 wavy stripes (two voices), 2 marble torn sideways in rows (glitch). The boot draws it at
+ * seed: 0 liquid marble, 1 wavy stripes (two voices), 2 marble with its rows swaying in slow waves. The boot draws it at
  * full resolution (Ben: "Keep 3 s full detail"); the FLOW screensaver above is its voice-driven cousin. */
 static uint32_t flow_seed;
 static uint8_t flow_lit;                                /* 1: no black here (behind the black wordmark): dim voices instead */
@@ -575,11 +650,8 @@ static uint16_t flow_px(int32_t x, int32_t y, uint32_t t)
                                         {4, 0, 4, 4, 2, 5, 4, 1, 4, 4, 3, 4, 0, 4, 6, 4}};
     uint32_t s = flow_seed, kind = s % 3u, rot = (s >> 4) & 3u, k;
     int32_t a, b, v;
-    if (kind == 2u) {                                   /* rows of 4 torn sideways, a new tear every few frames */
-        uint32_t h = ((uint32_t)(y >> 2) * 2654435761u + (t >> 3) * 40503u + s) >> 24;
-        if (h < 14u)                                    /* (few tears, short: the field stays readable) */
-            x += (int32_t)(h * 4u) - 28;
-    }
+    if (kind == 2u)                                     /* rows swaying sideways in slow waves (was: torn in rows: too harsh) */
+        x += (isin((uint32_t)y * 3u + t * 2u) * 24) >> 15;
     /* Ben, 20 Nov: seed 0 (x3, y3) "is also the limit for how busy these should get": scales 2..3, never finer */
     a = x * (int32_t)(2u + ((s >> 8) & 1u)) + ((isin((uint32_t)(y * 5) + t * 3u + (s >> 10)) * 150) >> 15);
     b = y * (int32_t)(2u + ((s >> 12) & 1u)) + ((isin((uint32_t)a + t * 2u + (s >> 14)) * 110) >> 15);
@@ -608,18 +680,66 @@ static void flow_band(uint32_t y0, uint32_t rows, uint32_t t, int32_t fade, uint
     flow_lit = 0;
 }
 static void sloop_logo_knock(uint32_t y0, uint32_t band_y, uint32_t rows);   /* splash.c */
-/* ---- the boot animation (PHEBUS; Ben, 20 Nov 2026): a FLOW backdrop, a different one each start, and the wordmark
- * black in it: "the phebus is all black so it appears as the negative space in the trippy background visual". ~3 s,
- * a button or a key skips it. boot_t: started at 0 by the boot; 0xFFFF: none (the host tests) */
+/* ---- the boot animation (PHEBUS; Ben, 20 Nov 2026): a screensaver's picture behind, a different one each start (Ben, 23 Nov:
+ * "a different one at random every time behind the Phebus boot"), and the wordmark black in it: "the phebus is all black
+ * so it appears as the negative space in the trippy background visual". ~3 s, a button or a key skips it. boot_t: started
+ * at 0 by the boot; 0xFFFF: none (the host tests). boot_vis: the picture, 0..3 as the screensavers (0: FLOW, drawn by
+ * flow_px at full resolution as ever; the others are the screensavers themselves, their voices breathing by themselves). */
 static uint16_t boot_t = 0xFFFFu;
+static uint8_t boot_vis;
 #define BOOT_END 180u
+/* the pick, from a seed: not the picture shown last (the settings keep it: vis_style, the last screensaver or boot's) */
+static void boot_choose(uint32_t seed)
+{
+    vis_rng = vis_hash(seed, 0xB007u);
+    vis_last = (uint8_t)(vis_style % VIS_N);
+    boot_vis = (uint8_t)((vis_last + 1u + vis_roll(VIS_N - 1u)) % VIS_N);
+    flow_seed = vis_hash(vis_rng, 0xF10Fu);
+    vis_style = vis_last = boot_vis;                    /* (so the first screensaver is another one; kept with the next save) */
+}
+/* the screensavers' pictures need a floor behind the black wordmark: black becomes a dim voice colour that drifts */
+#define BOOT_FLOOR 110                                  /* (how bright the floor: of a voice's mid colour, 0..256) */
+static void boot_lift(uint32_t band_y, uint32_t t)
+{
+    uint32_t y, x, i;
+    for (y = 0; y < 120u; y++)
+        for (x = 0; x < 240u; x += 8u) {
+            uint32_t d = (x + (band_y + y) * 2u) / 4u + t, a = (d >> 6) & 3u;
+            uint16_t f = mix565(C_BLACK, mix565(TE_MID[a], TE_MID[(a + 1u) & 3u], (int32_t)(d & 63u) * 4), BOOT_FLOOR);
+            uint32_t fr = f >> 11, fg = (f >> 5) & 63u, fb = f & 31u;
+            for (i = 0; i < 8u; i++) {
+                uint16_t *p = &cv_px[y * 240u + x + i], c = swap16(*p);
+                uint32_t r = c >> 11, g = (c >> 5) & 63u, b = c & 31u;
+                *p = swap16((uint16_t)((r > fr ? r : fr) << 11 | (g > fg ? g : fg) << 5 | (b > fb ? b : fb)));
+            }
+        }
+}
 static void boot_frame(uint32_t t)
 {
     int32_t fade = t < 16u ? 256 - (int32_t)t * 16 : t > BOOT_END - 20u ? (int32_t)(t - (BOOT_END - 20u)) * 256 / 20 : 0;
-    uint32_t pass;
+    uint32_t pass, i, st = boot_vis % VIS_N;
+    if (st) {                                           /* the screensavers: their voices breathe, the clock runs on */
+        for (i = 0; i < 4u; i++) {
+            vs.e[i] = (uint16_t)(120 + (isin(t * 9u + i * 256u) * 60 >> 15));
+            vs.flash[i] = 0;
+        }
+        vs.kick = 0;
+        vs.tq = (300u + t * 2u) << 8;
+        vs.rip = t;
+        vis_prep(st);
+    }
     for (pass = 0; pass < 2u; pass++) {
-        cv_begin(240, 120, C_BLACK);
-        flow_band(pass * 120u, 120u, t, fade, 1u, 0u, 240u);   /* (the wordmark fills the square: the only black is its letters) */
+        if (st) {
+            vis_canvas();
+            vis_rows(st, pass);
+            boot_lift(pass * 120u, t);
+            if (fade)
+                for (i = 0; i < 240u * 120u; i++)
+                    cv_px[i] = swap16(mix565(swap16(cv_px[i]), C_BLACK, fade));
+        } else {
+            cv_begin(240, 120, C_BLACK);
+            flow_band(pass * 120u, 120u, t, fade, 1u, 0u, 240u);   /* (the wordmark fills the square: the only black is its letters) */
+        }
         sloop_logo_knock(0, pass * 120u, 120u);
         cv_blit(0, pass * 120u);
     }
@@ -631,12 +751,17 @@ static int boot_draw(void)
         return 0;
     if (fm1_in.buttons || fm1_in.notes || ++boot_t >= BOOT_END) {
         boot_t = 0xFFFFu;
+        memset(vs.e, 0, sizeof vs.e);                   /* (the boot's breathing levels: gone, the strip stands still) */
+        vs.kick = 0;
+        vis_stir(fm1_ticks());                          /* (the moment of the first key: a person's timing, for the screensaver) */
         lcd_fill(0, 0, 240, 240, C_BLACK);
         ui.force = 1;
         return 0;
     }
-    if (!t)                                             /* a different one each start: the clock, the battery's noise */
-        flow_seed = (fm1_ticks() * 2654435761u) ^ (fm1_ms * 40503u) ^ ((uint32_t)batt_level() << 7) ^ 0x9E3779B9u;
+    if (!t) {                                           /* a different one each start: the clock, the battery's noise, the MASTER pot's */
+        uint32_t sd = fm1_ticks() * 2654435761u ^ fm1_ms * 40503u ^ (uint32_t)song.batt_raw << 7 ^ (uint32_t)song.master_q12 << 13;
+        boot_choose(sd);
+    }
     boot_frame(t);
     return 1;
 }
