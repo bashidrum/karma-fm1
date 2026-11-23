@@ -113,7 +113,7 @@ The tab row above the dials always shows **the categories of the button you pres
 | **HOME** | home | **HOME**, the screensaver | screensaver: the next one | nothing | | | nothing |
 | **REC** | record | record / arm (synth steps, stopped: STEP REC); again: stop | | nothing more | | | |
 | **PLAY** | play | start / stop (with SEQ held: the FILL) | | | | | |
-| **OCT- / OCT+** | minus, plus | the screen's minus / plus (the legend says what); twice within 0.3 s: the octave | | OCT- / OCT+ held + a drum key: ghost / hard hit | | | |
+| **OCT- / OCT+** | minus, plus | the screen's minus / plus (the legend says what); twice within 0.3 s: the octave | | nothing more (wave 12: ghost and hard hits are the TRIG page's velocity) | | | |
 
 ### The FM-1's controls
 
@@ -356,7 +356,7 @@ On any of a synth voice's sound pages (OSC, FILT, ENV, FX, SENDS, SLICER, LFO, M
 - **One source of truth**: each amount is a cell of the MATRIX. CUTOFF and RESO are the CUT and RESO columns, the OSC page's three macros M1 to M3, TUNE the PIT column (vibrato), an insert's AMOUNT its FX column; every other knob gets a column of its own. LFO 1 on CUTOFF is the same value as LFO1 > CUT on the grid; the FILT envelope on CUTOFF is FILT's ENV knob.
 - **Not mappable**: TYPE, OCT, GLMODE, VOICE, PRIOR, ALLOC, the filter's ENV, KEY and LINK (modulation amounts and switches), the LFO's POL, SYNC, TRIG, ESYNC, LFO 2's SYNC and TRIG, the SLICER's PAT and RATE, the MATRIX page's knobs. An envelope cannot move its own times and level. An LFO may move its own RATE, PHASE and FADE.
 - **Outside the hold** a knob something moves has a small **wave** under its dial.
-- Velocity and key: on the MATRIX page only. On the drums, HOME, the steps and every other page, holding LFO or ENV is MASTER's pair, as before.
+- Velocity and key: on the MATRIX page only. On HOME, the steps and every other page, holding LFO or ENV is MASTER's pair, as before. On the drums' sound pages holding LFO maps too (section 5, "Hold LFO on a drum sound"); holding ENV there stays MASTER's pair.
 
 ### The GRID: steps on the keys
 
@@ -417,11 +417,19 @@ The drums work the Rytm's way. The drum voice has 16 sounds, one a key:
 | **Key** | **9** | **10** | **11** | **12** | **13** | **14** | **15** | **16** |
 | Sound | SNARE 2 | LOW TOM | HI TOM | CRASH | RIDE | SHAKER | CONGA | COWBELL |
 
-The closed hat cuts the open hat. Holding OCT- while you hit a drum key gives a ghost hit (velocity 42), OCT+ a hard hit (127). The other way round, **a drum key held, then OCT-**: that sound's hits are erased from the pattern (playing: from each step the playhead passes while you hold the key; stopped: all at once). The black keys play no drum sound.
+The closed hat cuts the open hat. **Ghost and hard hits come from velocity** (Ben: "Move ghost hits elsewhere"): the keys play and record at the velocity TRIG's KNOB 1 sets with no step held (100 to start; turn it to about 40 for ghosts, 127 for hard hits), and a hit already on a step gets its own with the step held and TRIG's VEL. OCT- with a key is only ever erase: **a drum key held, then OCT-**: that sound's hits are erased from the pattern (playing: from each step the playhead passes while you hold the key; stopped: all at once). The black keys play no drum sound.
 
 ### The drum screen
 
-Tap **SEQ** or **EDIT** with DRUM selected. The header shows DRUM and the **SELECT chip: the selected sound** (SELECT picks it). The body shows the **selected sound's name** large, the kit and how many steps it plays on (or STEP n HELD), the **sound map** top right (16 tiles; a sound with hits dim teal, lit as it plays, the selected one framed white, a yellow bar muted, ice blue soloed), the selected sound's **16 steps** (a hit filled, its shade its velocity; a black square: locks; three lines: a retrig; a notch: a condition), a line about the held step (RETRIG 1/32, LOCK DECAY ...) or which steps are shown with four page slots, the tab row (the categories of the button pressed: SRC FLTR for EDIT, AMP for ENV, LFO, the FX group, TRIG PATTERN for SEQ) and the dials in teal.
+Tap **SEQ** or **EDIT** with DRUM selected. The header shows DRUM and the **SELECT chip: the selected slot** (SELECT picks it). The body shows the **slot's name** large (SNARE), the kit (or CUSTOM) and how many steps it plays on (or STEP n HELD), the **slot map** top right (16 tiles; a slot with hits dim teal, lit as it plays, the selected one framed white, a yellow bar muted, ice blue soloed).
+
+**The keys are the steps, and only the keys** (Ben, 23 Nov 13:35: "I don't need to see the sequence on screen, it's shown on my keys"): the 16 white keys are the selected slot's 16 steps of the page shown, their lights its hits; the screen does not draw them again. Under the name:
+
+- on a sound page (SRC, FLTR, AMP, LFO): **SOUND 606 SNARE** (what PRESETS browses) and its place in the list (8/41), then a **picture of the sound**: its level over the first half second (teal; a noise of its own in grey) and its pitch sweep (a white line from the top), a mark every eighth of a second. With a step held: that step's locks (LOCK DECAY TUNE);
+- on SEQ (TRIG, PATTERN, A-D): which steps the keys are on (KEYS 1-16 OF 32 STEPS) and, with a step held, its values (VEL, RETRIG, NUDGE, the condition and chance, NOTE, how many locks); nothing held, the velocity new hits and the keys play at;
+- on FX: THE WHOLE DRUM VOICE and the page's name.
+
+Then the tab row (the categories of the button pressed: SRC FLTR for EDIT, AMP for ENV, LFO, the FX group, TRIG PATTERN A-D for SEQ) and the dials in teal.
 
 | You do | Result |
 | --- | --- |
@@ -465,6 +473,12 @@ FLTR starts as a synth voice's FILT: CUTOFF, RESO, ENV. Its TYPE stays on KNOB 4
 | **2/2** | **CHANCE** 1 to 99 % | **LENGTH** of the retrig, 1/8 step to 16 steps or INF | **CURVE** of the retrig's velocity, -128 to 127 | **NOTE** (a pitch lock) |
 
 With nothing held, TRIG's KNOB 1 is the velocity new hits get (100 to start); the other knobs say HOLD A STEP. A pattern holds 64 hits with a condition, chance, nudge or retrig (TRIG EXTRAS FULL: 64) and 128 sound locks (SOUND LOCKS FULL: 128).
+
+### Hold LFO on a drum sound
+
+Ben: "Hold LFO maps on drums too". On a drum sound page (SRC, FLTR, AMP, LFO), **hold LFO and wiggle a knob**: that knob becomes the slot's LFO destination, and the turn is its amount (DEPTH), right +, left -, back to 0: off. The page stays; the tab row says **MAP LFO** (outlined, as on the synths); the dials show the amount on the knob the LFO moves and 0 on the others; a knob that cannot be mapped (a named value: WAVE, TYPE, MODEL, NOISE, TRANS; the LFO's own knobs) is dark grey "--" and a turn says so. A sound has one LFO and so one destination: wiggling another knob moves it there, and the screen says so (**LFO > CUT (WAS DECAY)**). **OCT-** while holding takes it off (SAVE + OCT- brings it back). Outside the hold the knob it moves has the small wave under its dial. SEL does nothing here (one LFO). **Hold ENV** on the drums stays MASTER's pair (a drum sound has no envelope to map).
+
+The LFO's DEST knob (LFO 1/2) lists the same: PITCH, CUT, RESO, LEVEL, then every knob of the slot's machine that can be wiggled (HEX: FINE ATK DEC SLOPE P.AMT P.DEC M.PIT FM T.LVL T.PIT DRIVE DIST CRUSH REV DEL; CLASSIC: FINE SWEEP SWTIM HOLD DECAY TONE PART2 P2LVL CLICK N.LVL N.HLD N.DEC ENV HPF CHIP DRIVE REV DEL). PITCH, CUT, RESO and LEVEL move the hit as it rings; on a HEX sound every other knob does too; on a CLASSIC sound the others (and the sends on both) take the LFO's value as the hit starts, so the LFO changes them hit by hit.
 
 ### Modes and live play
 
@@ -734,7 +748,7 @@ Every button and key has an LED with three levels: **lit**, a **glow** (about a 
 | **GLO** | the mixer's keys: 1 to 4 mutes, 5 to 8 solos, G#3 PAN; drums: the 16 sounds, F#3 SOLO, G#3 PAN |
 | **FX** | every pad (white and black keys with a pad); OCT+ while a pad is held (latch), OCT- while something is latched |
 | **LFO / ENV** (mapping) | SEL (the other source), OCT- (remove) |
-| **OCT- / OCT+** | the other (octave 0); on the drums, where the keys play sounds: the white keys (ghost / hard) |
+| **OCT- / OCT+** | the other (octave 0) |
 | **a step** | the page buttons with another page to show (EDIT ENV LFO FX SEQ), SEL, OCT- (erase), the other steps |
 | **a key (a note, a sound)** | OCT- (erase it from the pattern) |
 
@@ -742,7 +756,7 @@ Every button and key has an LED with three levels: **lit**, a **glow** (about a 
 
 | Light | QUIET | NORMAL | SHOW |
 | --- | --- | --- | --- |
-| the page's button, the held button, REC recording, the octave, OCT- / OCT+ held on the drums | glow | lit | lit |
+| the page's button, the held button, REC recording, the octave | glow | lit | lit |
 | the hints of a hold (above) | backlight | lit | lit (they win over the show) |
 | the confirm's SAVE | glow, still | pulses | pulses |
 | a layer kept open (LOCK) | glow, still | blinks | blinks |
@@ -759,7 +773,7 @@ Every button and key has an LED with three levels: **lit**, a **glow** (about a 
 | the screensavers | only when opened | only when opened | open by themselves after a minute untouched on HOME while playing |
 | the boot screen (3 s) | as always | as always | as always |
 
-DISCO is a ceiling over LIGHTS, KEYS and NOTES: they still set what they set, but QUIET holds the backlight at LOW at most and turns NOTES off whatever it says (the menu shows NOTES grey then). It does not change the screen's brightness.
+DISCO is a ceiling over LIGHTS, KEYS and NOTES: they still set what they set, but QUIET holds the backlight at LOW at most and turns NOTES off whatever it says (the menu shows NOTES grey then). **QUIET also dims the screen** (Ben's answer): everything on it is drawn at about half its light (9/16), still readable; NORMAL and SHOW bring it back. The FM-1's screen light itself is on or off only (a plain switch line in its wiring), so the dimming is done in the picture; it does not save battery.
 
 ### Screensavers
 
@@ -859,7 +873,6 @@ The four ways ([section 2](#2-the-controls-and-the-screen)): a labelled button (
 | ALGORITHM | the voice (on the steps, past DRUM: the STUTTER lane) |
 | PRESETS | the sound (drums: on the drum screen the selected slot's sound, on HOME and SAVE > PRESETS the whole kit) |
 | MASTER | the volume; with a button held, its pair |
-| hold OCT- / OCT+ + drum key | ghost / hard hit |
 | a key held, then OCT- | that note or sound erased from the pattern |
 | hold SAVE + OCT- / OCT+ | undo / redo |
 
@@ -954,11 +967,11 @@ The four ways ([section 2](#2-the-controls-and-the-screen)): a labelled button (
 
 - **SELECT on the drum screen** picks the sound, not a type: Ben's choice. The drum sound's own WAVE, MODEL and filter TYPE stay on knobs.
 - **The octave is a double tap** of OCT- or OCT+: the one double press, Ben's choice, so that a single tap is always the screen's minus or plus.
-- **OCT- before a drum key** is a ghost hit; **a key before OCT-** erases that sound. The order says which.
+- **A drum key held, then OCT-** erases that sound's hits. OCT- held first and then a key is just the hit (no ghost hit since wave 12: ghosts come from TRIG's velocity).
 - **OCT+ on the STUTTER lane's last page** goes round to page 1 instead of adding a page: the lane's length is KNOB 4's.
 - **The drum voice's ARP** has one category, CHROMATIC: pressed again it ends it.
 - **The mixer's keys** follow the voice selected: a synth voice, the four voices' mutes and solos; the drums, the 16 sounds' mutes (F#3 SOLO: solos).
-- **The drum screen keeps its steps on every tab** (the Rytm's way, Ben's "B: four dials over the knobs"); the synth voices' steps show only on SEQ (Ben, 10:33). Whether the drums should follow is a question for Ben (DECISIONS.md).
+- **The drum screen draws no steps** (Ben, 23 Nov 13:35): the keys and their lights are the steps on every drum tab; the screen shows the sound instead. The synth voices' steps show on SEQ, where their note names and chords are drawn (the keys cannot show those).
 - **Power-on holds** (rescue, calibration, update mode) are the loader's and the recovery's, not the UI's: left as they are.
 - **Three controls at once**, the only ones: hold a step, change the page with a page button or SEL, turn a knob (a lock on another page). Everything else is one or two controls.
 
@@ -970,7 +983,7 @@ The four ways ([section 2](#2-the-controls-and-the-screen)): a labelled button (
 - **Do not flash until the unit has arrived and its chip revision is checked.** Newer FM-1 units have a changed chip and can be bricked.
 - **PHEBUS_ARENA_T12** (a setting of the device build only): tracks 1 and 2 have less memory for an oscillator than track 3. On the FM-1 itself, six Types (6-OP A, B, C, STRING, SPEECH, PARTICLE) play on track 3 only; on tracks 1 and 2 they are silent and the OSC page says NOT ON THIS TRACK. The simulator has no such limit.
 - **Polyphony**: eight notes shared by the three synth voices; JUNO up to six; ACID and the heavy Types one.
-- **No velocity or pressure on the keys**: they are plain switches. Use OCT- and OCT+ for ghost and hard drum hits, set velocity per step, or play PHEBUS from the MPC's pads over MIDI.
+- **No velocity or pressure on the keys**: they are plain switches. Set the drums' velocity on TRIG (KNOB 1 with nothing held: the keys and new hits; a step held: its VEL), or play PHEBUS from the MPC's pads over MIDI.
 - **The PERFORM time effects and the STUTTER lane are mono** (16-bit, 12 dB of headroom kept); the buffer is 0.74 seconds, and below about 84 BPM a quarter-note loop is cut to 0.72 seconds.
 - **Limits per pattern or voice**: 24 locks a synth voice, 128 drum sound locks and 64 hits with extras a pattern, 19 matrix cells a voice, 31 recorded pads in the lane, one kit of 16 slots a project, six kits of your own (SAVE > KITS).
 - **Mutes, solos and PERFORM's knob settings** are not saved.

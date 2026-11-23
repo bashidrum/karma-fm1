@@ -3,6 +3,7 @@
 # PHEBUS waves 9 to 11: the one-page button map, drawn for a phone: python3 tools/button_map.py review/wave11/button-map.png (needs
 # Pillow and the Inter font). Wave 10: per button its one idea, categories, SEL pages, hold, -/+ while held, MASTER's pair, SELECT.
 # Wave 11: hold LFO / ENV to map; what lights under a hold; DISCO; SAVE > PATTERNS; the drums teal (Ben's colour code, 11:33)
+# Wave 12: SAVE > KITS; PRESETS on the drums (the slot's sound / the whole kit); hold LFO maps on the drums; QUIET dims the screen
 from PIL import Image, ImageDraw, ImageFont
 import sys
 
@@ -27,7 +28,7 @@ B = [
      "on a synth sound page: MAP the envelope last shown (SEL the other): wiggle a knob; elsewhere MASTER's pair only",
      "- REMOVE this envelope's mappings here", "ENV LENGTH (drums: the decay)", "synth: nothing (no type)"),
     ("LFO", "modulation", [("LFO 1", "+ sync"), ("LFO 2", ""), ("MATRIX", "")], [("LFO", "1 to 2")],
-     "on a synth sound page: MAP the LFO last shown (SEL the other): wiggle a knob; elsewhere MASTER's pair only",
+     "on a synth sound page: MAP the LFO last shown (SEL the other); on a drum sound page: MAP its LFO (one DEST a sound); wiggle a knob. Elsewhere MASTER's pair only",
      "- REMOVE this LFO's mappings here", "MOD DEPTH (drums: LFO DEPTH)", "synth: the LFO's WAVE"),
     ("FX", "effects", [("INS", "FX 1 2 3"), ("SENDS", ""), ("SLICER", ""), (MIX, "3 pages")],
      [("FILTER", ""), ("INS", "1 to 2"), ("SENDS", ""), ("SLICER", ""), (MIX, "3 pages")],
@@ -40,7 +41,7 @@ B = [
      "-/+ and MASTER only", "- / + the pattern a SEMITONE", "TRANSP", "nothing"),
     ("GLO", "global", [("GLOBAL", ""), ("SYSTEM", ""), ("MIDI", "1 to 3"), ("DEVICE", "menu")], None,
      "the MIXER: levels, pans (G#3), mutes, solos; drums: the 16 sounds (F#3 SOLO)", "", "TEMPO", "nothing"),
-    ("SAVE", "keep, confirm", [("PRESETS", ""), ("USER", ""), ("PATT", "A-D"), ("TOOLS", "")], None,
+    ("SAVE", "keep, confirm", [("PRESETS", ""), ("USER", ""), ("KITS", "MY KIT 1-6"), ("PATT", "A-D"), ("TOOLS", "")], None,
      "keys 1-4 store A-D; a question showing: the confirm's ring", "- UNDO, + REDO", "", "nothing"),
     ("HOME", "home", [("HOME", ""), ("SAVER", "4 kinds")], None, "", "", "", "nothing"),
 ]
@@ -106,7 +107,7 @@ def draw(out):
     y += 130
     rules = [("1", "BUTTON", "opens its first category; again: the next one"),
              ("2", "SEL", "the PAGE button: the next page inside"),
-             ("3", "SELECT", "knob 5: the TYPE. On the drums: the sound"),
+             ("3", "SELECT", "knob 5: the TYPE. On the drums: the slot"),
              ("4", "HOLD", "a shortcut or a performance layer, never the only way")]
     cw = (W - 120 - 20) // 2
     for i, (n, k, t) in enumerate(rules):
@@ -175,8 +176,9 @@ def draw(out):
         ("SAVE  (KEEP, CONFIRM)", "A white bar says HOLD SAVE: ...? Hold SAVE until the ring fills (red: something goes; white: it only keeps). Hold SAVE + OCT- undo, + OCT+ redo. REC only records.", WHITE),
         ("MASTER WITH A BUTTON HELD", "Turn MASTER while holding FX (FX MIX), SEQ (SWING), ARP (TRANSP), EDIT (LEVEL), ENV (ENV LENGTH), LFO (MOD DEPTH), GLO (TEMPO). Relative: nothing jumps; the volume stays and follows again, without a jump, once MASTER is turned with nothing held.", WHITE),
         ("BLACK KEYS", "A black key does something only where the screen draws it, in the strip under the header: PERFORM's pads, hold SEQ's A B C D BAR, the mixer's SOLO and PAN, the KEY pages' chord changes. Elsewhere: a note, or nothing, and then its light stays dark.", WHITE),
-        ("HOLD TO MAP", "On a synth voice's sound page hold LFO (or ENV): the page stays, the dials become that source's amounts, boxed. Turn right +, left -, back to 0: gone. The header says MAP LFO 1; SEL flips to the other LFO (envelope); OCT- removes them on this page. Each one is a cell of the MATRIX. Outside the hold a small wave under a dial: something moves that knob.", WHITE),
-        ("THE LIGHTS", "Hold any button, a step, a key or a pad: what works with it lights, the rest goes dark. A question waiting: SAVE alone. GLO > DEVICE > LIGHTS > DISCO: QUIET (dim, nothing moves: for a night flight), NORMAL, SHOW (the keys dance: for filming).", WHITE),
+        ("HOLD TO MAP", "On a synth voice's sound page hold LFO (or ENV): the page stays, the dials become that source's amounts, boxed. Turn right +, left -, back to 0: gone. The header says MAP LFO 1; SEL flips to the other LFO (envelope); OCT- removes them on this page. Each one is a cell of the MATRIX. Outside the hold a small wave under a dial: something moves that knob. On a drum sound page hold LFO the same way: the knob you wiggle becomes the sound's one LFO destination (LFO > CUT (WAS DECAY)); hold ENV there is MASTER's pair.", WHITE),
+        ("THE LIGHTS", "Hold any button, a step, a key or a pad: what works with it lights, the rest goes dark. A question waiting: SAVE alone. GLO > DEVICE > LIGHTS > DISCO: QUIET (dim, nothing moves, the screen dimmed: for a night flight), NORMAL, SHOW (the keys dance: for filming).", WHITE),
+        ("PRESETS ON THE DRUMS", "On the drum screen: the selected slot's SOUND (SOUND 808 SNARE): INIT HEX, INIT CLASSIC, then its kind from every kit, then all; heard as you turn; turn back: what you had; SAVE + OCT-: undo. On HOME: the whole KIT (16 slots); asks HOLD SAVE only over a kit you changed (CUSTOM). Your kits: SAVE > KITS. Ghost and hard hits: TRIG's velocity (KNOB 1, nothing held).", COR),
         ("A LOCK ON ANY PAGE", "The steps show only on SEQ. Hold the step, press the page's button (and SEL): its knobs come under the steps, LOCK: in the tab row; turn a knob. Let go: the plain steps again. Nothing held, the button opens its real page.", WHITE)):
         lines = wrap(d, body, f_txt, W - 160)
         hh = 70 + 38 * len(lines) + 10
@@ -184,7 +186,7 @@ def draw(out):
         d.text((LX + 4, y + 20), title, font=f_h, fill=c)
         for j, l in enumerate(lines): d.text((LX + 4, y + 70 + j * 38), l, font=f_txt, fill=GREY)
         y += hh + 18
-    d.text((W / 2, y + 30), "PHEBUS wave 11  ·  23 Nov 2026  ·  the guide: GUIDE.md section 2", font=f_small, fill=DIM, anchor="mm")
+    d.text((W / 2, y + 30), "PHEBUS wave 12  ·  23 Nov 2026  ·  the guide: GUIDE.md section 2", font=f_small, fill=DIM, anchor="mm")
     im = im.crop((0, 0, W, int(y + 70)))
     im.save(out)
     print(out, im.size)
