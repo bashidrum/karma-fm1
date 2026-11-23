@@ -125,7 +125,7 @@ EXPORT uint32_t web_proj_put(uint32_t n)
     uint32_t i;
     if (n > sizeof web_proj || !proj_import(&q, &web_proj, (int)n, PROJ_V7_TMP))   /* (an older one: through format 7) */
         return 0;
-    proj_kit_take((const uint8_t *)&web_proj, (int)n); /* (PHEBUS wave 3: the project's own kit, in its ext) */
+    proj_kit_take((const uint8_t *)&web_proj, (int)n, &q); /* (PHEBUS wave 3: the project's own kit, in its ext) */
     proj_apply(&q, 1);
     song.sel = (uint8_t)(q.sel < NTRK ? q.sel : 0u);
     for (i = 0; i < NPART; i++)
