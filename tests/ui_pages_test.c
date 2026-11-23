@@ -1123,9 +1123,9 @@ int main(int argc, char **argv)
     check(!dt_has(0, 2) && dtest_lvl(4, 2) == LV_HARD, "SAVE + OCT+: redo (back, as left)");
     ppm("layer-erase");
     release(B_SAVE); frames(2);
-    fm1_in.notes |= 1u << 4; frames(2);               /* stopped: the snare's key held + OCT-: every snare goes */
+    fm1_in.notes |= 1u << key_of_lane(2); frames(2);  /* stopped: the snare's key (the drum grid: key 16) held + OCT-: every snare goes */
     edges_btn |= BT(B_OCTDN); fm1_in.buttons |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
-    fm1_in.notes &= ~(1u << 4); frames(2);
+    fm1_in.notes &= ~(1u << key_of_lane(2)); frames(2);
     check(!dt_has(4, 2) && !dt_has(8, 2), "the snare's key held + OCT- (stopped): every snare erased");
     press(B_SEQ); frames(10);                         /* (wave 9) SEQ + OCT+: the pattern doubled, a clone (DOUBLE on EDIT: gone) */
     edges_btn |= BT(B_OCTUP); fm1_in.buttons |= BT(B_OCTUP); frame(); fm1_in.buttons &= ~BT(B_OCTUP); frame();
@@ -1188,7 +1188,7 @@ int main(int argc, char **argv)
     ui.force = 1; frame(); ppm("layer-mix-fill");
     fm1_in.notes = 0; frame(); frame();
     key(key_of_white(9)); check(fill_arm == 0u, "GLO + key 10 (wave 10): no FILL NEXT BAR (SEQ + D#4)");
-    check(drum_mute == (1u << 8 | 1u << 9), "GLO + keys 9 and 10 (wave 13): SNARE 2 and LO TOM muted, whichever voice is selected");
+    check(drum_mute == (1u << 12 | 1u << 15), "GLO + keys 9 and 10 (the drum grid): RIDE and C-BELL muted, whichever voice is selected");
     tap(B_OCTDN); frames(2);
     check(!drum_mute && !drum_solo && !song.solo && !trk[0].p[P_MUTE], "GLO + OCT- (wave 13): every mute and solo off");
     release(B_GLO);
@@ -1391,7 +1391,7 @@ int main(int argc, char **argv)
         check(ok, "drum pages: ENV opens AMP (SEL its 2/2; ENV again its first page); LFO opens LFO");
         dpg_go(1, 0); frame();
         { uint32_t ln = drum_lane, bp = (uint32_t)song.g[G_BPM];
-          encs[panel.enc[EN_SELECT]] = 1; frame(); ok = drum_pg == 1u && dpg_half() == 0u && drum_lane == ln + 1u;
+          encs[panel.enc[EN_SELECT]] = 1; frame(); ok = drum_pg == 1u && dpg_half() == 0u && drum_lane == lane_step(ln, 1, 1);
           encs[panel.enc[EN_SELECT]] = -1; frame(); ok &= drum_lane == ln && (uint32_t)song.g[G_BPM] == bp;
           check(ok, "drum screen: SELECT steps the selected sound (Ben: \"SELECT knob\"), no page, no tempo"); }
         tap(B_SEQ); frames(2);
@@ -1420,7 +1420,7 @@ int main(int argc, char **argv)
         kit_set(DRUM_DEFAULT_KIT); ui.msg_t = 0; frames(2);
     }
     {   /* hold a trig and turn: the value locked on that trig (the 606: every kit's sounds lock), inverted; OCT- removes it */
-        uint32_t k5 = key_of_lane(4);
+        uint32_t k5 = key_of_white(4);
         int32_t dec = DS_KITS[DRUM_DEFAULT_KIT - DRUM_SAMPLED].s[1].decay;
         tap(B_ENV); frames(2); dpg_go(3, 0); frames(16);    /* AMP 1/2: HOLD DECAY N.HOLD N.DEC */
         fm1_in.notes = 1u << k5; frame();                    /* step 5 held (the snare's trig there) */
@@ -1451,21 +1451,21 @@ int main(int argc, char **argv)
          * OCT+ held with a key solos */
         drum_mute = drum_solo = 0;
         press(B_GLO); frames(12);
-        key(key_of_lane(5)); key(key_of_lane(11));
-        check(drum_mute == (1u << 5 | 1u << 11) && dt_has(7, 5) && !trk[0].p[P_MUTE],
-              "mixer, the drums selected: keys 6 and 12 mute OPEN HAT and CRASH (their trigs kept; no voice muted)");
-        press(B_OCTUP); key(key_of_lane(0)); release(B_OCTUP);
-        check(drum_solo == 1u && drum_mute == (1u << 5 | 1u << 11), "mixer (wave 13): OCT+ held + key 1: the KICK soloed (the mutes stay)");
+        key(key_of_white(5)); key(key_of_white(11));
+        check(drum_mute == (1u << 14 | 1u << 8) && dt_has(7, 5) && !trk[0].p[P_MUTE],
+              "mixer, the drums selected: keys 6 and 12 mute CONGA and SNARE 2 (the drum grid; trigs kept; no voice muted)");
+        press(B_OCTUP); key(key_of_white(0)); release(B_OCTUP);
+        check(drum_solo == 1u << 4 && drum_mute == (1u << 14 | 1u << 8), "mixer: OCT+ held + key 1: the HAT soloed (the drum grid; the mutes stay)");
         ui.force = 1; frame(); ppm("layer-mix-drums");
         check(px_count(0, BK_Y + 34, 240, 80, TE_MUTE) > 400u && px_count(0, BK_Y + 34, 240, 80, TE_SOLO) > 200u &&
               px_count(0, 0, 240, 240, TE_RED) == 0u, "mixer: muted sounds yellow, the soloed one ice blue, no red");
         key(3); frames(2); check(!fill_now && !fill_held && !mix_pan, "mixer: G#3 (wave 13: voice 2's key): no PAN, no FILL");
         key(3); frames(2);
         release(B_GLO); frames(2);
-        check(drum_mute == (1u << 5 | 1u << 11), "mixer let go: the mutes stay (performance state)");
-        song.sel = 0; press(B_GLO); frames(12); key(key_of_lane(0)); release(B_GLO); frames(2);
-        check(!trk[0].p[P_MUTE] && drum_mute == (1u << 0 | 1u << 5 | 1u << 11),
-              "mixer, a synth voice selected (wave 13: the same map): key 1 mutes the KICK, not voice 1");
+        check(drum_mute == (1u << 14 | 1u << 8), "mixer let go: the mutes stay (performance state)");
+        song.sel = 0; press(B_GLO); frames(12); key(key_of_white(3)); release(B_GLO); frames(2);
+        check(!trk[0].p[P_MUTE] && drum_mute == (1u << 0 | 1u << 14 | 1u << 8),
+              "mixer, a synth voice selected (wave 13: the same map): key 4 mutes the KICK, not voice 1");
         trk[0].p[P_MUTE] = 0; song.sel = TRK_DRUM; drum_mute = drum_solo = 0;
         tap(B_SCL); frames(2); check(drum_keys == DK_PLAY, "SEL on the drum screen: no MUTE mode any more (SEL is PAGE)");
         studio_open(SC_DRUM); tap(B_EDIT); frames(2);
@@ -1478,7 +1478,7 @@ int main(int argc, char **argv)
         {
             uint32_t l0 = drum_lane;
             tap(B_OCTUP); frames(20);
-            check(drum_chr_oct == 0 && drum_lane == l0 + 1u, "CHROMATIC mode (wave 10): OCT+ tapped: the next sound, the octave unchanged");
+            check(drum_chr_oct == 0 && drum_lane == lane_step(l0, 1, 0), "CHROMATIC mode (wave 10): OCT+ tapped: the next sound (key order), the octave unchanged");
             tap(B_OCTDN); frames(20);
             tap(B_OCTUP); tap(B_OCTUP); frames(20);
             check(drum_chr_oct == 1 && drum_lane == l0, "CHROMATIC mode: OCT+ twice quickly: the keys an octave up");
@@ -1525,7 +1525,7 @@ int main(int argc, char **argv)
         track_t *t = &trk[0];
         static track_t keep[NTRK];
         static dpat_t keep_dp;                          /* (PHEBUS wave 2: the drum pattern is not in trk[]) */
-        uint32_t k5 = key_of_lane(4), k1 = key_of_lane(0), a0, a1;
+        uint32_t k5 = key_of_white(4), k1 = key_of_white(0), a0, a1;
         memcpy(keep, trk, sizeof keep); keep_dp = dpat;
         song.sel = 0; go_home(); frames(16);
         steps_clear(t);
@@ -1699,7 +1699,7 @@ int main(int argc, char **argv)
         /* the drum grid: hold a step, as on the synths; its own values on TRIG (PHEBUS wave 3: SEQ, the Rytm's TRIG page) */
         song.sel = TRK_DRUM; studio_open(SC_DRUM); drum_lane = 0; drum_cursor = 0; dpg_go(0, 0); frames(16);
         dtest_clear(1);
-        fm1_in.notes |= 1u << key_of_lane(1); frame();
+        fm1_in.notes |= 1u << key_of_white(1); frame();
         check(dt_has(1, 0) && sg_held == 2u, "DRUM GRID: an empty step pressed: set at once (as before)");
         for (i = 0; i < 13u; i++) { encs[panel.enc[EN_K2]] = 1; frame(); }
         encs[panel.enc[EN_K3]] = 5; frame();
@@ -1736,9 +1736,9 @@ int main(int argc, char **argv)
             check(!step_locked(TDRUM, 1) && str_eq(ui.msg, "NOT LOCKABLE"), "DRUM GRID: the FX tab's SENDS with a step held: not lockable");
             lock_del(TDRUM, 1, P_COUNT); dpg_go(0, 0);
         }
-        fm1_in.notes &= ~(1u << key_of_lane(1)); frame();
+        fm1_in.notes &= ~(1u << key_of_white(1)); frame();
         check(dt_has(1, 0), "DRUM GRID: let go after an edit: kept");
-        key(key_of_lane(1));
+        key(key_of_white(1));
         check(!dt_has(1, 0), "DRUM GRID: tapped again: cleared");
         tap(B_ENV); frames(2);                            /* ENV / LFO on the drum GRID: the drum screen's AMP and LFO */
         check(on_drum_page() && drum_pg == 3u, "DRUM GRID: ENV opens the sound's AMP page (the drum screen's)");
@@ -1772,7 +1772,7 @@ int main(int argc, char **argv)
         track_t *t = &trk[0];
         static track_t keep[NTRK];
         static dpat_t keep_dp;                          /* (PHEBUS wave 2: the drum pattern is not in trk[]) */
-        uint32_t k3 = key_of_lane(2), k5 = key_of_lane(4), k6 = key_of_lane(5), k7 = key_of_lane(6), j, n, ok;
+        uint32_t k3 = key_of_white(2), k5 = key_of_white(4), k6 = key_of_white(5), k7 = key_of_white(6), j, n, ok;
         memcpy(keep, trk, sizeof keep); keep_dp = dpat;
         song.playing = 0; song.sel = 0; go_home(); frames(16);
         steps_clear(t); for (j = 0; j < NLOCK; j++) t->lock[j].step = LOCK_FREE;
@@ -1911,7 +1911,7 @@ int main(int argc, char **argv)
         track_t *t = &trk[1];
         static track_t keep[NTRK];
         static dpat_t keep_dp;                          /* (PHEBUS wave 2: the drum pattern is not in trk[]) */
-        uint32_t ka = key_of_lane(0), kb = key_of_lane(2), kc = key_of_lane(4), na, nb, nc, j, empty = 1;
+        uint32_t ka = key_of_white(0), kb = key_of_white(2), kc = key_of_white(4), na, nb, nc, j, empty = 1;
         memcpy(keep, trk, sizeof keep); keep_dp = dpat;
         song.sel = 1; go_home(); frames(16);
         steps_clear(t); t->p[P_SLEN] = 16; t->p[P_CHORD] = 0; song.octave = 0;
@@ -2433,12 +2433,12 @@ int main(int argc, char **argv)
         memset(pad_lit, 0, sizeof pad_lit);
         drum_lane = 0; frame();                         /* (wave 9, Ben: "Drum sound pick: SELECT knob") */
         encs[panel.enc[EN_SELECT]] = 3; frame(); frame();
-        check(drum_lane == 1 && pad_lit[1], "grid: SELECT a detent: the next sound (KICK 2), heard while stopped");
+        check(drum_lane == 5 && pad_lit[5], "grid: SELECT a detent from KICK: the next sound in key order (OP HAT, key 5), heard while stopped");
         encs[panel.enc[EN_SELECT]] = 1; frame(); encs[panel.enc[EN_SELECT]] = 1; frame();
-        check(drum_lane == 3, "grid: SELECT, two more: the CLAP");
+        check(drum_lane == 9, "grid: SELECT, two more: CONGA, then LO TOM (down the second column)");
         frames(20);
         key(key_of_white(9)); frame();
-        check(dt_has(25, 3), "grid: a white key sets the step of the sound picked");
+        check(dt_has(25, 9), "grid: a white key sets the step of the sound picked");
         key(key_of_white(9)); frame();
         check(!dt_has(25, 3), "grid: again: cleared");
         {   /* PHEBUS (21 Nov 2026): the STUTTER lane, after DRUM on the GRID (ui_stut.c, punch.c stl) */
@@ -2673,7 +2673,7 @@ int main(int argc, char **argv)
                                                          * (held SEQ set it before PHEBUS took the step keys off) */
         tap(B_SEQ); frames(2);                          /* (wave 4: the GRID at TRIG, as the drum screen's SEQ) */
         check(on_drum_page() && kb_grid && syn_tab == 0u, "SEQ from HOME: the GRID, on TRIG (the step's own values)");
-        fm1_in.notes = 1u << key_of_lane(4); frame();     /* LEN on the GRID (a step held, KNOB 2), as STEP's KNOB 3 was */
+        fm1_in.notes = 1u << key_of_white(4); frame();     /* LEN on the GRID (a step held, KNOB 2), as STEP's KNOB 3 was */
         K(EN_K2, 1); K(EN_K2, 1);
         check(note_len(&trk[0], 4) == 3u && trk[0].step[5].time == ST_TIE && trk[0].step[6].time == ST_TIE &&
               trk[0].step[7].time != ST_TIE, "GRID, step held, KNOB 2 on a note: LEN 1 -> 3 (two TIEs after it)");
@@ -2752,8 +2752,8 @@ int main(int argc, char **argv)
             uint32_t v0, v1;
             song.sel = 0; trk[0].p[P_SLEN] = 16; go_home(); frames(16);
             studio_open(SC_DRUM); frames(2);
-            key(key_of_lane(0)); key(key_of_lane(4));
-            fm1_in.notes = 1u << key_of_lane(0) | 1u << key_of_lane(4); frame();
+            key(key_of_white(0)); key(key_of_white(4));
+            fm1_in.notes = 1u << key_of_white(0) | 1u << key_of_white(4); frame();
             v0 = step_vel_shown(&trk[0].step[0]), v1 = step_vel_shown(&trk[0].step[4]);
             K(EN_K3, 1);
             check(step_on(&trk[0].step[0]) && trk[0].step[0].vel == v0 + 1u && trk[0].step[4].vel == v1 + 1u,
@@ -2769,9 +2769,9 @@ int main(int argc, char **argv)
         key(0);                                           /* (wave 10) EDIT erases nothing */
         check(er_mute == 0u && drum_mute == 0u && dt_has(0, 0), "EDIT + a key (drum track, wave 10): nothing erased or muted");
         release(B_EDIT); frames(2);
-        fm1_in.notes |= 1u << 0; frames(2);              /* the kick's key held + OCT-: erased */
+        fm1_in.notes |= 1u << key_of_lane(0); frames(2);   /* the kick's key (the drum grid: key 4) held + OCT-: erased */
         edges_btn |= BT(B_OCTDN); fm1_in.buttons |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
-        fm1_in.notes &= ~(1u << 0); frames(2);
+        fm1_in.notes &= ~(1u << key_of_lane(0)); frames(2);
         check(!dt_has(0, 0) && drum_mute == 0u, "the kick's key held + OCT-: its steps erased (not muted)");
         drum_mute = 0;
         dtest_clear(0);
@@ -3727,7 +3727,7 @@ int main(int argc, char **argv)
                                 if (!same) printf("ui:   SELECT changed something on %s\n", ui.home ? "HOME" : PAGES[ui.page].title);
                                 nnone++;
                             } else if (kind == SK_SOUND) {
-                                okd &= drum_lane == (ln < 15u ? ln + 1u : 15u);
+                                okd &= drum_lane == lane_step(ln, 1, 1);   /* (the drum grid's key order, round) */
                                 drum_lane = (uint8_t)ln;
                             } else {
                                 uint32_t moved = id == V_TYPE ? vtype_of(TSEL) != ty
@@ -3797,7 +3797,7 @@ int main(int argc, char **argv)
         }
         {   /* the routes removed do nothing */
             track_t *t = &trk[0];
-            uint32_t k5 = key_of_lane(4);
+            uint32_t k5 = key_of_white(4);
             song.sel = 0; go_home(); frames(2); tap(B_SEQ); frames(2);
             t->step[4].n = 1; t->step[4].note[0] = 60; t->step[4].time = ST_NOTE;
             fm1_in.notes |= 1u << k5; frame();
@@ -3805,7 +3805,7 @@ int main(int argc, char **argv)
             check(step_fill(t, 4) == FC_NORM, "removed: a step held + OCT+ (its condition: TRIG KNOB 4 COND)");
             fm1_in.notes &= ~(1u << k5); frames(2);
             track_select(TRK_DRUM); studio_open(SC_DRUM); frames(16);
-            { uint32_t ln = drum_lane; press(B_SCL); frames(30); key(key_of_lane(9)); release(B_SCL); frames(2);
+            { uint32_t ln = drum_lane; press(B_SCL); frames(30); key(key_of_white(9)); release(B_SCL); frames(2);
               check(drum_lane == ln && ui.layer == LY_PLAY, "removed: SEL held + a key (the drum sound pick: SELECT)"); }
             tap(B_SCL); frames(2); check(drum_keys != DK_MUTE, "removed: SEL tapped on the drum screen: no MUTE mode (the mixer's)");
             track_select(0); go_home(); frames(2);
@@ -4036,9 +4036,9 @@ int main(int argc, char **argv)
             track_select(TRK_DRUM); go_home(); frames(2);
             steps_clear(TDRUM); TDRUM->p[P_SLEN] = 16;
             for (j = 0; j < 16u; j += 4u) { dtest_set(j, 0, LV_NORM, 0); dtest_set(j, 2, LV_NORM, 0); }
-            fm1_in.notes |= 1u << key_of_white(0); frames(2);
+            fm1_in.notes |= 1u << key_of_lane(0); frames(2);
             tap(B_OCTDN);
-            fm1_in.notes &= ~(1u << key_of_white(0)); frames(22);
+            fm1_in.notes &= ~(1u << key_of_lane(0)); frames(22);
             for (j = 0; j < 16u; j++) left += dt_has(j, 0);
             check(!left && dt_has(0, 2), "w10: drums: the kick's key held + OCT-: every kick erased, the snares kept");
             track_select(0); go_home(); frames(2);
