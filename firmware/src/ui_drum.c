@@ -260,12 +260,13 @@ static uint16_t drum_tile_col(uint32_t l)               /* a sound's tile in the
         has = dt_has(i, l);
     return pad_lit[l] ? TE_DRUM : has ? TE_MID[3] : TE_G1;
 }
-/* the 16 sounds as a 4 x 4 map at (x0, y0), tiles w x h on a pitch of px, py */
+/* the 16 sounds as a 4 x 4 map at (x0, y0), tiles w x h on a pitch of px, py: the drum grid (drums.c DRUM_GRID) */
 static void drum_map(int32_t x0, int32_t y0, int32_t w, int32_t h, int32_t px, int32_t py)
 {
-    uint32_t l;
-    for (l = 0; l < DRUM_LANES; l++) {
-        int32_t x = x0 + (int32_t)(l % 4u) * px, y = y0 + (int32_t)(l / 4u) * py;
+    uint32_t i;
+    for (i = 0; i < DRUM_LANES; i++) {
+        uint32_t l = DRUM_GRID[i];
+        int32_t x = x0 + (int32_t)(i % 4u) * px, y = y0 + (int32_t)(i / 4u) * py;
         cv_rect(x, y, w, h, drum_tile_col(l));
         if ((drum_mute >> l) & 1u)
             cv_rect(x + w - 5, y + 2, 3, h - 4, TE_MUTE);
@@ -823,13 +824,14 @@ static void drum_main_draw(void)
 static void drum_mute_draw(void)
 {
     static uint32_t head, sa, sb, bar;
-    uint32_t l, sig = drum_map_sig() * 7u + drum_trig_sig(drum_lane & 15u, sg_page());
+    uint32_t p, sig = drum_map_sig() * 7u + drum_trig_sig(drum_lane & 15u, sg_page());
     op_header("DRUM", TE_DRUM, "MUTE", &head);
     if (ui.force || sig != sa) {
         sa = sig;
         cv_begin(240, 124, C_BLACK);
-        for (l = 0; l < DRUM_LANES; l++) {
-            int32_t x = 2 + (int32_t)(l % 4u) * 60, y = 3 + (int32_t)(l / 4u) * 25;
+        for (p = 0; p < DRUM_LANES; p++) {             /* (the drum grid: place p, the sound l there) */
+            uint32_t l = DRUM_GRID[p];
+            int32_t x = 2 + (int32_t)(p % 4u) * 60, y = 3 + (int32_t)(p / 4u) * 25;
             uint32_t m = (drum_mute >> l) & 1u, so = (drum_solo >> l) & 1u, sel = l == drum_lane, i, j;
             char nm[8];
             for (i = j = 0; LANE_SHORT[l][i] && j < 7u; i++)    /* (the name without its space when a badge needs the room) */
@@ -886,9 +888,8 @@ static void drum_grid_input(uint32_t pressed)
     int32_t s;
     if (drum_keys == DK_CHROM) {                        /* (wave 10) chromatic: -/+ the sound before / after (its octave: a
                                                          * double tap, ui_input.c pm_input) */
-        if (pressed & (ob | pb)) {
-            int32_t l = clamp((int32_t)(drum_lane & 15u) + ((pressed & pb) ? 1 : -1), 0, DRUM_LANES - 1);
-            drum_lane = (uint8_t)l;
+        if (pressed & (ob | pb)) {                      /* (the drum grid: in key order, stopping at either end) */
+            drum_lane = (uint8_t)lane_step(drum_lane, (pressed & pb) ? 1 : -1, 0);
             ui.force = 1;
         }
     } else if (drum_keys == DK_PLAY && (pressed & (ob | pb))) {

@@ -110,10 +110,9 @@ static void drum_cut(uint32_t k)
 }
 
 /* ------------------------------------------------------------ lanes --- */
-/* The drum track's 16 sounds, one per white key, F3 (kick) .. G5 (cowbell): kicks, snare and clap,
- * the hi-hats, rim and a second snare, the toms, the cymbals, the percussion. Each plays a GM note
- * (the synthesised kits: drum_synth.c DS_MAP). A black key plays
- * the lane of the white key left of it (two fingers on one sound). */
+/* The drum track's 16 sounds (slots), in slot order: kicks, snare and clap, the hi-hats, rim and a second snare, the toms,
+ * the cymbals, the percussion. Each plays a GM note (the synthesised kits: drum_synth.c DS_MAP). Which white key plays which
+ * is the grid's (DRUM_GRID below, since the drum grid wave; until then key n played slot n) */
 static const uint8_t LANE_NOTE[DRUM_LANES] = {36, 35, 38, 39, 42, 46, 44, 37, 40, 43, 48, 49, 51, 70, 63, 56};
 static const char *const LANE_NAME[DRUM_LANES] = {
     "KICK", "KICK 2", "SNARE", "CLAP", "HAT", "OPEN HAT", "PEDAL", "RIM",
@@ -132,21 +131,54 @@ static uint32_t lane_of_note(uint32_t note)
 {
     return note < 35u ? 0u : note > 81u ? 13u : LANE_OF_GM[note - 35u];
 }
-/* the lane of key k (0 = F3 .. 26 = G5): white keys in order, a black key the white key left of it */
+/* (the drum grid, Rytm style: Ben, 23 Nov 2026, 21:07 and 21:14, as he typed it) THE ONE LAYOUT of the 16 sounds, used
+ * everywhere they are drawn (the mixer, the drum screen's map, the hold SEQ tiles) and everywhere the white keys choose or
+ * play one (the keys, RETRIG, the mixer's mutes and solos, SELECT's order): the grid's place, row by row from the top
+ * left, -> the slot.
+ *     HAT     OP HAT  RIDE    CRASH
+ *     PEDAL   CONGA   C-BELL  SHAKER
+ *     KICK 2  LO TOM  HI TOM  CLAP
+ *     KICK    RIM     SNARE 2 SNARE
+ * The white keys run down the columns, top to bottom (his picker): keys 1 to 4 the left column (HAT PEDAL KICK 2 KICK),
+ * 5 to 8 the second, 9 to 12 the third, 13 to 16 the right. Presentation and key order only: the slots, the project, the
+ * kits, the MIDI notes, the trigs and locks, PERFORM's mutes stay by slot */
+static const uint8_t DRUM_GRID[DRUM_LANES] = {4, 5, 12, 11, 6, 14, 15, 13, 1, 9, 10, 3, 0, 7, 8, 2};
+/* white key w (0..15) -> its place in the grid; the same sum turns a place back into its key (the transpose) */
+static uint32_t dgrid_of_white(uint32_t w) { return (w & 3u) * 4u + ((w >> 2) & 3u); }
+static uint32_t lane_of_white(uint32_t w) { return DRUM_GRID[dgrid_of_white(w & 15u)]; }
+static uint32_t dgrid_of_lane(uint32_t l)               /* the grid's place of slot l */
+{
+    uint32_t p;
+    for (p = 0; p < 15u && DRUM_GRID[p] != (l & 15u); p++)
+        ;
+    return p;
+}
+static uint32_t white_of_lane(uint32_t l) { return dgrid_of_white(dgrid_of_lane(l)); }   /* slot l's white key, 0..15 */
+/* the sound d keys on from slot l, in key order (SELECT, CHROMATIC's -/+); wrap: round, else it stops at either end */
+static uint32_t lane_step(uint32_t l, int32_t d, int wrap)
+{
+    int32_t w = (int32_t)white_of_lane(l) + d;
+    w = wrap ? (w & 15) : w < 0 ? 0 : w > 15 ? 15 : w;
+    return lane_of_white((uint32_t)w);
+}
+/* the lane of key k (0 = F3 .. 26 = G5): the white key's sound (the grid's order), a black key the white key left of it */
 static uint32_t lane_of_key(uint32_t k)
 {
     static const int8_t W[12] = {0, -1, 1, -1, 2, -1, 3, 4, -1, 5, -1, 6};   /* from F */
     int32_t i = W[k % 12u];
     if (i < 0)
         i = W[(k - 1u) % 12u];
-    return (uint32_t)((int32_t)(k / 12u) * 7 + i) & 15u;
+    return lane_of_white((uint32_t)((int32_t)(k / 12u) * 7 + i) & 15u);
 }
-/* the white key of lane l (key index), for the key LEDs */
-static uint32_t key_of_lane(uint32_t l)
+/* white key w (0 .. 15: a step, a pad, a place) -> its key index */
+static uint32_t key_of_white(uint32_t w)
 {
     static const uint8_t K[7] = {0, 2, 4, 6, 7, 9, 11};      /* F G A B C D E */
-    return (l / 7u) * 12u + K[l % 7u];
+    w &= 15u;
+    return (w / 7u) * 12u + K[w % 7u];
 }
+/* the key of slot l (its sound's white key, the grid's order), for the key LEDs */
+static uint32_t key_of_lane(uint32_t l) { return key_of_white(white_of_lane(l)); }
 
 /* (PHEBUS wave 3) the selected sound: the one the drum screen's pages, its step keys, chromatic mode and the sound pick
  * address (written by the UI only; seq.c reads it for chromatic mode) */

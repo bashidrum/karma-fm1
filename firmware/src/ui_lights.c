@@ -174,7 +174,7 @@ static void ll_show_keys(uint32_t dead)
         m |= keys_sounding(&trk[i]);
     for (i = 0; i < DRUM_LANES; i++)                    /* the drum hits */
         if (pad_lit[i])
-            m |= 1u << key_of_white(i);
+            m |= 1u << key_of_lane(i);              /* (its sound's key: the grid's order) */
     ll_keys(m & ~dead, LL_LIT, LK_MOTION);
     if (song.playing) {                                 /* the step, along the white keys */
         uint32_t st = (clk_beat * 4u + clk_pos / (BEAT_U / 4u)) & 15u;   /* (no 64-bit divide) */
@@ -228,7 +228,7 @@ static void ui_leds(void)
         if (h == HC_STEP)                               /* the steps held (and the others: hints) */
             for (k = 0; k < 16u; k++)
                 if ((sg_held >> k) & 1u)
-                    ll_set(14u + key_of_lane(k), LL_LIT, LK_STATE);
+                    ll_set(14u + key_of_white(k), LL_LIT, LK_STATE);
         if (h == HC_KEY)                                /* the keys held */
             ll_keys(fm1_in.notes & ~keys_dead(), LL_LIT, LK_STATE);
     } else {                                            /* ---- nothing held: as before wave 11, then the DISCO */
@@ -264,7 +264,7 @@ static void ui_leds(void)
             const track_t *t = TSEL;
             uint32_t i, len = trk_len(t), b0 = sg_page() * 16u, ph = song.playing ? t->seq_idx : 0xFFFFu;
             for (i = 0; i < 16u; i++) {
-                uint32_t idx = b0 + i, on, key = 14u + key_of_lane(i);
+                uint32_t idx = b0 + i, on, key = 14u + key_of_white(i);
                 if (idx >= len)
                     continue;
                 on = (uint32_t)sg_on(t, idx);

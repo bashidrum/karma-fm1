@@ -53,8 +53,6 @@ static void layers_init(void)
     dyn_bit[1] = 1u << panel.btn[B_OCTUP];
 }
 
-static uint32_t key_of_white(uint32_t w) { return key_of_lane(w & 15u); }   /* white key w -> key index */
-
 /* ------------------------------------------------------------ tools --- */
 /* EDIT layer knobs; each a step of one undo (the layer's hold) */
 static void layer_undo_mark(track_t *t)
@@ -291,12 +289,13 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
                                                          * drums. A key tapped: mute (again: unmute); with OCT+ held: solo
                                                          * ("plus = only this"; again: off). Performance state */
         uint32_t plus = (fm1_in.buttons >> panel.btn[B_OCTUP]) & 1u;
-        if (w >= 0 && w < 16) {
+        if (w >= 0 && w < 16) {                         /* (the drum grid: key w is the grid's sound, down the columns) */
+            uint32_t l = lane_of_white((uint32_t)w);
             if (plus)
-                drum_solo ^= (uint16_t)(1u << w);
+                drum_solo ^= (uint16_t)(1u << l);
             else
-                drum_mute ^= (uint16_t)(1u << w);
-            drum_lane = (uint8_t)w;
+                drum_mute ^= (uint16_t)(1u << l);
+            drum_lane = (uint8_t)l;
         } else if (bi >= 0 && bi < 4) {
             if (plus)
                 song.solo ^= (uint8_t)(1u << bi);
@@ -542,12 +541,12 @@ static void layer_screen_draw(void)
     case LY_SEQ: {                                      /* (wave 10) the rhythm: the keys ROLL (drums RETRIG), lit = held */
         uint32_t held = fm1_in.notes;
         str_cpy(sub, fill_now ? "fill on" : "play: fill", sizeof sub);
-        for (i = 0; i < 16u; i++) {
-            uint32_t k = key_of_white(i), down = (held >> k) & 1u, present = 0, j;
+        for (i = 0; i < 16u; i++) {                     /* (the drums: tile i is the grid's place i, and its sound's key) */
+            uint32_t l = DRUM_GRID[i], k = is_drum(t) ? key_of_lane(l) : key_of_white(i), down = (held >> k) & 1u, present = 0, j;
             if (is_drum(t)) {
-                str_cpy(tl[i].lab, LANE_SHORT[i], 8);
+                str_cpy(tl[i].lab, LANE_SHORT[l], 8);
                 for (j = 0; j < trk_len(t); j++)
-                    present |= (uint32_t)dt_has(j, i);
+                    present |= (uint32_t)dt_has(j, l);
             } else {
                 uint32_t n = kb_map(t, k);
                 if (n == KB_SILENT) {

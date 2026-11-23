@@ -1175,8 +1175,8 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
      *            name in its colour, its level as a bar with the meter in it; muted a yellow M (the cell yellow), soloed an
      *            ice-blue S (the cell ice blue), silenced by another's solo dim. The other seven black keys do nothing here:
      *            not drawn
-     *   drums    the 16 drum sounds on the 16 white keys, 4 x 4 as the keys run (keys 1 .. 4 the top row, as PERFORM's pads),
-     *            each named (KICK, SNARE, OP HAT ...) in teal (the drum voice's); muted: yellow with a black M; soloed: ice
+     *   drums    the 16 drum sounds on the 16 white keys, 4 x 4 in the drum grid (drums.c DRUM_GRID, Ben 21:14: cymbals and
+     *            hats at the top, KICK bottom left, SNARE bottom right; keys 1 .. 4 the left column top to bottom), each named (KICK, SNARE, OP HAT ...) in teal (the drum voice's); muted: yellow with a black M; soloed: ice
      *            blue with a black S; silenced by a solo: dark grey
      *   dials    the four levels (SEL: the pans), each in its voice's colour, LEVEL or PAN over it */
     static const char *const VN[4] = {"V1", "V2", "V3", "DRUM"};
@@ -1231,11 +1231,12 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
     if (ui.force || sig != dr) {                        /* the 16 drum sounds, 4 x 4 (y 74 .. 152) */
         dr = sig;
         cv_begin(240, 80, C_BLACK);
-        for (i = 0; i < 16u; i++) {
+        for (i = 0; i < 16u; i++) {                     /* (i: the grid's place; l: the sound there) */
             int32_t x = 1 + (int32_t)(i % 4u) * 60, y = (int32_t)(i / 4u) * 20;
-            uint32_t m = (drum_mute >> i) & 1u, so = (drum_solo >> i) & 1u, quiet = !m && (trk_silent(TDRUM) || drum_silenced(i));
+            uint32_t l = DRUM_GRID[i], m = (drum_mute >> l) & 1u, so = (drum_solo >> l) & 1u,
+                     quiet = !m && (trk_silent(TDRUM) || drum_silenced(l));
             char nm[8];
-            te_upper(nm, LANE_SHORT[i], sizeof nm);
+            te_upper(nm, LANE_SHORT[l], sizeof nm);
             if (m || so) {                              /* (the tile yellow / ice blue, the name black; at its right end the
                                                          * letter, M or S, in a black tab) */
                 cv_rect(x, y, 58, 18, m ? TE_MUTE : TE_SOLO);
