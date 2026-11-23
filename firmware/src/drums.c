@@ -65,6 +65,7 @@ static struct {
     int32_t tail;                /* declick: the last output of cut voices, decaying */
     int32_t trev, tdly;          /* (3.1.2) .. and their reverb and delay sends: they stepped to 0, a click in
                                   * the echo and the reverb */
+    int32_t btail, btrev, btdly; /* (KIT FX OFF) the same declick of a sound past the kit's effects: past them too */
     int32_t gs[NDRUM][2];        /* each voice's reverb and delay send gains in the last block, Q15 */
     int32_t peak;                /* largest |output| since the UI last looked (TRACKS meter) */
     uint8_t trim[NDRUM];         /* (wave 12) the level trim of the slot's sound (its kit's: DRUM_KIT_TRIM's index, 7 none) */
@@ -104,10 +105,17 @@ static void drums_hex_pre(uint32_t n)          /* CPU1 */
     hx_pre_mask = (uint8_t)m;
 }
 
+static uint32_t sl_kfx_off(uint32_t l);         /* (drum_snd.c: a sound's KIT FX OFF) */
 /* voice k stops (stolen, choked, ended): what it was playing fades out, its sends too (drums_mix) */
 static void drum_cut(uint32_t k)
 {
     const int32_t s = drums.v[k].s[7];
+    if (sl_kfx_off(drums.lane[k])) {                /* (KIT FX OFF: its declick past the kit's effects too) */
+        drums.btail += s;
+        drums.btrev += mulq15(s, drums.gs[k][0]);
+        drums.btdly += mulq15(s, drums.gs[k][1]);
+        return;
+    }
     drums.tail += s;
     drums.trev += mulq15(s, drums.gs[k][0]);
     drums.tdly += mulq15(s, drums.gs[k][1]);
@@ -710,6 +718,7 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dl
         for (k = 0; k < NDRUM; k++)
             drums.v[k].active = 0;
         drums.tail = drums.trev = drums.tdly = 0;
+        drums.btail = drums.btrev = drums.btdly = 0;
         drums.peak = 0;
         hx_pre_mask = 0;
         return;
@@ -727,6 +736,20 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dl
         DRUM_FADE(drums.tail);
         DRUM_FADE(drums.trev);
         DRUM_FADE(drums.tdly);
+    }
+    for (i = 0; i < n && (drums.btail | drums.btrev | drums.btdly); i++) {   /* (KIT FX OFF) theirs, past the kit's effects */
+        int32_t *bl = dbp_l ? dbp_l : ml, *br = dbp_l ? dbp_r : mr, *bv = dbp_l ? dbp_v : rev, *bd = dbp_l ? dbp_d : dly;
+        if (bl) {
+            bl[i] += drums.btail;
+            br[i] += drums.btail;
+        } else {
+            mono[i] += drums.btail;
+        }
+        bv[i] += drums.btrev;
+        bd[i] += drums.btdly;
+        DRUM_FADE(drums.btail);
+        DRUM_FADE(drums.btrev);
+        DRUM_FADE(drums.btdly);
     }
 #undef DRUM_FADE
     for (k = 0; k < NDRUM; k++) {               /* synthesised voices: render, then as below */

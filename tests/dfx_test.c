@@ -260,6 +260,14 @@ int main(int argc, char **argv)
                   ((const pkit_t *)blob.x.kit)->ver == PK_VER, what);
         }
     }
+    {   /* the KIT FX switch: saved and loaded with the project */
+        pkit_load_kit(DRUM_DEFAULT_KIT);
+        sl_kfx_set(4, 1);
+        proj_capture(&blob);
+        pkit_load_kit(DRUM_DEFAULT_KIT);
+        load_mem();
+        check(sl_kfx_off(4) == 1u && sl_kfx_off(0) == 0u && sl_send(4, 0) == 0u, "KIT FX OFF on the HAT: saved with the project and loaded");
+    }
     printf("dfx: %s (%d failed)\n", fails ? "FAILED" : "all ok", fails);
     return fails != 0;
 #endif
