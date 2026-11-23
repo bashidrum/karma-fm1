@@ -382,6 +382,43 @@ Found and fixed
 - gp_bars read d in the same expression that assigned it (the warning); the same pattern in ui_pages_test.
 Memory: on an rv32 -Os stand-in build against the wave 6 merge (not the JieLi toolchain): pool +0 B, .data+.bss +160 B (about 96,300 of 98,304 on the device), code and constants -2.0 KB (about 514.6 KB of 581,564).
 
+## Rebuild wave 8, the layout logic (22 to 23 Nov): calls made that Ben did not specify
+Ben's answers (SPEC.md, "22 Nov 2026, 23:20"): "FX = whole mix only", key legend "Leave as built", "One rule everywhere", "Same words" (all four). Where they left a choice, the call that best fits his MPC rule ("everything is either written on the knob or written below the knob ... The most hidden things get is a long press on a button") was taken.
+
+FX = whole mix only
+- A voice's FX stage: FX 1, FX 2, FX 3 (inserts: PHASER FLANGER DIST SOFT HARD FOLD FUZZ CRUSH EQ), SENDS (DELAY REVERB CHORUS: the voice's P_DLY P_REV P_CHOR, always heard, 0 to start), SLICER. Its colour, its pages. CHORUS, REVERB, DELAY are never picked as a slot type (their stored numbers stay, read as OFF).
+- Route to the FX stage without the FX button: EDIT walks the chain (from ENV: one press), SELECT walks every page. On the GRID with a step held: EDIT from ENV, the FX tab (SENDS lock per step).
+- FX tapped (any voice, any screen): DELAY (TIME FDBK COLOR MIX), REV/CHO (SIZE DAMP RATE DEPTH), MASTER (DUST DUCK). Tag FX, white and grey; drawn as the GLO list pages.
+- GLO: GLOBAL (BPM CLICK TUNE), SYSTEM, MIDI, MIDI 2, MIDI 3. Gone from GLO: DLY, REV/CHO, MASTER, DRUMS. GLO > DRUMS's four: CH4 is on MIDI, LVL on the mixer and HOME, REVERB and DELAY (the whole drum voice's sends) on the drum voice's FX tab. MASTER's ROLL was hold ARP KNOB 1 a second time: only there now.
+- The drum voice: a sixth tab FX on its drum screen (TRIG SRC FLTR AMP LFO FX), EDIT walking SRC > FLTR > AMP > LFO > FX > SRC: FILTER (its LP / HP, HOME KNOB 1 on the drums), INSERT, INSERT 2 (MIX), SENDS (DELAY REVERB, not lockable: song values), SLICER. A step held, its knobs lock as any tab's: this replaces "a drum step held + FX". Ben's tab names SRC FLTR AMP LFO kept; FX added after them as the Rytm's FX track.
+- SLICER kept, unchanged, as the last page of each voice's FX stage and of the drum FX tab (one home: the voice's own effects). The question is put to Ben (below).
+- PERFORM: ECHO keeps FDBK (KNOB 2, where it was, so a recorded span keeps its knob) and AMOUNT; VERB only AMOUNT. KNOB 1 of ECHO and KNOB 1 to 3 of VERB are empty.
+- The matrix's FX1 FX2 FX3 stay the three inserts' AMOUNT. Sends get no column: the MPC treats a send as a mix level, and an assignable column (AS1, AS2: TARGET DELAY, REVERB or CHORUS) moves one when wanted.
+- MIDI CC 91 / 93 / 94 set the sends; a CC never makes a slot. A learned CC on a slot's TYPE skips the old send numbers (OFF).
+- Conversion (format 8 stays "FUN8": rsv[0] 3 marks wave 8; no P_ or G_ renumbered): a project of waves 5 to 7 (rsv 2) and a user preset record 3: each CHORUS / REVERB / DELAY slot becomes OFF in its own place (the inserts keep their order, their locks stay), its send kept; a send the sound had no slot for was silent: 0, its locks freed; a matrix cell on such a slot's column moves to a free assignable column aimed at that send. Lossy only when both assignable columns are already used (the cell is dropped; fx8_lost counts it). A project or preset from before wave 5: DIST and INSERT become slots as in wave 5, and now every send is kept (wave 5 dropped the smallest past three). Factory presets keep all their sends (wave 7 had them in slots, up to three). User presets are stored as record 4 (a firmware before wave 8 shows them empty).
+
+One rule everywhere
+- Confirm: hold REC until a ring fills. Picked because REC held to clear a voice already was a hold with a ring, red means erase, it is one long press of one button (the MPC rule's deepest), and it needs no second turn and no timing. Every destructive or GO action asks in a white bar, HOLD REC: ... (USER LOAD, ERASE, SAVE; TOOLS CLRSQ, INIT, NEW; storing over a used pattern; replacing the edited kit; clearing the lane's pads). The ring starts at the press (with no question, REC held keeps its 0.7 s before the ring, as REC's tap records). Let go early: nothing, the question stays; REC tapped, another button or another screen: it goes. Nothing records while a question shows. For a pattern store, SAVE stays held (or kept open) while REC is held: the question lives on the screen that asked.
+- Keep a layer open: hold its button 0.7 s untouched and let go, on every layer. Picked over "hold + tap HOME" because it is a long press of one button (Ben's deepest), not a chord of two, and GLO and FX already did it. The HOME chord is gone.
+- Latch: OCT+ with the thing held, as PERFORM's. The drum FILL now latches with OCT+ and F#5 (either order); F#5 again lets it go (as a latched pad); STOP ends it. The F#5 double press is gone.
+- Double presses removed: F#5 twice (FILL), HOME on HOME (screensaver: now HOME's pages, SELECT right; a ">" after the deck's FLOW band says so), SEQ again going back to the tab before (on the synth GRID and the drum screen SEQ again is TRIG's next half, as ENV again is ENV's next page), the GO knobs' second turn, the pattern key again within 3 s, the lane's KNOB 3 twice, the kit's second turn.
+- Kept, no timing in them, said so in the guide: a page button pressed again walks its pages; SEL / ARP taps toggle MUTE / CHROMATIC on the drums; the mixer's key 10 and 11 toggle; hold a step + OCT- removes the last-turned lock, pressed again every lock (a sequence in one hold, each press says what went: a call for Ben).
+- Three-control chords: the only one left is hold a step + a page button + a knob (a lock on another page), Ben's "Locks: Rytm way". The drum bus lock is that same rule now (it was step + FX + knob). Ghost and hard hits (OCT + drum key), undo (EDIT + OCT), EDIT + black key and GLO + F#3 are two controls.
+- Times, in one place (ui_layers.c, GUIDE.md section 2): tap under 0.45 s, a layer shows after 0.14 s, the long press 0.7 s (keep open, menu, REC clear), the ring 1.3 s. Removed: 0.4 s (FILL), 1.5 s (GO, kit, pads), 3 s (pattern store).
+
+Same words
+- Filter page: the drum FLTR on both machines is the synth FILT: CUTOFF RESO ENV TYPE, then DRIVE first on 2/2 (synth FILT 2: DRIVE KEY LINK; synthesised kits FLTR 2/2: DRIVE HPF; the HEX machine has no filter envelope: its ENV knob is empty). The synthesised kits' DRIVE moved from AMP 2/2 to FLTR 2/2 (that knob is empty on AMP now; DEL REV LEVEL stay where the HEX kits have them).
+- One spelling: CUTOFF, RESO, FDBK on every knob (drum FREQ / RES, HEX CUT / RES / FILT, PERFORM LCUT FREQ, GLO FEEDBK, CRT / CDP renamed; the drum LFO DEST and the matrix column read RESO). CUT stays as a 3 to 5 letter value name (LFO DEST, the matrix column) where CUTOFF does not fit.
+- RATCH is RETRIG on a synth step (x1 to x4). ROLL stays for held keys.
+- Spare filters cut: the synth tracks' hidden DJ filter (CC 74 now the voice filter's CUTOFF; on the drum channel the drum voice's FILTER) and GLO MASTER FILT. Their memory: the master and three tracks' filter states (160 B). A wave 4 to 7 project's synth FILT moves onto the voice filter as wave 4 mapped it; a FILT lock (none can be made from a page) is freed; a project's MASTER FILT is dropped (lossy: PERFORM's LP and HP are performance state). The drum voice's own FILTER stays (it is not hidden and is its bus).
+- Tempo in one place: GLO > GLOBAL, KNOB 1 BPM. Picked because it is written on a knob on a page; SELECT is the tempo nowhere now (HOME, the mixer, the REC screen, layers), and tap tempo (the mixer's key 16) is gone: it was a second place. Every header still shows the tempo. MIDI clock still sets it.
+- Pattern settings (audit 1.4, 1.5): the "PATTERN" page (STEPS DIV SWING GATE) was a leftover, unreachable since wave 4 (only the screenshot tool drew it): removed; hold SEQ (GATE DIV SWING STEPS) is the one place. SWING was also GLO > GLOBAL's (added to every pattern's): removed from GLOBAL and from the sequencer and slicer; an older project's GLOBAL SWING is added to each track's own when it loads (and to sections stored then, while that project is the one loaded; a section stored by an older firmware and loaded after a reboot with a new project loses the global swing it borrowed). STEPS was also the REC screen's KNOB 2 (the same P_SLEN): removed. Hold EDIT's KNOB 2 (copy x2 / halve) reads DOUBLE. The lane's KNOB 4 STEPS is the lane's own length and stays.
+
+Memory, measured on an rv32 -Os stand-in (clang, not the JieLi toolchain) against the wave 7 merge: .data+.bss 260 B smaller, code and constants about 1.3 KB smaller, pool unchanged, .noinit unchanged. On the device that would be about 96,000 of 98,304 B and an image of about 514.9 KB of 581,564; the pool still about 200 B above the 8 KiB rule (nothing new was put in it).
+
+Not checked
+- No device build. The long tests (soak, stress, regress, web) were not run; golden renders differ where presets now keep every send.
+
 ## For Ben to confirm
 Every call waves 2 to 7 made that the spec did not cover, and every device-only limit or lossy conversion, one line each. The detail is in each wave's section above.
 
@@ -406,10 +443,10 @@ Drums (waves 2 and 3)
 - CHANCE counts only with COND CHNC; a CHNC trig starts at 50 %; synth steps keep a fixed 50 % CHNC.
 - RETRIG: rate 1/1 to 1/80 of a bar, length 1/8 step to 16 steps or INF, curve -128 to 127; the next trig ends it.
 - Synthesised kits keep their own model (not converted to the HEX machine); every sound gets an LFO (SPEED DEPTH DEST WAVE, SYNC FADE PHASE MODE).
-- One edited kit a project; another kit asks AGAIN: REPLACE and replaces on a second turn within 1.5 s. A way to store your copy into MY HEX is not built.
+- One edited kit a project; another kit asks HOLD REC: REPLACE (wave 8). A way to store your copy into MY HEX is not built.
 - PEDAL gets its own sound in your copy (the built-in kits share the closed hat's).
 - MODEL and TYPE cannot be locked (as the Rytm's machine).
-- Sound pick: hold SEL + key; MUTE mode: tap SEL; CHROMATIC: tap ARP; live RETRIG: hold ARP + key, the black keys the rate; FILL: F#5 held, twice to latch.
+- Sound pick: hold SEL + key; MUTE mode: tap SEL; CHROMATIC: tap ARP; live RETRIG: hold ARP + key, the black keys the rate; FILL: F#5 held, OCT+ to latch (wave 8).
 - Hold a step + OCT-: the last-turned lock, then every lock; on TRIG everything the trig holds.
 - The KIT page is gone (sound: SEL + key; kit: PRESETS; sends: AMP 2/2).
 Melodic voices (waves 4 and 5)
@@ -419,27 +456,37 @@ Melodic voices (waves 4 and 5)
 - One ladder filter on every voice (LP24, LP12, BP, HP); ACID's and JUNO's own ladders are their LP24.
 - LINK is the default; the first turn of a filter envelope knob makes it OWN from the amp's values; ESYNC applies to both.
 - The synth GRID has the drum screen's tabs; SELECT walks the tabs (the tempo is on HOME and the pages).
-- FX slot types and their knobs; one shared chorus, reverb and delay (a slot is the voice's send); one of each send type and one FLANGER a voice.
+- FX slot types and their knobs; one FLANGER a voice (wave 8: the sends are the SENDS page, not slots).
 - Matrix: 7 sources x 13 destinations, 19 cells besides the six fixed ones; LVL only reduces; PAN, FX and AS follow the last note.
 - LFO 2 starts FREE; its sample-and-hold uses its own random numbers.
 - Spice and Dice on TRIG 2/2 with nothing held; a roll's ranges (30 % left out, 25 % octave, 20 % ratchet, velocity +-48, length x0.25 to x1.75).
 - GATE on hold SEQ, KNOB 1 (wave 5: a call for Ben).
-- MIDI CC 91 / 93 / 94 on a voice with no slot of that type put one in its first OFF slot.
-- MIDI CC 74 still sets the track's DJ filter, which has no page on a synth voice since wave 4; mapping it to the voice filter's CUTOFF would be the plain fix (not changed: MIDI behaviour).
 PERFORM and the STUTTER lane (wave 6)
 - The pad map changed from mock-perf-A: ECHO moved to row 4 beside VERB; DUST and WOW are not pads; -DRM -BAS LCUT FLNG on black keys 1 to 4, 8T and 16T on C#5 and D#5.
 - Gone from the old 27: STUTTER (now 16T), PHONE, ALIAS, WOBBLE, KILL MID / HIGH, REWIND, OCT UP, AUTO-PAN, FREEZE, MONO, FADE OUT.
 - -BAS kills voice 1 (KNOB 1 picks); kills keep the notes playing unheard.
 - One time effect at a time with every colour effect, throw and kill on top; no limit of four.
-- In and out: hold FX; held 0.7 s untouched and let go, it stays (as GLO's mixer). Latch: OCT+ with a pad (a double tap was not used). OCT- unlatches all; STOP ends latches; latches play on outside PERFORM.
+- In and out: hold FX; held 0.7 s untouched and let go, it stays (every layer, wave 8). Latch: OCT+ with a pad (a double tap was not used). OCT- unlatches all; STOP ends latches; latches play on outside PERFORM.
 - The header says PERF and how many (not FX).
 - Each pad's knobs and start values; knob settings are not saved; the lane's own lit steps always play at the start settings.
 - Recording: spans to the nearest 1/16 with the last knob turned; a pad over its own span replaces it, others overdub; 31 at most.
 - EDIT + OCT- undoes a take's pads; a pattern change drops an open span.
-- The lane's KNOB 3 PADS clears on a second turn within 1.5 s; hold a step + OCT- erases its pads.
+- The lane's KNOB 3 PADS asks to clear (hold REC, wave 8); hold a step + OCT- erases its pads.
 HOME, the screens and the words (wave 7)
 - HOME's three zones and their contents as listed in wave 7 above; the selected voice shown inverted instead of a "VOICE 1" line.
 - The layers', PERFORM's and the REC screen's frame (header tag the button held, a line under it, the pages' dials, the strip).
 - The words: STEP (a key), trig (what is on it), RETRIG, PADS (the lane's), PATTERN (A to D), GLO (the shared tag).
 - Stutter lengths as spans: runs of one length drawn as one bar, named once.
-- Gesture exceptions kept as they were decided: SELECT is the tempo on HOME, the mixer and the REC screen and the cursor in STEP REC; OCT+ on the lane's last page goes round (no page added); the FILL latches with a double press, PERFORM pads with OCT+; only GLO and FX stay open by a long untouched hold; SEL and ARP do other jobs on the drum voice.
+- Gesture exceptions kept: SELECT is the cursor in STEP REC; OCT+ on the lane's last page goes round (no page added); SEL and ARP do other jobs on the drum voice. (Wave 8 removed: SELECT as tempo, the FILL double press, the GLO / FX-only keep-open.)
+Wave 8, the layout logic
+- SLICER: kept as each voice's last FX page and the drum FX tab's. To decide (Ben said "decided separately"): keep it there, cut its STUT mode only (stutter is PERFORM's and the lane's), or cut the page. Recommended: keep the page, cut STUT (it then is a per-voice trance gate, which PERFORM's whole-mix GATE pad cannot do).
+- FX stage reached by EDIT (ENV then EDIT: one press from ENV) and SELECT; no button jumps to it any more. Alternative if it feels far: SEL held + ENV, or ENV pressed past FILT ENV into FX.
+- Confirm = hold REC (the ring from the press). Storing over a used pattern needs SAVE kept held (or kept open) while REC is held.
+- The drum voice's own pages are a sixth tab, FX, on the drum screen (Rytm-style FX track); GLO > DRUMS removed (its REVERB and DELAY are the FX tab's SENDS).
+- No tap tempo (it was a second place for the tempo). Say if you want it back as a key on GLO > GLOBAL.
+- No send columns in the matrix (an assignable column takes a send).
+- ECHO and VERB pads keep only their own knobs; VERB has AMOUNT only.
+- Hold a step + OCT- still removes the last-turned lock, then every lock on a second press in the same hold (not timed).
+- The screensavers are HOME's pages (SELECT right); the hint is a ">" after the deck's FLOW band (the band was narrowed 12 px).
+- GLO > SYSTEM still shows OUT and IN, which MIDI 2 shows too (left as built; pages-unique would drop them from SYSTEM).
+- Lossy: a wave 5 to 7 matrix cell on a send slot when both assignable columns are used; a project's MASTER FILT; GLOBAL SWING for an old section loaded after a reboot with a newer project. User preset records 4 read as empty on older firmware.

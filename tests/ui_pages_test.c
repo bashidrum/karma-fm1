@@ -875,6 +875,10 @@ int main(int argc, char **argv)
         ui.force = 1; frame(); ppm("drum-amp");
         tap(B_LFO); frames(2); ok &= drum_pg == 4u && dpg_half() == 0u;
         ui.force = 1; frame(); ppm("drum-lfo");
+        dpg_go(2, 0); ui.force = 1; frame(); ppm("drum-fltr");      /* (wave 8: CUTOFF RESO ENV TYPE, as the synth's FILT) */
+        dpg_go(2, 1); ui.force = 1; frame(); ppm("drum-fltr2");
+        TDRUM->p[P_E0] = 0; dpg_go(2, 0); frames(2); ui.force = 1; frame(); ppm("drum-fltr-hex");
+        TDRUM->p[P_E0] = DRUM_DEFAULT_KIT; frames(2); dpg_go(4, 0); frame();
         check(ok, "drum pages: ENV opens AMP, again its 2/2; LFO opens LFO (every sound has one)");
         dpg_go(1, 0); frame();
         encs[panel.enc[EN_SELECT]] = 1; frame(); ok = drum_pg == 1u && dpg_half() == 1u;
@@ -2605,7 +2609,7 @@ int main(int argc, char **argv)
             {0, ENGI_JUNO, 11, FAM_FLT, "FILT 2", "filt2", 15}, {0, ENGI_JUNO, 11, FAM_ENV, "ENV", "env", 15},
             {0, ENGI_JUNO, 11, FAM_ENV, "FILT ENV", "fenv", 15}, {0, ENGI_JUNO, 11, FAM_OSC, "OSC 4", "osc4", 0},
             /* (PHEBUS wave 5) the FX slots (a DELAY, a PHASER, an EQ), LFO 2, the matrix */
-            {0, ENGI_JUNO, 11, FAM_FX, "FX 1", "fx1-delay", 9}, {0, ENGI_JUNO, 11, FAM_FX, "FX 2", "fx2-phaser", 15},
+            {0, ENGI_JUNO, 11, FAM_FX, "FX 1", "fx1-dist", 13}, {0, ENGI_JUNO, 11, FAM_FX, "FX 2", "fx2-phaser", 15},
             {0, ENGI_JUNO, 11, FAM_FX, "FX 3", "fx3-eq", 14}, {0, ENGI_JUNO, 11, FAM_MOD, "LFO 2", "lfo2", 3},
             {0, ENGI_JUNO, 11, FAM_MOD, "MATRIX", "matrix", 0},
             {0, ENGI_ACID, 0, FAM_OSC, "OSC", "osc-acid", 15}, {0, ENGI_ACID, 0, FAM_FLT, "FILT", "filt-acid", 15},
@@ -2629,7 +2633,8 @@ int main(int argc, char **argv)
             t->p[P_VOICE] = V_MONO; t->p[P_GLIDE] = 60;              /* (PRIO, GLMODE at work) */
             t->p[P_FLINK] = 1;                                       /* (wave 4: the filter's own envelope drawn) */
             if (SP[c].trk < 3u && (SP[c].fam == FAM_FX || SP[c].fam == FAM_MOD)) {   /* (wave 5) slots and cells at work */
-                xs_type_set(t->p, 0, XT_DELAY); xs_type_set(t->p, 1, XT_PHASER); xs_type_set(t->p, 2, XT_EQ);
+                xs_type_set(t->p, 0, XT_DIST); xs_type_set(t->p, 1, XT_PHASER); xs_type_set(t->p, 2, XT_EQ);   /* (wave 8: inserts) */
+                t->p[P_DLY] = 50; t->p[P_REV] = 70; t->p[P_CHOR] = 30;   /* (the SENDS page at work) */
                 t->p[P_X3TIME] = 90; t->p[P_X3INT] = 40;
                 mx_set(SP[c].trk, MS_LFO2, MD_M2, 40); mx_set(SP[c].trk, MS_VEL, MD_LVL, 30);
                 mx_set(SP[c].trk, MS_AENV, MD_RES, -24); t->p[P_ED_FLT] = 50; t->p[P_LD_PIT] = 6;
