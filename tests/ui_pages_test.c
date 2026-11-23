@@ -3044,7 +3044,7 @@ int main(int argc, char **argv)
         press(B_FX); frames(12);
         fm1_in.notes = 1u << key_of_white(2); frame(); frame();
         ui.force = 1; frame(); ppm("perform-held");
-        check(px_count(1 + 2 * 60, 40 + 34, 58, 18, C_WHITE) > 800u, "PERFORM: the 1/4 pad held: drawn white (the whole mix: no voice colour)");
+        check(px_count(PF_PAD_X(2), PF_Y + PF_PAD_Y(2), PF_PAD_W, PF_PAD_H, C_WHITE) > 800u, "PERFORM: the 1/4 pad held: drawn white (the whole mix: no voice colour)");
         check(px_count(0, 67, 240, 88, TE_COL[0]) + px_count(0, 67, 240, 88, TE_COL[1]) + px_count(0, 67, 240, 88, TE_COL[2]) +
               px_count(0, 67, 240, 88, TE_COL[3]) == 0u, "PERFORM: no voice colour on the effect pads (the colour rule: the whole mix)");
         /* latch: OCT+ while it is held */
@@ -3060,7 +3060,7 @@ int main(int argc, char **argv)
         song.playing = 1; transport_req = 1; frames(3);
         ui.force = 1; frame(); ppm("perform-latched");
         check(perf.lane == 1u << PF_PHASER, "PERFORM: a pad the lane plays (recorded) shows as playing");
-        check(px_count(1 + 54, 40 + 34 + 40 + 1, 3, 3, C_WHITE) == 9u,   /* (wave 7: the frame every screen has) */ "LATCH: the latched ISO LO pad shows its dot");
+        check(px_count(PF_PAD_X(PF_ISOL) + PF_PAD_W - 4, PF_Y + PF_PAD_Y(PF_ISOL) + 1, 3, 3, C_WHITE) == 9u,   /* (wave 7: the frame every screen has) */ "LATCH: the latched ISO LO pad shows its dot");
         /* the knobs: the last pad's */
         kn = perf.par[PF_ISOL][0];
         encs[panel.enc[EN_K1]] = -4; frame();
@@ -3111,6 +3111,117 @@ int main(int argc, char **argv)
         if (ly_lock == LY_FX) { tap(B_FX); frames(2); }   /* (held that long untouched: it stayed open) */
         perf_init();
         song.g[G_DTIME] = GP[G_DTIME].def, song.g[G_RSIZE] = GP[G_RSIZE].def, song.g[G_RDAMP] = GP[G_RDAMP].def;
+        {   /* PERFORM in columns (SPEC 23 Nov 2026, 22:07; Ben: "Group them by type into columns as much as possible. With the
+             * exception of the black keys which make sense being a row ... keep all the on screen labelling on one row ... Then
+             * the 16 white keys arranged in columns below"): the pads keep their keys; the screen draws white key n in column
+             * (n-1)/4, row (n-1)%4 under a heading of its type; the black keys one row in key order */
+            static const char *const PADS[27] = {"1/1", "1/2", "1/4", "1/8", "1/16", "HALF", "ECHO", "VERB", "ISO LO", "ISO MID",
+                                                 "ISO HI", "MOTION", "CRUSH", "PHASER", "JET", "VOWEL", "V1", "V2", "V3", "KICKS",
+                                                 "TOPS", "SH+CL", "HT+SN", "REVERSE", "STOP", "SWP DN", "SWP UP"};
+            static const char *const HEADS[4] = {"REPEAT", "TIME", "FILTER", "COLOUR"};
+            uint32_t n, c, ok, ok2, ok3;
+            int32_t bx[11], by[11], bw[11];
+            /* the keys: every white key and every black key plays the pad it always has (no pad moved) */
+            for (n = 0, ok = 1; n < 16u; n++)
+                ok &= punch_fx_of_key(key_of_white(n)) == (int32_t)n && punch_key_of_fx(n) == key_of_white(n) && !strcmp(PFD[n].pad, PADS[n]);
+            for (n = 0; n < 11u; n++)
+                ok &= punch_fx_of_key(PUNCH_BLACK[n]) == (int32_t)(16u + n) && punch_key_of_fx(16u + n) == PUNCH_BLACK[n] &&
+                      !strcmp(PFD[16u + n].pad, PADS[16u + n]);
+            check(ok, "PERFORM in columns: every white key (1/1 on key 1 .. VOWEL on key 16) and black key keeps its pad");
+            press(B_FX); frames(12);
+            for (n = 0, ok = 1, ok2 = 1; n < 27u; n++) {   /* held from the keyboard: that pad, lit, drawn in its own place */
+                uint32_t k = n < 16u ? key_of_white(n) : PUNCH_BLACK[n - 16u];
+                fm1_in.notes = 1u << k; frames(2);
+                ok &= perf.held == PFB(n) && led_lv[14u + k] == LL_LIT;
+                ui.force = 1; frame();
+                if (n < 16u) {
+                    uint32_t cell, in = px_count((uint32_t)PF_PAD_X(n), PF_Y + (uint32_t)PF_PAD_Y(n), PF_PAD_W, PF_PAD_H, C_WHITE);
+                    ok2 &= PF_PAD_X(n) == (int32_t)(n / 4u) * 61 && PF_PAD_Y(n) == 33 + (int32_t)(n % 4u) * 19 && in > 700u;
+                    for (cell = 0; cell < 16u; cell++)   /* (no other cell filled white) */
+                        if (cell != n)
+                            ok2 &= px_count((uint32_t)PF_PAD_X(cell), PF_Y + (uint32_t)PF_PAD_Y(cell), PF_PAD_W, PF_PAD_H, C_WHITE) < 60u;
+                    if (n == 9u) ppm("perform-held-iso-mid");
+                }
+                fm1_in.notes = 0; frames(2);
+                ok &= !perf.held;
+            }
+            check(ok, "PERFORM in columns: each of the 27 keys held plays its pad and lights its key; let go, off");
+            check(ok2, "PERFORM in columns: white key n's pad drawn in column (n-1)/4, row (n-1)%4, held white there only");
+            /* the black keys: one line, key order, apart, on the screen, their names inside */
+            for (n = 0, ok = 1; n < 11u; n++) {
+                pf_chip_box(n, &bx[n], &by[n], &bw[n]);
+                ok &= by[n] == by[0] && bx[n] >= 0 && bx[n] + bw[n] <= 239 && text_w(&FONT_S, PF_BK_LAB[n]) - 1 <= bw[n] - 2;
+                if (n)
+                    ok &= bx[n] >= bx[n - 1] + bw[n - 1] + 2;
+            }
+            ok &= bx[3] - bx[2] - bw[2] > bx[4] - bx[3] - bw[3] && bx[7] - bx[6] - bw[6] > bx[8] - bx[7] - bw[7];
+            ok &= PF_Y + PF_BK_Y >= 40 && PF_BK_Y + PF_BK_H <= PF_HEAD_Y;   /* (under the caption, over the headings) */
+            check(ok, "PERFORM in columns: the 11 black keys one row in key order, apart, the three groups wider apart, inside 240 px");
+            perf.last = PF_S1; ui.force = 1; frame(); ppm("perform-idle");
+            {   /* each name and line drawn inside its chip, nothing between (no frame: the last pad a white key's) */
+                uint32_t x, y, lit = 0, out = 0;
+                for (y = PF_Y + PF_BK_Y - 1u; y < PF_Y + PF_BK_Y + PF_BK_H + 1u; y++)
+                    for (x = 0; x < 240u; x++) {
+                        int inside = 0;
+                        if (swap16(screen[y * 240u + x]) == C_BLACK)
+                            continue;
+                        lit++;
+                        for (n = 0; n < 11u; n++)
+                            inside |= (int32_t)x >= bx[n] && (int32_t)x < bx[n] + bw[n] && (int32_t)y >= PF_Y + by[n] &&
+                                      (int32_t)y < PF_Y + by[n] + PF_BK_H;
+                        out += !inside;
+                    }
+                ok = lit > 300u && out == 0u;
+            }
+            check(ok, "PERFORM in columns: the black row's names and lines all inside their chips (none touching)");
+            for (n = 0, ok = 1; n < 11u; n++) {   /* the voices' colours on 1 2 3 only, teal on the drum mutes only */
+                for (c = 0; c < NTRK; c++) {
+                    uint32_t px = px_count((uint32_t)bx[n], PF_Y + (uint32_t)by[n], (uint32_t)bw[n], PF_BK_H, TE_COL[c]);
+                    uint32_t want = n < 3u ? c == n : n < 7u ? c == TRK_DRUM : 0u;
+                    ok &= want ? px > 10u : px == 0u;
+                }
+            }
+            for (c = 0; c < NTRK; c++)
+                ok &= px_count(0, PF_Y + PF_HEAD_Y, 240, SG_KNOB_Y - PF_Y - PF_HEAD_Y, TE_COL[c]) == 0u;
+            check(ok, "PERFORM in columns: purple, blue, coral on 1 2 3 only; teal on KIK TOP S+C H+S only; none on the pads");
+            for (c = 0, ok = 1; c < 4u; c++)   /* the columns' headings: REPEAT TIME FILTER COLOUR, quiet grey, over their columns */
+                ok &= !strcmp(PF_HEAD[c], HEADS[c]) && text_w(&FONT_S, PF_HEAD[c]) - 1 <= PF_PAD_W - 2 &&
+                      px_count((uint32_t)PF_COL_X(c), PF_Y + PF_HEAD_Y, PF_PAD_W, 14, TE_G3) > 30u &&
+                      PF_HEAD_Y + 12 <= PF_PAD_Y(0) && PF_PAD_Y(3) + PF_PAD_H <= (int32_t)(SG_KNOB_Y - PF_Y);
+            check(ok, "PERFORM in columns: a heading over each column (REPEAT TIME FILTER COLOUR), between the black row and the pads");
+            for (n = 0, ok = 1; n < 16u; n++)   /* every pad's name inside its cell, a pixel spare each side */
+                ok &= text_w(&FONT_S, PFD[n].pad) - 1 <= PF_PAD_W - 2;
+            for (c = 0; c < 3u; c++)
+                ok &= PF_COL_X(c + 1u) - PF_COL_X(c) - PF_PAD_W >= 3;   /* (the four types as four blocks: gutters wider than rows) */
+            ok &= PF_COL_X(3) + PF_PAD_W <= 240 && PF_PAD_Y(1) - PF_PAD_Y(0) - PF_PAD_H < PF_COL_X(1) - PF_PAD_W;
+            check(ok, "PERFORM in columns: no pad's name past its cell (ISO MID, PHASER, MOTION); the columns 4 px apart, rows 1");
+            /* two latched and a mute latched: each in its own cell, the dot; the last pressed framed */
+            fm1_in.buttons |= BT(B_OCTUP); edges_btn |= BT(B_OCTUP); frame();
+            fm1_in.notes = 1u << key_of_white(1); frame(); fm1_in.notes = 0; frame();
+            fm1_in.notes = 1u << key_of_white(11); frame(); fm1_in.notes = 0; frame();
+            fm1_in.notes = 1u << PUNCH_BLACK[3]; frame(); fm1_in.notes = 0; frame();
+            fm1_in.buttons &= ~BT(B_OCTUP); frame();
+            fm1_in.notes = 1u << key_of_white(13); frame(); fm1_in.notes = 0; frame();   /* PHASER pressed last, let go */
+            ui.force = 1; frame(); ppm("perform-latched-mute");
+            ok = perf.lat == (PFB(PF_S2) | PFB(PF_MOTION) | PFB(PF_MKICK)) && perf.last == PF_PHASER;
+            ok3 = ok;
+            for (n = 0; n < 16u; n++) {
+                uint32_t dot = px_count((uint32_t)(PF_PAD_X(n) + PF_PAD_W - 4), PF_Y + (uint32_t)PF_PAD_Y(n) + 1u, 3, 3, C_WHITE);
+                ok &= (n == PF_S2 || n == PF_MOTION) ? dot == 9u : dot < 9u;
+            }
+            ok &= px_count((uint32_t)(bx[3] + bw[3] - 4), PF_Y + (uint32_t)by[3] + PF_BK_H - 3u, 3, 2, C_WHITE) == 6u &&
+                  px_count((uint32_t)bx[3], PF_Y + (uint32_t)by[3], (uint32_t)bw[3], PF_BK_H, TE_DIM[TRK_DRUM]) > 100u;
+            check(ok, "PERFORM in columns: 1/2 and MOTION latched: their dots in their cells; KIK latched: its chip filled, its dot");
+            ok3 &= px_count((uint32_t)PF_PAD_X(PF_PHASER), PF_Y + (uint32_t)PF_PAD_Y(PF_PHASER), PF_PAD_W, 1, TE_G3) == PF_PAD_W &&
+                   px_count((uint32_t)PF_PAD_X(PF_S1), PF_Y + (uint32_t)PF_PAD_Y(PF_S1), PF_PAD_W, 1, TE_G3) < 10u;
+            check(ok3, "PERFORM in columns: the last pad pressed (PHASER, column 4 row 2) framed, the others not");
+            perf.last = PF_REV; ui.force = 1; frame();
+            check(px_count((uint32_t)bx[7] - 1u, PF_Y + (uint32_t)by[7] - 1u, (uint32_t)bw[7] + 2u, 1, TE_G3) == (uint32_t)bw[7] + 2u,
+                  "PERFORM in columns: REV the last pressed: framed round its chip");
+            perf_unlatch(); perf.last = PF_S1;
+            release(B_FX); frames(2);
+            if (ly_lock == LY_FX) { tap(B_FX); frames(2); }
+        }
         /* the STUTTER lane: the recorded pads drawn as spans, erased with a step held + OCT-, cleared with KNOB 3 twice */
         song.sel = TRK_DRUM; studio_open(SC_DRUM); frames(2);
         stl_view = 1, stl_pg = 0; ui.force = 1; frames(2);
@@ -3589,16 +3700,25 @@ int main(int argc, char **argv)
         {
             uint32_t v, bad = 0, p, o2;
             press(B_FX); frames(12); ui.force = 1; frame();
-            /* (wave 13) the mute chips (the strip's top row, y 40..54) carry their voice's colour: V1 V2 V3 theirs, the drum
-             * mutes teal, each only its own; everything else on PERFORM none */
-            for (v = 0; v < NTRK; v++) bad += px_count(0, 0, 240, 40, TE_COL[v]) + px_count(0, 55, 240, OP_BAR_Y - 55, TE_COL[v]);
+            /* (wave 13; PERFORM in columns: the black keys' one row, y 41..54) the mute chips carry their voice's colour: 1 2 3
+             * theirs, the drum mutes teal, each only its own; everything else on PERFORM none */
+            for (v = 0; v < NTRK; v++) bad += px_count(0, 0, 240, PF_Y + PF_BK_Y, TE_COL[v]) +
+                                             px_count(0, PF_Y + PF_BK_Y + PF_BK_H, 240, OP_BAR_Y - PF_Y - PF_BK_Y - PF_BK_H, TE_COL[v]);
             for (v = 0; v < 3u; v++) {
                 uint32_t o;
+                int32_t cx, cy, cw;
+                pf_chip_box(v, &cx, &cy, &cw);
                 for (o = 0; o < NTRK; o++)
-                    bad += o != v ? px_count(1 + 22 * v, 40, 20, 15, TE_COL[o]) : px_count(1 + 22 * v, 40, 20, 15, TE_COL[o]) < 12u;
+                    bad += o != v ? px_count(cx, PF_Y + cy, cw, PF_BK_H, TE_COL[o]) : px_count(cx, PF_Y + cy, cw, PF_BK_H, TE_COL[o]) < 12u;
             }
-            for (v = 0; v < 3u; v++) bad += px_count(70, 40, 169, 15, TE_COL[v]);
-            bad += px_count(70, 40, 169, 15, TE_COL[TRK_DRUM]) < 48u;
+            {
+                int32_t dx, dy, dw, ex, ew;
+                pf_chip_box(3, &dx, &dy, &dw);
+                pf_chip_box(6, &ex, &dy, &ew);
+                for (v = 0; v < 3u; v++) bad += px_count(dx, PF_Y + dy, 240 - dx, PF_BK_H, TE_COL[v]);
+                bad += px_count(dx, PF_Y + dy, ex + ew - dx, PF_BK_H, TE_COL[TRK_DRUM]) < 48u;
+                bad += px_count(ex + ew, PF_Y + dy, 240 - ex - ew, PF_BK_H, TE_COL[TRK_DRUM]);
+            }
             release(B_FX); frames(2);
             check(bad == 0u, "colour rule: PERFORM: a voice colour only on that voice's mute chip (V1 V2 V3, the drum mutes teal)");
             song.sel = TRK_DRUM; studio_open(SC_DRUM); frames(2); stl_open(); ui.force = 1; frame();
