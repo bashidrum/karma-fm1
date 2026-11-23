@@ -1179,7 +1179,13 @@ int main(int argc, char **argv)
               "drum lock: trig 5 held + KNOB 2 (DECAY) on the 606: locked on that trig (+3), the kit as it was");
         ui.force = 1; frame(); ppm("drum-held-lock");
         check(px_count(80, SG_KNOB_Y + 21, 40, 34, TE_DRUM) > 300u, "drum lock: the locked value drawn inverted (a filled box)");
-        check(px_count(1 + 4 * 15, 78, 13, 26, C_BLACK) > 10u, "drum lock: the trig carrying it marked (a square in it)");
+        check(px_count(4, 76, 120, 16, TE_DRUM) > 60u, "drum lock: the held step's locks named under STEP 5 HELD (LOCK DECAY)");
+        {   /* (wave 12, Ben 23 Nov 13:35: "I don't need to see the sequence on screen, it's shown on my keys") no step row */
+            uint32_t j2, rowpx = 0;
+            for (j2 = 0; j2 < 16u; j2++)
+                rowpx += px_count(1u + j2 * 15u, 77, 13, 26, vel_col(100)) > 200u;
+            check(rowpx == 0u, "w12: the drum screen draws no row of 16 steps (the keys and their lights are the steps)");
+        }
         encs[panel.enc[EN_K4]] = 2; frame();                 /* N.DEC locked too */
         press(B_OCTDN); release(B_OCTDN);
         check(dt_lk(4, 2, DSP_S0 + DS_NDEC) < 0 && dt_lk(4, 2, DSP_S0 + DS_DECAY) >= 0 && str_eq(ui.msg, "LOCK OFF: N.DEC"),
