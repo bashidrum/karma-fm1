@@ -691,7 +691,7 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         used[held] = 1;
     }
     {   /* (wave 11) LFO or ENV held on a synth voice's sound page: HOLD TO MAP (ui_map.c); the page stays, no layer shows */
-        uint32_t mp = (held == LY_LFO || held == LY_ENV) && map_page_ok() ? held : 0u;
+        uint32_t mp = (held == LY_LFO || held == LY_ENV) && map_ok_for(held) ? held : 0u;
         if (mp != map_lyr) {
             if (map_lyr && !mp && map_vis)
                 ly_quiet_t = fm1_ms | 1u;                 /* (as a layer let go: the knobs' last turns are not the page's) */
@@ -833,7 +833,9 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         case LY_ENV:                                      /* (wave 11) mapping: SEL the other LFO / envelope, OCT- this source's
                                                            * mappings on this page off */
             if ((press & sb) && combo_live(HC_LY(held), B_SCL)) {
-                if (held == LY_LFO)
+                if (is_drum(TSEL))
+                    ;                                     /* (the drums: one LFO a sound, nothing to flip) */
+                else if (held == LY_LFO)
                     map_lfo2 = (uint8_t)!map_lfo2;
                 else
                     map_fenv = (uint8_t)!map_fenv;

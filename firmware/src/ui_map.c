@@ -39,6 +39,13 @@ static int map_page_ok(void)
     return !ui.home && !ui.menu && !vis_shown() && !rec_wait && !is_drum(TSEL) && on_chain() && !kb_grid && !sg_held &&
            !sr_on && !ui.ask;
 }
+/* (wave 12) the drums: LFO held on a drum sound page (SRC FLTR AMP LFO), no step held, the keys steps (not CHROMATIC) */
+static int map_drum_ok(void)
+{
+    return !ui.home && !ui.menu && !vis_shown() && !rec_wait && is_drum(TSEL) && on_drum_page() && !stl_shown() &&
+           drum_pg >= 1u && drum_pg < DPG_FX && drum_keys == DK_PLAY && !sg_held && !ui.ask;
+}
+static int map_ok_for(uint32_t held) { return held == LY_LFO ? map_page_ok() || map_drum_ok() : held == LY_ENV && map_page_ok(); }
 /* the page seen: which LFO / envelope is "the one last shown" (every frame, ui_input.c) */
 static void map_seen(void)
 {
@@ -69,6 +76,10 @@ static uint32_t map_knob(const page_t *pg, uint32_t k, uint32_t s, int32_t *amt,
 /* a knob turned while mapping: the source's amount onto it (-64..63; 0 removes) */
 static void map_turn(uint32_t k, int32_t steps)
 {
+    if (is_drum(TSEL)) {                                /* (wave 12) the drums: the slot's LFO */
+        dmap_turn(k, steps);
+        return;
+    }
     const page_t *pg = cur_page();
     uint32_t s = map_src(), id, st;
     int32_t a, e;
@@ -112,6 +123,10 @@ static void mx_undo_keep(uint32_t ti)
 /* OCT- while mapping: every mapping from the source onto this page's knobs, gone (one undo: SAVE + OCT-) */
 static void map_remove(void)
 {
+    if (is_drum(TSEL)) {
+        dmap_remove();
+        return;
+    }
     const page_t *pg = cur_page();
     uint32_t ids[4], k, n, s = map_src();
     int32_t a;
@@ -214,7 +229,7 @@ static uint32_t map_marks(const page_t *pg)
     uint32_t k, m = 0, s, id;
     int32_t a;
     if (is_drum(TSEL))
-        return 0;
+        return dmap_marks();
     for (k = 0; k < 4u; k++)
         for (s = 0; s < MS_N; s++)
             if (map_knob(pg, k, s, &a, &id) == 2u && a) {

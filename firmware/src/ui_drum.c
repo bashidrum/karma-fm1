@@ -31,6 +31,12 @@
 static uint8_t drum_pg = 1;                             /* 0 TRIG, 1 SRC, 2 FLTR, 3 AMP, 4 LFO (drum_snd.c DPG_* + 1), 5 FX */
 static uint8_t drum_half[DPG_TABS];                     /* each page's half shown */
 static uint8_t drum_pg_last = 1;                        /* the sound page last shown (EDIT, ENV, LFO come back to it) */
+static uint8_t map_lyr, map_vis;                        /* (ui_map.c: LFO held to map) */
+static const char *nav_map_hint;
+static const char *hdr_mchip;                          /* (ui_op.c) */
+static void map_chip(uint32_t l);
+static void dmap_dials(uint32_t *cache);                /* (ui_kit.c) */
+static uint32_t dmap_marks(void);
 /* (drum_newvel, the velocity a new trig and a drum key take: seq.c; TRIG, nothing held: KNOB 1) */
 static uint8_t dk_touch = 0xFF;                         /* a trig held: the id of the knob last turned in this hold */
 static const char *const DPG_NAME[DPG_TABS] = {"TRIG", "SRC", "FLTR", "AMP", "LFO", "FX"};
@@ -494,7 +500,13 @@ static void drum_main_draw(void)
     int32_t first = sg_held ? sg_first() : -1;
     int chrom = drum_keys == DK_CHROM;
     char sub[28], info[32];
-    op_header("DRUM", TE_DRUM, "", &head);              /* (the title place is SELECT's chip: the slot) */
+    if (map_lyr && map_vis) {                           /* (wave 12) HOLD LFO: the header says LFO with MASTER's chip */
+        map_chip(map_lyr);
+        op_header("LFO", TE_DRUM, "", &head);
+        hdr_mchip = 0;
+    } else {
+        op_header("DRUM", TE_DRUM, "", &head);          /* (the title place is SELECT's chip: the slot) */
+    }
     /* the name, what is held, the map */
     if (first >= 0) {
         uint32_t n = 0, w;
@@ -694,6 +706,14 @@ static void drum_main_draw(void)
         cv_blit(0, 76);
     }
     /* (wave 9) the tabs: the categories of the button's group, the one shown filled, the page in it (ui_nav.c) */
+    if (map_lyr && map_vis) {                           /* (wave 12) MAP LFO, outlined (wave 11's look); one LFO: no SEL */
+        nav_map_hint = "";
+        nav_tabs(TE_DRUM, "MAP LFO", &sc);
+        nav_map_hint = 0;
+        dmap_dials(&foot);
+        op_trackbar(&bar);
+        return;
+    }
     nav_tabs(TE_DRUM, 0, &sc);
     /* the dials */
     {
@@ -788,10 +808,12 @@ static void drum_main_draw(void)
                     dim |= 1u << k;                     /* (not lockable: grey with a trig held) */
             }
         }
+        dial_mark = (uint8_t)(drum_pg && drum_pg < DPG_FX ? dmap_marks() : 0u);   /* (wave 12: the knob the LFO moves) */
         if (drum_pg == DPG_FX && PAGES[dbus_page(dpg_half())].fam == FAM_MFX)   /* (the whole mix's: white-grey) */
             op_dials(lab, val, ratio, locked, dim, TE_G4, drum_pg * 977u + dpg_half() * 31u + pkit_gen, &foot);
         else
             drum_dials(lab, val, ratio, locked, dim, drum_pg * 977u + dpg_half() * 31u + pkit_gen, &foot);
+        dial_mark = 0;
     }
     op_trackbar(&bar);
 }

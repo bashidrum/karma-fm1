@@ -313,8 +313,10 @@ static void nav_tabs(uint16_t col, const char *banner, uint32_t *cache)
         int32_t x = 2 + text_w(&FONT_S, banner) + 6;
         op_box(2, 4, x - 2, 17, col);
         cv_text(5, 5, &FONT_S, banner, col);
-        x = cv_text(x + 6, 5, &FONT_S, "SEL", TE_G4);
-        x = cv_text(x + 4, 5, &FONT_S, nav_map_hint, TE_G3);
+        if (nav_map_hint[0]) {                          /* (the drums: one LFO, nothing for SEL to flip to) */
+            x = cv_text(x + 6, 5, &FONT_S, "SEL", TE_G4);
+            x = cv_text(x + 4, 5, &FONT_S, nav_map_hint, TE_G3);
+        }
         if (ly_lock != LY_PLAY && x + 8 + text_w(&FONT_S, "LOCK") <= xr) {
             cv_rect(xr - text_w(&FONT_S, "LOCK") - 4, 4, text_w(&FONT_S, "LOCK") + 4, 17, C_WHITE);
             cv_text(xr - text_w(&FONT_S, "LOCK") - 2, 5, &FONT_S, "LOCK", C_BLACK);

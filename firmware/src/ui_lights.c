@@ -114,7 +114,7 @@ static int combo_live(uint32_t h, uint32_t c)
         return bi == 1 || (bi == 0 && drum);
     case HC_LY0 + LY_ENV:
     case HC_LY0 + LY_LFO:                               /* mapping (ui_map.c): SEL the other source, OCT- remove */
-        return map_lyr && (c == B_SCL || c == B_OCTDN);
+        return map_lyr && ((c == B_SCL && !is_drum(TSEL)) || c == B_OCTDN);   /* (wave 12: the drums' one LFO: no SEL) */
     default:
         return 0;
     }

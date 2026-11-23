@@ -391,3 +391,134 @@ static int brw_draw(void)
         cv_text(236 - text_w(&FONT_S, brw_r2), 40, &FONT_S, brw_r2, C_WHITE);
     return 1;
 }
+
+/* ---- (wave 12, Ben 23 Nov 13:35: "Hold LFO maps on drums too") HOLD LFO ON A DRUM SOUND PAGE (SRC FLTR AMP LFO): the page stays,
+ * its dials are the slot's LFO onto each knob, bipolar (its DEPTH); a turn makes that knob the LFO's DEST (one a sound: a new
+ * one replaces the last, and says so: LFO > DECAY (WAS CUTOFF)); back to 0: off. OCT-: off (SAVE + OCT- brings it back). The
+ * look and the lights are wave 11's (ui_map.c). Hold ENV on the drums stays MASTER's pair (no envelope to map) */
+static void map_ring(int32_t cx, int32_t cy, int32_t r, int32_t amt, uint16_t c, uint16_t dim);   /* (ui_map.c) */
+static uint32_t dmap_knob(uint32_t k, int32_t *amt, uint32_t *dst)   /* 0 empty, 1 not mappable, 2 mappable (*amt, *dst) */
+{
+    uint32_t L = drum_lane & 15u, id = dpg_id(k);
+    const dlfo_t *f = &pkit.s[L].lfo;
+    *amt = 0, *dst = 0xFFu;
+    if (id == 0xFFu || !dsp_desc(sl_mach(L), lane_snd(L), id))
+        return 0;
+    if (id >= DSP_LSPD && id <= DSP_LMOD)
+        return 1;
+    if ((*dst = dl_of(sl_mach(L), id)) == 0xFFu)
+        return 1;
+    *amt = f->dst == *dst ? f->dep : 0;
+    return 2;
+}
+static uint32_t dmap_marks(void)                         /* the knob the LFO moves (outside the hold: its mark) */
+{
+    uint32_t k, m = 0, d;
+    int32_t a;
+    for (k = 0; k < 4u; k++)
+        if (dmap_knob(k, &a, &d) == 2u && a)
+            m |= 1u << k;
+    return m;
+}
+static void dmap_turn(uint32_t k, int32_t s)
+{
+    uint32_t L = drum_lane & 15u, st, dst, id = dpg_id(k);
+    int32_t a;
+    dlfo_t *f = &pkit.s[L].lfo;
+    char b[32];
+    st = dmap_knob(k, &a, &dst);
+    if (!st)
+        return;
+    if (st == 1u) {
+        const param_desc_t *d = dsp_desc(sl_mach(L), lane_snd(L), id);
+        str_cpy(b, d ? d->label : "", 8);
+        str_cpy(b + str_len(b), id >= DSP_LSPD && id <= DSP_LMOD ? ": NOT FROM ITSELF" : ": NOT MAPPABLE", 20);
+        ui_message(b);
+        return;
+    }
+    if (f->dst != dst && f->dep) {                      /* one DEST a sound: the new one replaces the last, said */
+        const param_desc_t *dd = dsp_desc(sl_mach(L), lane_snd(L), DSP_LDST);
+        str_cpy(b, "LFO > ", sizeof b);
+        str_cpy(b + 6, dd->names[dst], 8);
+        str_cpy(b + str_len(b), " (WAS ", 7);
+        str_cpy(b + str_len(b), dd->names[f->dst], 8);
+        str_cpy(b + str_len(b), ")", 2);
+        ui_message(b);
+    }
+    fm1_irq_off();
+    f->dep = (int8_t)clamp(a + accel(EN_K1 + k, s, 127), -64, 63);
+    f->dst = (uint8_t)dst;
+    slot_edited(L);
+    fm1_irq_on();
+}
+static void dmap_remove(void)
+{
+    uint32_t L = drum_lane & 15u, k, d, on = 0;
+    int32_t a;
+    for (k = 0; k < 4u; k++)
+        on |= dmap_knob(k, &a, &d) == 2u && a;
+    if (!on) {
+        ui_message("NOTHING FROM THE LFO HERE");
+        return;
+    }
+    kit_undo_mark();
+    fm1_irq_off();
+    pkit.s[L].lfo.dep = 0;
+    slot_edited(L);
+    fm1_irq_on();
+    ui_message("LFO: MAPPING OFF");
+}
+static void dmap_dials(uint32_t *cache)                  /* the four dials while mapping (ui_map.c map_dials, the drums' pages) */
+{
+    uint32_t k, st[4], d, sig = 0x646d6170u, L = drum_lane & 15u;
+    int32_t amt[4];
+    const char *lab[4];
+    char v[4][8];
+    uint16_t col = TE_DRUM;
+    for (k = 0; k < 4u; k++) {
+        const param_desc_t *pd = dpg_id(k) != 0xFFu ? dsp_desc(sl_mach(L), lane_snd(L), dpg_id(k)) : 0;
+        st[k] = dmap_knob(k, &amt[k], &d);
+        lab[k] = st[k] && pd ? pd->label : "";
+        if (st[k] == 2u && amt[k])
+            v[k][0] = amt[k] > 0 ? '+' : 0, fmt_int(v[k] + (amt[k] > 0), amt[k]);
+        else
+            str_cpy(v[k], st[k] == 2u ? "0" : st[k] ? "--" : "", 4);
+        sig = studio_hash(sig * 31u + st[k] * 7u + (uint32_t)(amt[k] + 64) * 131u + (ui.hot_t && ui.hot_col == k) * 5003u, lab[k]);
+    }
+    sig = studio_hash(sig, ui.msg_t ? ui.msg : "");
+    if (!ui.force && sig == *cache)
+        return;
+    *cache = sig;
+    cv_begin(240, 58, C_BLACK);
+    cv_rect(0, 1, 240, 1, TE_G1);
+    if (ui.msg_t) {
+        cv_rect(0, 14, 240, 32, C_WHITE);
+        cv_text((240 - text_w(&FONT_S, ui.msg)) / 2, 22, &FONT_S, ui.msg, C_BLACK);
+        cv_blit(0, dials_y);
+        return;
+    }
+    for (k = 0; k < 4u; k++) {
+        int32_t x0 = 2 + 60 * (int32_t)k, vx = x0 + DIAL_VX, vw = dial_w(v[k]);
+        uint32_t hot = ui.hot_t && ui.hot_col == k;
+        uint16_t lc = st[k] == 2u ? col : TE_G2, vc = st[k] == 2u ? (amt[k] ? col : TE_G3) : TE_G2;
+        if (!st[k])
+            continue;
+        if (hot && st[k] == 2u) {
+            cv_rect(x0, 4, text_w(&FONT_S, lab[k]) + 2, 16, lc);
+            cv_text(x0 + 1, 4, &FONT_S, lab[k], C_BLACK);
+        } else {
+            cv_text(x0 + 1, 4, &FONT_S, lab[k], lc);
+        }
+        if (st[k] == 2u)
+            map_ring(x0 + 7, 38, 6, amt[k], col, TE_G2);
+        else
+            te_dial(x0 + 7, 38, 6, -1, TE_G1, TE_G1);
+        dial_over += vw > DIAL_VW - 3;
+        if (st[k] == 2u && amt[k])
+            op_box(vx - 3, 21, vw + 5, 34, col);
+        cv_text_tall_n(vx, 22, v[k], vc, dial_adv(v[k]));
+        if (hot)
+            cv_rect(vx - 1, 56, vw + 1, 2, lc);
+    }
+    cv_blit(0, dials_y);
+}

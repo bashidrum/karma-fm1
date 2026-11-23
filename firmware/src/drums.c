@@ -492,13 +492,24 @@ static void drum_lfo_mod(uint32_t k, int32_t *p16, int32_t *cut, int32_t *res, i
     case DL_PIT: *p16 = v * 192 / 32767; break;      /* +-12 semitones */
     case DL_CUT: *cut = v * 64 / 32767; break;       /* +-64 of 127 */
     case DL_RES: *res = v * 64 / 32767; break;
-    default: *lvl = clamp(16384 + (v >> 1), 0, 32767); break;
+    case DL_LVL: *lvl = clamp(16384 + (v >> 1), 0, 32767); break;
+    default: break;                                 /* (wave 12: another knob, drum_hex_par / drum_synth_on) */
     }
 }
 static void drum_hex_par(uint32_t k, lx_par_t *p)   /* a HEX voice's parameters this block: its sound's, its LFO on them */
 {
     int32_t p16, cut, res, lvl;
-    hex_par(drums.vx[k].hx.d, p);
+    uint32_t id = dl_id(DM_HEX, dlr.lf[k].dst);
+    if (id < DSP_COUNT && dlr.val[k]) {             /* (wave 12) the LFO on another knob: a copy of the sound, moved */
+        hex_snd_t t = *drums.vx[k].hx.d;
+        const param_desc_t *d = dsp_desc(DM_HEX, (const uint8_t *)&t, id);
+        int32_t v = (id == DSP_FINE ? (int32_t)(int8_t)((uint8_t *)&t)[id] : (int32_t)((uint8_t *)&t)[id]) +
+                    dlr.val[k] * (d->max - d->min) / 65534;
+        ((uint8_t *)&t)[id] = (uint8_t)clamp(v, d->min, d->max);
+        hex_par(&t, p);
+    } else {
+        hex_par(drums.vx[k].hx.d, p);
+    }
     drum_lfo_mod(k, &p16, &cut, &res, &lvl);
     if (p16) {                                      /* (COARSE in semitones, FINE +-half a semitone; DRUM / SNARE keep
                                                      * their FINE at 64: theirs is the slope) */
@@ -565,6 +576,22 @@ static void __attribute__((noinline)) drum_synth_on(uint32_t note, uint32_t vel)
         }
     }
     drum_lfo_start(i, &lf);
+    {   /* (wave 12) the LFO on another knob: a CLASSIC knob or a send takes its value as the hit starts (HEX: each block) */
+        uint32_t id = dl_id(model, lf.dst);
+        if (id != 0xFFu && dlr.val[i]) {
+            const param_desc_t *d = dsp_desc(model, own ? (const uint8_t *)&drum_own[i] : snd, id);
+            if (d && (id == DSP_REV || id == DSP_DEL)) {
+                int32_t base = dlr.sov[i][id - DSP_REV] ? dlr.sov[i][id - DSP_REV] - 1 : (int32_t)sl_send(lane, id - DSP_REV);
+                dlr.sov[i][id - DSP_REV] = (uint8_t)(clamp(base + dlr.val[i] * (d->max - d->min) / 65534, d->min, d->max) + 1);
+            } else if (d && model == DM_SYN) {
+                if (!own)
+                    memcpy(&drum_own[i], snd, 22);
+                own = 1;
+                dsp_put(model, (uint8_t *)&drum_own[i], &lf,
+                        id, dsp_get(model, (const uint8_t *)&drum_own[i], &lf, lane, id) + dlr.val[i] * (d->max - d->min) / 65534);
+            }
+        }
+    }
     if (model == DM_HEX)
         hex_on_snd_x(&drums.vx[i].hx, own ? &drum_own[i] : (const hex_snd_t *)snd, note, vel, xs);
     else

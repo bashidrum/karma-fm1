@@ -37,6 +37,41 @@ typedef struct {                             /* a sound's LFO (8 bytes): the Ryt
     int8_t fad;                              /* -64..63: < 0 fades out after the hit, > 0 fades in, 0 none */
 } dlfo_t;
 enum { DL_PIT, DL_CUT, DL_RES, DL_LVL, DL_N };
+/* (wave 12, Ben 23 Nov 13:35: "Hold LFO maps on drums too") DEST after those four: any knob of the slot's machine that can be
+ * wiggled, DL_N + its place here (the same byte, no room more: the list is the machine's, so a DEST of 4 and up means the
+ * slot's own machine's knob). PITCH CUT RESO LEVEL move the hit as it rings (as wave 3's); on HEX every other one too (its
+ * voice reads its sound each block); on CLASSIC the others take the LFO's value at the hit's start (the model works its
+ * envelopes out when the hit starts), as do the sends */
+static const uint8_t DLD_HEX[] = {DSP_FINE, DSP_ATK, DSP_DEC, DSP_SLOPE, DSP_PAMT, DSP_PDEC, DSP_RATIO, DSP_FM, DSP_CLVL,
+                                  DSP_CTONE, DSP_DRIVE, DSP_AUX2, DSP_CRUSH, DSP_REV, DSP_DEL};
+static const uint8_t DLD_SYN[] = {DSP_S0 + 3, DSP_S0 + 4, DSP_S0 + 5, DSP_S0 + 6, DSP_S0 + 7, DSP_S0 + 8, DSP_S0 + 9,
+                                  DSP_S0 + 10, DSP_S0 + 11, DSP_S0 + 12, DSP_S0 + 13, DSP_S0 + 14, DSP_S0 + 18, DSP_S0 + 19,
+                                  DSP_S0 + 20, DSP_S0 + 21, DSP_REV, DSP_DEL};   /* (DS_FINE .. DS_NDEC, DS_FENV .. DS_DRIVE) */
+#define NDLD_HEX (sizeof DLD_HEX)
+#define NDLD_SYN (sizeof DLD_SYN)
+static uint32_t dl_id(uint32_t mach, uint32_t dst)       /* a DEST of 4 and up: the DSP id it moves (0xFF: none) */
+{
+    if (dst < DL_N)
+        return 0xFFu;
+    dst -= DL_N;
+    return mach == 1u ? (dst < NDLD_SYN ? DLD_SYN[dst] : 0xFFu) : (dst < NDLD_HEX ? DLD_HEX[dst] : 0xFFu);
+}
+static uint32_t dl_of(uint32_t mach, uint32_t id)        /* the DEST that moves knob id on machine mach (0xFF: none) */
+{
+    uint32_t i;
+    if (id == (mach == 1u ? DSP_S0 + 2u : (uint32_t)DSP_COARSE))
+        return DL_PIT;
+    if (id == (mach == 1u ? DSP_S0 + 17u : (uint32_t)DSP_CUT))
+        return DL_CUT;
+    if (id == (mach == 1u ? DSP_S0 + 16u : (uint32_t)DSP_RES))
+        return DL_RES;
+    if (id == (mach == 1u ? DSP_S0 + 22u : (uint32_t)DSP_LEVEL))
+        return DL_LVL;
+    for (i = 0; i < (mach == 1u ? NDLD_SYN : NDLD_HEX); i++)
+        if ((mach == 1u ? DLD_SYN[i] : DLD_HEX[i]) == id)
+            return DL_N + i;
+    return 0xFFu;
+}
 enum { DLM_TRIG, DLM_FREE, DLM_ONE, DLM_N };
 static const dlfo_t DLFO_DEF = {64, DL_PIT, 0, 0, 0, DLM_TRIG, 0, 0};
 static const uint16_t DL_PULSES[11] = {0, 384, 192, 96, 48, 24, 12, 8, 6, 4, 3};   /* (voice.c LSYNC_PULSES: 24ths of a beat) */
@@ -229,7 +264,7 @@ static void ds_fix_sound(dsnd_t *d)
 static void dlfo_fix(dlfo_t *f)
 {
     f->spd &= 127u; f->sph &= 127u;
-    if (f->dst >= DL_N) f->dst = DL_PIT;
+    if (f->dst >= DL_N + NDLD_SYN) f->dst = DL_PIT;
     if (f->wav > 4u) f->wav = 0;
     if (f->syn > 10u) f->syn = 0;
     if (f->mode >= DLM_N) f->mode = DLM_TRIG;
@@ -330,6 +365,7 @@ static void slot_name(const dslot_t *d, char *b, uint32_t n)
 
 /* (drum_par.c, after params.c: what each id is, its range) */
 static void dsp_put(uint32_t model, uint8_t *snd, dlfo_t *lf, uint32_t id, int32_t v);
+static int32_t dsp_get(uint32_t model, const uint8_t *snd, const dlfo_t *lf, uint32_t l, uint32_t id);
 
 /* ---- the LFO of a hit as it plays (drums.c: each voice's lf, ph, fade, val). Once a block of n samples */
 static int32_t dlfo_wave(uint32_t wav, uint32_t ph, uint32_t rnd)

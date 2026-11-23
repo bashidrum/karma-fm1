@@ -280,6 +280,23 @@ static void t_user_kits(void)
     check(ukit_put(5, 0) == 0 && ukit_state(5) == UK_ERASED && kit_pos(DSRC_USER + 5u) < 0, "user kits: erased: gone from the list");
 }
 
+/* (wave 12, Ben 13:35: "Hold LFO maps on drums too") the LFO on any knob: it moves the sound (HEX each block, CLASSIC per hit) */
+static void t_lfo_any(void)
+{
+    uint32_t h0, h1, m, ok = 1;
+    for (m = 0; m < 2u; m++) {
+        uint32_t id = m ? DSP_S0 + DS_DECAY : DSP_DEC;
+        kit_set(m ? DRUM_DEFAULT_KIT : 0u);
+        pkit.s[2].lfo.spd = 100, pkit.s[2].lfo.sph = 32;   /* (a quarter cycle in: the LFO up as the hit starts) */
+        h0 = hits(1u << 2, 400, 0);
+        pkit.s[2].lfo.dst = (uint8_t)dl_of(m, id);
+        pkit.s[2].lfo.dep = 63;
+        h1 = hits(1u << 2, 400, 0);
+        ok &= h0 != h1 && pkit.s[2].lfo.dst >= DL_N && dl_id(m, pkit.s[2].lfo.dst) == id;
+    }
+    check(ok, "the LFO on DECAY (HEX: its DEC each block; CLASSIC: DECAY as the hit starts) moves the sound");
+}
+
 int main(void)
 {
     host_tracks_init();
@@ -290,6 +307,7 @@ int main(void)
     t_lists();
     t_locks();
     t_user_kits();
+    t_lfo_any();
     printf("kitmix: %s\n", fails ? "FAILED" : "all ok");
     return fails;
 }

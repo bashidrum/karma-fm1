@@ -4310,10 +4310,37 @@ int main(int argc, char **argv)
         press(B_LFO); frames(SHOW_MS / 16u + 4u);
         check(!map_lyr && ui.layer == LY_LFO, "w11: hold LFO on HOME: the MASTER pair layer (wave 10), no map");
         release(B_LFO); frames(4);
-        song.sel = TRK_DRUM; drum_screen_open(); frames(4);
-        press(B_LFO); frames(SHOW_MS / 16u + 4u);
-        check(!map_lyr && ui.layer == LY_LFO, "w11: hold LFO on the drums: the pair only (the drum question is Ben's)");
-        release(B_LFO); frames(4);
+        {   /* (wave 12, Ben 13:35: "Hold LFO maps on drums too") a drum sound page: LFO held maps onto the slot's knobs */
+            uint32_t kd, okc = 1;
+            song.sel = TRK_DRUM; kit_set(DRUM_DEFAULT_KIT); drum_lane = 2; drum_screen_open(); dpg_go(3, 0); frames(4);   /* AMP 1/2 */
+            press(B_LFO); frames(SHOW_MS / 16u + 4u);
+            check(map_lyr == LY_LFO && map_vis && ui.layer != LY_LFO, "w12: hold LFO on a drum sound page (AMP): MAP, the page stays");
+            encs[panel.enc[EN_K2]] = 20; frame();       /* DECAY: +20 */
+            check(pkit.s[2].lfo.dst == dl_of(DM_SYN, DSP_S0 + DS_DECAY) && pkit.s[2].lfo.dep == 20,
+                  "w12: drums, LFO held + KNOB 2 (DECAY): the snare's LFO DEST is DECAY, DEPTH +20");
+            ui.force = 1; frame(); ppm("w12-drum-map");
+            okc &= px_count(0, 131, 240, 23, TE_DRUM) > 40u && dial_over == 0u;
+            for (kd = 0; kd < 240u * 23u; kd++) {           /* the banner: the drums' teal outline, black, grey only */
+                uint16_t c = swap16(screen[(131u + kd / 240u) * 240u + kd % 240u]);
+                okc &= c == TE_DRUM || c == C_BLACK || c == TE_G1 || c == TE_G3 || c == TE_G4 || c == C_WHITE;
+            }
+            check(okc, "w12: the drums' MAP view: MAP LFO outlined in teal, its columns fit, the colour rule");
+            dpg_go(2, 0); frame();                      /* FLTR: CUTOFF onto */
+            encs[panel.enc[EN_K1]] = -10; frame();
+            check(pkit.s[2].lfo.dst == DL_CUT && pkit.s[2].lfo.dep == -10 && !strcmp(ui.msg, "LFO > CUT (WAS DECAY)"),
+                  "w12: another knob replaces it, said: LFO > CUT (WAS DECAY), -10");
+            encs[panel.enc[EN_K4]] = 1; frame();
+            check(strstr(ui.msg, "NOT MAPPABLE") != 0 && pkit.s[2].lfo.dst == DL_CUT, "w12: TYPE (a named value): NOT MAPPABLE");
+            check(combo_live(HC_LY(LY_LFO), B_OCTDN) && !combo_live(HC_LY(LY_LFO), B_SCL),
+                  "w12: lights: OCT- (remove) lit, SEL dark (one LFO a sound)");
+            tap(B_OCTDN); frames(2);
+            check(pkit.s[2].lfo.dep == 0, "w12: OCT- while held: the mapping off");
+            release(B_LFO); frames(4);
+            press(B_ENV); frames(SHOW_MS / 16u + 4u);
+            check(!map_lyr && ui.layer == LY_ENV, "w12: hold ENV on the drums: MASTER's pair only (no envelope to map)");
+            release(B_ENV); frames(4);
+            kit_set(DRUM_DEFAULT_KIT);
+        }
         song.sel = 0; go_home(); frames(4);
         /* the sound: a mapping made by the hold plays exactly as the same cell set on the grid, and differs from none */
         {
