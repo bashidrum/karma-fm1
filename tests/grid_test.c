@@ -4,13 +4,13 @@
  *   the table   the grid's 16 places hold exactly his roles, row by row; two key orders over it: the keys played by hand
  *               count the Rytm's way, the bottom row first (Ben, 22:45: keys 1 to 4 KICK RIM SNARE 2 SNARE ... 13 to 16 HAT
  *               OP HAT RIDE CRASH); the mixer and SELECT run down the columns (Ben, 21:10: keys 1 to 4 HAT PEDAL KICK 2 KICK
- *               ... 13 to 16 CRASH SHAKER CLAP SNARE), until Ben says which places the Rytm order applies to
+ *               ... 13 to 16 CRASH SHAKER CLAP SNARE), his 21:10 order kept (22:46); SELECT follows the Rytm order (22:48)
  *   the mixer   each white key mutes, and with OCT+ solos, exactly its sound; the tile that changes is the one in its grid
  *               place; every white key lit (each does something); heard: key 4's mute silences the KICK and nothing else,
  *               key 16's the SNARE, key 1's the HAT, key 15's the CLAP (sample for sample against the same pattern with
  *               that sound's trigs taken out); a solo by key 16 leaves the SNARE alone
  *   the drum screen's map   the selected slot framed in its grid place; slots with hits marked there
- *   SELECT      walks the key order and goes round (SNARE -> HAT); the chip names the sound
+ *   SELECT      walks the Rytm order and goes round (CRASH -> KICK); the chip names the sound
  *   the keys    on HOME a white key plays its grid sound; hold SEQ + a key retrigs that sound; hold SEQ's tiles are the grid;
  *               a hit lights its sound's key
  *   names       all 16 short names fit their tiles (with an M or S tab too); the colour rule on the changed screens
@@ -53,6 +53,10 @@ static void table(void)
         if (punch_key(i) < 0)
             ok &= lane_of_key(i) == lane_of_key(i - 1u);
     check(ok, "a black key maps as the white key left of it (as before)");
+    check(lane_of_mixkey(3) == lane_named("kick") && lane_of_mixkey(15) == lane_named("snare") && lane_of_mixkey(0) == lane_named("hat") &&
+          lane_of_white(0) == lane_named("kick") && lane_of_white(3) == lane_named("snare") && lane_of_white(12) == lane_named("hat") &&
+          lane_of_white(15) == lane_named("crash"),
+          "the two orders pinned: mixer key 4 KICK, 16 SNARE, 1 HAT; by hand key 1 KICK, 4 SNARE, 13 HAT, 16 CRASH");
 }
 
 /* ---- the mixer: keys, tiles, lights */
@@ -250,21 +254,24 @@ static void select_order(void)
     int32_t cr;
     uint16_t cc;
     song.sel = TRK_DRUM; go_home(); frames(2); drum_screen_open(); frames(3);
-    drum_lane = (uint8_t)lane_named("hat"); frame();
+    drum_lane = (uint8_t)lane_named("kick"); frame();
     for (i = 1; i <= 16u; i++) {
         encs[panel.enc[EN_SELECT]] = 1; frame(); frame();
-        ok &= str_eq(LANE_SHORT[drum_lane], WANT_KEYS[i & 15u]);
+        ok &= str_eq(LANE_SHORT[drum_lane], WANT_PLAY[i & 15u]);
         if (i == 4u) {                                  /* the chip names it, upper case as drawn */
             sel_chip(cv, &cr, &cc);
-            ok &= str_eq(cv, "op hat") && cc == TE_DRUM;
+            ok &= str_eq(cv, "kick 2") && cc == TE_DRUM;
         }
     }
-    check(ok, "SELECT: HAT, PEDAL, KICK 2, KICK, OP HAT ... CLAP, SNARE, then round to HAT (key order); the chip names it");
-    l = drum_lane;                                      /* (HAT) */
+    check(ok, "SELECT: KICK, RIM, SNARE 2, SNARE, KICK 2 ... RIDE, CRASH, then round to KICK (the Rytm order); the chip names it");
+    l = drum_lane;                                      /* (KICK) */
     encs[panel.enc[EN_SELECT]] = -1; frame(); frame();
-    check(str_eq(LANE_SHORT[drum_lane], "snare") && l == lane_named("hat"), "SELECT left from HAT: SNARE (round)");
+    check(str_eq(LANE_SHORT[drum_lane], "crash") && l == lane_named("kick"), "SELECT left from KICK: CRASH (round)");
     encs[panel.enc[EN_SELECT]] = -1; frame(); frame();
-    check(str_eq(LANE_SHORT[drum_lane], "clap"), "SELECT left again: CLAP");
+    check(str_eq(LANE_SHORT[drum_lane], "ride"), "SELECT left again: RIDE");
+    check(lane_step(lane_named("kick"), -1, 0) == lane_named("kick") && lane_step(lane_named("crash"), 1, 0) == lane_named("crash") &&
+          lane_step(lane_named("snare"), 1, 0) == lane_named("kick 2"),
+          "CHROMATIC's -/+ follows SELECT's order, stopping at KICK and CRASH");
 }
 
 /* ---- the keys elsewhere: HOME plays, hold SEQ retrigs, hold SEQ's tiles, the hit's light */

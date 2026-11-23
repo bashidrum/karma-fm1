@@ -119,8 +119,11 @@ static void pages(void)
         check(sel_chip(cv, &cr, &cc) && str_eq(cv, LANE_SHORT[drum_lane]) && cc == TE_DRUM,
               "D2: SENDS: the header names the selected sound (SNARE), in teal");
         encs[panel.enc[EN_SELECT]] = 1; frames(2);
-        check(drum_lane == lane_step(ln, 1, 1), "D2: SELECT on SENDS picks the sound (the next in key order)");
+        check(drum_lane == lane_step(ln, 1, 1), "D2: SELECT on SENDS picks the sound (the next in SELECT's order)");
         drum_lane = 2;
+        frames(300);                                   /* (the sound SELECT auditioned rings out: since SELECT follows the Rytm
+                                                        * order it is KICK 2, a long one, which the KIT FX renders below would
+                                                        * otherwise hear through the kit's effects) */
         for (i = 0, okk = 1; i < NTRK; i++)
             okk &= px_count(0, 0, 240, OP_BAR_Y, i == TRK_DRUM ? TE_RED : TE_COL[i]) == 0u;
         check(okk && px_count(0, SG_KNOB_Y, 240, 58, TE_DRUM) > 40u, "D6: SENDS in teal only (no red, no melodic voice's colour)");

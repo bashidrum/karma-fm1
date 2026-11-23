@@ -159,14 +159,15 @@ static uint32_t lane_of_note(uint32_t note)
  *            HAT PEDAL KICK 2 KICK, 5 to 8 the second, 9 to 12 the third, 13 to 16 the right
  * DG_PLAY: the keys that play the sounds by hand (HOME, live recording, a key held + OCT- erase, hold SEQ's RETRIG and its
  * tiles, the key lights for hits). DG_MIX: the mixer's mutes and solos (hold GLO). DG_SEL: SELECT's walk and CHROMATIC's sound
- * step. (23 Nov, 22:45 onwards: DG_PLAY is the Rytm's; the mixer and SELECT stay in columns until Ben says which places the
- * Rytm order applies to.) Presentation and key order only: the slots, the project, the kits, the MIDI notes, the trigs and
+ * step. Why two (SPEC.md, 22:46 and 22:48): Ben, "Are you undoing the very specific order that I've specified for the mixer
+ * for muting the drums?" (the mixer keeps 21:10's columns), and of SELECT, "It should follow the Rytm order". Presentation and key order only: the slots, the project, the kits, the MIDI notes, the trigs and
  * locks, PERFORM's mutes stay by slot. No RAM */
 static const uint8_t DRUM_GRID[DRUM_LANES] = {4, 5, 12, 11, 6, 14, 15, 13, 1, 9, 10, 3, 0, 7, 8, 2};
 enum { DG_COLS, DG_ROWS };
 #define DG_PLAY DG_ROWS                                 /* the keys played by hand */
 #define DG_MIX DG_COLS                                  /* the mixer's mutes and solos */
-#define DG_SEL DG_COLS                                  /* SELECT and CHROMATIC's -/+ */
+#define DG_SEL DG_ROWS                                  /* SELECT and CHROMATIC's -/+ (Ben 22:48: "It should follow the
+                                                         * Rytm order") */
 /* white key w (0..15) -> its place in the grid in order o; each sum is its own inverse (a place back to its key) */
 static uint32_t dgrid_of_white_o(uint32_t w, uint32_t o)
 {
@@ -186,6 +187,8 @@ static uint32_t dgrid_of_lane(uint32_t l)               /* the grid's place of s
 static uint32_t white_of_lane_o(uint32_t l, uint32_t o) { return dgrid_of_white_o(dgrid_of_lane(l), o); }
 static uint32_t white_of_lane(uint32_t l) { return white_of_lane_o(l, DG_PLAY); }   /* slot l's white key, 0..15 */
 static uint32_t lane_of_mixkey(uint32_t w) { return lane_of_white_o(w, DG_MIX); }   /* the mixer: white key w's sound */
+static uint32_t key_of_white(uint32_t w);
+static uint32_t key_of_mixlane(uint32_t l) { return key_of_white(white_of_lane_o(l, DG_MIX)); }   /* the mixer: slot l's key */
 /* the sound d keys on from slot l, in SELECT's order (SELECT, CHROMATIC's -/+); wrap: round, else it stops at either end */
 static uint32_t lane_step(uint32_t l, int32_t d, int wrap)
 {

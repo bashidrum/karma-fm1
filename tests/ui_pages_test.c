@@ -2593,14 +2593,14 @@ int main(int argc, char **argv)
         memset(pad_lit, 0, sizeof pad_lit);
         drum_lane = 0; frame();                         /* (wave 9, Ben: "Drum sound pick: SELECT knob") */
         encs[panel.enc[EN_SELECT]] = 3; frame(); frame();
-        check(drum_lane == 5 && pad_lit[5], "grid: SELECT a detent from KICK: the next sound in key order (OP HAT, key 5), heard while stopped");
+        check(drum_lane == 7 && pad_lit[7], "grid: SELECT a detent from KICK: the next sound in the Rytm order (RIM, key 2), heard while stopped");
         encs[panel.enc[EN_SELECT]] = 1; frame(); encs[panel.enc[EN_SELECT]] = 1; frame();
-        check(drum_lane == 9, "grid: SELECT, two more: CONGA, then LO TOM (down the second column)");
+        check(drum_lane == 2, "grid: SELECT, two more: SNARE 2, then SNARE (along the bottom row)");
         frames(20);
         key(key_of_white(9)); frame();
-        check(dt_has(25, 9), "grid: a white key sets the step of the sound picked");
+        check(dt_has(25, 2), "grid: a white key sets the step of the sound picked");
         key(key_of_white(9)); frame();
-        check(!dt_has(25, 3), "grid: again: cleared");
+        check(!dt_has(25, 2), "grid: again: cleared");
         {   /* PHEBUS (21 Nov 2026): the STUTTER lane, after DRUM on the GRID (ui_stut.c, punch.c stl) */
             uint32_t j, kw0 = key_of_white(0), kw12 = key_of_white(12);
             check(stl_new == 0u && !strcmp(STL_LEN[stl_new], "1/4"),
