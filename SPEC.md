@@ -345,3 +345,17 @@ Claude's reading of the second answer, for him to confirm: the row of steps come
 "The black keys on the stutter sequencer should just do stutters / beat repeat fx. There should definitely be 3 iso EQ fx on the pad FX play mode too, iso lows, iso mids and iso highs - set to Daft punk values of 220hz bass 1.1khz mids, high 1.1khz +"
 
 Claude's reading, for him to confirm: on the STUTTER lane screen the black keys play stutters by hand (the lengths), drawn in the strip. PERFORM gains three pads, ISO LOW (below 220 Hz), ISO MID (220 Hz to 1.1 kHz) and ISO HIGH (above 1.1 kHz); holding one lets only that band through, holding two lets both through. To be built as the wave after wave 12.
+
+### 23 Nov 2026, 14:13: the PERFORM set, in Ben's words
+
+"Just the 3 iso, meaning isolate, as in - I want to hear this band. And having just those 3 gives me all the filtering I'd need for sure. Maybe a motion filter could be cool if there's room. Most of the fx I'll use are broad stutters. Subtle bit crusher that just makes things feel a little thin and papery / gritty. Phasers, jets, anything vowely. I like 1/2 time. A delay throw. A reverb throw. And three iso EQ bands. Some fast performable mutes would be amazing:
+
+Mute kicks and low tom
+Mute all drums but tops - snare, clap and hats, shaker
+Mute all drums but shaker and clap.
+Mute all drums but hats and snare.
+Mute voice 1
+Mute voice 2
+Mute voice 3
+
+If you could play all those mutes and fx in one place that would be a power house for keeping beats varied in daft punk style drops"
