@@ -95,11 +95,13 @@ int main(void)
             for (c = 0; c < 2u; c++) {
                 uint32_t a = st_sector(o, c), n = st_big(o) ? 2u : 1u, k, k2;
                 int data = a >= 0x97000u && a + 4096u <= 0xA0000u, ups = a >= 0xDC000u && a + 4096u <= 0xE0000u;
-                int glob = a >= 0xFC000u && a + 4096u <= 0xFF000u, big = st_big(o) && a >= 0xA0000u && a + 8192u <= 0xB4000u,
-                    ukit = o == OBJ_UKIT && a >= 0xB4000u && a + 4096u <= 0xB6000u;   /* (wave 12: the user kits) */
+                int glob = a >= 0xFC000u && a + 4096u <= 0xFF000u, big = st_area(o) == 0 && a >= 0xA0000u && a + 8192u <= 0xB4000u,
+                    ukit = o == OBJ_UKIT && a >= 0xB4000u && a + 4096u <= 0xB6000u,   /* (wave 12: the user kits) */
+                    bank = (o == OBJ_BANKP && a >= 0xB6000u && a + 4096u <= 0xB8000u) ||   /* (the bank: its pointer, its area) */
+                           (st_area(o) == 1 && a >= 0xB8000u && a + 8192u <= 0xCC000u);
                 if (o == OBJ_FM6BANK || st_gone(o))
                     continue;                            /* (retired with FM6; the songs' numbers) */
-                inside &= (data || ups || glob || big || ukit) && !(a & 0xFFFu);
+                inside &= (data || ups || glob || big || ukit || bank) && !(a & 0xFFFu);
                 for (o2 = 0; o2 < OBJ_COUNT; o2++)
                     for (c2 = 0; c2 < 2u; c2++)
                         for (k = 0; k < n; k++)
