@@ -400,6 +400,228 @@ static uint32_t lt_check(const char *name, void (*su)(void), uint32_t hc, uint32
     lt_bad += bad;
     return nlit;
 }
+
+/* (PHEBUS, Ben 23 Nov 2026, 14:22: the screensavers' lines "come over very harsh ... super infrequent ... I don't like the
+ * white one at all ... a different one at random every time") the tears are rare and gentle, no picture holds a line of one
+ * bright colour across it, the pick is random, the caption says where the others are. Each picture is held still (levels,
+ * clock) so that a frame differs from its reference only by a tear: the reference is painted at the start of a 32.8 s slot,
+ * where the slot's own tear never is (it comes 10 to 22 s in) */
+static uint32_t vr_line(void)                       /* 1: a row of the screen of one bright colour, full width (230 of 240 pixels) */
+{
+    uint32_t y, x, n;
+    for (y = 0; y < 240u; y++) {
+        uint16_t c = screen[y * 240u];
+        uint32_t cc = swap16(c), lum = (cc >> 11) * 2u + ((cc >> 5) & 63u) + (cc & 31u) * 2u;   /* 0..187 */
+        if (lum < 90u)
+            continue;
+        for (n = 0, x = 0; x < 240u; x++)
+            n += screen[y * 240u + x] == c;
+        if (n >= 230u)
+            return 1;
+    }
+    return 0;
+}
+static uint32_t vr_loud;
+static void vr_paint(uint32_t st, uint32_t ms)
+{
+    uint32_t i;
+    vis_style = (uint8_t)st;
+    fm1_ms = ms;
+    for (i = 0; i < 4u; i++) { vs.e[i] = (uint16_t)(vr_loud ? 256u : 60u + i * 40u); vs.flash[i] = 0; }
+    vs.kick = vr_loud ? 200u : 0u;
+    vs.tq = (st * 900u + 200u) << 8;
+    vs.rip = 17u;
+    memset(ey, 0, sizeof ey);
+    vis_name_t = 0;
+    vis_paint();
+}
+/* n frames of picture st, 32 ms apart from ms0; kicks: a kick every 500 ms. Returns the frames with a torn row; *runs: how
+ * many separate events; *kt: the kick-started tears; *line: frames with a bright full-width row */
+static uint32_t vr_run(uint32_t st, uint32_t n, uint32_t kicks, uint32_t ms0, uint32_t *runs, uint32_t *kt, uint32_t *line)
+{
+    static uint16_t ref[240 * 240];
+    uint32_t f, torn = 0, prev = 0, i;
+    int32_t lv[4] = {60, 100, 140, 180};
+    vs.kt = 0;
+    vr_paint(st, ms0 & ~32767u);
+    memcpy(ref, screen, sizeof ref);
+    *runs = *kt = *line = 0;
+    for (f = 0; f < n; f++) {
+        uint32_t ms = ms0 + f * 32u, d = 0, k0 = vs.kt;
+        if (kicks && f % 16u == 0u) {               /* (a kick on every beat: 120 BPM) */
+            vis_kick_hit = 1;
+            fm1_ms = ms;
+            vis_step(lv, 1u);                       /* (it may start a tear: vs.kt) */
+            *kt += vs.kt != k0;
+        }
+        vr_paint(st, ms);
+        for (i = 0; i < 240u * 240u; i++)
+            d += screen[i] != ref[i];
+        torn += d != 0u;
+        *runs += d != 0u && !prev;
+        prev = d != 0u;
+        *line += vr_line();
+    }
+    return torn;
+}
+static void vis_rare_checks(void)
+{
+    uint32_t st, torn, runs, kt, line, i, seen, n;
+    char nm[96];
+    uint32_t ms0 = fm1_ms, vl = vis_last, vrng = vis_rng;
+    uint8_t vst = vis_style, von = vis_on, vnt = vis_name_t, bv = boot_vis;
+    uint32_t kt_all = 0, runs_all = 0;
+    for (st = 0; st < VIS_N; st++) {                /* 2000 frames (64 s) of each picture, nothing playing */
+        torn = vr_run(st, 2000u, 0u, 200000u, &runs, &kt, &line);
+        snprintf(nm, sizeof nm, "tears %-9s idle: %u of 2000 frames torn in %u event(s) (a few rows, one event at most)", VIS_NAME[st], torn, runs);
+        check(torn <= 16u && runs <= 3u, nm);       /* (64 s: one or two events of 5 frames; at most 0.8% of the frames) */
+        snprintf(nm, sizeof nm, "lines %-9s idle: no frame has a bright full-width row (%u)", VIS_NAME[st], line);
+        check(line == 0u, nm);
+    }
+    for (st = 0; st < VIS_N; st++) {                /* playing: a kick on every beat for 4000 frames (128 s, 64 bars) */
+        torn = vr_run(st, 4000u, 1u, 300000u, &runs, &kt, &line);
+        kt_all += kt;
+        runs_all += runs;
+        snprintf(nm, sizeof nm, "tears %-9s kick on every beat: %u of 4000 frames torn, %u events, %u from kicks", VIS_NAME[st], torn, runs, kt);
+        check(torn <= 60u && runs <= 12u && kt <= 4u, nm);   /* (kicks: under 1 in 16 bars; 8 s apart at the closest) */
+        snprintf(nm, sizeof nm, "lines %-9s kick on every beat: no bright full-width row (%u)", VIS_NAME[st], line);
+        check(line == 0u, nm);
+    }
+    printf("ui:   (tears: kick-started %u in 4 x 64 bars, events %u in 4 x 128 s playing)\n", kt_all, runs_all);
+    {   /* the morph and the field's rows too: the clock run through a whole cycle (15 s each) of FLOW and THIRD EYE */
+        uint32_t cyc, bad = 0;
+        for (st = 0; st < VIS_N; st += 3u)
+            for (cyc = 0; cyc < 12u; cyc++) {
+                vr_paint(st, 200000u);
+                vs.tq = (uint32_t)(cyc * 300u + 10u) << 8;
+                vis_paint();
+                bad += vr_line();
+            }
+        check(bad == 0u, "lines FLOW, THIRD EYE: the morph (a dissolve, it was a white wipe) leaves no bright full-width row");
+    }
+    {   /* pictures for the review: the dissolve half way, and a tear (FLOW, the first torn frame found) */
+        static uint16_t r0[240 * 240];
+        uint32_t ms;
+        vr_paint(0, 200000u); vs.tq = (uint32_t)(600u + 60u) << 8; vis_paint(); ppm("vis-flow-dissolve");
+        vr_paint(0, 200000u & ~32767u); memcpy(r0, screen, sizeof r0);
+        for (ms = 200000u; ms < 300000u; ms += 16u) {
+            vr_paint(0, ms);
+            if (memcmp(r0, screen, sizeof r0)) { ppm("vis-flow-tear"); break; }
+        }
+    }
+    {   /* loud: every voice at the top and a kick; the clock through a few moments of each picture */
+        uint32_t bad = 0, k;
+        vr_loud = 1;
+        for (st = 0; st < VIS_N; st++)
+            for (k = 0; k < 40u; k++) {
+                vr_paint(st, 200000u);
+                vs.tq = (uint32_t)(k * 97u + st * 13u) << 8;
+                vis_paint();
+                bad += vr_line();
+            }
+        vr_loud = 0;
+        check(bad == 0u, "lines, all four pictures, all voices loud with a kick: no bright full-width row");
+    }
+    for (st = 0; st < VIS_N; st++) {                /* the boot's pictures too */
+        uint32_t t, bad = 0;
+        boot_vis = (uint8_t)st; flow_seed = 0x2462u;
+        for (t = 0; t < 180u; t += 9u) { boot_frame(t); bad += vr_line(); }
+        snprintf(nm, sizeof nm, "boot %-9s: no bright full-width row in any frame", VIS_NAME[st]);
+        check(bad == 0u, nm);
+    }
+    {   /* the pick at boot: from the seed, never the one shown last, all four come up */
+        uint32_t cnt[VIS_N] = {0}, same = 0, a;
+        for (i = 1; i <= 64u; i++) {
+            vis_style = (uint8_t)(i % VIS_N);
+            boot_choose(i * 2654435761u);
+            same += boot_vis == (uint8_t)(i % VIS_N);
+            cnt[boot_vis]++;
+            if (vis_style != boot_vis || vis_last != boot_vis) same += 100u;
+        }
+        for (i = 1; i <= 64u; i++) {
+            vis_style = 0;
+            boot_choose(i * 2654435761u + 77u);
+            same += boot_vis == 0u;
+            cnt[boot_vis]++;
+        }
+        for (seen = 0, a = 0; a < VIS_N; a++) seen += cnt[a] != 0u;
+        snprintf(nm, sizeof nm, "boot pick: seeds 1..64 give %u/%u/%u/%u (FLOW/EYES/DESERT/THIRD EYE), never the last shown", cnt[0], cnt[1], cnt[2], cnt[3]);
+        check(!same && cnt[1] && cnt[2] && cnt[3], nm);      /* (never FLOW here: FLOW was the last shown) */
+        for (i = 0; i < 64u; i++) {                 /* the last shown moves round: every one of the four comes up */
+            vis_style = (uint8_t)(i % VIS_N);
+            boot_choose(i * 40503u + 5u);
+            cnt[boot_vis]++;
+        }
+        for (seen = 0, a = 0; a < VIS_N; a++) seen += cnt[a] > 8u;
+        check(seen == VIS_N, "boot pick: with the last shown moving, all four come up, each many times");
+        {   uint32_t b1, b2, d = 0;
+            for (i = 1; i <= 32u; i++) {            /* the same last shown, two seeds: they differ */
+                vis_style = 1; boot_choose(i); b1 = boot_vis;
+                vis_style = 1; boot_choose(i + 1000u); b2 = boot_vis;
+                d += b1 != b2;
+            }
+            snprintf(nm, sizeof nm, "boot pick: different seeds, different pictures (%u of 32 pairs differ)", d);
+            check(d >= 12u, nm);
+        }
+    }
+    {   /* the screensaver opened from HOME: at random, never the same twice running */
+        uint32_t cnt[VIS_N] = {0}, rep = 0, a;
+        uint8_t last;
+        vis_last = 0;
+        for (i = 0; i < 200u; i++) {
+            last = vis_last;
+            vis_on = 0;
+            fm1_ms = 1000u + i * 977u;               /* (a person's presses: no two moments alike) */
+            vis_open();
+            rep += vis_style == last;
+            cnt[vis_style % VIS_N]++;
+            rep += !(vis_on && vis_name_t == VIS_CAPTION && vis_last == vis_style);
+        }
+        for (i = 0; i < 200u; i++) {
+            last = vis_last;
+            vis_on = 0;
+            fm1_ms = 5000u + i * 1237u;
+            vis_open();
+            rep += vis_style == last;
+            cnt[vis_style % VIS_N]++;
+        }
+        snprintf(nm, sizeof nm, "screensaver from HOME: 200 openings %u/%u/%u/%u, never the same twice running", cnt[0], cnt[1], cnt[2], cnt[3]);
+        check(!rep && cnt[0] > 20u && cnt[1] > 20u && cnt[2] > 20u && cnt[3] > 20u, nm);
+        for (n = 0, i = 1; i <= 16u; i++) {          /* (the same moment, other dice: other pictures) */
+            vis_last = 0; vis_on = 0; fm1_ms = 123456u; vis_rng = i * 7919u;
+            vis_open();
+            n |= 1u << vis_style;
+        }
+        check((n & (n - 1u)) != 0u, "screensaver from HOME: the same moment with other dice gives other pictures");
+        vis_style = 1; vis_last = 1; vis_on = 1;     /* SELECT's walk: opened on, it goes where it was sent */
+        vis_style = 2; vis_open();
+        check(vis_style == 2u && vis_last == 2u, "screensaver, SEL: goes where it was sent (not re-rolled)");
+    }
+    {   /* the caption: where the others are, grey, fading, gone; not a bar, not white */
+        static uint16_t a[240 * 240], b[240 * 240];
+        uint32_t diff = 0, white = 0, low = 0, x;
+        vis_on = 0; vis_last = 3; fm1_ms = 400000u; vis_open();
+        vr_paint(vis_style, 400000u); memcpy(b, screen, sizeof b);                 /* (no caption) */
+        vis_name_t = VIS_CAPTION; vis_paint(); memcpy(a, screen, sizeof a);        /* (the caption) */
+        for (x = 0; x < 240u * 240u; x++) {
+            if (a[x] != b[x]) {
+                diff++;
+                white += swap16(a[x]) == 0xFFFFu;
+                low += x >= 240u * 20u;
+            }
+        }
+        snprintf(nm, sizeof nm, "caption: %u pixels over the picture's top 20 rows only, none white", diff);
+        check(diff > 150u && diff < 6000u && !low && !white, nm);
+        ppm("vis-caption");
+        vis_name_t = 10; vis_paint();
+        for (diff = 0, x = 0; x < 240u * 20u; x++) diff += screen[x] != a[x];
+        vis_name_t = 0; vis_paint();
+        for (x = 0, low = 0; x < 240u * 240u; x++) low += screen[x] != b[x];
+        check(diff > 50u && !low, "caption: fades (10 draws left: dimmer), and goes (0: the picture, nothing else)");
+        ui.force = 1;
+    }
+    fm1_ms = ms0; vis_last = (uint8_t)vl; vis_rng = vrng; vis_style = vst; vis_on = von; vis_name_t = vnt; boot_vis = bv; vs.kt = 0;
+}
 int main(int argc, char **argv)
 {
     uint32_t i;
@@ -460,7 +682,16 @@ int main(int argc, char **argv)
     }
     sloop_splash(); ppm("page-splash");
     { static const uint32_t SEED[6] = {0u, 0x1231u, 0x2462u, 0x7733u, 0x51A4u, 0x9C55u}; uint32_t k;   /* the boot: FLOW, PHEBUS black in it */
-      for (k = 0; k < 6u; k++) { char nm[16]; snprintf(nm, sizeof nm, "boot-%u", (unsigned)k); flow_seed = SEED[k]; boot_frame(60u + k * 9u); ppm(nm); } }
+      boot_vis = 0;
+      for (k = 0; k < 6u; k++) { char nm[16]; snprintf(nm, sizeof nm, "boot-%u", (unsigned)k); flow_seed = SEED[k]; boot_frame(60u + k * 9u); ppm(nm); }
+      for (k = 0; k < VIS_N; k++) {                /* (23 Nov: a screensaver's picture behind the wordmark, one of the four at random) */
+          char nm[40]; uint32_t w, t;
+          boot_vis = (uint8_t)k; flow_seed = SEED[2];
+          snprintf(nm, sizeof nm, "boot-pic-%s", VIS_NAME[k]);
+          for (w = 0; nm[w]; w++) if (nm[w] == ' ') nm[w] = '-';
+          for (t = 0; t < 3u; t++) { boot_frame(40u + t * 50u); if (t == 1u) ppm(nm); }
+      }
+      boot_vis = 0; } 
     ui.menu = 2; ui.force = 1; frame(); ppm("page-about"); ui.menu = 0;
     go_home(); ui.force = 1; frame(); ppm("page-tracks");
     {   /* (PHEBUS wave 2) HOME's header title: the pattern playing (A..D), else PHEBUS; never empty */
@@ -2048,8 +2279,8 @@ int main(int argc, char **argv)
         SEL(-1); SEL(1);
         check(song.g[G_BPM] == bpm && !vis_on && ui.home + (cur_page()->scope == SC_TRK), "SELECT on HOME: nothing (no type there; never the tempo)");
         tap(B_HOME);
-        check(vis_shown() && vis_style == 0u, "HOME on HOME (wave 9): its next category, the screensaver (FLOW)");
-        tap(B_SCL); check(vis_shown() && vis_style == 1u, "screensaver, SEL (PAGE): the next one (EYES)");
+        check(vis_shown() && vis_style < VIS_N, "HOME on HOME (wave 9): its next category, the screensaver (one of the four, at random: 23 Nov)");
+        { uint8_t s0 = vis_style; tap(B_SCL); check(vis_shown() && vis_style == (s0 + 1u) % VIS_N, "screensaver, SEL (PAGE): the next one"); }
         tap(B_HOME); check(!vis_on && cur_page()->scope == SC_TRK, "screensaver, HOME: round to HOME");
         vis_style = 0;
         open_family(FAM_GLO); frame();
@@ -2324,7 +2555,7 @@ int main(int argc, char **argv)
         encs[panel.enc[EN_SELECT]] = 1; frames(2);
         check(!vis_shown() && !vis_on, "visualiser: SELECT on HOME: nothing (wave 9: SELECT is a type, HOME has none)");
         tap(B_HOME); frames(2);
-        check(vis_shown() && vis_on && vis_style == 0u, "visualiser: HOME on HOME opens the screensaver, FLOW (HOME's next category)");
+        check(vis_shown() && vis_on && vis_style < VIS_N, "visualiser: HOME on HOME opens the screensaver (HOME's next category; which: at random, 23 Nov)");
         vis_style = 0; ui.force = 1;
         for (st = 0; st < VIS_N; st++) {
             char nm[80];
@@ -2406,6 +2637,7 @@ int main(int argc, char **argv)
         transport_req = 2; frames(4);
         for (j = 0; j < NTRK; j++) steps_clear(&trk[j]);
         vis_style = 0; song.sel = 0; go_home(); frames(20);
+        vis_rare_checks();
     }
 
     {   /* 2.6, after Felucca 1.4 / 1.5 (Leo Kuroshita): STEP LEN, SEQ VEL, the drum mutes (EDIT + a black key), MIDI
@@ -3358,7 +3590,7 @@ int main(int argc, char **argv)
                     tap(BTNS[b]); frames(1);
                     uint32_t want = g[(i2 + (BTNS[b] == B_HOME)) % ng];   /* (HOME: from HOME, its next) */
                     ok &= cur_cat() == want && nav_btn_of(cur_cat()) == BTNS[b];
-                    ok &= nav_cat(&k2, &n2) == want && k2 == 0u;   /* (a category always opens on its first page) */
+                    ok &= nav_cat(&k2, &n2) == want && (k2 == 0u || want == CT_SAVER);   /* (a category always opens on its first page; the screensaver: any, at random) */
                     if (v && BTNS[b] == B_ARP) break;   /* (the drum ARP: CHROMATIC, again off: below) */
                 }
                 if (ui.menu) { ui.menu = 0; go_home(); frames(2); }

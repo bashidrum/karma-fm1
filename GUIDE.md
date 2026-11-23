@@ -777,7 +777,7 @@ DISCO is a ceiling over LIGHTS, KEYS and NOTES: they still set what they set, bu
 
 ### Screensavers
 
-The screensaver is HOME's second category: on HOME tap **HOME** again (the **>** after the deck's FLOW band) for **FLOW**; **SEL** for the next one, **EYES**, **DESERT**, **THIRD EYE** (round), each driven by the four voices' levels in their colours. HOME again is HOME; any other page button closes it. At power-on a boot screen of about 3 seconds shows a flowing backdrop with PHE and BUS in black; any key skips it.
+The screensaver is HOME's second category: on HOME tap **HOME** again (the **>** after the deck's FLOW band): one of the four opens, picked at random, never the one shown last, with a small grey caption for a couple of seconds ("1/4 FLOW   SEL: NEXT"). **SEL** goes to the next one (round): **FLOW**, **EYES**, **DESERT**, **THIRD EYE**, each driven by the four voices' levels in their colours. HOME again is HOME; any other page button closes it. Nothing is drawn across them as a line; once in a long while (about every half minute at most, a kick very rarely) a few rows slip sideways for a moment. At power-on a boot screen of about 3 seconds shows one of the four at random, a different one each time, with PHE and BUS in black; any key skips it.
 
 ### MIDI
 

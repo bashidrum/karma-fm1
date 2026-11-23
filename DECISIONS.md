@@ -756,3 +756,12 @@ Wave 12, drum sounds per slot
 - Ghost notes: the keys play at TRIG's new-hit velocity (it was a fixed 100); three moves to record a ghost live.
 - Hold LFO on the drums: HEX moves the knob as it rings, CLASSIC at each hit's start (except PITCH CUT RESO LEVEL).
 - QUIET dims the screen in software (9/16); the backlight itself cannot be dimmed without a hal change; no battery saved.
+
+The screensavers' lines (23 Nov 2026, 14:22)
+- The white line was FLOW's morph wipe: two full-width white rows going down the screen every 15 s (also across THIRD EYE's sky). Gone; the kinds dissolve into each other in soft blobs over 3 s instead.
+- FLOW's "torn sideways" kind is now rows swaying in slow smooth waves; the boot's FLOW the same. The kick no longer tears rows: it swells FLOW's bands softly.
+- One glitch is left, vis_tear (FLOW, DESERT, THIRD EYE): 8 rows nudged 2 to 12 pixels for 160 ms. Idle: one in each 32.8 s slot, 10 to 22 s in (never closer than 20 s). Playing: a kick starts one 1 time in 128, never within 8 s of the last; never two bands at once. HOME's strip has none (it stands still when stopped).
+- Random pick: HOME on HOME opens a different one than the last shown; SEL still walks. The boot picks one of the four from a seed (clock, battery, MASTER pot) and never repeats the last one shown (vis_style, kept when settings next save). The first key press stirs the dice for the first screensaver.
+- Caption "n/4 NAME   SEL: NEXT": grey, black edge, about 2.5 s, fading; no bar.
+- Found on the way: a voice level below 12 never sank to 0 (integer division), so HOME's strip never stopped after playing. Fixed in vis_step.
+- RAM: about 5 bytes more (random state, last picture, the boot's picture, a kick tear's time).
