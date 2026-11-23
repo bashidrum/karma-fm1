@@ -218,3 +218,11 @@ His answers by picker, 23 Nov 2026 (these replace the 22 Nov answer "FX = whole 
 - Filter home: "EDIT: osc, filter, alternating". EDIT press 1 oscillator, press 2 filter, then the deeper oscillator and filter pages.
 - SELECT knob: "Yes, SELECT = type". SELECT chooses the type on the current page (oscillator type, insert type, filter type, LFO wave). Pages are walked only by pressing the labelled button again.
 - When: "Build it now".
+
+### 23 Nov 2026, 08:42: a page button, in Ben's words
+
+"I think it would be cleaner for moving through pages if we used a button like SEL or SAVE to start walking pages. So the standard navigation would be something like:
+
+Hit the edit key, which brings Osc and Filter categories. And if the Osc category has 4 pages, you cycle through those using the Sel or save button, if you press edit again it moves to the next category of Filter?"
+
+This revises the 08:25 answer "EDIT: osc, filter, alternating": a labelled button steps through its categories, and one page button walks the pages inside the current category.
