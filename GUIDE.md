@@ -409,19 +409,30 @@ With a chord mode on, the white keys walk the scale from C4 and each plays the c
 
 ## 5. DRUM: the drums
 
-The drums work the Rytm's way. The drum voice has 16 sounds, one a key:
+The drums work the Rytm's way. The drum voice has 16 sounds, laid out as **the drum grid**, like the Analog Rytm's pads (Ben: "Cymbals near the top. Toms on the second row. Kick in the bottom left with snares in the right hand corner and hi hats in the top left corner"; the grid as he typed it):
+
+| | Column 1 | Column 2 | Column 3 | Column 4 |
+| --- | --- | --- | --- | --- |
+| **top row** | HAT | OP HAT | RIDE | CRASH |
+| **row 2** | PEDAL | CONGA | C-BELL | SHAKER |
+| **row 3** | KICK 2 | LO TOM | HI TOM | CLAP |
+| **bottom row** | KICK | RIM | SNARE 2 | SNARE |
+
+**The white keys run down the columns, top to bottom**: keys 1 to 4 are the left column, 5 to 8 the second, 9 to 12 the third, 13 to 16 the right. So wherever a white key plays or picks a drum sound, it is the same sound:
 
 | Key | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Sound | KICK | KICK 2 | SNARE | CLAP | HAT | OPEN HAT | PEDAL | RIM |
+| Sound | HAT | PEDAL | KICK 2 | **KICK** | OP HAT | CONGA | LO TOM | RIM |
 | **Key** | **9** | **10** | **11** | **12** | **13** | **14** | **15** | **16** |
-| Sound | SNARE 2 | LOW TOM | HI TOM | CRASH | RIDE | SHAKER | CONGA | COWBELL |
+| Sound | RIDE | C-BELL | HI TOM | SNARE 2 | CRASH | SHAKER | CLAP | **SNARE** |
+
+The grid is used everywhere the 16 are drawn (the mixer, the drum screen's slot map, hold SEQ's tiles) and wherever the keys play or choose one (playing them on HOME and recording live, RETRIG, the mixer's mutes and solos, the order SELECT steps in). It is only where each sound sits: the slots, your projects, the kits, the MIDI notes, the trigs and locks and PERFORM's drum mutes are the same as before, so a project saved before plays the same. On the drum screen's steps the 16 keys are still the selected sound's 16 steps, in order.
 
 The closed hat cuts the open hat. **Ghost and hard hits come from velocity** (Ben: "Move ghost hits elsewhere"): the keys play and record at the velocity TRIG's KNOB 1 sets with no step held (100 to start; turn it to about 40 for ghosts, 127 for hard hits), and a hit already on a step gets its own with the step held and TRIG's VEL. OCT- with a key is only ever erase: **a drum key held, then OCT-**: that sound's hits are erased from the pattern (playing: from each step the playhead passes while you hold the key; stopped: all at once). The black keys play no drum sound.
 
 ### The drum screen
 
-Tap **SEQ** or **EDIT** with DRUM selected. The header shows DRUM and the **SELECT chip: the selected slot** (SELECT picks it). The body shows the **slot's name** large (SNARE), the kit (or CUSTOM) and how many steps it plays on (or STEP n HELD), the **slot map** top right (16 tiles; a slot with hits dim teal, lit as it plays, the selected one framed white, a yellow bar muted, ice blue soloed).
+Tap **SEQ** or **EDIT** with DRUM selected. The header shows DRUM and the **SELECT chip: the selected slot** (SELECT picks it). The body shows the **slot's name** large (SNARE), the kit (or CUSTOM) and how many steps it plays on (or STEP n HELD), the **slot map** top right (16 tiles in the drum grid: HAT top left, KICK bottom left, SNARE bottom right; a slot with hits dim teal, lit as it plays, the selected one framed white, a yellow bar muted, ice blue soloed).
 
 **The keys are the steps, and only the keys** (Ben, 23 Nov 13:35: "I don't need to see the sequence on screen, it's shown on my keys"): the 16 white keys are the selected slot's 16 steps of the page shown, their lights its hits; the screen does not draw them again. Under the name:
 
@@ -433,7 +444,7 @@ Then the tab row (the categories of the button pressed: SRC FLTR for EDIT, AMP f
 
 | You do | Result |
 | --- | --- |
-| **SELECT** | the selected sound, one of the 16 a detent (heard while stopped), on every tab |
+| **SELECT** | the selected sound, one of the 16 a detent (heard while stopped), on every tab, in key order: down the map's columns, HAT, PEDAL, KICK 2, KICK, OP HAT ... CLAP, SNARE, then round to HAT (left: the other way). A new project starts on KICK |
 | **tap an empty step** | a hit of the selected sound (velocity 100, or TRIG's KNOB 1 with nothing held) |
 | **tap a hit** | it goes when the key comes up, unless a knob was turned |
 | **hold a step and turn a knob** | lock that value on that sound's hit only (drawn inverted) |
@@ -482,15 +493,15 @@ The LFO's DEST knob (LFO 1/2) lists the same: PITCH, CUT, RESO, LEVEL, then ever
 
 ### Modes and live play
 
-- **Mutes and solos**: on the mixer. **Hold GLO** (whichever voice is selected): the 16 white keys mute and unmute the 16 sounds (yellow); hold **OCT+** and tap a key to solo it (ice blue); OCT- clears them all. Mutes and solos are not saved. For quick drops, PERFORM has four drum mutes of its own (KICKS, TOPS, SH+CL, HT+SN, held or latched).
-- **CHROMATIC mode**: tap **ARP** (the drum voice's ARP group has this one category). The 27 keys play the selected sound (SELECT changes it) at pitches, C4 (key 5) its own; OCT- and OCT+ tapped step the sound, twice quickly move the keys an octave (-2 to +2). Recorded live, each hit keeps its pitch as a NOTE lock. ARP again, or any other page button, leaves it.
-- **RETRIG**: hold **SEQ** and press a key: the sound repeats while held, at the rate KNOB 1 sets (all 17, 1/1 to 1/80). (Until wave 10 this was ARP's, with the rates on the black keys.)
+- **Mutes and solos**: on the mixer. **Hold GLO** (whichever voice is selected): the 16 white keys mute and unmute the 16 sounds in the drum grid's key order (key 4 the KICK, key 16 the SNARE; yellow); hold **OCT+** and tap a key to solo it (ice blue); OCT- clears them all. Mutes and solos are not saved. For quick drops, PERFORM has four drum mutes of its own (KICKS, TOPS, SH+CL, HT+SN, held or latched).
+- **CHROMATIC mode**: tap **ARP** (the drum voice's ARP group has this one category). The 27 keys play the selected sound (SELECT changes it) at pitches, C4 (key 5) its own; OCT- and OCT+ tapped step the sound (in key order, stopping at HAT and SNARE), twice quickly move the keys an octave (-2 to +2). Recorded live, each hit keeps its pitch as a NOTE lock. ARP again, or any other page button, leaves it.
+- **RETRIG**: hold **SEQ** and press a key: that key's sound (the drum grid's order: key 4 the KICK) repeats while held, at the rate KNOB 1 sets (all 17, 1/1 to 1/80). (Until wave 10 this was ARP's, with the rates on the black keys.)
 - **FILL**: hold **SEQ** and **PLAY**: a fill while PLAY is held (the transport is not touched); **OCT+** with them latches it, SEQ + PLAY again (or STOP) ends it. **SEQ + D#4** (BAR) fills the next bar. FILL shows in every header.
 - **FX, the drum voice's own pages**: tap **FX**: its **FILTER** (LP / HP, HOME's KNOB 1 on the drums), **INSERT** (TYPE and three values), **INSERT 2** (MIX), **SENDS** (DELAY, REVERB: the whole drum voice's, on top of each sound's DEL and REV) and **SLICER**, acting on the whole drum voice, in teal, one category a press (INS's second page, INSERT 2, by SEL); one more press is **MIX**, the whole mix's pages in white. The line above the tabs names the page. Hold a step and turn a knob there to lock it per step, as on any tab (SENDS cannot be locked).
 
 ### Kits and sounds
 
-**The kit is 16 slots, one per white key.** Each slot holds one whole sound: its machine, every parameter on its pages, its sends, its LFO and its name ("606 SNARE"). The slots are this project's own: what you do to them is saved with the project and never changes a built-in kit. A new project starts with the 606's 16 sounds.
+**The kit is 16 slots, one per white key** (which key: the drum grid above). Each slot holds one whole sound: its machine, every parameter on its pages, its sends, its LFO and its name ("606 SNARE"). The slots are this project's own: what you do to them is saved with the project and never changes a built-in kit. A new project starts with the 606's 16 sounds.
 
 **Any slot can hold any sound from any kit.** There are two drum machines, and each slot plays with its own:
 
@@ -760,17 +771,26 @@ Tap **GLO** for its categories, one a press: **GLOBAL**, **SYSTEM**, **MIDI** (S
 
 Hold **GLO** for the mixer (hold it 0.7 seconds untouched and let go to keep it). Since wave 13 it is one map, whichever voice is selected (Ben, 14:19: "This global screen is kind of hard to figure out ... What voice is the keys?"): the **16 white keys are the 16 drum sounds**, the black keys **F#3 G#3 A#3 C#4 are voice 1, 2, 3 and the drums**.
 
+The 16 tiles are the drum grid (Ben, 21:10: "make notes 1-4 mute the drum voices in the left column, 5-8 ... column 2, 9-12 ... column 3 and 13-16 ... the right hand column"), each key down its column, top to bottom:
+
+| | Column 1 | Column 2 | Column 3 | Column 4 |
+| --- | --- | --- | --- | --- |
+| **top row** | HAT (key 1) | OP HAT (key 5) | RIDE (key 9) | CRASH (key 13) |
+| **row 2** | PEDAL (key 2) | CONGA (key 6) | C-BELL (key 10) | SHAKER (key 14) |
+| **row 3** | KICK 2 (key 3) | LO TOM (key 7) | HI TOM (key 11) | CLAP (key 15) |
+| **bottom row** | KICK (key 4) | RIM (key 8) | SNARE 2 (key 12) | SNARE (key 16) |
+
 ```
  black keys   F#3 V1   G#3 V2   A#3 V3   C#4 DRUM          (the other seven black keys: nothing, not drawn)
- white keys   KICK     KICK 2   SNARE    CLAP
-              HAT      OP HAT   PEDAL    RIM
-              SNARE 2  LO TOM   HI TOM   CRASH
-              RIDE     SHAKER   CONGA    COWBELL
+ white keys   1-4      HAT  PEDAL  KICK 2  KICK            (the left column, top to bottom)
+              5-8      OP HAT  CONGA  LO TOM  RIM          (column 2)
+              9-12     RIDE  C-BELL  HI TOM  SNARE 2       (column 3)
+              13-16    CRASH  SHAKER  CLAP  SNARE          (the right column)
 ```
 
 | Control (GLO held) | Does |
 | --- | --- |
-| **tap a key** | mute that drum sound or voice (yellow M); again: unmute |
+| **tap a key** | mute that drum sound (the table above: key 4 the KICK, key 16 the SNARE) or voice (yellow M); again: unmute |
 | **hold OCT+ and tap a key** | solo it (ice-blue S): "plus = only this"; again: off. Several solos add up |
 | **OCT-** | every mute and solo off |
 | **SEL** | the second page: the knobs set the pans (L, C, R); SEL again: the levels |
@@ -779,9 +799,16 @@ Hold **GLO** for the mixer (hold it 0.7 seconds untouched and let go to keep it)
 
 **A solo is a solo.** Solo anything, a voice or a drum sound, and only what is soloed is heard: solo the snare and voices 1 to 3 go quiet with the other drums; solo voice 1 and the drums go quiet. Solo the DRUM key (C#4) to hear every drum and no voice. A muted voice or sound fades out in a few milliseconds; a muted voice's pattern runs on silently. The mutes and solos are performance state (OCT- clears them all).
 
-**The screen.** The line under the header says what a tap does: TAP A KEY: MUTE, and the -/+ legend at its right: [-] CLEAR, [+] SOLO. Under it, in the black-key strip's place, the four voices, each over its knob's column: its name in its colour and its level as a bar with the meter running in it. Then the 16 drum sounds as 4 x 4 tiles, laid out as the white keys run (keys 1 to 4 the top row, as PERFORM's pads), each named in teal. Muted: the tile or cell yellow with an M in a black tab; soloed: ice blue with an S; silenced by a solo elsewhere: dark grey. The four dials are the levels (LEVEL) or, after SEL, the pans (PAN), each in its voice's colour.
+**The screen.** The line under the header says what a tap does: TAP A KEY: MUTE, and the -/+ legend at its right: [-] CLEAR, [+] SOLO. Under it, in the black-key strip's place, the four voices, each over its knob's column: its name in its colour and its level as a bar with the meter running in it. Then the 16 drum sounds as 4 x 4 tiles in the drum grid (cymbals and hats at the top, KICK bottom left, SNARE bottom right; keys 1 to 4 the left column, top to bottom), each named in teal; the tile that changes is the one under the key you pressed. Muted: the tile or cell yellow with an M in a black tab; soloed: ice blue with an S; silenced by a solo elsewhere: dark grey. The four dials are the levels (LEVEL) or, after SEL, the pans (PAN), each in its voice's colour.
 
-**In the simulator.** Hold GLO: keep the **6** key down, or double-click (or shift-click) GLO on the page so it stays down (click it again to let go). Mute: click a key, or press its computer key (the white keys **Z X C V B N M , . /** then **Q W R Y U O**; F#3 G#3 A#3 C#4 are **S D F H**). Solo: hold **]** (OCT+) as well, or shift-click OCT+ on the page so it stays down, then click the key (shift-click OCT+ again to let it up). Clear: **[** (OCT-). The pans: **2** (SEL).
+**In the simulator.** Hold GLO: keep the **6** key down, or double-click (or shift-click) GLO on the page so it stays down (click it again to let go). Mute: click a key, or press its computer key (the white keys **Z X C V B N M , . /** then **Q W R Y U O**; F#3 G#3 A#3 C#4 are **S D F H**). For the drum sounds that is:
+
+| Computer key | Z | X | C | V | B | N | M | , |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Sound | HAT | PEDAL | KICK 2 | KICK | OP HAT | CONGA | LO TOM | RIM |
+| **Computer key** | **.** | **/** | **Q** | **W** | **R** | **Y** | **U** | **O** |
+| Sound | RIDE | C-BELL | HI TOM | SNARE 2 | CRASH | SHAKER | CLAP | SNARE |
+ Solo: hold **]** (OCT+) as well, or shift-click OCT+ on the page so it stays down, then click the key (shift-click OCT+ again to let it up). Clear: **[** (OCT-). The pans: **2** (SEL).
 
 ---
 
@@ -970,7 +997,7 @@ The four ways ([section 2](#2-the-controls-and-the-screen)): a labelled button (
 
 | Gesture | Does |
 | --- | --- |
-| SELECT | the selected sound (the header's chip names it) |
+| SELECT | the selected sound (the header's chip names it), in key order: HAT, PEDAL, KICK 2, KICK, OP HAT ... SNARE, round |
 | EDIT / ENV / LFO / FX / SEQ | SRC, FLTR / AMP / LFO / FILTER, INS, SENDS, SLICER, MIX / TRIG, PATTERN, A-D (also with a step held) |
 | SEL | the page inside (SRC 1/3 .., AMP 2/2, INSERT 2, TRIG 2/2, PATTERN 2/2, the MIX pages) |
 | tap an empty step / a hit | a hit / clear on release |
@@ -1015,10 +1042,10 @@ The four ways ([section 2](#2-the-controls-and-the-screen)): a labelled button (
 
 | Hold | Gesture | Does |
 | --- | --- | --- |
-| SEQ | white key / black key 1 to 4 / D#4 / PLAY | roll (drums: RETRIG) / play A to D / fill bar / FILL |
+| SEQ | white key / black key 1 to 4 / D#4 / PLAY | roll (drums: RETRIG of that key's sound, the drum grid's order; the tiles drawn as the grid) / play A to D / fill bar / FILL |
 | SEQ | KNOB 1 to 4 / OCT- OCT+ / MASTER | RATE, SHIFT, SWING, STEPS / halve, double (a clone) / SWING |
 | ARP | OCT- OCT+ / MASTER | the pattern a semitone / TRANSP |
-| GLO | white keys / F#3 G#3 A#3 C#4 / OCT+ held + a key / OCT- / SEL / KNOB 1 to 4 / MASTER | mute a drum sound / mute a voice, the drums / solo it / clear all / the pans' page / levels (pans) / TEMPO |
+| GLO | white keys / F#3 G#3 A#3 C#4 / OCT+ held + a key / OCT- / SEL / KNOB 1 to 4 / MASTER | mute a drum sound (keys 1 to 4 the grid's left column, top to bottom: HAT PEDAL KICK 2 KICK ... key 16 SNARE) / mute a voice, the drums / solo it / clear all / the pans' page / levels (pans) / TEMPO |
 | SAVE | keys 1 to 4 / OCT- OCT+ | store A to D / undo, redo |
 | EDIT | OCT- / MASTER | clear the voice (asks) / LEVEL |
 | ENV, LFO | MASTER | ENV LENGTH, MOD DEPTH |
@@ -1132,7 +1159,8 @@ The screen font is Terminus. The PHEBUS wordmark is drawn from TeX Gyre Adventor
 | **MASTER pair** | what MASTER turns while a button is held: FX MIX, SWING, TRANSP, LEVEL, ENV LENGTH, MOD DEPTH, TEMPO |
 | **FX MIX** | the whole mix's effect return, 0 to 100 % (FX + MASTER) |
 | **black-key strip** | the two rows under the header that name the black keys' jobs; a black key does something only where it is drawn |
-| **mixer** | hold GLO: the 16 drum sounds on the white keys, the voices on F#3 to C#4; a tap mutes, OCT+ with a key solos, OCT- clears, SEL the pans |
+| **mixer** | hold GLO: the 16 drum sounds on the white keys (the drum grid, keys down its columns), the voices on F#3 to C#4; a tap mutes, OCT+ with a key solos, OCT- clears, SEL the pans |
+| **drum grid** | where the 16 drum sounds sit, as on an Analog Rytm: HAT OP HAT RIDE CRASH / PEDAL CONGA C-BELL SHAKER / KICK 2 LO TOM HI TOM CLAP / KICK RIM SNARE 2 SNARE; the white keys run down its columns (key 1 HAT, key 4 KICK, key 16 SNARE) |
 | **lock view** | a synth voice's steps with a step held and a page button pressed: that page's knobs under the steps (LOCK: in the tab row) |
 | **A-D** | SEQ's third category: the patterns to play |
 | **STUTTER lane** | the whole mix's stutter sequence, a part that plays no notes: FX's last category **STUT** (tag MIX, title STUTTER); on/off on HOME's KNOB 3 STUT |
