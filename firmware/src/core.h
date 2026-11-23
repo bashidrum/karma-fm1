@@ -395,13 +395,24 @@ typedef struct {
  * CUT (FILT 2's KEY)); every other cell is one of MX_NCELL entries, used as they are set. Kept in the track's mod[46] of
  * format 8 (project.c mx_pack) */
 enum { MS_LFO1, MS_LFO2, MS_AENV, MS_FENV, MS_PENV, MS_VEL, MS_KEY, MS_N };
-enum { MD_PIT, MD_M1, MD_M2, MD_M3, MD_CUT, MD_RES, MD_LVL, MD_PAN, MD_FX1, MD_FX2, MD_FX3, MD_AS1, MD_AS2, MD_N };
+/* (wave 11, Ben 23 Nov 2026, 10:41: "hold to map ... the same logic were applied to all the nice and obviously pleasantly
+ * mappable parameters") the assignable columns AS1 .. AS<MX_NAS>: any parameter a knob shows can be a destination, not two.
+ * The cells stay MX_NCELL a voice in all (one limit, said when reached); a column is only a parameter's name, so as many
+ * columns as cells could be used (MX_NAS = MX_NCELL: every cell on its own parameter). Stored (project.c mx_pack, layout 2)
+ * as the cells with their parameter, not the columns: a column with no cell is not kept */
+#ifndef MX_NAS
+#define MX_NAS 19u                   /* assignable columns a voice (the device may lower it: PHEBUS_MX_NAS, see DECISIONS.md) */
+#endif
+enum { MD_PIT, MD_M1, MD_M2, MD_M3, MD_CUT, MD_RES, MD_LVL, MD_PAN, MD_FX1, MD_FX2, MD_FX3, MD_AS1, MD_AS2 };
+#define MD_NFIX 11u                  /* the fixed columns PIT .. FX3 */
+#define MD_N (MD_NFIX + MX_NAS)
 #define MX_NCELL 19u                 /* cells of the grid a voice can set besides the fixed ones */
+_Static_assert(MX_NAS >= 2u && MS_N * (MD_NFIX + MX_NAS) <= 255u, "a cell's place fits its byte");
 typedef struct { uint8_t at; int8_t amt; } mxc_t;   /* at: source * MD_N + destination + 1, 0 = a free entry */
 typedef struct {
     int16_t l2sync, l2trig;          /* LFO 2's SYNC (params.c N_LSYNC) and TRIG (NOTE FREE PATT): the UI edits them */
     int16_t spice, dice;             /* Spice 0..127 (0: the pattern as written), Dice: the roll (0..9999) */
-    uint8_t as[2];                   /* the assignable columns' parameters: P_* id + 1, 0 = none */
+    uint8_t as[MX_NAS];              /* the assignable columns' parameters: P_* id + 1, 0 = none */
     mxc_t c[MX_NCELL];
     /* the audio ISR's own (not stored) */
     uint32_t l2ph, l2rnd;

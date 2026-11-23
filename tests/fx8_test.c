@@ -153,8 +153,8 @@ static void t_convert(void)
         w.c.t[0].lock[2].step = 6, w.c.t[0].lock[2].param = P_CHOR, w.c.t[0].lock[2].val = 90;
         memset(w.c.t[0].mod, 0, sizeof w.c.t[0].mod);
         w.c.t[0].mod[3] = 1;                            /* (LFO 2 FREE) */
-        w.c.t[0].mod[8] = (uint8_t)mx_at(MS_LFO2, MD_FX1), w.c.t[0].mod[9] = 30;   /* LFO2 > FX1 (the DELAY slot) */
-        w.c.t[0].mod[10] = (uint8_t)mx_at(MS_LFO1, MD_FX2), w.c.t[0].mod[11] = 20; /* LFO1 > FX2 (the PHASER) */
+        w.c.t[0].mod[8] = (uint8_t)(MS_LFO2 * MD_N_V1 + MD_FX1 + 1u), w.c.t[0].mod[9] = 30;   /* LFO2 > FX1 (the DELAY slot) */
+        w.c.t[0].mod[10] = (uint8_t)(MS_LFO1 * MD_N_V1 + MD_FX2 + 1u), w.c.t[0].mod[11] = 20; /* LFO1 > FX2 (the PHASER) */
         w.c.g[G_FILT] = 30;
         w.c.g[G_SWING] = 25;
     }
@@ -183,8 +183,9 @@ static void t_convert(void)
         base();
         fx8_lost = 0;
         proj_apply(&w.c, 1);
-        check(fx8_lost == 1u && !mx_get(0, MS_LFO2, MD_FX1) && mxt[0].as[0] == P_FDRV + 1u,
-              "... both assignable columns already used: that one cell dropped and counted (fx8_lost)");
+        check(fx8_lost == 0u && !mx_get(0, MS_LFO2, MD_FX1) && mxt[0].as[0] == P_FDRV + 1u && mxt[0].as[2] == P_DLY + 1u &&
+              mx_get(0, MS_LFO2, MD_AS1 + 2u) == 30,
+              "... both old assignable columns used: (wave 11) a third column takes it, nothing dropped (fx8_lost 0)");
     }
     {   /* saved again: as it is now, nothing converted twice */
         base();

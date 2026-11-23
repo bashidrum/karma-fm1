@@ -43,8 +43,8 @@ static const char *const N_XBIG[] = {"OFF", "CHORUS", "PHASER", "FLANGER", "REVE
 _Static_assert(sizeof N_XTYPE / sizeof N_XTYPE[0] == XT_N && sizeof N_XBIG / sizeof N_XBIG[0] == XT_N, "a name an FX type");
 /* the mod matrix's rows and columns (core.h MS_*, MD_*): short in the grid, long on the knobs */
 static const char *const N_MSRC[] = {"LFO1", "LFO2", "AENV", "FENV", "PENV", "VEL", "KEY"};
-static const char *const N_MDST[] = {"PIT", "M1", "M2", "M3", "CUT", "RESO", "LVL", "PAN", "FX1", "FX2", "FX3", "AS1", "AS2"};
-_Static_assert(sizeof N_MSRC / sizeof N_MSRC[0] == MS_N && sizeof N_MDST / sizeof N_MDST[0] == MD_N, "the grid's names");
+static const char *const N_MDST[] = {"PIT", "M1", "M2", "M3", "CUT", "RESO", "LVL", "PAN", "FX1", "FX2", "FX3"};
+_Static_assert(sizeof N_MSRC / sizeof N_MSRC[0] == MS_N && sizeof N_MDST / sizeof N_MDST[0] == MD_NFIX, "the grid's names");
 static const char *const N_AMODE[] = {"OFF", "UP", "DN", "UPDN", "RND", "ORD"};
 static const char *const N_MOUT[] = {"KEYS", "SEQ"};
 static const char *const N_MIN[] = {"NOTES", "CLOCK", "CH 1", "CH 2", "CH 3", "CH 4", "CH 5", "CH 6", "CH 7", "CH 8", "CH 9",
@@ -664,6 +664,43 @@ static int page_shown(const page_t *pg)
  * engine's E0 .. E7 they are on its Type (0xFF: the Type has none); every other id as it is (V_TYPE stays V_TYPE) */
 #include "modmx.c"             /* (PHEBUS wave 5) the mod matrix */
 static int16_t mx_row, mx_col;   /* (wave 5) the MATRIX page's cursor: the cell SOURCE and DEST point at (the UI's) */
+/* (wave 11) the MATRIX page's columns, as shown: the eleven fixed ones, the assignable columns that have a parameter (in their
+ * order), then one empty assignable column, "+", to make another (none when every column has one). Returns how many */
+static uint32_t mx_vis(uint32_t ti, uint8_t *cols)
+{
+    uint32_t c, n = 0, fr = MX_NAS;
+    for (c = 0; c < MD_NFIX; c++)
+        cols[n++] = (uint8_t)c;
+    for (c = 0; c < MX_NAS; c++) {
+        if (mxt[ti % NPART].as[c])
+            cols[n++] = (uint8_t)(MD_AS1 + c);
+        else if (fr == MX_NAS)
+            fr = c;
+    }
+    if (fr < MX_NAS)
+        cols[n++] = (uint8_t)(MD_AS1 + fr);
+    return n;
+}
+static uint32_t mx_vis_pos(uint32_t ti, uint32_t col)  /* column col's place among those shown (not shown: the last) */
+{
+    uint8_t cols[MD_N];
+    uint32_t n = mx_vis(ti, cols), i;
+    for (i = 0; i < n; i++)
+        if (cols[i] == col)
+            return i;
+    return n - 1u;
+}
+/* a column's name in the grid's head (4 letters: an assignable one its parameter's, "+" an empty one) */
+static void mx_col_name(uint32_t ti, uint32_t col, char *b)
+{
+    uint32_t a = col >= MD_AS1 && col < MD_N ? mxt[ti % NPART].as[col - MD_AS1] : 0u;
+    if (col < MD_NFIX)
+        str_cpy(b, N_MDST[col], 6);
+    else if (!a)
+        str_cpy(b, "+", 6);
+    else
+        str_cpy(b, track_desc(&trk[ti % NPART], a - 1u)->label, 5);
+}
 /* (wave 5) an FX page's slot (0..2) */
 static uint32_t pg_slot(const page_t *pg) { return ((uint32_t)pg->sel - P_X1TYPE) / 4u % NXSLOT; }   /* (wave 9: its TYPE is SELECT's) */
 static uint32_t pg_id(const page_t *pg, uint32_t k)
@@ -731,9 +768,13 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
             *valp = &mx_row;
             return &S;
         }
-        if (id == V_MDST) {
-            static const param_desc_t D = PE("DEST", N_MDST, 0);
-            *valp = &mx_col;
+        if (id == V_MDST) {                           /* (wave 11) the columns shown: the fixed, the assignable in use, "+" */
+            static param_desc_t D = {"DEST", F_INT, 0, 0, 0, 0, 0};
+            uint8_t cols[MD_N];
+            uint32_t n = mx_vis(ti, cols);
+            D.max = (int16_t)(n - 1u);
+            vv[1] = (int16_t)mx_vis_pos(ti, (uint32_t)mx_col);
+            *valp = &vv[1];
             return &D;
         }
         if (id == V_MAMT) {                           /* a grid cell (a fixed one is its parameter: pg_id) */
@@ -743,7 +784,7 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
             return &A;
         }
         /* V_MK4: on an assignable column its TARGET (the parameter it moves), elsewhere CLEAR (a turn: the cell to 0) */
-        if (mx_col == MD_AS1 || mx_col == MD_AS2) {
+        if (mx_col >= MD_AS1 && mx_col < (int16_t)MD_N) {
             static const param_desc_t T = {"TARGET", F_INT, 0, P_COUNT, 0, 0, 0};
             vv[3] = (int16_t)mxt[ti].as[mx_col - MD_AS1];
             *valp = &vv[3];

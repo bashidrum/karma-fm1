@@ -345,6 +345,13 @@ static void edit_param_pg(const page_t *pg, uint32_t slot, int32_t steps)   /* (
         tracks_edit(slot, steps);
         return;
     }
+    if (pg->graph == GR_MATRIX && !is_drum(TSEL) && id == V_MDST) {   /* (wave 11) DEST: the columns shown, in order */
+        uint8_t cols[MD_N];
+        uint32_t ti = song.sel % NPART, n = mx_vis(ti, cols);
+        int32_t q = clamp((int32_t)mx_vis_pos(ti, (uint32_t)mx_col) + (steps > 0 ? 1 : -1), 0, (int32_t)n - 1);
+        mx_col = cols[q];
+        return;
+    }
     if (pg->graph == GR_MATRIX && !is_drum(TSEL) && (id == V_MAMT || id == V_MK4)) {   /* (wave 5) the grid's cell, TARGET */
         uint32_t ti = song.sel % NPART, r = (uint32_t)mx_row % MS_N, c = (uint32_t)mx_col % MD_N;
         if (id == V_MAMT) {
@@ -353,7 +360,7 @@ static void edit_param_pg(const page_t *pg, uint32_t slot, int32_t steps)   /* (
             e = mx_set(ti, r, c, v);
             fm1_irq_on();
             if (e < 0)
-                ui_message("MATRIX FULL: 19 CELLS");
+                ui_message(MX_FULL_MSG);
         } else if (c >= MD_AS1) {                         /* TARGET: the next / previous parameter a column can move */
             int32_t a = mxt[ti].as[c - MD_AS1] ? mxt[ti].as[c - MD_AS1] - 1 : -1, n;
             for (n = 0; n < (int32_t)P_COUNT + 1; n++) {
@@ -362,8 +369,8 @@ static void edit_param_pg(const page_t *pg, uint32_t slot, int32_t steps)   /* (
                     a = (int32_t)P_COUNT - 1;
                 if (a >= (int32_t)P_COUNT)
                     a = -1;
-                if (a < 0 || mx_as_ok((uint32_t)a))
-                    break;
+                if (a < 0 ? !mx_col_cells(ti, c) : mx_as_ok((uint32_t)a) && mx_as_find(ti, (uint32_t)a) < 0)
+                    break;                                /* (wave 11: one column a parameter; none only while empty) */
             }
             mxt[ti].as[c - MD_AS1] = (uint8_t)(a + 1);
         } else if (mx_get(ti, r, c)) {                    /* CLEAR: the cell to 0 (a fixed one: its parameter's 0) */
