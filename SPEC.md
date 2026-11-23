@@ -450,3 +450,10 @@ With keys running top to bottom in each column: keys 1 to 4 are HAT, PEDAL, KICK
 "I'm fairly certain that the drum's sends and stutter are all working globally and changing one voice's settings is changing them as global settings for the kit"
 
 "I don't like that the FX are in env. ENV should be for dry sound design / modulation. Edit should be for the same. FX should be for FX. Why is it different for the kit, I vaguely remember you suggesting it would be a good compromise?"
+
+His answers by picker, 23 Nov 2026, 21:45:
+
+- The kit-wide drum SENDS: "Remove them". Only per-sound sends remain; old projects fold the kit amount into each sound.
+- "Yes, a KIT FX switch per sound". On the sound's SENDS page: KIT FX ON or OFF. OFF sends that sound straight to the mix.
+
+So on the drum voice: EDIT and ENV are dry sound design only (SRC, FLTR, AMP, LFO; no sends on AMP). FX steps: SENDS (the selected sound's delay and reverb, and its KIT FX switch), then the kit's FILTER, INS, SLICER (header says KIT), then MIX, STUT.
