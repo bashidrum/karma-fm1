@@ -573,8 +573,8 @@ static void layer_screen_draw(void)
         str_cpy(sub, "keys: store", sizeof sub);
         for (i = 0; i < 4u; i++) {
             int asked = ui.ask == ASK_STORE && ui.ask_arg == i;
-            str_cpy(tl[i].lab, "store A", 8);
-            tl[i].lab[6] = (char)('A' + i);
+            str_cpy(tl[i].lab, "save A", 8);           /* (six letters: the tile's width with room) */
+            tl[i].lab[5] = (char)('A' + i);
             tl[i].bg = asked ? TE_RED : (ready >> i) & 1u ? TE_G2 : TE_G1;
             tl[i].fg = asked ? C_BLACK : (ready >> i) & 1u ? C_WHITE : TE_G4;
             tl[i].top = live_sec == (int8_t)i ? C_WHITE : 0;
