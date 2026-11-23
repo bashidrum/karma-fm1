@@ -414,9 +414,12 @@ static void eyes_back_row(uint16_t *q, int32_t sy)   /* the rings and the star, 
 
 /* ---- 3 DESERT: a horizon at dusk. A ringed sun half set on it, its rings flowing outward (a kick pushes a ripple
  * through them) and a faint halo; a few stars; four strata of dunes drifting at their own speeds (the nearer, the
- * faster), lit on the faces turned to the low sun, with a bright crest and a contour under it; heat shimmer near the
- * horizon and, very rarely, a few rows nudged sideways (vis_tear). The sun's rings and the strata are the
- * voices, purple farthest, the drums (teal) nearest: a voice playing raises its dunes and brightens them and its rings. */
+ * faster), lit on the faces turned to the low sun: flat colour shapes meeting edge to edge (Ben, 23 Nov 2026, 20:56:
+ * "removing the outlines of the coloured rolling sand dunes too. And clearing the thin black line on the sand dunes",
+ * "match the dunes in the other desert view": no bright crest, no dark contour; THIRD EYE draws its dunes here too);
+ * heat shimmer near the horizon and, very rarely, a few rows nudged sideways (vis_tear). The sun's rings and the strata
+ * are the voices, purple farthest, the drums (teal) nearest: a voice playing raises its dunes and brightens them and
+ * its rings. The sun ("majestic and could be a tiny bit bigger"): the old one magnified 32/29 (+10 %), rings and all. */
 #define DS_HOR 116
 static uint8_t ds_r[4][121];                        /* each stratum's crest, every 2 columns (bit 0: the face is lit) */
 static uint16_t ds_sh[4];                           /* each stratum's shadow */
@@ -443,7 +446,7 @@ static void desert_prep(void)
 static void desert_row(uint16_t *q, int32_t sy, int sky)   /* (sky 0: the sky left black, no sun or stars) */
 {
     uint32_t T = vs.tq >> 8, x;
-    int32_t rs = 44 + vs.kick / 40, rh = rs + 22, rip = (int32_t)(vs.rip % 96u) / 4, dh = sy - DS_HOR, dx = 0, r = 0, xs, s0 = 3;
+    int32_t rs = 44 + vs.kick / 40, rh = (rs + 22) * 32 / 29 + 1, rip = (int32_t)(vs.rip % 96u) / 4, dh = sy - DS_HOR, dx = 0, r = 0, xs, s0 = 3;
     while (s0 >= 0 && sy < ds_top[s0])            /* (the strata that reach up to this row) */
         s0--;
     if (dh > -14 && dh < 24)                        /* the shimmer */
@@ -455,9 +458,8 @@ static void desert_row(uint16_t *q, int32_t sy, int sky)   /* (sky 0: the sky le
         uint16_t c = C_BLACK;
         for (; s >= 0; s--)                         /* the nearest stratum whose crest is above */
             if (sy >= (ds_r[s][xi] & ~1)) {
-                int32_t d = sy - (ds_r[s][xi] & ~1);
-                uint32_t xl = xi + (uint32_t)d / 2u;   /* (the shadow's edge slants down from each crest) */
-                c = d < 2 ? vp[s][3] : d >= 8 + s * 3 && d < 10 + s * 3 ? vp[s][0] : (ds_r[s][xl < 120u ? xl : 120u] & 1u) ? vp[s][1] : ds_sh[s];
+                uint32_t xl = xi + (uint32_t)(sy - (ds_r[s][xi] & ~1)) / 2u;   /* (the shadow's edge slants down from each crest) */
+                c = (ds_r[s][xl < 120u ? xl : 120u] & 1u) ? vp[s][1] : ds_sh[s];   /* (flat: no crest line, no contour, Ben 23 Nov) */
                 break;
             }
         if (s < 0 && sky) {                         /* the sky: the sun, its halo, the stars */
@@ -469,9 +471,10 @@ static void desert_row(uint16_t *q, int32_t sy, int sky)   /* (sky 0: the sky le
                     r--;
                 while ((r + 1) * (r + 1) <= r2)
                     r++;
-                xs = r - rip + 48;
-                c = r < 7 ? C_WHITE : r < rs ? (xs % 6 == 5 ? C_BLACK : vp[(xs / 6) & 3][1 + ((xs / 6) & 1)])
-                                    : xs % 6 < 2 ? vp[(xs / 6) & 3][0] : C_BLACK;
+                int32_t ro = (r * 29) >> 5;         /* (the old sun's radius here: it is drawn 32/29 as large) */
+                xs = ro - rip + 48;
+                c = ro < 7 ? C_WHITE : ro < rs ? (xs % 6 == 5 ? C_BLACK : vp[(xs / 6) & 3][1 + ((xs / 6) & 1)])
+                                     : ro < rs + 22 && xs % 6 < 2 ? vp[(xs / 6) & 3][0] : C_BLACK;
             } else if (sy < DS_HOR - 6) {
                 uint32_t hs = vis_hash(xi, (uint32_t)sy >> 1);
                 if ((hs >> 24) < 2u)
@@ -484,7 +487,15 @@ static void desert_row(uint16_t *q, int32_t sy, int sky)   /* (sky 0: the sky le
 
 /* ---- 4 THIRD EYE (the three fused): one great eye as the sun on the desert's horizon, the flowing field for a sky.
  * The sky is FLOW (its bands the voices), the dunes DESERT's (a stratum per voice), the eye's iris rings the four
- * voices in turn, its pupil opening with the loudest; its lines and echoes cut black through the sky. */
+ * voices in turn, its pupil opening with the loudest. (Ben, 23 Nov 2026, 20:56: "It would be cleaner if the eye had no
+ * white outline. And if the eye was slightly bigger. And remove the 2 black outlines to the eye shape also ... a little
+ * less noisy and minimalist all over": no lid line, no echoes; the eye 72 x 34 half (was 64 x 30, +12 %), iris and
+ * pupil with it, 2 px higher so its lower lid stays where it was over the dunes; the gaze and the blink as they were.
+ * Its white is a flat deep shade (TE_SCLERA) so the almond still reads on the sky's black bands without a line.) */
+#define TE_Y 98
+#define TE_HW 72
+#define TE_HH 34
+#define TE_SCLERA RGB(34, 28, 58)
 static void third_prep(void)
 {
     uint32_t T = vs.tq >> 8, i;
@@ -496,12 +507,13 @@ static void third_prep(void)
             emax = vs.e[i];
     ey_n = 1;
     ey[0].rw = 768;                                 /* (rings 3 px, in blocks) */
-    eye_set(0, 120, 100, 64, 30, (int32_t)eye_blink(T / 2u, 3u, 30), 4u, 5 + emax * 8 / 256 + vs.kick / 64, 25, (uint32_t)emax);
-    ey[0].gx = isin(T * 5u) * 14 >> 15;
+    eye_set(0, 120, TE_Y, TE_HW, TE_HH, (int32_t)eye_blink(T / 2u, 3u, TE_HH), 4u, (5 + emax * 8 / 256 + vs.kick / 64) * 9 / 8, 28, (uint32_t)emax);
+    ey[0].gx = isin(T * 5u) * 14 >> 15;             /* (the gaze: as it was) */
     ey[0].gy = isin(T * 3u + 200u) * 5 >> 15;
-    ey[0].sc = C_BLACK;
-    ey[0].lid = C_WHITE;
-    ey[0].e1 = ey[0].e2 = C_BLACK;
+    ey[0].sc = TE_SCLERA;
+    ey[0].ri2 += 30;                                /* (the iris to the white: no black ring between) */
+    ey[0].o2 = ey[0].r2;                            /* no line round it, no echoes (Ben: "no white outline", "remove the 2 */
+    ey[0].k1 = ey[0].k1e = ey[0].k2 = ey[0].k2e = 0;   /* black outlines"): the eye a flat shape on the sky */
 }
 
 /* the picture st's setup (its levels and clock in vs, its colours in vp), then its rows of one band (pass 0: screen rows 0..119,
