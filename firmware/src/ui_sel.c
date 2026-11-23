@@ -86,8 +86,8 @@ static int sel_turn(int32_t s)
     sel_t = 40;
     ui.force = 1;
     if (kind == SK_SOUND) {                             /* the drum screen: the next / previous of the 16 sounds, in key order
-                                                         * (the drum grid: down each column, HAT PEDAL KICK 2 KICK, OP HAT ...),
-                                                         * round from SNARE to HAT */
+                                                         * (the drum grid in the Rytm order, drums.c DG_SEL: KICK RIM SNARE 2
+                                                         * SNARE, KICK 2 ...), round from CRASH to KICK */
         int32_t l = (int32_t)lane_step(drum_lane, s > 0 ? 1 : -1, 1);
         if (held) {
             ui_message("LET GO OF THE STEP");

@@ -730,7 +730,7 @@ static void drum_main_draw(void)
                 str_cpy(a + str_len(a), nl == 1u ? " LOCK" : " LOCKS", 7);
                 cv_text(4, 38, &FONT_S, a, TE_G4);
             } else {
-                str_cpy(a, "NEW HITS, KEYS: VEL ", sizeof a);
+                str_cpy(a, "NEW HITS AT VELOCITY ", sizeof a);
                 fmt_int(a + str_len(a), drum_newvel);
                 cv_text(4, 20, &FONT_S, a, TE_G4);
                 cv_text(4, 38, &FONT_S, "HOLD A STEP FOR ITS VALUES", TE_G3);
@@ -907,7 +907,7 @@ static void drum_mute_draw(void)
             if (m || so)                                /* the badge at the tile's right edge (as the strip's) */
                 op_badge(x + 45, y + 4, m ? 'M' : 'S', m ? TE_MUTE : TE_SOLO);
         }
-        cv_text(4, 104, &FONT_S, "KEYS: MUTE", TE_G3);
+        cv_text(4, 104, &FONT_S, "TAP A KEY: MUTE", TE_G3);
         cv_text(236 - text_w(&FONT_S, "HOLD GLO: SOLO"), 104, &FONT_S, "HOLD GLO: SOLO", TE_G3);   /* (wave 14: it said
                                                          * SEL+KEY, gone in wave 9; solos are the mixer's, OCT+ with a key) */
         cv_blit(0, SG_BODY_Y);
