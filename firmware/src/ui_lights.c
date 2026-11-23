@@ -79,10 +79,8 @@ static int combo_live(uint32_t h, uint32_t c)
     case HC_KEY:                                        /* a note or a drum sound held: OCT- erases it from the pattern */
         return c == B_OCTDN;
     case HC_OCTDN:
-    case HC_OCTUP:                                      /* the other: octave 0; the drums' keys: ghost / hard */
-        if (c < 14u)
-            return c == (h == HC_OCTDN ? B_OCTUP : B_OCTDN);
-        return drum && keys_are_notes() && w >= 0 && drum_keys != DK_CHROM;
+    case HC_OCTUP:                                      /* the other: octave 0 (wave 12: no ghost / hard hits on the keys) */
+        return c == (h == HC_OCTDN ? B_OCTUP : B_OCTDN);
     case HC_LY0 + LY_FX:                                /* PERFORM: the pads; OCT+ latches the held ones, OCT- lets latches go */
         if (c == B_OCTUP)
             return perf.held != 0u;
@@ -227,12 +225,7 @@ static void ui_leds(void)
             ll_set(B_REC, LL_LIT, LK_STATE);
         if (rec_wait)
             ll_set(B_REC, blink ? LL_LIT : LL_OFF, LK_MOTION), ll_set(B_REC, LL_GLOW, LK_STATE);
-        if (is_drum(TSEL)) {                            /* the drums: OCT- / OCT+ lit while ghost / hard (held) */
-            if (fm1_in.buttons & dyn_bit[0])
-                ll_set(B_OCTDN, LL_LIT, LK_STATE);
-            if (fm1_in.buttons & dyn_bit[1])
-                ll_set(B_OCTUP, LL_LIT, LK_STATE);
-        } else {                                        /* the octave */
+        {                                               /* the octave (wave 12: the drums' ghost / hard lights gone) */
             if (song.octave < 0)
                 ll_set(B_OCTDN, LL_LIT, LK_STATE);
             if (song.octave > 0)

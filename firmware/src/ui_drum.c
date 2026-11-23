@@ -31,7 +31,7 @@
 static uint8_t drum_pg = 1;                             /* 0 TRIG, 1 SRC, 2 FLTR, 3 AMP, 4 LFO (drum_snd.c DPG_* + 1), 5 FX */
 static uint8_t drum_half[DPG_TABS];                     /* each page's half shown */
 static uint8_t drum_pg_last = 1;                        /* the sound page last shown (EDIT, ENV, LFO come back to it) */
-static uint8_t drum_newvel = DT_VEL_DEF;                /* the velocity a new trig takes (TRIG, nothing held: KNOB 1) */
+/* (drum_newvel, the velocity a new trig and a drum key take: seq.c; TRIG, nothing held: KNOB 1) */
 static uint8_t dk_touch = 0xFF;                         /* a trig held: the id of the knob last turned in this hold */
 static const char *const DPG_NAME[DPG_TABS] = {"TRIG", "SRC", "FLTR", "AMP", "LFO", "FX"};
 /* (wave 8) the FX tab's halves: the drum voice's own pages (params.c PAGES: FILTER, INSERT, INSERT 2 and SENDS of FAM_DRM, the
@@ -664,7 +664,7 @@ static void drum_main_draw(void)
                 str_cpy(a + str_len(a), nl == 1u ? " LOCK" : " LOCKS", 7);
                 cv_text(4, 38, &FONT_S, a, TE_G4);
             } else {
-                str_cpy(a, "NEW HITS AT VEL ", sizeof a);
+                str_cpy(a, "NEW HITS, KEYS: VEL ", sizeof a);
                 fmt_int(a + str_len(a), drum_newvel);
                 cv_text(4, 20, &FONT_S, a, TE_G4);
                 cv_text(4, 38, &FONT_S, "HOLD A STEP FOR ITS VALUES", TE_G3);

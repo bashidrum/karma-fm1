@@ -321,43 +321,53 @@ static void t_erase_undo(void)
     check(left == 0u, "the hat's key + OCT- while stopped: every hat gone");
 }
 
+/* (wave 12, Ben 23 Nov 13:35: "Move ghost hits elsewhere") OCT- / OCT+ held no longer make ghost / hard hits; a drum key plays
+ * and records at the TRIG page's new-hit velocity (drum_newvel): turned to 42, a ghost; to 127, a hard hit */
 static void t_levels(void)
 {
-    uint32_t i, gh = 0, hd = 0;
+    uint32_t i, gh = 0, hd = 0, vg = 0, vh = 0;
     reset(120);
     song.sel = TRK_DRUM;
     song.rec = 1u << TRK_DRUM;
     transport_req = 1;
     run_block();
-    fm1_in.buttons = dyn_bit[0];                     /* OCT- held: a ghost snare (A3 = key 4) */
+    drum_newvel = 42;                                /* TRIG, KNOB 1: 42 (a ghost), then a snare (A3 = key 4) */
     fm1_in.notes = 1u << 4;
     run_block();
     fm1_in.notes = 0;
     run_block();
     while (TDRUM->seq_idx != 3u)
         run_block();
-    fm1_in.buttons = dyn_bit[1];                     /* OCT+ held: a hard kick */
+    drum_newvel = 127;                               /* 127 (hard), a kick */
     fm1_in.notes = 1u << 0;
+    run_block();
+    fm1_in.notes = 0;
+    run_block();
+    fm1_in.buttons = dyn_bit[0];                     /* OCT- held, then a key: just the hit, at that velocity (no ghost) */
+    while (TDRUM->seq_idx != 6u)
+        run_block();
+    fm1_in.notes = 1u << 2;                          /* (G3: KICK 2) */
     run_block();
     fm1_in.notes = fm1_in.buttons = 0;
     run_block();
+    drum_newvel = DT_VEL_DEF;
     for (i = 0; i < 16u; i++) {
         if (dt_has(i, 2))
-            gh = dtest_lvl(i, 2);
+            gh = dt_vel(i, 2);
         if (dt_has(i, 0))
-            hd = dtest_lvl(i, 0);
+            hd = dt_vel(i, 0);
     }
-    check(gh == LV_GHOST && hd == LV_HARD, "OCT- / OCT+ held on the drums: a ghost snare and a hard kick recorded");
-    {
-        uint32_t vg = 0, vh = 0;
-        for (i = 0; i < nhits; i++) {
-            if (hits[i].note == 38)
-                vg = hits[i].vel;
-            if (hits[i].note == 36)
-                vh = hits[i].vel;
-        }
-        check(vg == 42u && vh == 127u, "... and played at 42 / 127");
+    check(gh == 42u && hd == 127u, "drum keys record at the TRIG page's velocity: a ghost snare (42), a hard kick (127)");
+    for (i = 0; i < nhits; i++) {
+        if (hits[i].note == 38)
+            vg = hits[i].vel;
+        if (hits[i].note == 36)
+            vh = hits[i].vel;
     }
+    check(vg == 42u && vh == 127u, "... and played at 42 / 127");
+    for (i = 0, gh = 0; i < 16u; i++)
+        gh |= dt_has(i, 1) && dt_vel(i, 1) != 127u;
+    check(!gh, "OCT- held, then a key: no ghost hit any more (the hit at the TRIG velocity)");
 }
 
 static void t_chords(void)

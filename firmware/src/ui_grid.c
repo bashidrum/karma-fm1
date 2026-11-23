@@ -155,7 +155,6 @@ static void patt_turn(track_t *t, uint32_t h, uint32_t k, int32_t s)
         t->p[P_SLEN] = (int16_t)clamp(t->p[P_SLEN] + accel(EN_K4, s, 63), 1, NSTEP);
 }
 
-static uint8_t drum_newvel;                             /* (ui_drum.c: a new drum trig's velocity) */
 static int32_t lk_val(uint32_t id, uint32_t v);         /* (ui_drum.c: a sound lock's value) */
 static uint32_t stl_keys_lit(uint32_t blink);
 static const char *const SG_COND[4] = {"-", "FILL", "NOFL", "CHNC"};
