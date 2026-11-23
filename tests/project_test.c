@@ -417,14 +417,14 @@ int main(void)
         proj_kit_take((const uint8_t *)&a, (int)sizeof a, &a.c);
         proj_apply(&a.c, 1);
         lk = dt_lk(9, 4, DSP_FINE);
-        ok = song.g[G_DRDLY] == 77 && trk[2].p[P_SLEN] == 7 && trk[1].step[2].n == 2 && trk[1].step[2].lvl == 0x0D &&
+        ok = song.g[G_DRDLY] == 0 && sl_send(3, 0) == 11u && sl_send(3, 1) == 6u && trk[2].p[P_SLEN] == 7 && trk[1].step[2].n == 2 && trk[1].step[2].lvl == 0x0D &&
              song.g[G_DUST] == 33 && trk[1].micro[2] == -20 && trk[1].micro[3] == 0 &&
              lock_find(&trk[1], 2, P_ED_FLT, 0) >= 0 && trk[1].lock[lock_find(&trk[1], 2, P_ED_FLT, 0)].val == -30 &&
              lock_find(&trk[1], 2, P_E1, 0) >= 0 && step_fill(&trk[1], 2) == FC_FILL && step_fill(&trk[1], 7) == FC_CHANCE &&
              step_fill(&trk[1], 3) == FC_NORM && trk[2].p[P_ITYPE] == 7 && trk[2].p[P_IA] == 11 && trk[2].p[P_IMIX] == 77 &&
              TDRUM->p[P_ITYPE] == 4 && trk[0].p[P_LSYNC] == 6 && trk[0].p[P_LTRIG] == 1 && trk[0].p[P_LPOL] == 1 &&
              trk[0].p[P_ESYNC] == 1 && trk[0].p[P_FTYPE] == 1;
-        bad += check("format 8: the synth tracks and globals round trip (nudges, locks, conditions with CHNC, 2.6 parameters, drum DLY)", ok);
+        bad += check("format 8: the synth tracks and globals round trip (nudges, locks, conditions with CHNC, 2.6 parameters; the drum DLY: 0, the kit-wide sends gone, a sound's own kept)", ok);
         ok = TDRUM->p[P_E0] == 12 && pkit.base == 12u && dt_vel(9, 4) == 72u && dt_vel(9, 0) == 127u && dt_vel(63, 15) == 1u && dt_mask(10) == 0u &&
              dt_x(9, 4) >= 0 && dt_x(9, 0) < 0 && dpat.x[dt_x(9, 4)].micro == 12 && dpat.x[dt_x(9, 4)].cond == FC_CHANCE &&
              dpat.x[dt_x(9, 4)].prob == 33 && dpat.x[dt_x(9, 4)].rrate == 13 && dpat.x[dt_x(9, 4)].rlen == 24 &&

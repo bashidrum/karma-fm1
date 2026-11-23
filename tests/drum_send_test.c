@@ -72,7 +72,7 @@ int main(void)
         same = proj_import(&p.c, &v, (int)sizeof v, PROJ_V7_TMP);
         proj_kit_take((const uint8_t *)&p, 0, &p.c);
         proj_apply(&p.c, 1);
-        same &= sl_send(0, 0) == 15u && sl_send(0, 1) == 7u && !sl_send(1, 0) && !sl_send(1, 1);
+        same &= sl_send(0, 0) == 127u && sl_send(0, 1) == 127u   /* (0..15, 0..7 then; 0..127 since the drum sends moved under FX) */ && !sl_send(1, 0) && !sl_send(1, 1);
         check("a format 7 project with the flag: the sounds' sends converted", same);
         proj_kit_take((const uint8_t *)&keep, (int)sizeof keep, &keep.c);
         proj_apply(&keep.c, 1);

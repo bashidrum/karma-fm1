@@ -1912,10 +1912,11 @@ static void t_midicc(void)
     cc_push(drch, 7, 0); cc_push(drch, 91, 127); cc_push(drch, 10, 0); cc_push(drch, 74, 127); cc_push(drch, 73, 127);
     cc_push(drch, 94, 64);
     run_block(); run_block();
-    check(song.g[G_DRLVL] == 0 && song.g[G_DRREV] == 127 && song.g[G_DRDLY] == 64 && TDRUM->p[P_PAN] == -64 && TDRUM->p[P_TFLT] == 63
+    check(song.g[G_DRLVL] == 0 && song.g[G_DRREV] == 0 && song.g[G_DRDLY] == 0 && sl_send(drum_lane, 0) == 127u &&
+          sl_send(drum_lane, 1) == 64u && TDRUM->p[P_PAN] == -64 && TDRUM->p[P_TFLT] == 63
           && TDRUM->p[P_ATK] == before[P_ATK] && TDRUM->p[P_DLY] == before[P_DLY],
-          "2.5: the drum channel: 7 / 91 / 94 = DRUMS LVL / REV / DLY, 10 PAN, 74 FILTER; 73 ignored");
-    song.g[G_DRDLY] = 0;
+          "the drum channel: 7 LVL, 91 / 94 the selected sound's REVERB / DELAY (no kit-wide sends since the drum effects moved under FX), 10 PAN, 74 FILTER; 73 ignored");
+    sl_send_set(drum_lane, 0, 0), sl_send_set(drum_lane, 1, 0);
     song.g[G_ROUTE] = 1;
     cc_push(0, 7, 55);
     run_block(); run_block();
@@ -2016,15 +2017,15 @@ static double drdly_echo(int32_t dly, int32_t flt)
 {
     double e;
     reset(120);
-    song.g[G_DRREV] = 0;
-    song.g[G_DRDLY] = (int16_t)dly;
+    sl_send_set(2, 0, 0);                                /* (the snare's own delay send: the kit-wide one is gone) */
+    sl_send_set(2, 1, (uint32_t)dly);
     TDRUM->p[P_TFLT] = (int16_t)flt;
     tf_measure(40);
     trk_note_on(TDRUM, 38u, 120);
     tf_measure(400);                                     /* the hit (2026-10-26: the HEX snare, the LXR's, rings 0.25 s) */
     tf_measure(1600);                                    /* then its echoes (or silence) */
     e = tf_rms;
-    song.g[G_DRDLY] = 0;
+    sl_send_set(2, 1, 0);
     TDRUM->p[P_TFLT] = 0;
     return e;
 }
@@ -2033,7 +2034,7 @@ static void t_drdly(void)
     double off = drdly_echo(0, 0), on = drdly_echo(127, 0), onf = drdly_echo(127, -30), half = drdly_echo(64, 0);
     printf("  drum DLY: echo rms off %.0f, 64 %.0f, 127 %.0f, 127 + filter %.0f\n", off, half, on, onf);
     check(on > off * 10.0 + 1.0 && half < on && half > off * 3.0 && onf > off * 10.0 + 1.0,
-          "2.5: GLO > DRUMS > DLY: the drums echo in the tempo delay (more with more DLY, through the FILTER too); 0: none");
+          "a drum sound's DELAY send: it echoes in the tempo delay (more with more, through the kit's FILTER too); 0: none");
 }
 
 /* (wave 7) the drum RETRIG grid and the retrig curve in 32 bits (the device has no 64-bit divide) equal the 64-bit forms */
