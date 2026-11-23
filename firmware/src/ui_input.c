@@ -1,6 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* Felucca UI input: LEDs, knobs and buttons, the layers (ui_layers.c), holds, SEQ step entry, panel setup. */
+#define BTN_BIT(b) (1u << panel.btn[b])
+static uint32_t ly_eat;                                  /* (wave 9) layer buttons pressed in the menu: no tap after it */
+static void layer_unlock(void);
+#include "ui_nav.c"                                     /* (wave 9) how to move around: categories, pages */
 /* ----------------------------------------------------------- LEDs --- */
 /* The LED picture is built off-line and copied one byte per column: clearing
  * and relighting would let the 10 kHz scan catch the dark gap and flicker. */
@@ -25,17 +29,11 @@ static void led_put(uint8_t *nl, uint32_t id, int on)
         nl[q >> 3] |= (uint8_t)(1u << (q & 7u));
 }
 
-static const uint8_t FAM_BTN[FAM_COUNT] = {B_HOME, B_ENV, B_LFO, B_EDIT, B_SCL, B_EDIT, B_GLO, B_SAVE,
-                                           B_ARP, B_SEQ, B_HOME, B_EDIT, B_FX, B_EDIT};   /* button of each page family
-                                                         * (TRACKS: HOME; the chain's FILTER and, wave 8, its FX stage: EDIT,
-                                                         * which walks the chain; the whole mix's effects: FX) */
-
 static uint32_t cur_fam(void) { return ui.home ? FAM_HOME : cur_page()->fam; }
-static uint32_t cur_btn(void)                      /* the button of the screen shown */
+static uint32_t cur_btn(void)                      /* the button of the screen shown (wave 9: the group it is in) */
 {
-    if (!ui.home && cur_page()->scope == SC_DRUM)
-        return B_SEQ;
-    return FAM_BTN[cur_fam()];
+    uint32_t k, n, b = nav_btn_of(nav_cat(&k, &n));
+    return b < NB ? b : B_HOME;
 }
 
 /* PLAY flashes on every beat, as heard (the sound leaves ~9 ms after it is rendered) */
@@ -115,6 +113,12 @@ static uint32_t keys_lit(void)
             return (blink ? scale_keys(1) : 0u) | keys_sounding(t) | fm1_in.notes;
         return scale_keys(0) & ~(blink ? 0u : scale_keys(1));
     case LY_MIX:                                   /* tracks heard: 1..4; soloed: 5..8; a fill: 9, armed / on: 10; tap: the beat */
+        if (is_drum(t)) {                          /* (wave 9) the drums: the sounds heard (not muted; soloed when any is) */
+            for (i = 0; i < 16u; i++)
+                if (drum_solo ? (drum_solo >> i) & 1u : !((drum_mute >> i) & 1u))
+                    m |= 1u << key_of_white(i);
+            return m;
+        }
         for (i = 0; i < 4u; i++) {
             if (!trk_silent(&trk[i]))
                 m |= 1u << key_of_white(i);
@@ -320,11 +324,9 @@ static void edit_param_pg(const page_t *pg, uint32_t slot, int32_t steps)   /* (
     int32_t v;
     if (is_drum(TSEL) && !page_for_drum(pg))
         return;                                           /* "DRUM TRACK": nothing to edit here */
-    if (id == V_TYPE) {                                   /* (wave 4) TYPE: one Type a detent (vtype.c) */
-        int32_t ty = (int32_t)vtype_of(TSEL);
-        ty = clamp((ty < (int32_t)NVTYPE ? ty : 0) + (steps > 0 ? 1 : -1), 0, (int32_t)NVTYPE - 1);
-        if ((uint32_t)ty != vtype_of(TSEL))
-            vtype_set(TSEL, (uint32_t)ty);
+    if (id == V_LEARN) {                                  /* (wave 9) GLO > MIDI 3 LEARN: on right, off left (was GLO + F#3) */
+        if ((steps > 0) != (mlu.on != 0))
+            ml_toggle();
         return;
     }
     if (id >= P_FATK && id <= P_FREL && !TSEL->p[P_FLINK]) {   /* (wave 4) the filter's envelope turned while LINKed: its
@@ -340,27 +342,6 @@ static void edit_param_pg(const page_t *pg, uint32_t slot, int32_t steps)   /* (
     }
     if (pg->scope == SC_TRK) {
         tracks_edit(slot, steps);
-        return;
-    }
-    if (pg->graph == GR_XSLOT && slot == 0u && !is_drum(TSEL)) {   /* (wave 5) a slot's TYPE: one a detent, past the FLANGER
-                                                         * when another slot has it and (wave 8) past the old send types;
-                                                         * a type picked starts at its own settings */
-        uint32_t k = pg_slot(pg);
-        int32_t ty = TSEL->p[P_XS(k, 0)], to = ty, n;
-        for (n = 0; n < (int32_t)XT_N; n++) {
-            to = clamp(to + (steps > 0 ? 1 : -1), 0, (int32_t)XT_N - 1);
-            if (xs_type_ok(TSEL->p, k, to) || to == 0 || to == (int32_t)XT_N - 1)
-                break;
-        }
-        if (!xs_type_ok(TSEL->p, k, to))
-            to = ty;
-        ml_knob(TSEL, P_XS(k, 0));                        /* (MIDI LEARN: the TYPE too) */
-        if (to != ty) {
-            fm1_irq_off();
-            locks_restore(TSEL);                          /* (a lock in force on the old type's knob: its base first) */
-            xs_type_set(TSEL->p, k, to);
-            fm1_irq_on();
-        }
         return;
     }
     if (pg->graph == GR_MATRIX && !is_drum(TSEL) && (id == V_MAMT || id == V_MK4)) {   /* (wave 5) the grid's cell, TARGET */
@@ -525,6 +506,9 @@ static void ask_do(void)
     case ASK_PADS:
         stl_pads_clear();
         break;
+    case ASK_HALVE:                                       /* (wave 9) SEQ + OCT-: the second half dropped */
+        seq_halve_do(a);
+        break;
     case ASK_STORE: {
         char b[2] = {(char)('A' + (a & 3u)), 0};
         section_store(a & 3u);
@@ -595,84 +579,15 @@ static uint32_t btn_hold(uint32_t *t0, uint32_t label, uint32_t now, int hold_ok
     return tap ? BT_TAP : BT_NONE;
 }
 
-/* a layer button tapped (pressed and let go, nothing touched): its pages, as before the layers */
+/* a layer button tapped (pressed and let go, nothing touched): (wave 9, Ben 23 Nov 2026) its group's first category, on it
+ * already its next category (ui_nav.c). Held, the layer (PERFORM, ERASE, ROLL, STEPS, MIX, PATTERN): a shortcut or a
+ * performance layer only */
 static void layer_tap(uint32_t layer)
 {
-    int drum = is_drum(TSEL);
-    switch (layer) {
-    case LY_FX:                                           /* (wave 8, Ben 22 Nov 2026: "FX = whole mix only") the whole mix's
-                                                          * effects, from every screen; a voice's FX stage is EDIT's (the
-                                                          * chain, the GRID's and the drum screen's tabs) */
-        open_family(FAM_MFX);
-        break;
-    case LY_ERASE:
-    case LY_STEP:
-        if (drum && layer == LY_ERASE) {                  /* (PHEBUS wave 3) EDIT on the drum track: the drum screen's SRC,
-                                                          * again its next page, a trig held too (the Rytm's page keys) */
-            sg_lpage = 0xFF;
-            drum_open(FAM_EDIT);
-            break;
-        }
-        if (on_drum_page() && !drum && !stl_shown()) {    /* (wave 4) the synth GRID, the Rytm's way: EDIT its OSC tab (again:
-                                                          * the next stage), SEQ its TRIG tab (again: back); a step held too */
-            if (layer == LY_ERASE)
-                syn_open(FAM_EDIT);
-            else if (!sr_on)
-                syn_seq_tap();
-            break;
-        }
-        if (layer == LY_ERASE) {
-            open_family(FAM_EDIT);                        /* the sound's pages */
-            break;
-        }
-        /* SEQ (REVIEW.md 2, 21 Nov 2026: the GRID is the only step editor, SEQ always comes back to it). On the drum screen:
-         * TRIG (again: its next half, as every page button; PHEBUS wave 3, wave 8); from anywhere else, every track: the GRID */
-        if (on_drum_page() && !stl_shown() && drum) {
-            sg_lpage = 0xFF;
-            drum_seq_tap();
-            break;
-        }
-        if (drum && drum_keys != DK_PLAY)
-            drum_keys = DK_PLAY;
-        if (!drum && on_chain())                          /* (wave 4) from a synth's sound page: its GRID on that page; */
-            syn_grid_from_page();
-        else if (!drum)                                   /* from anywhere else: on TRIG (the notes: the pen, the steps) */
-            syn_go(0, 0);
-        studio_open(SC_DRUM);
-        break;
-    case LY_ROLL:
-        if (drum) {                                       /* (wave 3) ARP on the drum track: CHROMATIC mode (again: off) */
-            int on = on_drum_page() && drum_keys == DK_CHROM && !stl_shown();
-            sg_drop();
-            drum_screen_open();
-            drum_keys = on ? DK_PLAY : DK_CHROM;
-            if (!drum_pg)
-                dpg_go(drum_pg_last, drum_half[drum_pg_last % DPG_TABS]);
-            ui.force = 1;
-            break;
-        }
-        open_family(FAM_ARP);
-        break;
-    case LY_SCALE:
-        if (drum) {                                       /* (wave 3) SEL on the drum track: MUTE mode (again: off) */
-            int on = on_drum_page() && drum_keys == DK_MUTE && !stl_shown();
-            sg_drop();
-            drum_screen_open();
-            drum_keys = on ? DK_PLAY : DK_MUTE;
-            ui.force = 1;
-            break;
-        }
-        open_family(FAM_SCL);
-        break;
-    case LY_MIX:
-        open_family(FAM_GLO);
-        break;
-    case LY_SONG:                                         /* SAVE tapped: the SAVE pages, everywhere (one job a button) */
-        open_family(FAM_SAVE);
-        break;
-    default:
-        break;
-    }
+    static const uint8_t BTN[LY_COUNT] = {NB, B_FX, B_EDIT, B_ARP, B_SEQ, B_SCL, B_GLO, B_SAVE};
+    if (layer == LY_STEP && sr_on)
+        return;                                           /* (STEP REC: SEQ is the rest, ui_grid.c sr_input) */
+    nav_button(BTN[layer % LY_COUNT]);
 }
 
 /* a layer locked open (wave 8, Ben 22 Nov 2026: "one keep-open gesture ... nothing deeper than a hold"): ANY layer button
@@ -722,7 +637,9 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         if (d && !down[l]) {
             t0[l] = now;
             shown &= (uint8_t)~(1u << l);
-            used[l] = (uint8_t)((eat & ly_bit[l]) != 0u);  /* (the press that unlocked: not a tap) */
+            used[l] = (uint8_t)((eat & ly_bit[l]) != 0u || (ly_eat & ly_bit[l]) != 0u);   /* (the press that unlocked, or
+                                                         * one the menu took: not a tap) */
+            ly_eat &= ~ly_bit[l];
         }
         if (d && note_edges)
             used[l] = 1;                                  /* a key while held: not a tap */
@@ -800,6 +717,19 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
             perf_unlatch();
             fm1_irq_on();
             ui_message("LATCH OFF");
+        }
+    }
+    if (held == LY_STEP && !stl_shown()) {                 /* (wave 9) SEQ + OCT- / OCT+: halve / double the pattern (a clone) */
+        uint32_t ob = 1u << panel.btn[B_OCTDN], pb = 1u << panel.btn[B_OCTUP];
+        static uint32_t prev;
+        uint32_t b = fm1_in.buttons & (ob | pb), press = b & ~prev;
+        prev = b;
+        if (press) {
+            used[held] = 1;
+            if (press & ob)
+                seq_halve();
+            else
+                seq_double();
         }
     }
     if (held == LY_ERASE) {                               /* EDIT + OCT- / OCT+: undo / redo */
@@ -947,10 +877,26 @@ static void ui_input(void)
                                                          * steps; STEP REC and a live take on a synth GRID: notes) */
     if (sg_held && (!kb_grid || song.sel != sg_trk))
         sg_drop();                                      /* (the GRID left with steps held: their keys clear nothing) */
-    if (ui.menu) {                                      /* HOME / REC taps do nothing here */
-        if (!ui.home_t0)
-            menu_input(pressed);
-        return;
+    if (ui.menu) {                                      /* (wave 9) the menu is GLO's DEVICE category: SEL its next section,
+                                                         * GLO the next category (GLOBAL), HOME tapped HOME; another page
+                                                         * button closes it and opens its own group */
+        uint32_t other = pressed & (BTN_BIT(B_FX) | BTN_BIT(B_ENV) | BTN_BIT(B_LFO) | BTN_BIT(B_EDIT) | BTN_BIT(B_ARP) |
+                                    BTN_BIT(B_SEQ) | BTN_BIT(B_SAVE));
+        if (home == BT_TAP) {
+            menu_close();
+            return;
+        }
+        if (!other) {
+            if (pressed & BTN_BIT(B_SCL))
+                nav_page();
+            else if (pressed & BTN_BIT(B_GLO)) {
+                ly_eat |= BTN_BIT(B_GLO);               /* (its tap, after the menu, is not one more press) */
+                nav_button(B_GLO);
+            } else if (!ui.home_t0)
+                menu_input(pressed);
+            return;
+        }
+        menu_close();
     }
     if (ui.ask && (pressed & ~(1u << panel.btn[B_REC])))   /* (wave 8) another button: the question goes */
         ask_drop();
@@ -988,18 +934,24 @@ static void ui_input(void)
         for (k = 0; k < 4u; k++)                        /* the count-in: KNOB 1..4 edit nothing */
             panel_enc(EN_K1 + k);
     }
+    /* (wave 9, Ben 23 Nov 2026) the page buttons, the same on every screen, a step held too: ENV, LFO and HOME their group's
+     * next category (the layer buttons: on release, layer_tap); SEL (PAGE) the next page of the category shown. HOME acts on
+     * release (held: the menu, its shortcut) */
+    if (pressed & BTN_BIT(B_SCL))
+        nav_page();
+    if (pressed & BTN_BIT(B_ENV))
+        nav_button(B_ENV);
+    if (pressed & BTN_BIT(B_LFO))
+        nav_button(B_LFO);
+    if (home == BT_TAP)
+        nav_button(B_HOME);
+    pressed &= ~(BTN_BIT(B_SCL) | BTN_BIT(B_ENV) | BTN_BIT(B_LFO));
 #if FELUCCA_ARRANGER
     if (on_drum_page()) {
-        drum_screen_input(pressed, home);
+        drum_screen_input(pressed, 0);
         return;
     }
 #endif
-    if (home == BT_TAP) {                               /* HOME acts on release: a hold opens the menu. (Wave 8: on HOME it
-                                                         * stays HOME, a screensaver closes; the screensavers are HOME's
-                                                         * pages, SELECT's: no second meaning for a second tap) */
-        vis_on = 0;
-        go_home();
-    }
     cursor_fix();                                       /* LEN may have changed (knob, editor, load) */
     for (id = 0; id < 14u; id++) {
         if (!((pressed >> id) & 1u))
@@ -1020,12 +972,6 @@ static void ui_input(void)
                 song.octave += b == B_OCTDN ? (song.octave > -3 ? -1 : 0) : (song.octave < 3 ? 1 : 0);
             break;
         }
-        case B_ENV:
-            open_family(FAM_ENV);
-            break;
-        case B_LFO:
-            open_family(FAM_LFO);
-            break;
         default:
             break;
         }
@@ -1043,19 +989,14 @@ static void ui_input(void)
     }
     if ((s = panel_enc(EN_ALGO)) != 0)              /* ALGORITHM: the selected track, on every page */
         track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
-    if (vis_shown() && !rec_wait) {           /* the visualiser: SELECT its style (before FLOW: HOME); KNOB 1..4 (the
-                                                         * TRACKS screen's, out of sight) do nothing */
-        if ((s = panel_enc(EN_SELECT)) != 0)
-            vis_select(s);
+    if (vis_shown() && !rec_wait) {                     /* a screensaver: KNOB 1..4 (the HOME screen's, out of sight) and
+                                                         * SELECT do nothing (its style: SEL, the page button) */
+        panel_enc(EN_SELECT);
         for (k = 0; k < 4u; k++)
             panel_enc(EN_K1 + k);
     }
-    if ((s = panel_enc(EN_SELECT)) != 0 && !rec_wait && !page_walk(s) && !ui.home && cur_page()->scope == SC_TRK &&
-        s > 0) {                                    /* SELECT: the pages of the family shown. (Wave 8) on HOME: its pages
-                                                     * are the screensavers (SELECT right: FLOW); the tempo is GLO's only */
-        vis_style = 0;
-        vis_open();
-    }
+    if ((s = panel_enc(EN_SELECT)) != 0 && !rec_wait)  /* (wave 9) SELECT: the type of the page shown (none: nothing) */
+        sel_turn(s);
     for (k = 0; k < 4u; k++) {
         const page_t *pg = cur_page();
         int16_t *hv;

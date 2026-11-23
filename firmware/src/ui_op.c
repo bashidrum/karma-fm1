@@ -16,6 +16,14 @@ static int32_t batt_shown(void);         /* ui_draw.c */
 static int32_t batt_level(void);
 static int32_t meter_px(int32_t a);
 
+static uint16_t te_dim_of(uint16_t c)                  /* (wave 9) a colour's dark shade: a voice's TE_DIM, else dark grey */
+{
+    uint32_t v;
+    for (v = 0; v < 4u; v++)
+        if (TE_COL[v] == c)
+            return TE_DIM[v];
+    return TE_G1;
+}
 static void op_box(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)   /* a 1 px outline */
 {
     cv_rect(x, y, w, 1, c);
@@ -27,14 +35,22 @@ static void op_box(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)   /* 
 /* the header: [tag] title | BPM, play / stop, the four beats, REC (else the unsaved dot), the battery */
 static uint8_t proj_unsaved;                           /* (PHEBUS) the work differs from flash (project.c unsaved_tick) */
 #define OP_BPM_R 154                                   /* the tempo's right edge */
+static uint8_t sel_t;                                   /* (wave 9) frames the SELECT chip stays filled after a turn */
+static int sel_chip(char *v, int32_t *ratio, uint16_t *col);   /* (ui_sel.c) */
 static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t *cache)
 {
     char b[12];
     uint32_t beat = clk_beat, k, playing = song.playing;
+    char cv_[10];
+    int32_t cr = 0;
+    uint16_t cc = 0;
+    int chip = sel_chip(cv_, &cr, &cc);
     uint32_t sig = studio_hash((uint32_t)song.g[G_BPM] * 7u + playing * 3u + (song.rec != 0) * 1999u +
                                (playing ? beat * 131u : 0u) + (ui.bpm_t != 0) * 104729u + (uint32_t)batt_shown() * 7777u + proj_unsaved * 31337u +
                                sr_on * 3331u + fill_now * 7331u + pf_count(perf.lat) * 13331u, title);
     sig = studio_hash(sig * 31u + tc, tag);
+    if (chip)
+        sig = studio_hash(sig * 131u + (uint32_t)cr * 7u + cc + (sel_t != 0u) * 99991u, cv_);
     if (!ui.force && sig == *cache)
         return;
     *cache = sig;
@@ -70,6 +86,14 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
                 cv_rect(x, 2, text_w(&FONT_S, f) + 4, 16, C_WHITE);
                 cv_text(x + 2, 2, &FONT_S, f, C_BLACK);
             }
+        } else if (chip) {                              /* (wave 9) WHAT SELECT TURNS: its little dial and the value, in the
+                                                         * colour of what it acts on, where the title sits (the SELECT knob is
+                                                         * at the screen's upper left); filled a moment after a turn */
+            int32_t cx = w + 5, cw = 18 + text_w(&FONT_S, cv_) + 3;
+            uint32_t hot = sel_t != 0u;
+            cv_rect(cx, 1, cw, 18, hot ? cc : te_dim_of(cc));
+            te_dial(cx + 9, 10, 6, cr, hot ? C_BLACK : cc, hot ? cc : C_BLACK);
+            cv_text(cx + 18, 2, &FONT_S, cv_, hot ? C_BLACK : cc);
         } else {
             cv_text(w + 6, 2, &FONT_S, b, TE_G3);
         }
@@ -1059,7 +1083,7 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
     static uint32_t head, scene, keys, knobs, bar;
     const uint8_t *mx = op_mx;
     uint32_t i, sig = 7u;
-    op_header("GLO", C_WHITE, ui.msg_t ? ui.msg : flags & 16u ? "PAN" : "MIX", &head);   /* (GLO: MIX, the button and the layer, review 21; a
+    op_header("GLO", C_WHITE, ui.msg_t ? ui.msg : flags & 16u ? "PAN" : is_drum(TSEL) ? "DRUM MIX" : "MIX", &head);   /* (GLO: MIX, the button and the layer, review 21; a
                                                          * message: in the title, the levels stay) */
     op_band_tick();
     for (i = 0; i < NTRK; i++)
@@ -1094,7 +1118,38 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
     sig = flags + song.solo * 64u;
     for (i = 0; i < NTRK; i++)
         sig = sig * 2u + (trk[i].p[P_MUTE] != 0);
-    if (ui.force || sig != keys) {                      /* the 16 white keys: the track's number on its mute and solo
+    if (is_drum(TSEL))
+        sig = sig * 977u + drum_mute * 7u + (uint32_t)drum_solo * 131071u + drum_lane + 1u;
+    if (is_drum(TSEL) && (ui.force || sig != keys)) {  /* (wave 9) the drums selected: the 16 keys mute (or solo) the sounds,
+                                                         * a tile a sound, its initial; muted: yellow, soloed: ice blue; the
+                                                         * black keys under: SOLO FILL BAR PAN */
+        static const char *const BK[4] = {"SOLO", "FILL", "BAR", "PAN"};
+        uint32_t bon[4] = {(flags >> 5) & 1u, flags & 1u, ((flags >> 1) | (flags >> 2)) & 1u, (flags >> 4) & 1u};
+        int32_t x;
+        keys = sig;
+        cv_begin(240, 36, C_BLACK);
+        for (i = 0; i < 16u; i++) {
+            uint32_t m = (drum_mute >> i) & 1u, so = (drum_solo >> i) & 1u;
+            char ch[2] = {LANE_SHORT[i][0], 0};
+            x = 4 + (int32_t)i * 14 + (int32_t)(i / 4u) * 2;
+            if (m || so)
+                cv_rect(x, 2, 12, 18, m ? TE_MUTE : TE_SOLO);
+            else
+                op_box(x, 2, 12, 18, i == drum_lane ? C_WHITE : TE_COL[TRK_DRUM]);
+            cv_text(x + 2, 3, &FONT_S, ch, m || so ? C_BLACK : TE_COL[TRK_DRUM]);
+        }
+        x = cv_text(4, 20, &FONT_S, (flags >> 5) & 1u ? "SOLO" : "MUTE", (flags >> 5) & 1u ? TE_SOLO : TE_MUTE);
+        for (i = 0, x += 10; i < 4u; i++) {             /* the black keys F#3 G#3 A#3 C#4, in order */
+            int32_t w = text_w(&FONT_S, BK[i]) + 4;
+            if (bon[i])
+                cv_rect(x - 2, 21, w, 14, C_WHITE);
+            else
+                op_box(x - 2, 21, w, 14, TE_G2);
+            cv_text(x, 20, &FONT_S, BK[i], bon[i] ? C_BLACK : TE_G4);
+            x += w + 4;
+        }
+        cv_blit(0, OP_BODY_Y + 96);
+    } else if (!is_drum(TSEL) && (ui.force || sig != keys)) {                      /* the 16 white keys: the track's number on its mute and solo
                                                          * keys, what each group does under it (review 21) */
         static const char *const GRP[3] = {"MUTE", "SOLO", "FILL"};
         static const uint8_t GX[3] = {0, 4, 8};

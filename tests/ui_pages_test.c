@@ -114,6 +114,21 @@ static void tap(uint32_t b) { press(b); release(b); }
 static void key(uint32_t k) { fm1_in.notes |= 1u << k; frame(); fm1_in.notes &= ~(1u << k); frame(); }
 static int grid_voice(const track_t *t, uint32_t note)   /* a voice of t sounds note, its gate open */
 { uint32_t v; for (v = 0; v < NVOICE; v++) if (t->v[v].active && t->v[v].gate && t->v[v].note == note) return 1; return 0; }
+/* (wave 9) what the old buttons' helpers did, for the tests that walk every page (the buttons now step through categories,
+ * ui_nav.c): the chain's pages in signal order; a drum screen page; the families EDIT reached */
+static uint32_t chain_list(uint8_t *idx, uint32_t max)
+{
+    uint32_t st, k, i, n = 0;
+    for (st = 0; st < NSTAGE; st++)
+        for (k = 0; n < max && (i = stage_page(st, k)) < NPAGES; k++)
+            idx[n++] = (uint8_t)i;
+    return n;
+}
+static void drum_open(uint32_t fam) { drum_screen_open(); dpg_go(fam == FAM_ENV ? 3u : fam == FAM_LFO ? 4u : 1u, 0); }
+static int sg_fam_in(uint32_t pfam, uint32_t fam)
+{
+    return fam == FAM_EDIT ? pfam == FAM_OSC || pfam == FAM_FLT || pfam == FAM_ENV : pfam == fam;
+}
 static int fails;
 static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok ? "ok" : "FAIL"); fails += !ok; }
 static const char *sub_line(void) { return layer_sub_shown; }

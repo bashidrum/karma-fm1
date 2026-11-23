@@ -40,6 +40,7 @@ static void section_load(uint32_t s);
 #define TAP_MS 450u                                     /* a press shorter than this, untouched: a tap */
 #define SHOW_MS 140u                                    /* the layer shows after this (a tap does not flash it) */
 #define LONG_MS 700u                                    /* the long press */
+static uint8_t mix_dsolo;                               /* (wave 9) the mixer, the drums selected: the white keys solo (F#3) */
 static uint8_t mix_pan;                                 /* (PHEBUS) GLO + key 11: the mixer's knobs are the pans, until it
                                                          * closes (HOME's KNOB 4 was PAN; VOICE 2 has it too) */
 
@@ -48,7 +49,9 @@ static void layers_init(void)
 {
     uint32_t l;
     for (l = LY_FX; l < LY_COUNT; l++)
-        ly_bit[l] = 1u << panel.btn[LAYER_BTN[l]];
+        ly_bit[l] = l == LY_SCALE ? 0u : 1u << panel.btn[LAYER_BTN[l]];   /* (wave 9, Ben 23 Nov 2026: SEL is the PAGE button;
+                                                         * held, nothing: "Leave it unused". The KEY layer's settings are
+                                                         * ARP's KEY category, the drum sound pick SELECT, the mutes the mixer) */
     dyn_bit[0] = 1u << panel.btn[B_OCTDN];
     dyn_bit[1] = 1u << panel.btn[B_OCTUP];
 }
@@ -105,27 +108,99 @@ static void pattern_rotate(track_t *t, int32_t d)       /* every step one later 
     }
     fm1_irq_on();
 }
-static void pattern_length(track_t *t, int32_t d)       /* x2 (the pattern again after itself), or half */
+/* (wave 9, Ben 23 Nov 2026: "-oct and sequence could halve the sequence. Or +oct and sequence could double it as a clone") SEQ
+ * held + OCT- / OCT+ on the selected voice's pattern (SEQ the constant button, the pattern its feature; DOUBLE on EDIT held,
+ * the same two jobs, is gone). Halving drops the second half: when it holds anything (a note, a tie, a drum trig, a lock, a
+ * nudge, a condition) it asks first, HOLD REC: HALVE TO 8 (the one confirm; SEQ stays held while REC is held, as SAVE does for
+ * a pattern store). Doubling clones the steps after themselves, with their locks, nudges and conditions (the drum trigs with
+ * their extras and sound locks). One undo each */
+static int steps_used(const track_t *t, uint32_t from, uint32_t to)
 {
-    uint32_t len = trk_len(t), i;
-    layer_undo_mark(t);
+    uint32_t i, k;
+    for (i = from; i < to && i < NSTEP; i++) {
+        if (is_drum(t) ? dt_mask(i) != 0u : t->step[i].time == ST_TIE || step_on(&t->step[i]))
+            return 1;
+        if (t->micro[i] || step_fill(t, i))
+            return 1;
+        for (k = 0; k < NLOCK; k++)
+            if (t->lock[k].step == i)
+                return 1;
+    }
+    return 0;
+}
+static void seq_halve_do(uint32_t ti)                   /* (the question confirmed, or nothing to lose) */
+{
+    track_t *t = &trk[ti % NTRK];
+    uint32_t len = trk_len(t), n = len / 2u, i, l;
+    char b[8];
+    if (len < 2u)
+        return;
+    undo_mark(t, (undo_sess += 4u) | 3u);
     fm1_irq_off();
-    if (d > 0 && len * 2u <= NSTEP) {
-        for (i = 0; i < len; i++) {
-            t->step[len + i] = t->step[i];
-            if (is_drum(t))                             /* (the drum trigs, with their extras and locks) */
-                (void)dt_copy_step(i, len + i);
-        }
-        t->p[P_SLEN] = (int16_t)(len * 2u);
-    } else if (d < 0 && len >= 2u) {
-        t->p[P_SLEN] = (int16_t)(len / 2u);
+    for (i = n; i < len; i++) {
+        if (is_drum(t))
+            for (l = 0; l < DRUM_LANES; l++)
+                dt_clr(i, l);
+        else
+            step_clear(&t->step[i]);
+        lock_del(t, i, P_COUNT);
+        t->micro[i] = 0;
+        step_fill_set(t, i, FC_NORM);
     }
+    t->p[P_SLEN] = (int16_t)n;
     fm1_irq_on();
-    {
-        char b[8];
-        fmt_int(b, t->p[P_SLEN]);
-        ui_say("STEPS ", b);
+    sync_reload = 1;
+    fmt_int(b, (int32_t)n);
+    ui_say("STEPS ", b);
+}
+static void seq_halve(void)
+{
+    track_t *t = TSEL;
+    uint32_t len = trk_len(t);
+    char q[16] = "HALVE TO ";
+    if (len < 2u) {
+        ui_message("1 STEP: NO HALF");
+        return;
     }
+    if (!steps_used(t, len / 2u, len)) {
+        seq_halve_do(song.sel);
+        return;
+    }
+    fmt_int(q + 9, (int32_t)(len / 2u));
+    ask_set(ASK_HALVE, song.sel, q);
+}
+static void seq_double(void)
+{
+    track_t *t = TSEL;
+    uint32_t len = trk_len(t), i, k, lost = 0;
+    char b[8];
+    if (len * 2u > NSTEP) {
+        ui_message("64 STEPS: FULL");
+        return;
+    }
+    undo_mark(t, (undo_sess += 4u) | 3u);
+    fm1_irq_off();
+    for (i = 0; i < len; i++) {
+        lock_del(t, len + i, P_COUNT);
+        if (is_drum(t))
+            lost |= (uint32_t)!dt_copy_step(i, len + i);
+        else
+            t->step[len + i] = t->step[i];
+        t->micro[len + i] = t->micro[i];
+        step_fill_set(t, len + i, step_fill(t, i));
+    }
+    for (k = 0; k < NLOCK; k++)                         /* (the locks: a copy each, as many as the 24 hold) */
+        if (t->lock[k].step < len && !lock_set(t, t->lock[k].step + len, t->lock[k].param, t->lock[k].val))
+            lost = 1;
+    t->p[P_SLEN] = (int16_t)(len * 2u);
+    fm1_irq_on();
+    sync_reload = 1;
+    if (lost) {
+        ui_message("DOUBLED: SOME LOCKS LEFT OUT");
+        return;
+    }
+    fmt_int(b, (int32_t)len * 2);
+    ui_say("CLONED: STEPS ", b);
 }
 static void pattern_transpose(track_t *t, int32_t d)    /* every note a semitone up / down (synth parts) */
 {
@@ -151,8 +226,8 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
         return;
     }
     if (!down) {
-        if (layer == LY_MIX && w == 8)
-            fill_held = 0;                                  /* GLO + key 9 let go: the fill ends */
+        if (layer == LY_MIX && (is_drum(TSEL) ? k == 3u : w == 8))
+            fill_held = 0;                                  /* GLO + key 9 (drums: G#3) let go: the fill ends */
         return;
     }
     switch (layer) {                                    /* (SEQ: its keys do nothing, PHEBUS) */
@@ -209,9 +284,30 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
         return;
     }
     case LY_MIX:
-        if (k == 1u) {                                      /* (2.6) the black key F#3: MIDI LEARN on / off */
-            ml_toggle();
-        } else if (w >= 0 && w < 4) {
+        if (is_drum(TSEL)) {                                /* (wave 9, Ben 23 Nov 2026: "Hold GLO: with the drums selected, the
+                                                         * keys mute the 16 sounds") the white keys mute the sounds (F#3:
+                                                         * they solo them); G#3 FILL while held, A#3 the next bar, C#4 the
+                                                         * knobs the pans. Mutes and solos are performance state, not saved */
+            if (w >= 0 && w < 16) {
+                if (mix_dsolo)
+                    drum_solo ^= (uint16_t)(1u << w);
+                else
+                    drum_mute ^= (uint16_t)(1u << w);
+                drum_lane = (uint8_t)w;
+            } else if (k == 1u) {
+                mix_dsolo = (uint8_t)!mix_dsolo;
+            } else if (k == 3u) {
+                fill_held = 1;
+            } else if (k == 5u) {
+                fill_arm = (uint8_t)!fill_arm;
+                ui_message(fill_arm ? "FILL: NEXT BAR" : "FILL BAR OFF");
+            } else if (k == 8u) {
+                mix_pan = (uint8_t)!mix_pan;
+            }
+            ui.force = 1;
+            return;
+        }
+        if (w >= 0 && w < 4) {                              /* (wave 9: F#3's MIDI LEARN is GLO > MIDI 3 LEARN) */
             trk[w].p[P_MUTE] = (int16_t)!trk[w].p[P_MUTE];
         } else if (w >= 4 && w < 8) {
             song.solo ^= (uint8_t)(1u << (w - 4));
@@ -249,9 +345,7 @@ static void layer_knobs(uint32_t layer)
         case LY_ERASE:
             if (k == 0u)
                 pattern_rotate(t, s);
-            else if (k == 1u)
-                pattern_length(t, s);
-            else if (k == 2u)
+            else if (k == 2u)                           /* (wave 9: KNOB 2 DOUBLE gone: SEQ + OCT- / OCT+) */
                 pattern_transpose(t, s);
             break;
         case LY_ROLL:
@@ -260,15 +354,8 @@ static void layer_knobs(uint32_t layer)
             else if (k == 0u)
                 song.g[G_ROLL] = (int16_t)clamp(song.g[G_ROLL] + s, 0, 4);
             break;
-        case LY_STEP:                                   /* GATE  DIV  SWING  STEPS (wave 5: GATE, a call for Ben) */
-            if (k == 0u && !is_drum(t))
-                t->p[P_SGATE] = (int16_t)clamp(t->p[P_SGATE] + accel(EN_K1, s, 126), 1, 127);
-            else if (k == 1u)
-                t->p[P_SDIV] = (int16_t)clamp(t->p[P_SDIV] + s, 0, (int32_t)NDIV_STEP - 1);   /* (up to 2BAR) */
-            else if (k == 2u)
-                t->p[P_SSWING] = (int16_t)clamp(t->p[P_SSWING] + accel(EN_K3, s, 100), 0, 100);
-            else if (k == 3u)
-                t->p[P_SLEN] = (int16_t)clamp(t->p[P_SLEN] + accel(EN_K4, s, 63), 1, NSTEP);
+        case LY_STEP:                                   /* GATE  DIV  SWING  STEPS (wave 9: the SEQ group's PATTERN page too) */
+            patt_turn(t, k, s);
             break;
         case LY_SCALE:
             if (is_drum(t))                             /* (wave 3: the sound pick; its knobs do nothing) */
@@ -506,10 +593,9 @@ static void layer_screen_draw(void)
         if (layer == LY_ERASE && is_drum(t) && !mute && !undo.valid)
             str_cpy(sub, "black = mute", sizeof sub);
         if (layer == LY_ERASE) {
-            lab[0] = "shift", lab[1] = "double", lab[2] = is_drum(t) ? "" : "transp";   /* (wave 8: DOUBLE, the pattern again
+            lab[0] = "shift", lab[1] = "", lab[2] = is_drum(t) ? "" : "transp";   /* (wave 9: no DOUBLE, SEQ + OCT) */   /* (wave 8: DOUBLE, the pattern again
                                                          * after itself or halved; STEPS is hold SEQ's, the one length knob) */
             str_cpy(v[0], "<  >", 8);
-            fmt_int(v[1], t->p[P_SLEN]);
             str_cpy(v[2], is_drum(t) ? "" : "-  +", 8);
             if (!mute)                                  /* what OCT- / OCT+ do now (one step: undo, then redo) */
                 str_cpy(sub, undo.valid ? (undo.undone ? "oct+ redo" : "oct- undo") : is_drum(t) ? sub : "no undo yet",
@@ -531,17 +617,13 @@ static void layer_screen_draw(void)
         str_cpy(sub + str_len(sub), len == 1u ? " step = " : " steps = ", 10);
         fmt_int(sub + str_len(sub), (int32_t)bars);
         str_cpy(sub + str_len(sub), bars == 1u ? " bar" : " bars", 6);
-        lab[0] = "gate", lab[1] = "div", lab[2] = "swing", lab[3] = "steps";
-        if (is_drum(t))                                 /* (a drum hit is one-shot: no gate) */
-            str_cpy(v[0], "--", 4), ratio[0] = 0;
-        else
-            fmt_int(v[0], (t->p[P_SGATE] * 100 + 63) / 127), ratio[0] = t->p[P_SGATE] * 1000 / 127;
-        str_cpy(v[1], N_SDIV[t->p[P_SDIV] % NDIV_STEP], 8);
-        swing_str(v[2], t->p[P_SSWING]);
-        fmt_int(v[3], t->p[P_SLEN]);
-        ratio[1] = t->p[P_SDIV] * 1000 / (NDIV_STEP - 1);
-        ratio[2] = t->p[P_SSWING] * 10;
-        ratio[3] = (t->p[P_SLEN] - 1) * 1000 / 63;
+        {
+            static char pv[4][12];
+            uint32_t pd = 0, q;
+            patt_vals(t, lab, pv, ratio, &pd);
+            for (q = 0; q < 4u; q++)
+                str_cpy(v[q], pv[q], sizeof v[q]);
+        }
         break;
     }
     case LY_SCALE: {                                    /* the white keys' notes / chords; the root lit */
@@ -677,7 +759,7 @@ static void layer_screen_draw(void)
     layer_sub_shown = sub;
     if (layer == LY_MIX) {                              /* the mixer: the band on stage (ui_op.c) */
         op_mix_draw(val, ratio, (uint32_t)(fill_now != 0) | (uint32_t)(fill_bar_on != 0) << 1 | (uint32_t)(fill_arm != 0) << 2 |
-                    (uint32_t)(song.playing && clk_pos < BEAT_U / 4u) << 3 | (uint32_t)mix_pan << 4);
+                    (uint32_t)(song.playing && clk_pos < BEAT_U / 4u) << 3 | (uint32_t)mix_pan << 4 | (uint32_t)mix_dsolo << 5);
         return;
     }
     layer_title(layer_name(layer), sub, col, &head);

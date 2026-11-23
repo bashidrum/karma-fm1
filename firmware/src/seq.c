@@ -1441,14 +1441,9 @@ static void key_down(uint32_t k)
         lk_push(layer, k, 1);
         return;
     case LY_ERASE:
-        if (is_drum(t) && punch_key(k) < 0) {        /* (2.6) a black key: erase <-> mute */
-            er_mute = (uint8_t)!er_mute;
+        if (is_drum(t) && punch_key(k) < 0)          /* (wave 9: EDIT + a black key no longer turns its keys into mutes:
+                                                       * a combo with no obvious link; the sounds' mutes are the mixer's) */
             return;
-        }
-        if (is_drum(t) && er_mute) {                  /* MUTE: the white key's sound off / on in the sequencer */
-            drum_mute ^= (uint16_t)(1u << lane_of_key(k));
-            return;
-        }
         kb_kind[k] = KS_ERASE;
         if (!erasing(t) || er_trk != sel)
             undo_erase_sess = (undo_sess += 4u) | 2u;  /* a new erase: one undo */

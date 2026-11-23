@@ -88,7 +88,7 @@ static struct {
 } ui;
 
 static const page_t *cur_page(void) { return &PAGES[ui.page]; }
-enum { ASK_NONE, ASK_GO, ASK_UP, ASK_KIT, ASK_PADS, ASK_STORE };
+enum { ASK_NONE, ASK_GO, ASK_UP, ASK_KIT, ASK_PADS, ASK_STORE, ASK_HALVE };
 static void ask_set(uint32_t kind, uint32_t arg, const char *what);   /* (ui_input.c, wave 8: the one confirm) */
 static int32_t accel(uint32_t role, int32_t s, int32_t range);   /* ui_input.c */
 static void layer_screen_draw(void);                            /* ui_layers.c */
@@ -327,14 +327,6 @@ static uint32_t stage_page(uint32_t st, uint32_t k)     /* stage st's k-th page 
             return i;
     return NPAGES;
 }
-static uint32_t chain_list(uint8_t *idx, uint32_t max)  /* the chain's pages shown, OSC first */
-{
-    uint32_t st, k, i, n = 0;
-    for (st = 0; st < NSTAGE; st++)
-        for (k = 0; n < max && (i = stage_page(st, k)) < NPAGES; k++)
-            idx[n++] = (uint8_t)i;
-    return n;
-}
 static void page_go(uint32_t i)
 {
     ui.page = (uint8_t)i;
@@ -342,91 +334,17 @@ static void page_go(uint32_t i)
     ui.home = 0;
     page_entered();
 }
-/* a stage's button (ENV, FX, LFO): the stage's first page, its four most used controls; on that stage already: its
- * next page, round. EDIT: from anywhere else the chain's start (OSC), on the chain the next stage the voice has,
- * round (MOD -> OSC). A stage the voice has none of (the drum track's MOD): a message, nothing moves */
-static void chain_open(uint32_t fam)
-{
-    int32_t st = fam_stage(fam), cur = on_chain() ? fam_stage(cur_page()->fam) : -1;
-    uint32_t i, k;
-    if (fam == FAM_OSC && cur >= 0) {
-        for (k = 1; k <= NSTAGE; k++) {
-            st = (int32_t)(((uint32_t)cur + k) % NSTAGE);
-            if (stage_page((uint32_t)st, 0) < NPAGES)
-                break;
-        }
-    } else if (cur == st) {
-        for (k = 0; (i = stage_page((uint32_t)st, k)) < NPAGES && i != ui.page; k++)
-            ;
-        i = stage_page((uint32_t)st, k + 1u);
-        page_go(i < NPAGES ? i : stage_page((uint32_t)st, 0));
-        return;
-    }
-    i = stage_page((uint32_t)st, 0);
-    if (i >= NPAGES) {
-        ui_message(is_drum(TSEL) ? "NO LFO ON DRUMS" : "NOT ON THIS SOUND");
-        return;
-    }
-    page_go(i);
-}
-
-static void drum_open(uint32_t fam);                    /* (ui_drum.c) */
-static void dpg_go(uint32_t pg, uint32_t half);
+static void dpg_go(uint32_t pg, uint32_t half);           /* (ui_drum.c) */
+static void drum_screen_open(void);
 #define DPG_FX 5u                                       /* (ui_drum.c: the drum screen's FX tab) */
+/* a family's first page (wave 9: the buttons step through categories, ui_nav.c; this only opens a family where no button is
+ * involved: the tests, a page the voice lost) */
 static void open_family(uint32_t fam)
 {
-    if (is_drum(TSEL) && (fam == FAM_EDIT || fam == FAM_ENV || fam == FAM_LFO)) {
-        drum_open(fam);                                 /* (PHEBUS wave 3) the drum sounds' pages: the drum screen's */
-        return;
-    }
-    if (fam_stage(fam) >= 0) {
-        chain_open(fam);
-        return;
-    }
-    if (!ui.home && cur_page()->fam == fam) {          /* same button again: next page */
-        uint32_t i = ui.page + 1u;
-        while (i < NPAGES && PAGES[i].fam == fam && !page_shown(&PAGES[i]))
-            i++;
-        if (i >= NPAGES || PAGES[i].fam != fam)
-            i = page_first(fam);
-        ui.page = (uint8_t)i;
-    } else {
-        ui.page = ui.fam_last[fam] && PAGES[ui.fam_last[fam]].fam == fam && page_shown(&PAGES[ui.fam_last[fam]])
-                      ? ui.fam_last[fam] : (uint8_t)page_first(fam);
-    }
+    ui.page = (uint8_t)page_first(fam);
     ui.fam_last[fam] = ui.page;
     ui.home = 0;
     page_entered();
-}
-
-/* SELECT on a page: the previous / next page of its family, as tapping the button again but both ways,
- * stopping at the ends; on the sound chain: the whole chain, stage after stage (OSC .. MOD). Not the screens of
- * their own (SONG, DRUMS) nor a family of one page (TRACKS): 0 then, and SELECT is the tempo there */
-static int page_walk(int32_t s)
-{
-    const page_t *pg = cur_page();
-    uint32_t i, fam = pg->fam, n = 0;
-    int32_t cur = -1, to;
-    uint8_t idx[40];                                    /* (the chain: about 20) */
-    if (ui.home || pg->scope == SC_DRUM)
-        return 0;
-    if (on_chain())
-        n = chain_list(idx, sizeof idx);
-    else
-        for (i = 0; i < NPAGES && n < sizeof idx; i++) {
-            if (PAGES[i].fam != fam || PAGES[i].scope == SC_DRUM || !page_shown(&PAGES[i]))
-                continue;
-            idx[n++] = (uint8_t)i;
-        }
-    for (i = 0; i < n; i++)
-        if (idx[i] == ui.page)
-            cur = (int32_t)i;
-    if (n < 2u || cur < 0)
-        return 0;
-    to = clamp(cur + s, 0, (int32_t)n - 1);
-    if (to != cur)
-        page_go(idx[to]);
-    return 1;
 }
 
 /* the page shown is one the selected track has: after a track or engine change, from the previous page of the
@@ -441,9 +359,8 @@ static void page_fix(void)
         return;
     if (st >= 0 && is_drum(TSEL)) {                   /* (wave 8) the drum voice on a voice's sound page: its drum screen,
                                                          * the same kind of page (ENV: AMP, MOD: LFO, FX: its FX tab) */
-        drum_open(fam == FAM_ENV ? FAM_ENV : fam == FAM_MOD ? FAM_LFO : FAM_EDIT);
-        if (fam == FAM_FX)
-            dpg_go(DPG_FX, 0);
+        drum_screen_open();
+        dpg_go(fam == FAM_ENV ? 3u : fam == FAM_MOD ? 4u : fam == FAM_FX ? DPG_FX : 1u, 0);
         return;
     }
     if (st >= 0) {
@@ -846,6 +763,7 @@ static void track_select(uint32_t i)
  * set to it, and stays until something else is learned on it or HOME > SYSTEM > LEARN CLEAR. Then turn the next knob.
  * One CC sets one parameter, a parameter has one CC: learning one again replaces both. The settings keep the map */
 static struct { uint8_t on, pick, trk, id; } mlu;
+static int mlu_on(void) { return mlu.on; }
 static uint32_t ml_code(uint32_t id) { return id >= P_E0 && id <= P_E7 ? ML_E0 + id - P_E0 : id + 1u; }
 static void ml_put(uint32_t i, uint32_t e)       /* (the ISR reads the entry: never half of one) */
 {
