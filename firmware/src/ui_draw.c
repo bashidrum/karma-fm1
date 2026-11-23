@@ -56,7 +56,9 @@ static void draw_head(void)
     const char *title = ui.home ? "HOME" : pg->scope == SC_ENGINE && !is_drum(TSEL) ? e->page_title[pg->id[0] != P_E0] : pg->title;
     if (mlu.on)                                       /* MIDI LEARN on (2.6, GLO + F#3) */
         title = "LEARN";
-    if (shared_page(pg))
+    if (pg->graph == GR_SPATT && !ui.home)              /* (wave 11) SAVE > PATTERNS: the whole project's, no voice's tag */
+        op_header("SAVE", TE_G4, title, &ui.head_sig);
+    else if (shared_page(pg))
         op_header(pg->fam == FAM_MFX ? "MIX" : "GLO", TE_G4, title, &ui.head_sig);   /* (wave 9: the whole mix's, after a
                                                          * voice's FX in the FX group: MIX, never a voice's tag) */   /* (wave 7: the button that opens them) */
     else if (drums_page(pg))
