@@ -1463,6 +1463,19 @@ static void key_down(uint32_t k)
     default:
         break;
     }
+    if (layer == LY_PLAY && kb_grid && stl_view && sel == TRK_DRUM && punch_key(k) < 0) {   /* (wave 13, Ben: "The black keys
+                                                       * on the stutter sequencer should just do stutters / beat repeat fx")
+                                                       * the STUTTER lane: a black key repeats the mix, as PERFORM's stutter
+                                                       * pads (punch.c perf_lane_press; OCT+ held: latch) */
+        uint32_t bi;
+        for (bi = 0; bi < 11u && PUNCH_BLACK[bi] != k; bi++)
+            ;
+        kb_kind[k] = KS_FX;
+        kb_nt[k][0] = (uint8_t)(0x80u | bi);
+        kb_n[k] = 1;
+        perf_lane_press(bi, (fm1_in.buttons & dyn_bit[1]) != 0u);
+        return;
+    }
     if (layer == LY_PLAY && kb_grid) {                /* the GRID (every track): a step key */
         kb_kind[k] = KS_UI;
         kb_nt[k][0] = (uint8_t)KB_GRID;
@@ -1556,7 +1569,9 @@ static void key_up(uint32_t k)
     kb_kind[k] = KS_NONE;
     switch (kind) {
     case KS_FX:
-        if (kb_n[k])                                  /* its key is up: the mix comes back (a latched pad stays) */
+        if (kb_n[k] && (kb_nt[k][0] & 0x80u))         /* (wave 13) the STUTTER lane's black key */
+            perf_lane_release(kb_nt[k][0] & 0x7Fu);
+        else if (kb_n[k])                             /* its key is up: the mix comes back (a latched pad stays) */
             perf_release(kb_nt[k][0]);
         return;
     case KS_UI:

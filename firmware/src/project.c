@@ -806,6 +806,7 @@ static void proj_capture_core(proj_core_t *c)  /* what is playing now, as a proj
     c->perf.act = stl.act;
     _Static_assert(sizeof c->perf.fx == sizeof stl.ev, "wave 6: the recorded pads in format 8's room");
     memcpy(c->perf.fx, stl.ev, sizeof c->perf.fx);     /* (wave 6) the pads recorded into the lane */
+    c->perf.rsv[0] = PEV_V13;                           /* (wave 13) .. in the PERFORM set's numbering (punch.c) */
     for (i = 0; i < NPART; i++) {
         proj_syn_t *d = &c->t[i];
         for (k = 0; k < P_COUNT; k++)
@@ -909,6 +910,10 @@ static void proj_apply(const proj_core_t *p, int all)
     stl.len = (uint8_t)(p->perf.len >= 1u && p->perf.len <= 64u ? p->perf.len : 16u);
     stl.act = (uint8_t)(p->perf.act != 0u);
     memcpy(stl.ev, p->perf.fx, sizeof stl.ev);          /* (wave 6) the pads recorded (zero before: none) */
+    if (p->perf.rsv[0] != PEV_V13) {                    /* (wave 13) saved by waves 6 to 12: onto the PERFORM set (punch.c) */
+        uint32_t dr = pev_convert_old(stl.ev);
+        pev_drop_n = (uint8_t)(pev_drop_n + dr > 99u ? 99u : pev_drop_n + dr);
+    }
     for (k = 0; k < PEV_N; k++)                         /* (a span that cannot be: dropped) */
         if ((stl.ev[k].fx & 31u) > PF_NPAD || stl.ev[k].st >= NSTEP || !stl.ev[k].len || stl.ev[k].len > NSTEP)
             stl.ev[k].fx = 0;

@@ -249,7 +249,7 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
     <li>The kit is 16 slots, the project's own; each holds any sound from any kit, HEX or CLASSIC. Nothing held: a knob edits the selected slot's sound at once.</li>
     <li>PRESETS on the drum screen: the selected slot's sound (SOUND 808 SNARE): INIT HEX, INIT CLASSIC, then its kind from every kit, then every other kind. Turn back: the sound you had. SAVE + OCT-: undo.</li>
     <li>Hold a step + turn: a lock on that sound's hit (shown inverted). OCT-: that lock off; again: every lock; again (or on TRIG): the hit. On TRIG: VEL RETRIG NUDGE COND / CHANCE LENGTH CURVE NOTE.</li>
-    <li>Mutes and solos: hold GLO (the drums selected: the keys mute the 16 sounds; F#3 SOLO, drawn, makes them solo). ARP tapped: CHROMATIC (keys play the sound at pitches; -/+ the sound, twice quickly the octave). SEQ held + key: RETRIG (K1 the rate).</li>
+    <li>Mutes and solos: hold GLO (the white keys mute the 16 sounds; OCT+ held with a key: solo; OCT-: all off). ARP tapped: CHROMATIC (keys play the sound at pitches; -/+ the sound, twice quickly the octave). SEQ held + key: RETRIG (K1 the rate).</li>
     <li>FILL: hold SEQ and PLAY (OCT+ latches). A sound's key held + OCT- (where the keys play sounds): its hits erased. PRESETS on HOME loads a whole kit (power-on: 606). FLTR: CUTOFF RESO ENV TYPE (2/2 DRIVE); FX: the drum voice's own FILTER, INSERT, SENDS, SLICER, then MIX. A whole kit over a changed one: HOLD SAVE. Your kits: SAVE > KITS (MY KIT 1-6: KIT, LOAD, ERASE, SAVE).</li>
     <li>Keys 1-16: KICK, KICK 2, SNARE, CLAP, HAT, OPEN HAT, PEDAL, RIM, SNARE 2, LOW TOM, HI TOM, CRASH, RIDE, SHAKER, CONGA, COWBELL.</li>
   </ul>
@@ -264,6 +264,7 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
     <li>OCT- / OCT+ tapped: page. SAVE + OCT-: undo.</li>
     <li>A lit step repeats the span just before it, the whole mix (1/2 and 1/1 replay the steps). Same-length steps in a row are one loop, drawn as one span.</li>
     <li>PERFORM pads played while recording land here as named bars and play back with the pattern (31 at most).</li>
+    <li>Black keys: hand-played repeats of the whole mix, F#3 1/1 · G#3 1/2 · A#3 1/4 · C#4 1/8 · D#4 1/16 · F#4 1/4T · G#4 1/8T · A#4 1/16T · C#5 1/8D · D#5 1/16D · F#5 1/32 (OCT+ held: latch; recorded into the lane while recording; a key held wins over the lit steps).</li>
   </ul>
 </section>
 
@@ -296,30 +297,32 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
 </section>
 
 <section class="sl wide">
-  <h2>Hold FX: PERFORM <small>the keys as pads, on the whole mix</small></h2>
+  <h2>Hold FX: PERFORM <small>the effects on the white keys, the mutes and four extras on the black keys</small></h2>
   <table>
     <tr><td>white, row 1</td><td><b>1/1</b> · <b>1/2</b> (replay the bar / half bar) · <b>1/4</b> · <b>1/8</b> (repeat)</td></tr>
-    <tr><td>white, row 2</td><td><b>1/16</b> · <b>1/32</b> · <b>REVRS</b> · <b>HALF</b></td></tr>
-    <tr><td>white, row 3</td><td><b>LP</b> sweep down · <b>HP</b> sweep up · <b>CRUSH</b> · <b>GATE</b></td></tr>
-    <tr><td>white, row 4</td><td><b>STOP</b> tape stop · <b>DROP</b> pitch drop · <b>ECHO</b> throw · <b>VERB</b> throw</td></tr>
-    <tr><td>black keys</td><td>F#3 <b>-DRM</b> kill drums · G#3 <b>-BAS</b> kill bass · A#3 <b>LCUT</b> low cut · C#4 <b>FLNG</b> flanger · C#5 <b>8T</b> · D#5 <b>16T</b> (the rest: none)</td></tr>
-    <tr><td>knobs</td><td>The last pad pressed: K4 AMOUNT. Stutters: PITCH · DECAY · GATE. LP / HP: CUTOFF · RESO · SPEED. CRUSH: BITS · RATE. GATE: RATE · WIDTH. STOP: TIME. DROP: DEPTH · TIME. ECHO: K2 FDBK. VERB: AMOUNT only (the delay time and reverb size: FX's MIX pages). REVRS / HALF: LENGTH. LCUT: CUTOFF. FLNG: RATE · FDBK. -BAS: VOICE</td></tr>
-    <tr><td>OCT+</td><td>Latch: hold it and press a pad, or press it with pads held. A latched pad pressed again: off</td></tr>
+    <tr><td>white, row 2</td><td><b>1/16</b> · <b>HALF</b> half time · <b>ECHO</b> throw · <b>VERB</b> throw</td></tr>
+    <tr><td>white, row 3</td><td><b>ISO LO</b> (below 220 Hz) · <b>ISO MID</b> (220 Hz to 1.1 kHz) · <b>ISO HI</b> (above 1.1 kHz): hear only that band; two: both; three: the whole mix · <b>MOTION</b> a band-pass sweeping in tempo</td></tr>
+    <tr><td>white, row 4</td><td><b>CRUSH</b> subtle, thin and gritty · <b>PHASER</b> · <b>JET</b> jet flanger · <b>VOWEL</b> formant filter</td></tr>
+    <tr><td>black keys</td><td>F#3 G#3 A#3: mute <b class="c1">V1</b> <b class="c2">V2</b> <b class="c3">V3</b> · C#4 <b class="c4">KICKS</b> (kicks, low tom) · D#4 <b class="c4">TOPS</b> (all but snares, clap, hats, shaker) · F#4 <b class="c4">SH+CL</b> (all but shaker, clap) · G#4 <b class="c4">HT+SN</b> (all but hats, snares) · A#4 <b>REVERSE</b> · C#5 <b>STOP</b> · D#5 <b>SWP DN</b> · F#5 <b>SWP UP</b></td></tr>
+    <tr><td>knobs</td><td>The last pad pressed (a mute leaves them): K4 AMOUNT. Stutters: PITCH · DECAY · GATE. ISO (shared): LOW X 220 · HIGH X 1.1K. MOTION: RATE · DEPTH · RESO. CRUSH: BITS · RATE · THIN. PHASER: RATE · DEPTH · FDBK. JET: RATE · FDBK. VOWEL: VOWEL · RATE · RESO. Sweeps: LENGTH · RESO · RANGE · SLOPE. ECHO: K2 FDBK. HALF / REVERSE: LENGTH. STOP: TIME</td></tr>
+    <tr><td>OCT+</td><td>Latch: hold it and press a pad (a mute too), or press it with pads held. A latched pad pressed again: off</td></tr>
     <tr><td>OCT-</td><td>Every latch off (STOP too). Latched pads play on outside PERFORM: the header says PERF 2</td></tr>
     <tr><td>MASTER</td><td>FX MIX: the whole mix's effect return, 0 to 100 % (0: dry exactly)</td></tr>
-    <tr><td>in / out</td><td>Hold FX: while held. Held 0.7 s untouched, let go: stays (LOCK); FX again or any page button: out. Latch: OCT+ with a pad held</td></tr>
+    <tr><td>in / out</td><td>Hold FX: while held. Held 0.7 s untouched, let go: stays (LOCK); FX again or any page button: out</td></tr>
   </table>
-  <p class="note">One time effect at a time (the last pressed), with any colour effects, throws and kills on top. REC while playing records the pads into the STUTTER lane. Pad keys never play notes.</p>
+  <p class="note">One time effect at a time (the last pressed: a repeat, HALF, REVERSE, STOP, JET), with every colour effect, the throws and the mutes on top. Drum mutes held together: you hear what all of them leave. PERFORM's mutes never touch the mixer's. A muted part plays on unheard and comes back in place. REC while playing records the pads into the STUTTER lane.</p>
 </section>
 
 <section class="sl">
-  <h2>Mixer <small>hold GLO</small></h2>
+  <h2>Mixer <small>hold GLO, whichever voice is selected</small></h2>
   <table>
-    <tr><td>KNOB 1-4</td><td>Levels of 1, 2, 3, drums (G#3 PAN: the pans)</td></tr>
-    <tr><td>Keys 1-4</td><td>Mute (yellow M)</td></tr>
-    <tr><td>Keys 5-8</td><td>Solo (ice-blue S)</td></tr>
-    <tr><td>G#3</td><td>PAN, drawn in the strip: the knobs set the pans (again: levels)</td></tr>
-    <tr><td>Drums selected</td><td>Keys 1-16 mute the 16 sounds; F#3 SOLO (drawn): they solo instead</td></tr>
+    <tr><td>White keys</td><td>The 16 drum sounds (KICK KICK 2 SNARE CLAP / HAT OP HAT PEDAL RIM / SNARE 2 LO TOM HI TOM CRASH / RIDE SHAKER CONGA COWBELL)</td></tr>
+    <tr><td>F#3 G#3 A#3 C#4</td><td>Voice 1, 2, 3, the drums</td></tr>
+    <tr><td>Tap a key</td><td>Mute (yellow M); again: unmute</td></tr>
+    <tr><td>OCT+ held + key</td><td>Solo (ice-blue S). A solo anywhere: only what is soloed is heard</td></tr>
+    <tr><td>OCT-</td><td>Every mute and solo off</td></tr>
+    <tr><td>SEL</td><td>The pans' page (again: the levels)</td></tr>
+    <tr><td>KNOB 1-4</td><td>Levels (pans) of 1, 2, 3, drums</td></tr>
     <tr><td>MASTER</td><td>TEMPO</td></tr>
   </table>
   <p class="note">No fill here (SEQ + PLAY). Hold GLO 0.7 s untouched and let go: the mixer stays. MIDI LEARN: GLO &gt; MIDI 3 K2.</p>
@@ -407,7 +410,9 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
   <h2>Simulator</h2>
   <table>
     <tr><td>Double-click</td><td>Hold a button or a key down (blue outline); click again to let go. Shift-click does the same.</td></tr>
-    <tr><td>PERFORM</td><td>Hold <kbd>1</kbd> (FX) and press pads on Z X C V B N M , . / (white 1-10), Q W R Y U O (white 11-16), S D F H (-DRM -BAS LCUT FLNG), E T (8T 16T). Hold <kbd>]</kbd> to latch, <kbd>[</kbd> unlatches all</td></tr>
+    <tr><td>PERFORM</td><td>Hold <kbd>1</kbd> (FX) and press pads on Z X C V B N M , . / (white 1-10), Q W R Y U O (white 11-16); the black keys S D F (V1 V2 V3), H J L ; (KICKS TOPS SH+CL HT+SN), ' E T I (REVERSE STOP SWP DN SWP UP). Hold <kbd>]</kbd> to latch, <kbd>[</kbd> unlatches all</td></tr>
+    <tr><td>Mixer</td><td>Hold <kbd>6</kbd> (GLO), or double-click GLO. A drum sound: its white key (Z X C V ... O); a voice: S D F H. Solo: hold <kbd>]</kbd> too (or shift-click OCT+ so it stays down). <kbd>[</kbd> clears, <kbd>2</kbd> the pans</td></tr>
+    <tr><td>STUTTER lane</td><td>Its black keys S D F H J (1/1 1/2 1/4 1/8 1/16), L ; ' (1/4T 1/8T 1/16T), E T (1/8D 1/16D), I (1/32)</td></tr>
     <tr><td>1 2 3 4 5 6</td><td>FX · SEL (PAGE) · ENV · LFO · EDIT · GLO</td></tr>
     <tr><td>7 8 9 0 - =</td><td>HOME · SAVE · ARP · SEQ · PLAY · REC</td></tr>
     <tr><td>Z ... ' · Q ... O</td><td>The keyboard's notes</td></tr>

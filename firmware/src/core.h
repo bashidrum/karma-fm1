@@ -466,11 +466,20 @@ static inline int32_t send_thr(int32_t s, int32_t g) { return g ? s + (((127 * 2
 static int is_drum(const track_t *t) { return t == TDRUM; }
 /* silent: MUTE, or another track is soloed */
 static volatile uint8_t perf_kill;   /* (PHEBUS wave 6) PERFORM's KILLS: tracks faded out while the pad plays, their notes still
-                                      * played silently (punch.c; fx.c gain_next), so they come back exactly as they were */
+                                      * played silently (punch.c; fx.c gain_next), so they come back exactly as they were
+                                      * (wave 13: the V1 V2 V3 mutes) */
+static volatile uint16_t perf_dmute; /* (PHEBUS wave 13) PERFORM's drum mutes: the drum slots faded out (drums.c drums_mix), their
+                                      * hits still played unheard; separate from the mixer's drum_mute (seq.c), never changing it */
+static volatile uint16_t drum_solo;   /* (seq.c) the drum sounds soloed (wave 13: a solo anywhere, a voice or a drum sound, leaves
+                                      * only what is soloed: the mixer's one rule) */
 static int trk_silent(const track_t *t)
 {
     uint32_t i = (uint32_t)(t - trk);
-    return t->p[P_MUTE] || (song.solo && !((song.solo >> i) & 1u));
+    if (t->p[P_MUTE])
+        return 1;
+    if (!song.solo && !drum_solo)
+        return 0;
+    return !((song.solo >> i) & 1u) && !(i == TRK_DRUM && drum_solo);   /* (the drums heard while one of their sounds is soloed) */
 }
 #define RING_PUBLISH() __asm__ volatile("" ::: "memory")   /* slot store before the index update */
 static volatile uint32_t fm1_ms;  /* milliseconds since boot (TIMER4-based, TIMER5 ISR in main.c) */

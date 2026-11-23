@@ -220,7 +220,7 @@ static uint32_t st_hash(void)
     v[0] = (uint32_t)song.octave + 7u, v[1] = song.playing | transport_req << 2, v[2] = fill_held | fill_lat << 1 | fill_arm << 2;
     v[3] = perf.held, v[4] = perf.lat, v[5] = ui.page | ui.home << 8 | ui.ask << 9 | ui.menu << 12, v[6] = (uint32_t)live_req + 3u;
     v[7] = (uint32_t)live_sec + 3u, v[8] = sec_stores, v[9] = undo.valid | undo.undone << 1 | undo.trk << 2;
-    v[10] = drum_mute | (uint32_t)drum_solo << 16, v[11] = song.solo | mix_pan << 8 | mix_dsolo << 9, v[12] = map_lfo2 | map_fenv << 1;
+    v[10] = drum_mute | (uint32_t)drum_solo << 16, v[11] = song.solo | mix_pan << 8, v[12] = map_lfo2 | map_fenv << 1;
     v[13] = ly_lock, v[14] = fx_wet, v[15] = (uint32_t)(mac_env[0] + 100) | (uint32_t)(mac_dep[0] + 100) << 8;
     v[16] = syn_tab | syn_pg << 8, v[17] = drum_lane, v[18] = sg_held, v[19] = (uint32_t)song.sel | drum_keys << 4;
     v[20] = cur_cat(), v[21] = sr_on, v[22] = syn_half[0] | (uint32_t)syn_hcur() << 8, v[23] = drum_pg | dpg_half() << 8;
@@ -817,9 +817,9 @@ int main(int argc, char **argv)
             ok &= k == 2u ? c == 0u : c > 30u;
         }
         check(ok, "HOME knobs: CUTOFF, DECAY, LEVEL in the voice's colour; STUTTER neutral (shared)");
-        press(B_GLO); frames(10); key(PUNCH_BLACK[1]); frames(2);
+        press(B_GLO); frames(10); tap(B_SCL); frames(2);
         lv = trk[0].p[P_PAN]; encs[panel.enc[EN_K1]] = 5; frame();
-        check(mix_pan && trk[0].p[P_PAN] == lv + 5, "pan: GLO held + G#3 (wave 10: drawn in the strip): the mixer's knobs are the pans (KNOB 1: voice 1's)");
+        check(mix_pan && trk[0].p[P_PAN] == lv + 5, "pan: GLO held + SEL (wave 13: the mixer's second page): the knobs are the pans (KNOB 1: voice 1's)");
         ui.force = 1; frame(); ppm("layer-mix-pan");
         release(B_GLO); frames(2);
         check(!mix_pan, "pan: GLO let go: the mixer's knobs are the levels again");
@@ -995,13 +995,13 @@ int main(int argc, char **argv)
     fm1_in.notes = 1u << 4; frame(); check(perf.held == 1u << PF_S4 && perf.last == PF_S4, "FX + the 3rd white key: the 1/4 pad, held");
     ppm("layer-punch-on");
     fm1_in.notes = 0; frame(); check(perf.held == 0u, "key up: the mix comes back");
-    fm1_in.notes = 1u << 20; frame(); check(perf.held == 1u << PF_S8T, "FX + the black key C#5: 1/8T");
+    fm1_in.notes = 1u << 20; frame(); check(perf.held == 1u << PF_STOP, "FX + the black key C#5: TAPE STOP (wave 13)");
     check(keys_lit() == 1u << 20, "its key lights");
     ppm("layer-punch-black");
     fm1_in.notes = 0; frame(); check(perf.held == 0u, "black key up: the mix comes back");
-    encs[panel.enc[EN_K2]] = 3; frame(); check(perf.par[PF_S8T][1] > 0, "FX + KNOB 2: the last pad's second knob (1/8T's DECAY)");
+    encs[panel.enc[EN_K1]] = 1; frame(); check(perf.par[PF_STOP][0] == PFD[PF_STOP].k[0].def + 1, "FX + KNOB 1: the last pad's first knob (TAPE STOP's TIME)");
     ui.force = 1; frame(); ppm("layer-punch-trkflt");
-    perf.par[PF_S8T][1] = 0;
+    perf.par[PF_STOP][0] = PFD[PF_STOP].k[0].def;
     release(B_FX); check(cur_page()->scope == SC_TRK && ui.layer == LY_PLAY, "FX used then let go: no FX page");
 
     /* ---- a layer locked open (wave 8: one keep-open gesture): held 0.7 s untouched, let go; any other button (not PLAY,
@@ -1146,8 +1146,9 @@ int main(int argc, char **argv)
     tap(B_ARP); check(cur_cat() == CT_ARP, "ARP again: round to the arpeggiator");
     go_home(); frame();
     press(B_GLO); frames(10);
-    key(0); check(trk[0].p[P_MUTE] == 1, "GLO + key 1: track 1 muted");
-    key(9); check(song.solo == 2u, "GLO + key 6: track 2 soloed");
+    key(PUNCH_BLACK[0]); check(trk[0].p[P_MUTE] == 1, "GLO + F#3 (wave 13: the voices on the black keys): voice 1 muted");
+    press(B_OCTUP); key(PUNCH_BLACK[1]); release(B_OCTUP);
+    check(song.solo == 2u && !trk[1].p[P_MUTE], "GLO + OCT+ held + G#3: voice 2 soloed (plus = only this)");
     ppm("layer-mix");
     {   /* review 15 (Ben, 21 Nov: "A: heads, underline", "A: badges"): the track strip under the knobs: a yellow M badge
          * on the muted track, an ice-blue S on the soloed one, the selected track underlined in its colour; the mixer's
@@ -1165,7 +1166,7 @@ int main(int argc, char **argv)
     {   int16_t b0 = song.g[G_BPM];
         for (i = 0; i < 4u; i++) { fm1_in.notes = 1u << 26; frame(); fm1_in.notes = 0; frames(36); }   /* ~0.6 s apart */
         check(song.g[G_BPM] == b0, "GLO + the last key: nothing (wave 8: no tap tempo; the tempo is GLO > GLOBAL's BPM only)"); }
-    key(0); key(9);
+    key(PUNCH_BLACK[0]); press(B_OCTUP); key(PUNCH_BLACK[1]); release(B_OCTUP);
     check(!trk[0].p[P_MUTE] && !song.solo, "again: unmuted, no solo");
     /* (wave 10, Ben: "Global should have midi learn. But not fill") key 9 and 10: no fill on the mixer (SEQ + PLAY) */
     fm1_in.notes = 1u << key_of_white(8); frame(); frame();
@@ -1173,14 +1174,17 @@ int main(int argc, char **argv)
     ui.force = 1; frame(); ppm("layer-mix-fill");
     fm1_in.notes = 0; frame(); frame();
     key(key_of_white(9)); check(fill_arm == 0u, "GLO + key 10 (wave 10): no FILL NEXT BAR (SEQ + D#4)");
+    check(drum_mute == (1u << 8 | 1u << 9), "GLO + keys 9 and 10 (wave 13): SNARE 2 and LO TOM muted, whichever voice is selected");
+    tap(B_OCTDN); frames(2);
+    check(!drum_mute && !drum_solo && !song.solo && !trk[0].p[P_MUTE], "GLO + OCT- (wave 13): every mute and solo off");
     release(B_GLO);
     fm1_in.notes = 1u << key_of_white(8); frame();     /* (no layer: a plain key, no fill) */
     check(fill_held == 0u, "key 9 without GLO: no fill");
     fm1_in.notes = 0; frames(2);
     press(B_GLO); frames(45); release(B_GLO); frames(2);           /* (2026-10-28) ~0.7 s, nothing touched */
     check(ui.layer == LY_GLO && ly_lock == LY_GLO, "GLO held 0.7 s, untouched, let go: the mixer stays");
-    key(0); check(trk[0].p[P_MUTE] == 1 && ui.layer == LY_GLO, "... its keys still mute (track 1)");
-    key(0); check(!trk[0].p[P_MUTE], "... and unmute");
+    key(PUNCH_BLACK[0]); check(trk[0].p[P_MUTE] == 1 && ui.layer == LY_GLO, "... its keys still mute (voice 1)");
+    key(PUNCH_BLACK[0]); check(!trk[0].p[P_MUTE], "... and unmute");
     tap(B_GLO); frames(2);
     check(ui.layer == LY_PLAY && ly_lock == LY_PLAY, "... GLO again: it goes (and no GLO pages open)");
     press(B_GLO); frames(45); encs[panel.enc[EN_K1]] = 1; frame(); release(B_GLO); frames(2);
@@ -1428,24 +1432,25 @@ int main(int argc, char **argv)
         fm1_in.notes = 0; frames(2);
         check(dt_has(4, 2), "drum lock: the trig edited stays when let go");
     }
-    {   /* (wave 9, Ben 23 Nov 2026: "Drum mutes: On the mixer") hold GLO with the drums selected: the keys mute the 16 sounds;
-         * F#3 makes them solo; G#3 FILL, A#3 the next bar, C#4 the pans */
+    {   /* (wave 9, Ben 23 Nov 2026: "Drum mutes: On the mixer"; wave 13: one map) hold GLO: the white keys mute the 16 sounds,
+         * OCT+ held with a key solos */
         drum_mute = drum_solo = 0;
         press(B_GLO); frames(12);
         key(key_of_lane(5)); key(key_of_lane(11));
         check(drum_mute == (1u << 5 | 1u << 11) && dt_has(7, 5) && !trk[0].p[P_MUTE],
               "mixer, the drums selected: keys 6 and 12 mute OPEN HAT and CRASH (their trigs kept; no voice muted)");
-        key(1); key(key_of_lane(0)); key(1);
-        check(drum_solo == 1u && drum_mute == (1u << 5 | 1u << 11), "mixer, the drums selected: F#3, key 1: the KICK soloed; F#3 again: mutes");
+        press(B_OCTUP); key(key_of_lane(0)); release(B_OCTUP);
+        check(drum_solo == 1u && drum_mute == (1u << 5 | 1u << 11), "mixer (wave 13): OCT+ held + key 1: the KICK soloed (the mutes stay)");
         ui.force = 1; frame(); ppm("layer-mix-drums");
-        check(px_count(0, OP_BODY_Y + 96, 240, 36, TE_MUTE) > 100u && px_count(0, OP_BODY_Y + 96, 240, 36, TE_SOLO) > 40u &&
-              px_count(0, 0, 240, 240, TE_RED) == 0u, "mixer, the drums selected: muted sounds yellow, the soloed one ice blue, no red");
-        key(3); frames(2); check(!fill_now && !fill_held && mix_pan, "mixer, the drums selected: G#3 (wave 10): PAN, no FILL");
+        check(px_count(0, BK_Y + 34, 240, 80, TE_MUTE) > 400u && px_count(0, BK_Y + 34, 240, 80, TE_SOLO) > 200u &&
+              px_count(0, 0, 240, 240, TE_RED) == 0u, "mixer: muted sounds yellow, the soloed one ice blue, no red");
+        key(3); frames(2); check(!fill_now && !fill_held && !mix_pan, "mixer: G#3 (wave 13: voice 2's key): no PAN, no FILL");
         key(3); frames(2);
         release(B_GLO); frames(2);
         check(drum_mute == (1u << 5 | 1u << 11), "mixer let go: the mutes stay (performance state)");
         song.sel = 0; press(B_GLO); frames(12); key(key_of_lane(0)); release(B_GLO); frames(2);
-        check(trk[0].p[P_MUTE] == 1 && drum_mute == (1u << 5 | 1u << 11), "mixer, a synth voice selected: key 1 mutes voice 1 (as before)");
+        check(!trk[0].p[P_MUTE] && drum_mute == (1u << 0 | 1u << 5 | 1u << 11),
+              "mixer, a synth voice selected (wave 13: the same map): key 1 mutes the KICK, not voice 1");
         trk[0].p[P_MUTE] = 0; song.sel = TRK_DRUM; drum_mute = drum_solo = 0;
         tap(B_SCL); frames(2); check(drum_keys == DK_PLAY, "SEL on the drum screen: no MUTE mode any more (SEL is PAGE)");
         studio_open(SC_DRUM); tap(B_EDIT); frames(2);
@@ -2065,7 +2070,7 @@ int main(int argc, char **argv)
         }
         {   /* every screen and layer: lit where the keys are notes, a glow under the tiles */
             static const struct { uint32_t ly; int lit; const char *name; } L[] = {
-                {LY_SEQ, 1, "SEQ roll"}, {LY_FX, 0, "FX punch"}, {LY_GLO, 0, "GLO mix"}};
+                {LY_SEQ, 1, "SEQ roll"}, {LY_FX, 0, "FX punch"}, {LY_GLO, 1, "GLO mix (wave 13: the parts heard: the hat key C4)"}};
             uint32_t k, ok = 1, ly0 = ui.layer;
             char what[96];
             for (k = 0; k < sizeof L / sizeof L[0]; k++) {
@@ -2717,7 +2722,7 @@ int main(int argc, char **argv)
             set_engine_of(&trk[1], e0); apply_preset_to(&trk[1], p0); trk[1].engine = trk[1].eng_req;
             frames(4);
             press(B_FX); frames(10);
-            fm1_in.notes = 1u << key_of_white(14); frame();   /* (wave 6: the ECHO pad is the echo throw) */
+            fm1_in.notes = 1u << key_of_white(PF_ECHO); frame();   /* (wave 6: the ECHO pad is the echo throw) */
             ui.force = 1; frame(); ppm("layer-fx-throw");
             check(perf.thr[1] == 32767 && thr_dly > 0, "PERFORM: the ECHO pad throws into the delay while held");
             fm1_in.notes = 0; frame();
@@ -2788,8 +2793,8 @@ int main(int argc, char **argv)
         check(ml_count() == 1u && (ml_tab[0] & 127u) == 74u && (ml_tab[0] >> 9) == ml_code(P_X1TYPE) && !mlu.pick,
               "LEARN: a CC sent: CC 74 = track 1 FX 1 TYPE");
         go_home(); frames(16);
-        press(B_GLO); frames(10); key(1); release(B_GLO); frames(4);
-        check(mlu.on, "GLO + F#3: nothing (wave 9: a combo with no obvious link, removed)");
+        press(B_GLO); frames(10); key(1); key(1); release(B_GLO); frames(4);
+        check(mlu.on && !trk[0].p[P_MUTE], "GLO + F#3 twice (wave 13: voice 1 muted, then not): MIDI LEARN untouched");
         chain_goto(FAM_GLO, "MIDI 3"); frames(16); K(EN_K2, -1);
         check(!mlu.on, "GLO > MIDI 3, KNOB 2 left: LEARN off");
         go_home(); frames(4);
@@ -2867,9 +2872,9 @@ int main(int argc, char **argv)
         press(B_FX); frames(12);
         fm1_in.notes = 1u << key_of_white(2); frame(); frame();
         ui.force = 1; frame(); ppm("perform-held");
-        check(px_count(2 + 2 * 60, 32 + 31, 56, 21, C_WHITE) > 800u, "PERFORM: the 1/4 pad held: drawn white (the whole mix: no voice colour)");
-        check(px_count(0, 32, 240, 122, TE_COL[0]) + px_count(0, 32, 240, 122, TE_COL[1]) + px_count(0, 32, 240, 122, TE_COL[2]) +
-              px_count(0, 32, 240, 122, TE_COL[3]) == 0u, "PERFORM: no voice colour anywhere on the pads (the colour rule)");
+        check(px_count(1 + 2 * 60, 40 + 34, 58, 18, C_WHITE) > 800u, "PERFORM: the 1/4 pad held: drawn white (the whole mix: no voice colour)");
+        check(px_count(0, 67, 240, 88, TE_COL[0]) + px_count(0, 67, 240, 88, TE_COL[1]) + px_count(0, 67, 240, 88, TE_COL[2]) +
+              px_count(0, 67, 240, 88, TE_COL[3]) == 0u, "PERFORM: no voice colour on the effect pads (the colour rule: the whole mix)");
         /* latch: OCT+ while it is held */
         fm1_in.buttons |= BT(B_OCTUP); edges_btn |= BT(B_OCTUP); frame(); fm1_in.buttons &= ~BT(B_OCTUP); frame();
         fm1_in.notes = 0; frame();
@@ -2878,22 +2883,23 @@ int main(int argc, char **argv)
         fm1_in.buttons |= BT(B_OCTUP); edges_btn |= BT(B_OCTUP); frame();
         fm1_in.notes = 1u << key_of_white(8); frame(); fm1_in.notes = 0; frame();
         fm1_in.buttons &= ~BT(B_OCTUP); frame();
-        check(perf.lat == (1u << PF_S4 | 1u << PF_LP), "LATCH: OCT+ held + the LP pad: latched too (2 latched)");
-        stl.ev[0] = (pev_t){PF_GATE + 1u, 0, 16, 0};    /* (the lane plays GATE: as a recorded pad shows) */
+        check(perf.lat == (1u << PF_S4 | 1u << PF_ISOL), "LATCH: OCT+ held + the ISO LO pad: latched too (2 latched)");
+        stl.ev[0] = (pev_t){PF_PHASER + 1u, 0, 16, 0};  /* (the lane plays PHASER: as a recorded pad shows) */
         song.playing = 1; transport_req = 1; frames(3);
         ui.force = 1; frame(); ppm("perform-latched");
-        check(perf.lane == 1u << PF_GATE, "PERFORM: a pad the lane plays (recorded) shows as playing");
-        check(px_count(2 + 49, 40 + 27 + 44 + 3, 4, 4, C_WHITE) == 16u,   /* (wave 7: the frame every screen has) */ "LATCH: the latched LP pad shows its dot");
+        check(perf.lane == 1u << PF_PHASER, "PERFORM: a pad the lane plays (recorded) shows as playing");
+        check(px_count(1 + 54, 40 + 34 + 40 + 1, 3, 3, C_WHITE) == 9u,   /* (wave 7: the frame every screen has) */ "LATCH: the latched ISO LO pad shows its dot");
         /* the knobs: the last pad's */
-        kn = perf.par[PF_LP][0];
+        kn = perf.par[PF_ISOL][0];
         encs[panel.enc[EN_K1]] = -4; frame();
-        check(perf.par[PF_LP][0] < (int8_t)kn && perf.last == PF_LP, "knobs: KNOB 1 turns the last pad pressed (LP: CUTOFF)");
+        check(perf.par[PF_ISOL][0] < (int8_t)kn && perf.last == PF_ISOL && perf.par[PF_ISOH][0] == perf.par[PF_ISOL][0],
+              "knobs: KNOB 1 turns the last pad pressed (ISO LO: LOW X, the three ISO pads' one crossover)");
         fm1_in.notes = 1u << key_of_white(11); frame(); fm1_in.notes = 0; frame();
-        kn = perf.par[PF_GATE][1];
+        kn = perf.par[PF_MOTION][1];
         encs[panel.enc[EN_K2]] = 3; frame();
-        check(perf.last == PF_GATE && perf.par[PF_GATE][1] > (int8_t)kn && perf.par[PF_LP][1] == PFD[PF_LP].k[1].def,
-              "knobs: then the GATE pad: KNOB 2 its WIDTH, LP's untouched");
-        ui.force = 1; frame(); ppm("perform-knobs-gate");
+        check(perf.last == PF_MOTION && perf.par[PF_MOTION][1] > (int8_t)kn && perf.par[PF_ISOL][1] == PFD[PF_ISOL].k[1].def,
+              "knobs: then the MOTION pad: KNOB 2 its DEPTH, ISO's untouched");
+        ui.force = 1; frame(); ppm("perform-knobs-motion");
         /* exit with latches on: they stay (hands free to play), the header says FX 2; STOP lets them go */
         release(B_FX); frames(2);
         go_home(); ui.force = 1; frame(); ppm("home-fx-latched");
@@ -2904,7 +2910,7 @@ int main(int argc, char **argv)
         fm1_in.buttons |= BT(B_OCTUP); edges_btn |= BT(B_OCTUP); frame();
         fm1_in.notes = 1u << key_of_white(9); frame(); fm1_in.notes = 0; frame(); fm1_in.buttons &= ~BT(B_OCTUP); frame();
         release(B_FX); frames(2);
-        check(perf.lat == 1u << PF_HP, "(HP latched, PERFORM left)");
+        check(perf.lat == 1u << PF_ISOM, "(ISO MID latched, PERFORM left)");
         tap(B_PLAY); frames(3);
         check(!song.playing && !perf.lat, "STOP: the latches go");
         memset(stl.ev, 0, sizeof stl.ev);
@@ -2926,7 +2932,7 @@ int main(int argc, char **argv)
         }
         {
             char b[96];
-            snprintf(b, sizeof b, "PERFORM: no knob value past its 40 px column (22 pads, each knob at its least, middle, most)");
+            snprintf(b, sizeof b, "PERFORM: no knob value past its 40 px column (%d pads, each knob at its least, middle, most)", (int)PF_NPAD);
             check(dial_over == over0, b);
         }
         release(B_FX); frames(2);
@@ -2939,9 +2945,9 @@ int main(int argc, char **argv)
         check(stl_shown(), "(the STUTTER lane on the GRID)");
         memset(&stl, 0, sizeof stl); stl.len = 16; stl.act = 1;
         stl.ev[0] = (pev_t){PF_S8 + 1u, 4, 2, 0};
-        stl.ev[1] = (pev_t){PF_LP + 1u, 8, 6, 0};
+        stl.ev[1] = (pev_t){PF_SWDN + 1u, 8, 6, 0};
         stl.ev[2] = (pev_t){PF_CRUSH + 1u, 12, 3, 0};
-        stl.ev[3] = (pev_t){PF_GATE + 1u, 0, 16, 0};
+        stl.ev[3] = (pev_t){PF_MTOPS + 1u, 0, 16, 0};
         lane_set_ui(12, 0), lane_set_ui(13, 0);
         ui.force = 1; frame(); ppm("stut-fx");
         check(px_count(4 * 15, 22 + 77, 2 * 15 - 1, 14, TE_G2) + px_count(4 * 15, 22 + 93, 2 * 15 - 1, 14, TE_G2) > 200u,
@@ -2952,7 +2958,7 @@ int main(int argc, char **argv)
         ui.force = 1; frame(); ppm("stut-fx-held");
         fm1_in.buttons |= BT(B_OCTDN); edges_btn |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
         fm1_in.notes &= ~(1u << key_of_white(9)); frame();
-        check(!stl.ev[1].fx && !stl.ev[3].fx && stl.ev[0].fx && stl.ev[2].fx, "STUTTER lane: step 10 held + OCT-: the pads over it erased (LP, GATE), the rest kept");
+        check(!stl.ev[1].fx && !stl.ev[3].fx && stl.ev[0].fx && stl.ev[2].fx, "STUTTER lane: step 10 held + OCT-: the pads over it erased (SW DN, TOPS), the rest kept");
         check(!stl_lit(9), "STUTTER lane: ... and step 10, lit by that press, unlit again (the press was for the pads)");
         press(B_SAVE); press(B_OCTDN); release(B_OCTDN); release(B_SAVE); frames(2);
         check(stl.ev[1].fx && stl.ev[3].fx, "STUTTER lane: SAVE + OCT-: the erase undone");
@@ -3348,7 +3354,7 @@ int main(int argc, char **argv)
         check(px_count(83, ZY[0] + 16, 74, 18, TE_COL[1]) == 0u, "HOME SYNTH: a muted voice's name grey, not its colour");
         check(px_count(0, ZY[1], 240, 18, TE_MUTE) > 40u && home_zone_sig[1] != z1, "HOME DRUM: sounds muted in MUTE mode: a yellow M and how many");
         trk[1].p[P_MUTE] = 0; song.solo = 0; drum_mute = 0;
-        perf.lat = 1u << PF_LP | 1u << PF_GATE; stl.act = 0; ui.force = 1; frame(); ppm("home-zones-perform");
+        perf.lat = 1u << PF_SWDN | 1u << PF_PHASER; stl.act = 0; ui.force = 1; frame(); ppm("home-zones-perform");
         check(px_count(150, ZY[2] + 1, 88, 16, C_WHITE) > 40u && home_zone_sig[2] != z2,
               "HOME PERFORM: the latched pads named at the right, white");
         perf.lat = 0; stl.act = 1;
@@ -3405,9 +3411,18 @@ int main(int argc, char **argv)
         {
             uint32_t v, bad = 0, p, o2;
             press(B_FX); frames(12); ui.force = 1; frame();
-            for (v = 0; v < NTRK; v++) bad += px_count(0, 0, 240, OP_BAR_Y, TE_COL[v]);
+            /* (wave 13) the mute chips (the strip's top row, y 40..54) carry their voice's colour: V1 V2 V3 theirs, the drum
+             * mutes teal, each only its own; everything else on PERFORM none */
+            for (v = 0; v < NTRK; v++) bad += px_count(0, 0, 240, 40, TE_COL[v]) + px_count(0, 55, 240, OP_BAR_Y - 55, TE_COL[v]);
+            for (v = 0; v < 3u; v++) {
+                uint32_t o;
+                for (o = 0; o < NTRK; o++)
+                    bad += o != v ? px_count(1 + 22 * v, 40, 20, 15, TE_COL[o]) : px_count(1 + 22 * v, 40, 20, 15, TE_COL[o]) < 12u;
+            }
+            for (v = 0; v < 3u; v++) bad += px_count(70, 40, 169, 15, TE_COL[v]);
+            bad += px_count(70, 40, 169, 15, TE_COL[TRK_DRUM]) < 48u;
             release(B_FX); frames(2);
-            check(bad == 0u, "colour rule: PERFORM has no voice colour above the strip");
+            check(bad == 0u, "colour rule: PERFORM: a voice colour only on that voice's mute chip (V1 V2 V3, the drum mutes teal)");
             song.sel = TRK_DRUM; studio_open(SC_DRUM); frames(2); stl_algo(1); ui.force = 1; frame();
             for (v = 0, bad = 0; v < NTRK; v++) bad += px_count(0, 0, 240, OP_BAR_Y, TE_COL[v]);
             stl_algo(-1); go_home(); track_select(0); frames(2);
@@ -4149,21 +4164,24 @@ int main(int argc, char **argv)
             fm1_in.notes |= 1u << key_of_white(8); frames(2);
             check(!fill_held && !fill_now, "w10: the mixer: key 9 is no FILL");
             fm1_in.notes &= ~(1u << key_of_white(8)); frames(2);
-            key(PUNCH_BLACK[1]); frames(2);
-            check(mix_pan && (bk_shown & 2u), "w10: the mixer: G#3 PAN (drawn in the strip): the knobs the pans");
-            ui.force = 1; frame(); ppm("w10-mixer");
-            key(PUNCH_BLACK[1]);
+            tap(B_SCL); frames(2);
+            check(mix_pan && bk_shown == 0xFu, "w13: the mixer: SEL its second page (the pans); the strip draws the four voices");
+            ui.force = 1; frame(); ppm("w13-mixer-pan");
+            tap(B_SCL);
             release(B_GLO); frames(4);
             track_select(TRK_DRUM); frames(2);
-            mix_dsolo = 0;                              /* (wave 11: as the earlier tests may have left it) */
             press(B_GLO); frames(12);
             key(PUNCH_BLACK[0]); frames(2);
-            check(mix_dsolo && (bk_shown & 1u), "w10: the mixer, drums: F#3 SOLO (drawn): the keys solo");
-            ui.force = 1; frame(); ppm("w10-mixer-drums");
+            check(trk[0].p[P_MUTE] && bk_shown == 0xFu, "w13: the mixer, the drums selected: the same map (F#3 mutes voice 1)");
+            ui.force = 1; frame(); ppm("w13-mixer-drums");
             key(PUNCH_BLACK[0]);
-            key(PUNCH_BLACK[2]); frames(2);
-            check(!fill_held && !fill_arm, "w10: the mixer, drums: A#3 (not drawn): nothing (no fill bar)");
+            {
+                uint32_t dm0 = drum_mute, so0 = song.solo;
+                key(PUNCH_BLACK[4]); frames(2);
+                check(!fill_held && !fill_arm && song.solo == so0 && drum_mute == dm0, "w13: the mixer: D#4 (not drawn): nothing");
+            }
             release(B_GLO); frames(4);
+            drum_mute = 0;
             track_select(0); go_home(); frames(2);
         }
         /* -- 7. MASTER with a button held: its pair, relatively; the volume never jumps -- */
@@ -4307,13 +4325,17 @@ int main(int argc, char **argv)
             check(!bad, "w10: every tab row (FX, SEQ, LFO, GLO on each voice, the GRID's too) fits beside its legend");
             track_select(TRK_DRUM); go_home(); frames(2);
             press(B_GLO); frames(12); ui.force = 1; frame();
-            col = 0;
-            for (y = BK_Y; y < BK_Y + BK_H; y++)
+            col = 0;                                    /* (wave 13: the mixer's strip holds the four voices: each cell its
+                                                         * own voice's colour only, nothing else in the strip) */
+            for (y = BK_Y; y < BK_Y + 32u; y++)
                 for (x = 0; x < 240u; x++) {
                     uint16_t c = swap16(screen[y * 240u + x]);
-                    col += c == TE_COL[0] || c == TE_COL[1] || c == TE_COL[2] || c == TE_COL[3];
+                    uint32_t v;
+                    for (v = 0; v < 4u; v++)
+                        col += (c == TE_COL[v] || c == TE_MID[v]) && (x < 1u + 60u * v || x >= 59u + 60u * v);
                 }
-            check(!col, "w10: colour rule: the black-key strip white and grey only");
+            check(!col && px_count(1, BK_Y, 58, 32, TE_COL[0]) > 20u && px_count(181, BK_Y, 58, 32, TE_COL[3]) > 20u,
+                  "w13: colour rule: the mixer's strip: each voice's colour only in its own cell (V1 purple .. DRUM teal)");
             release(B_GLO); frames(4);
             track_select(0); go_home(); frames(2);
         }

@@ -71,9 +71,9 @@ run "synthesised drum kits: every kit x sound bounded, audible, finite, levels, 
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/font_test" tests/font_test.c
 run "the screen font at 1 bit a pixel: every glyph, the same pixels as 2.5" "$OUT/font_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/punch_test" tests/punch_test.c $PLX -lm
-run "PERFORM's pads on the punch ring: each does what it says, its knobs too, bounded, dry after release, FX-held keys, the 16-bit ring" "$OUT/punch_test" "$OUT/punch-fx.wav"
+run "PERFORM's pads on the punch ring (wave 13: the PERFORM set): each does what it says (the isolator's bands by spectrum, motion, the sweeps, crush, vowel, phaser, jet), its knobs too, bounded, dry after release, FX-held keys, the 16-bit ring" "$OUT/punch_test" "$OUT/punch-fx.wav"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/perf_test" tests/perf_test.c $PLX -lm
-run "PERFORM (PHEBUS wave 6): every pad on the whole mix and back, latch, knobs, recorded into the STUTTER lane, saved, no stuck state, the lane as before" "$OUT/perf_test"
+run "PERFORM (PHEBUS waves 6, 13): every pad on the whole mix and back, the seven mutes sample-exact, latch, knobs, recorded into the STUTTER lane, saved, old lanes converted, the lane's black keys, no stuck state, the lane as before" "$OUT/perf_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/stutter_test" tests/stutter_test.c $PLX -lm
 run "STUTTER lane (PHEBUS): lit steps repeat the span before at their length, the dry mix after, live punch first" "$OUT/stutter_test" "$OUT/stutter.wav"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fx251_test" tests/fx251_test.c $PLX -lm
@@ -93,6 +93,8 @@ run "PHEBUS wave 12: the user drum kits in flash (stored, read, a power cut, era
 run "PHEBUS wave 8: the sends a voice's own (no slot), inserts independent, wave 5 to 7 projects converted, CC 74 the voice filter" "$OUT/fx8_test"
 run "PHEBUS wave 4: every Type on every track, the voice filter moves (CUTOFF RESO ENV LFO TYPE) on every engine family, LINK / OWN, OCT / TUNE" "$OUT/voice4_test"
 
+$CC -O1 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/w13_test" tests/w13_test.c $PLX -lm
+run "PHEBUS wave 13: the mixer's solo and mute heard through the keys (the snare alone, sample for sample), its screen, the lane's black keys" "$OUT/w13_test" "$OUT"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o "$OUT/ui_pages_test" tests/ui_pages_test.c $PLX -lm
 run "live UI: pages, layers (punch, steps, erase, roll, key, mix), holds, drums, REC, fuzz" "$OUT/ui_pages_test" "$OUT"
 # no divide by 0 (the FM-1 runs with the div0 trap off, hal/fm1_irq.h: a real one would give a wrong value

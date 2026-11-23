@@ -8,7 +8,8 @@
  *         in the strip); PLAY: FILL while held, OCT+ with it latches; knobs: RATE SHIFT SWING STEPS; OCT- halve, OCT+
  *         double; MASTER: SWING
  *   ARP   NOTES: OCT- / OCT+ transpose the voice's pattern a semitone; MASTER: TRANSP (KEY 2's TRANS)
- *   GLO   the MIXER: levels, pans, mutes, solos (drums: the 16 sounds'); MASTER: TEMPO
+ *   GLO   the MIXER (wave 13: one map): the white keys the 16 drum sounds, F#3 .. C#4 the voices; a tap mutes, OCT+ held with
+ *         a key solos, OCT- clears; SEL the pans; MASTER: TEMPO
  *   SAVE  keys 1..4 store the playing state into A..D; OCT- undo, OCT+ redo; with a question showing, the confirm's ring
  *   EDIT  OCT- clears the voice (after the confirm); MASTER: LEVEL. ENV: MASTER ENV LENGTH. LFO: MASTER MOD DEPTH
  *   SEL   no layer (the PAGE button); HOME, REC: none
@@ -38,10 +39,8 @@ static void map_chip(uint32_t l)                        /* (wave 11) mapping: MA
 #define TAP_MS 450u                                     /* a press shorter than this, untouched: a tap */
 #define SHOW_MS 140u                                    /* the layer shows after this (a tap does not flash it) */
 #define LONG_MS 700u                                    /* the long press */
-static uint8_t mix_dsolo;                               /* (wave 9) the mixer, the drums selected: the white keys solo (F#3,
-                                                         * drawn in the strip: wave 10) */
-static uint8_t mix_pan;                                 /* (PHEBUS) the mixer's knobs are the pans (G#3, drawn in the strip:
-                                                         * wave 10), until it closes */
+static uint8_t mix_pan;                                 /* (PHEBUS) the mixer's knobs are the pans (wave 13: its second page, SEL
+                                                         * held GLO; wave 10 had a G#3 PAN key), until it closes */
 
 /* the ISR's view of the panel: the layers' buttons, OCT- / OCT+ */
 static void layers_init(void)
@@ -287,29 +286,26 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
         if (w >= 0 && w < 4)
             patt_store((uint32_t)w);
         return;
-    case LY_GLO:                                        /* the mixer: keys 1 to 4 mute the voices, 5 to 8 solo them; the drums
-                                                         * selected, the 16 keys mute the sounds and F#3 SOLO turns them into
-                                                         * solo keys. G#3 PAN: the knobs the pans. Both drawn in its strip.
-                                                         * Mutes and solos are performance state */
-        if (bi == 0 && is_drum(TSEL)) {
-            mix_dsolo = (uint8_t)!mix_dsolo;
-        } else if (bi == 1) {
-            mix_pan = (uint8_t)!mix_pan;
-        } else if (is_drum(TSEL)) {                     /* (wave 9: the drums selected, the 16 sounds) */
-            if (w >= 0 && w < 16) {
-                if (mix_dsolo)
-                    drum_solo ^= (uint16_t)(1u << w);
-                else
-                    drum_mute ^= (uint16_t)(1u << w);
-                drum_lane = (uint8_t)w;
-            }
-        } else if (w >= 0 && w < 4) {
-            trk[w].p[P_MUTE] = (int16_t)!trk[w].p[P_MUTE];
-        } else if (w >= 4 && w < 8) {
-            song.solo ^= (uint8_t)(1u << (w - 4));
+    case LY_GLO: {                                      /* (wave 13) THE MIXER, one map whichever voice is selected: the 16
+                                                         * white keys the 16 drum sounds, F#3 G#3 A#3 C#4 voice 1, 2, 3 and the
+                                                         * drums. A key tapped: mute (again: unmute); with OCT+ held: solo
+                                                         * ("plus = only this"; again: off). Performance state */
+        uint32_t plus = (fm1_in.buttons >> panel.btn[B_OCTUP]) & 1u;
+        if (w >= 0 && w < 16) {
+            if (plus)
+                drum_solo ^= (uint16_t)(1u << w);
+            else
+                drum_mute ^= (uint16_t)(1u << w);
+            drum_lane = (uint8_t)w;
+        } else if (bi >= 0 && bi < 4) {
+            if (plus)
+                song.solo ^= (uint8_t)(1u << bi);
+            else
+                trk[bi].p[P_MUTE] = (int16_t)!trk[bi].p[P_MUTE];
         }
         ui.force = 1;
         return;
+    }
     default:
         return;
     }
@@ -427,6 +423,10 @@ static void layer_pm(uint32_t l, const char **m, const char **p)
         break;
     case LY_SAVE:
         *m = "UNDO", *p = "REDO";
+        break;
+    case LY_GLO:                                        /* (wave 13) the mixer: OCT- every mute and solo off; OCT+ with a key:
+                                                         * solo */
+        *m = "CLEAR", *p = "SOLO";
         break;
     default:
         break;
@@ -609,10 +609,7 @@ static void layer_screen_draw(void)
     case LY_LFO:
         str_cpy(sub, is_drum(t) ? "the sound" : "the voice", sizeof sub);
         break;
-    case LY_GLO: {                                      /* the mixer: levels or pans; the strip SOLO (drums) and PAN */
-        static const char *BK[11];
-        BK[0] = is_drum(t) ? "SOLO" : 0;
-        BK[1] = "PAN";
+    case LY_GLO: {                                      /* the mixer: levels or pans (SEL: its second page) */
         for (i = 0; i < 4u; i++) {
             uint32_t lv = trk_level(i);
             static const char *const L[4] = {"1", "2", "3", "dr"};   /* (the strip's numbers) */
@@ -634,11 +631,9 @@ static void layer_screen_draw(void)
             if (!ui.msg_t && master_pair(LY_GLO, &m))   /* (a message shows in the title instead) */
                 hdr_mchip = m.chip, hdr_mcol = m.col, hdr_mratio = (m.v - m.lo) * 1000 / (m.hi - m.lo);
         }
-        op_mix_draw(val, ratio, (uint32_t)(song.playing && clk_pos < BEAT_U / 4u) << 3 | (uint32_t)mix_pan << 4 |
-                    (uint32_t)mix_dsolo << 5);
+        op_mix_draw(val, ratio, (uint32_t)(song.playing && clk_pos < BEAT_U / 4u) << 3 | (uint32_t)mix_pan << 4);
         hdr_mchip = 0;
-        bk_strip(BK, (uint32_t)(mix_dsolo && is_drum(t)) | (uint32_t)mix_pan << 1, &strip);
-        bk_shown = (is_drum(t) ? 1u : 0u) | 2u;
+        bk_shown = 0xFu;                                /* (wave 13: the four voices on F#3 .. C#4) */
         layer_sub_shown = "";
         return;
     }

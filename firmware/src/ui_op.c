@@ -1167,96 +1167,94 @@ static void op_sound(const track_t *t, const page_t *pg)
 #define OPM_H (OP_BODY_Y + 96 - (BK_Y + BK_H + 1))       /* (wave 10) the podiums' band, between the strip and the keys */
 static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32_t flags)
 {
-    static const char *const LAB[4] = {"1", "2", "3", "DR"};   /* (the tracks by number, as the strip: review 21) */
-    static const char KEYS[17] = "123D123D        ";   /* (wave 10: no FILL, BAR, PAN keys: fill is SEQ's, PAN a black key in
-                                                         * the strip) */
-    static uint32_t head, scene, keys, knobs, bar;
+    /* (wave 13, Ben 23 Nov 2026, 14:19: "This global screen is kind of hard to figure out ... What voice is the keys?") THE
+     * MIXER, one map whichever voice is selected (hold GLO):
+     *   line     what a key does, in words: TAP A KEY: MUTE; the -/+ legend: [-] CLEAR (every mute and solo off), [+] SOLO
+     *            (held with a key: solo it, "plus = only this")
+     *   voices   the four voices on the black keys F#3 G#3 A#3 C#4, in the strip's place, each over its knob's column: its
+     *            name in its colour, its level as a bar with the meter in it; muted a yellow M (the cell yellow), soloed an
+     *            ice-blue S (the cell ice blue), silenced by another's solo dim. The other seven black keys do nothing here:
+     *            not drawn
+     *   drums    the 16 drum sounds on the 16 white keys, 4 x 4 as the keys run (keys 1 .. 4 the top row, as PERFORM's pads),
+     *            each named (KICK, SNARE, OP HAT ...) in teal (the drum voice's); muted: yellow with a black M; soloed: ice
+     *            blue with a black S; silenced by a solo: dark grey
+     *   dials    the four levels (SEL: the pans), each in its voice's colour, LEVEL or PAN over it */
+    static const char *const VN[4] = {"V1", "V2", "V3", "DRUM"};
+    static uint32_t head, line, vo, dr, knobs, bar;
     const uint8_t *mx = op_mx;
-    uint32_t i, sig = 7u;
-    op_header("GLO", C_WHITE, ui.msg_t ? ui.msg : flags & 16u ? "PAN" : is_drum(TSEL) ? "DRUM MIX" : "MIX", &head);   /* (GLO: MIX, the button and the layer, review 21; a
-                                                         * message: in the title, the levels stay) */
+    uint32_t i, sig = 7u, lk = ly_lock != LY_PLAY;
+    op_header("GLO", C_WHITE, ui.msg_t ? ui.msg : flags & 16u ? "PANS" : "MIXER", &head);   /* (a message: in the title) */
     op_band_tick();
-    for (i = 0; i < NTRK; i++)
-        sig = sig * 131u + mx[i] + (uint32_t)ratio[i] * 7u + (trk[i].p[P_MUTE] != 0) * 3u;
-    sig = sig * 31u + song.solo;
-    if (ui.force || sig != scene) {
-        scene = sig;
-        cv_begin(240, OPM_H, C_BLACK);                  /* (wave 10: under the black-key strip, SOLO and PAN, y 40 .. 66) */
-        cv_rect(0, OPM_H - 2, 240, 1, TE_G1);
-        for (i = 0; i < NTRK; i++) {
-            int32_t cx = 2 + 60 * (int32_t)i + 28, h = 6 + ratio[i] * (OPM_H - 14) / 1000, top = OPM_H - 2 - h, y, n = (h - 3) / 4, lit;
-            uint32_t mute = trk[i].p[P_MUTE] != 0;
-            uint16_t c = mute ? TE_G3 : TE_COL[i];   /* (muted: grey, never darker, review 19) */
-            if (mute) {                                 /* a muted podium: dashed */
-                for (y = top; y < OPM_H - 2; y += 4) {
-                    cv_rect(cx - 17, y, 1, 2, c);
-                    cv_rect(cx + 16, y, 1, 2, c);
-                }
-                for (y = -17; y < 17; y += 4)
-                    cv_rect(cx + y, top, 2, 1, c);
-            } else {
-                op_box(cx - 17, top, 34, h + 1, c);
-            }
-            lit = n * mx[i] / 82;
-            for (y = 0; y < n; y++)
-                cv_rect(cx - 13, OPM_H - 5 - y * 4, 26, y < lit ? 2 : 1, y < lit ? TE_COL[i] : TE_G1);
-            if (mute || (song.solo >> i) & 1u)          /* (wave 7: the strip's badge, one size everywhere) */
-                op_badge(cx + 19, OPM_H - 18, mute ? 'M' : 'S', mute ? TE_MUTE : TE_SOLO);
+    sig = studio_hash(lk * 3u + 5u, ui.msg_t ? ui.msg : "");
+    if (ui.force || sig != line) {                      /* the line: what a key does; -/+; LOCK while it stays open */
+        int32_t x = 236;
+        line = sig;
+        cv_begin(240, BK_Y - OP_HEAD_H, C_BLACK);
+        if (lk) {
+            int32_t w = (int32_t)text_w(&FONT_S, "LOCK") + 6;
+            cv_rect(x - w, 0, w, 16, C_WHITE);
+            cv_text(x - w + 3, 0, &FONT_S, "LOCK", C_BLACK);
+            x -= w + 6;
         }
-        cv_blit(0, BK_Y + BK_H + 1);
+        x = pm_draw(x, 0, "CLEAR", "SOLO") - 8;
+        cv_text(4, 0, &FONT_S, x >= 4 + (int32_t)text_w(&FONT_S, "TAP A KEY: MUTE") ? "TAP A KEY: MUTE" : "TAP: MUTE", C_WHITE);
+        cv_blit(0, OP_HEAD_H);
     }
-    sig = flags + song.solo * 64u;
+    sig = 11u + (flags & 16u);
     for (i = 0; i < NTRK; i++)
-        sig = sig * 2u + (trk[i].p[P_MUTE] != 0);
-    if (is_drum(TSEL))
-        sig = sig * 977u + drum_mute * 7u + (uint32_t)drum_solo * 131071u + drum_lane + 1u;
-    if (is_drum(TSEL) && (ui.force || sig != keys)) {  /* (wave 9) the drums selected: the 16 keys mute (or solo) the sounds,
-                                                         * a tile a sound, its initial; muted: yellow, soloed: ice blue; the
-                                                         * black keys under: SOLO FILL BAR PAN */
-        keys = sig;
-        cv_begin(240, 36, C_BLACK);
+        sig = sig * 131u + mx[i] / 4u + (uint32_t)ratio[i] * 7u + (uint32_t)trk_silent(&trk[i]) * 3u + (trk[i].p[P_MUTE] != 0) * 5u;
+    sig = sig * 31u + song.solo + drum_solo * 3u;
+    if (ui.force || sig != vo) {                        /* the four voices, in the strip's place (y 40 .. 71) */
+        vo = sig;
+        cv_begin(240, 32, C_BLACK);
+        for (i = 0; i < NTRK; i++) {
+            int32_t x = 1 + 60 * (int32_t)i, w = 58, lv = ratio[i] < 0 ? 0 : ratio[i], m = (int32_t)mx[i];
+            uint32_t mute = trk[i].p[P_MUTE] != 0, solo = (song.solo >> i) & 1u, quiet = trk_silent(&trk[i]) && !mute;
+            uint16_t c = TE_COL[i], bg = mute ? TE_MUTE : solo ? TE_SOLO : TE_G1, fg = mute || solo ? C_BLACK : quiet ? TE_G2 : c;
+            if (flags & 16u)                            /* (the pans' page: the bar is the level still) */
+                lv = (int32_t)(i == TRK_DRUM ? song.g[G_DRLVL] : trk[i].p[P_LEVEL]) * 1000 / 127;
+            cv_rect(x, 0, w, 31, bg);
+            if (!mute && !solo)
+                op_box(x, 0, w, 31, quiet ? TE_G2 : TE_MID[i]);
+            cv_text(x + 4, 0, &FONT_S, VN[i], fg);
+            if (mute || solo)                           /* (the cell yellow or ice blue: its letter black at the right) */
+                cv_text(x + w - 12, 0, &FONT_S, mute ? "M" : "S", C_BLACK);
+            cv_rect(x + 4, 20, w - 8, 7, mute || solo ? C_BLACK : TE_G1);   /* the level, the meter in it */
+            cv_rect(x + 4, 20, (w - 8) * lv / 1000, 7, mute || solo ? TE_G2 : quiet ? TE_G2 : TE_DIM[i]);
+            if (!mute && !quiet)
+                cv_rect(x + 4, 22, (w - 8) * lv / 1000 * (m > 82 ? 82 : m) / 82, 3, solo ? C_BLACK : c);
+        }
+        cv_blit(0, BK_Y);
+    }
+    bk_drawn = 0xFu, bk_drawn_f = ui.frame;            /* (the lights: F#3 .. C#4 live, the rest dark) */
+    sig = 13u + drum_mute * 7u + (uint32_t)drum_solo * 131071u + (uint32_t)trk_silent(TDRUM) * 5u;
+    if (ui.force || sig != dr) {                        /* the 16 drum sounds, 4 x 4 (y 74 .. 152) */
+        dr = sig;
+        cv_begin(240, 80, C_BLACK);
         for (i = 0; i < 16u; i++) {
-            uint32_t m = (drum_mute >> i) & 1u, so = (drum_solo >> i) & 1u;
-            char ch[2] = {LANE_SHORT[i][0], 0};
-            int32_t x = 4 + (int32_t)i * 14 + (int32_t)(i / 4u) * 2;
-            if (m || so)
-                cv_rect(x, 2, 12, 18, m ? TE_MUTE : TE_SOLO);
-            else
-                op_box(x, 2, 12, 18, i == drum_lane ? C_WHITE : TE_COL[TRK_DRUM]);
-            cv_text(x + 2, 3, &FONT_S, ch, m || so ? C_BLACK : TE_COL[TRK_DRUM]);
+            int32_t x = 1 + (int32_t)(i % 4u) * 60, y = (int32_t)(i / 4u) * 20;
+            uint32_t m = (drum_mute >> i) & 1u, so = (drum_solo >> i) & 1u, quiet = !m && (trk_silent(TDRUM) || drum_silenced(i));
+            char nm[8];
+            te_upper(nm, LANE_SHORT[i], sizeof nm);
+            if (m || so) {                              /* (the tile yellow / ice blue, the name black; at its right end the
+                                                         * letter, M or S, in a black tab) */
+                cv_rect(x, y, 58, 18, m ? TE_MUTE : TE_SOLO);
+                te_text_c(x + 24, y + 1, nm, C_BLACK);
+                cv_rect(x + 48, y + 2, 9, 14, C_BLACK);
+                cv_text(x + 49, y + 1, &FONT_S, m ? "M" : "S", m ? TE_MUTE : TE_SOLO);
+            } else {
+                cv_rect(x, y, 58, 18, TE_G1);
+                te_text_c(x + 29, y + 1, nm, quiet ? TE_G2 : TE_COL[TRK_DRUM]);
+            }
         }
-        cv_text(4, 20, &FONT_S, (flags >> 5) & 1u ? "KEYS: SOLO" : "KEYS: MUTE", (flags >> 5) & 1u ? TE_SOLO : TE_MUTE);
-        cv_blit(0, OP_BODY_Y + 96);
-    } else if (!is_drum(TSEL) && (ui.force || sig != keys)) {                      /* the 16 white keys: the track's number on its mute and solo
-                                                         * keys, what each group does under it (review 21) */
-        static const char *const GRP[2] = {"MUTE", "SOLO"};
-        static const uint8_t GX[2] = {0, 4};
-        keys = sig;
-        cv_begin(240, 36, C_BLACK);
-        for (i = 0; i < 16u; i++) {
-            int32_t x = 4 + (int32_t)i * 14 + (int32_t)(i / 4u) * 2;
-            uint32_t on = i < 4u ? trk[i].p[P_MUTE] != 0 : i < 8u ? (song.solo >> (i - 4u)) & 1u : 0u;
-            uint16_t c = i < 4u ? TE_COL[i] : i < 8u ? TE_MID[i - 4u] : KEYS[i] == ' ' ? OP_PUR_D : TE_G4;
-            char ch[2] = {KEYS[i], 0};
-            if (on)
-                cv_rect(x, 2, 12, 20, i < 4u ? TE_MUTE : i < 8u ? TE_SOLO : C_WHITE);
-            else
-                op_box(x, 2, 12, 20, c);
-            cv_text(x + 2, 4, &FONT_S, ch, on ? C_BLACK : c);
-        }
-        for (i = 0; i < 2u; i++) {
-            int32_t x = 4 + (int32_t)GX[i] * 14 + (int32_t)(GX[i] / 4u) * 2;
-            cv_text(x, 21, &FONT_S, GRP[i], TE_G3);
-        }
-        cv_blit(0, OP_BODY_Y + 96);
+        cv_blit(0, BK_Y + 34);
     }
     {
         uint8_t m = ui.msg_t;
+        static const char *const LV[4] = {"LEVEL", "LEVEL", "LEVEL", "LEVEL"}, *const PN[4] = {"PAN", "PAN", "PAN", "PAN"};
         ui.msg_t = 0;
-        static const uint16_t *const TINT = TE_COL;     /* the mixer: one knob per voice, in its colour (wave 7: the pages'
-                                                         * dials, one value size, fixed columns) */
-        dial_tint = TINT;
-        op_dials(LAB, val, ratio, 0, 0, C_WHITE, 4242u, &knobs);
+        dial_tint = TE_COL;                             /* the mixer: one knob per voice, in its colour */
+        op_dials(flags & 16u ? PN : LV, val, ratio, 0, 0, C_WHITE, 4242u + (flags & 16u), &knobs);
         dial_tint = 0;
         ui.msg_t = m;
     }

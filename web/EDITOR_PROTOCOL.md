@@ -31,8 +31,8 @@ Requests it does not know get no reply. Every data byte is 7 bit.
 | 1 INFO | — | version string ("FELUCCA KARMA x.y.z"), NENGINES, P_COUNT, G_COUNT, NSTEP, P_E0, then NENGINES engine-name strings, NTRK (4), then the protocol version (11) |
 | 25 PING | — | 0 |
 | 34 BK_LIST | — | rc (0 ok, 4 no flash), count, then per object: id, length u35, CRC-32 u35 (zlib). Takes a snapshot of the working project and the settings for GET |
-| 35 BK_GET | id, offset u35, count (2 × 7 bit, 1..256) | id, rc (0 ok, 1 arguments, 5 the snapshot is gone: LIST again), offset u35, count, pack7 data |
-| 36 BK_PUT | op 0 begin: id 0..10, length u35, CRC-32 u35 · op 1 data: id, offset u35, pack7 (≤ 256 bytes, in order) · op 2 commit: id · op 3 abort: id | op, id, rc: 0 ok, 1 arguments, 2 not a valid object (CRC, magic, sizes, ranges), 3 stop the sequencer first, 4 flash, 5 no begin for this object (or more than 15 s ago) |
+| 35 BK_GET | id, offset u35, count (2 × 7 bit, 1..256) | id, rc (0 ok, 1 arguments, 4 flash (object 11 is read from flash), 5 the snapshot is gone: LIST again), offset u35, count, pack7 data |
+| 36 BK_PUT | op 0 begin: id 0..11, length u35, CRC-32 u35 · op 1 data: id, offset u35, pack7 (≤ 256 bytes, in order) · op 2 commit: id · op 3 abort: id | op, id, rc: 0 ok, 1 arguments, 2 not a valid object (CRC, magic, sizes, ranges), 3 stop the sequencer first, 4 flash, 5 no begin for this object (or more than 15 s ago) |
 | 90 STAT | — | the load and the USB, u35 numbers (`tools/karma_stat.py`) |
 | 91 PCOST | — | KARMA_PCOST builds only: per DSP stage its time (us) and calls, then cleared (`tools/karma_pcost.py`) |
 | 92 PVAR | [variant] | KARMA_PCOST builds only: which variant of a stage runs |
@@ -45,7 +45,11 @@ Requests it does not know get no reply. Every data byte is 7 bit.
 projects of sections A..D (length 0 = empty), **6..7** the user preset banks (`up_bank_t`, 16 records each;
 0 = empty), **8** the FM6 user bank, **9** the SYN drum kits (`dsu_bank_t`, 1464 bytes, "DSU1"), **10** the
 MIDI part (40 bytes: the MIDI LEARN map and GLO > MIDI's channels and BEND; BK_LIST names it only while it is
-not the default).
+not the default), **11** (PHEBUS wave 13, protocol 13) the user drum kits MY KIT 1 to 6 as flash keeps them (3,564
+bytes: a 12-byte head "UKT1" with the six kits' states, then the six kits, `pkit_t`, 592 bytes each; BK_LIST names it
+only once a kit was ever stored; GET reads it from flash, as it is then; the commit checks the head and every stored
+kit as a load does). A backup without object 11 (older, or an FM-1 with no user kit) leaves the FM-1's user kits as
+they are; a device before protocol 13 answers its begin with rc 1 and the page skips it.
 
 A restore stages one object in RAM, checks it at the commit as a load checks it (projects: magic, size and
 sum, older formats converted; banks: magic, record size, slot count; settings: magic, palette, a permutation

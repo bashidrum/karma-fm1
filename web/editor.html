@@ -239,10 +239,11 @@ function b64dec(s) {
   return out.subarray(0, o);
 }
 /* object ids (firmware editor.c ED_BK_IDS): 0 the working project, 1 the settings, 2..5 projects A..D,
-   6..7 the user preset banks, 8 the FM6 patch bank, 9 the MY HEX kits, 10 the MIDI part */
+   6..7 the user preset banks, 8 the FM6 patch bank, 9 the MY HEX kits, 10 the MIDI part, 11 the user drum kits MY KIT 1 .. 6
+   (PHEBUS wave 13: in a backup once one was ever stored; a backup without it leaves the FM-1's kits as they are) */
 /* RESTORE: the objects in the order they are written back (banks first; 8 = the FM6 patch bank, firmware v9: a
    file without it restores fine, a v8 device gets no object 8 sent; 9 = the drum synth kits (MY HEX), firmware v10, likewise) */
-const BK = { FORMAT: "sloop-backup", VERSION: 1, SAMPLES: [32, 33, 34, 35], RESTORE: [6, 7, 8, 9, 10, 2, 3, 4, 5, 0, 1] };   /* 10: MIDI LEARN (2.6);
+const BK = { FORMAT: "sloop-backup", VERSION: 1, SAMPLES: [32, 33, 34, 35], RESTORE: [6, 7, 8, 9, 10, 11, 2, 3, 4, 5, 0, 1] };   /* 10: MIDI LEARN (2.6); 11: the user drum kits (PHEBUS wave 13);
    SAMPLES: KARMA's user sample slots, still read from an older backup file, not written back (PHEBUS has none) */
 class BackupError extends Error { constructor(code, msg) { super(msg); this.code = code; } }
 /* read everything; progress(done, total bytes) */
@@ -320,9 +321,9 @@ async function backupRestore(rq, file, progress = () => {}) {
     if (!m.has(id)) continue;
     const d = m.get(id);
     let r = parse[CMD.BK_PUT](await rq(req.bkBegin(id, d.length, crc32(d)), { timeout: 1500, retries: 1 }));
-    if ((r.rc === 1 || r.rc === 5) && (id === 8 || id === 9 || id === 10)) continue;   /* a device without the FM6 bank (v8) /
-                                                       * the SYN kits (v9) / MIDI LEARN (2.6): skipped (its BK_PUT answers
-                                                       * an unknown id's begin with 5) */
+    if ((r.rc === 1 || r.rc === 5) && (id === 8 || id === 9 || id === 10 || id === 11)) continue;   /* a device without the FM6 bank (v8) /
+                                                       * the SYN kits (v9) / MIDI LEARN (2.6) / the user drum kits (PHEBUS before
+                                                       * wave 13): skipped (its BK_PUT answers an unknown id's begin with 1 or 5) */
     if (r.rc) throw new BackupError("bkWrite", `begin ${id} rc ${r.rc}`);
     for (let off = 0; off < d.length; off += 256) {
       r = parse[CMD.BK_PUT](await rq(req.bkData(id, off, d.subarray(off, off + 256)), { timeout: 1500, retries: 1 }));

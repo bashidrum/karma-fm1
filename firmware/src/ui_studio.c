@@ -20,6 +20,8 @@ static void dval_fit(char *b);                          /* (ui_drum.c) */
 static void op_drum_steps(uint32_t bank, uint32_t len);   /* (ui_op.c) */
 static void op_home_body(void);
 static void op_box(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c);
+static uint16_t bk_drawn;                               /* (ui_op.c: the black keys drawn with a job, for the lights) */
+static uint32_t bk_drawn_f;                             /* (.. the frame; wave 13: the STUTTER lane's too, ui_stut.c) */
 static void op_badge(int32_t x, int32_t y, char ch, uint16_t bg);
 static int on_drum_page(void) { return !ui.home && cur_page()->scope == SC_DRUM; }
 

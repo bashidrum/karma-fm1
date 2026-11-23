@@ -35,6 +35,8 @@ static uint32_t black_keys(void);
 static int key_strip_on(void);
 static uint32_t keys_dead(void)
 {
+    if (kb_grid && stl_shown())                         /* (wave 13) the STUTTER lane: its black keys repeat (drawn) */
+        return 0u;
     return kb_grid || (is_drum(TSEL) && drum_keys != DK_CHROM) || (TSEL->p[P_CHORD] && !key_strip_on() && !is_drum(TSEL))
                ? black_keys() : 0u;
 }
@@ -106,12 +108,19 @@ static int combo_live(uint32_t h, uint32_t c)
         return c == B_OCTDN;
     case HC_LY0 + LY_SAVE:                              /* undo, redo; keys 1 to 4 store A to D */
         return c == B_OCTDN || c == B_OCTUP || (w >= 0 && w < 4);
-    case HC_LY0 + LY_GLO:                               /* the mixer: mutes and solos (drums: the 16 sounds), PAN, SOLO */
+    case HC_LY0 + LY_GLO:                               /* (wave 13) the mixer: the 16 drum sounds on the white keys, the four
+                                                         * voices on F#3 .. C#4 (whichever is selected); OCT+ held with a key:
+                                                         * solo; OCT- every mute and solo off (when there is one); SEL its
+                                                         * second page (the pans) */
+        if (c == B_SCL)
+            return 1;                                   /* (OCT+ alone does nothing: dark, as PERFORM's with no pad held; it
+                                                         * is held with a key, and the screen's legend says [+] SOLO) */
+        if (c == B_OCTDN)
+            return drum_mute || drum_solo || song.solo || trk[0].p[P_MUTE] || trk[1].p[P_MUTE] || trk[2].p[P_MUTE] ||
+                   trk[3].p[P_MUTE];
         if (c < 14u)
             return 0;
-        if (w >= 0)
-            return drum ? 1 : w < 8;
-        return bi == 1 || (bi == 0 && drum);
+        return w >= 0 || (bi >= 0 && bi < 4);
     case HC_LY0 + LY_ENV:
     case HC_LY0 + LY_LFO:                               /* mapping (ui_map.c): SEL the other source, OCT- remove */
         return map_lyr && ((c == B_SCL && !is_drum(TSEL)) || c == B_OCTDN);   /* (wave 12: the drums' one LFO: no SEL) */
@@ -199,7 +208,7 @@ static void ui_leds(void)
             ll_set(B_SAVE, quiet || ((fm1_ms / 250u) & 1u) ? LL_LIT : LL_GLOW, quiet ? LK_STATE : LK_MOTION);
         if (h == HC_LY0 + LY_FX) {                      /* PERFORM: a pad held lit, a latched one blinks (QUIET: lit) */
             uint32_t p;
-            for (p = 0; p < PF_NPAD; p++)
+            for (p = 0; p < PF_NKEY; p++)               /* (wave 13: the pads on keys; the lane's repeat is the lane's) */
                 if (((perf.held | perf.lat) >> p) & 1u)
                     ll_set(14u + punch_key_of_fx(p), (perf.held >> p) & 1u || quiet || blink ? LL_LIT : LL_GLOW, LK_STATE);
         }
@@ -236,6 +245,8 @@ static void ui_leds(void)
             ll_keys(a & b, LL_LIT, LK_STATE);
             ll_keys((a ^ b) & (blink ? b : a), LL_LIT, LK_MOTION);
             ll_keys(fm1_in.notes, LL_LIT, LK_STATE);
+            ll_keys(bk, LL_GLOW, LK_HINT);              /* (wave 13) its black keys: the repeats, drawn in the strip; the ones */
+            ll_keys(lane_keys_lit(), LL_LIT, LK_STATE); /* playing lit */
         } else if (kb_grid) {                           /* the steps; the play head blinks over them (MOTION) */
             const track_t *t = TSEL;
             uint32_t i, len = trk_len(t), b0 = sg_page() * 16u, ph = song.playing ? t->seq_idx : 0xFFFFu;

@@ -109,19 +109,14 @@ static uint32_t keys_lit(void)
     case LY_SEQ:                                   /* (wave 10) SEQ held: ROLL / RETRIG: the keys held, the sounds in the
                                                     * pattern (drums) */
         return fm1_in.notes | (lights_notes ? keys_sounding(t) : erase_lanes(t));
-    case LY_GLO:                                   /* voices heard: 1..4; soloed: 5..8 (the drums: the sounds heard) */
-        if (is_drum(t)) {                          /* (wave 9) the drums: the sounds heard (not muted; soloed when any is) */
-            for (i = 0; i < 16u; i++)
-                if (drum_solo ? (drum_solo >> i) & 1u : !((drum_mute >> i) & 1u))
-                    m |= 1u << key_of_white(i);
-            return m;
-        }
-        for (i = 0; i < 4u; i++) {
-            if (!trk_silent(&trk[i]))
+    case LY_GLO:                                   /* (wave 13) what is heard: the drum sounds on the white keys, the voices
+                                                    * on F#3 .. C#4 */
+        for (i = 0; i < 16u; i++)
+            if (!trk_silent(TDRUM) && !drum_silenced(i))
                 m |= 1u << key_of_white(i);
-            if ((song.solo >> i) & 1u)
-                m |= 1u << key_of_white(4u + i);
-        }
+        for (i = 0; i < 4u; i++)
+            if (!trk_silent(&trk[i]))
+                m |= 1u << PUNCH_BLACK[i];
         return m;
     case LY_SAVE:                                  /* (wave 10) the patterns stored: keys 1..4 */
         for (i = 0; i < 4u; i++)
@@ -844,6 +839,23 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
             if ((press & ob) && combo_live(HC_LY(held), B_OCTDN))
                 map_remove();
             break;
+        case LY_GLO:                                      /* (wave 13) the mixer: SEL its second page (the pans), OCT- every mute
+                                                           * and solo off (OCT+ is held with a key: ui_layers.c layer_key) */
+            if ((press & sb) && combo_live(HC_LY(LY_GLO), B_SCL)) {
+                mix_pan = (uint8_t)!mix_pan;
+                ui.force = 1;
+            }
+            if ((press & ob) && combo_live(HC_LY(LY_GLO), B_OCTDN)) {
+                uint32_t i;
+                fm1_irq_off();
+                drum_mute = drum_solo = 0;
+                song.solo = 0;
+                for (i = 0; i < NTRK; i++)
+                    trk[i].p[P_MUTE] = 0;
+                fm1_irq_on();
+                ui_message("MUTES AND SOLOS OFF");
+            }
+            break;
         case LY_SAVE:                                     /* OCT- undo, OCT+ redo (it was EDIT's) */
             if ((press & ob) && combo_live(HC_LY(LY_SAVE), B_OCTDN))
                 ui_message(undo_swap(0) ? "UNDO" : "NOTHING TO UNDO");
@@ -1162,6 +1174,13 @@ static void ui_input(void)
     if (perf.full) {                                    /* (wave 6) a pad recorded found the STUTTER lane full */
         perf.full = 0;
         ui_message("LANE FULL: 31 PADS");
+    }
+    if (pev_drop_n) {                                   /* (wave 13) a lane of waves 6 to 12 loaded: its pads with no place now */
+        char b[28] = "LANE: ";
+        fmt_int(b + 6, pev_drop_n);
+        str_cpy(b + str_len(b), pev_drop_n == 1u ? " OLD PAD DROPPED" : " OLD PADS DROPPED", 18);
+        pev_drop_n = 0;
+        ui_message(b);
     }
     if (sr_on && (!sr_here() || song.sel != sr_trk || ui.menu))
         sr_set(0);                                      /* (STEP REC: the GRID or its track left) */
