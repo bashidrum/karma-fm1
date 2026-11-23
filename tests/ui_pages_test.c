@@ -3157,7 +3157,8 @@ int main(int argc, char **argv)
             ok &= bx[3] - bx[2] - bw[2] > bx[4] - bx[3] - bw[3] && bx[7] - bx[6] - bw[6] > bx[8] - bx[7] - bw[7];
             ok &= PF_Y + PF_BK_Y >= 40 && PF_BK_Y + PF_BK_H <= PF_HEAD_Y;   /* (under the caption, over the headings) */
             check(ok, "PERFORM in columns: the 11 black keys one row in key order, apart, the three groups wider apart, inside 240 px");
-            perf.last = PF_S1; ui.force = 1; frame(); ppm("perform-idle");
+            fm1_in.notes = 1u << key_of_white(2); frames(2); fm1_in.notes = 0; frames(2);   /* (1/4 the last pad) */
+            ui.force = 1; frame(); ppm("perform-idle");
             {   /* each name and line drawn inside its chip, nothing between (no frame: the last pad a white key's) */
                 uint32_t x, y, lit = 0, out = 0;
                 for (y = PF_Y + PF_BK_Y - 1u; y < PF_Y + PF_BK_Y + PF_BK_H + 1u; y++)
