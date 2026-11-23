@@ -298,3 +298,9 @@ To be built as its own wave after wave 10.
 "I can't see how the buttons illuminate but I'm sure it would be helpful if they aren't doing it already, that all buttons that are related combinations illuminate to make it obvious that there are "hidden" controls under those buttons?"
 
 To be built with the hold-to-map wave: while a button (or a step) is held, every button and key that does something with it lights, and those that do nothing go dark.
+
+### 23 Nov 2026, 10:46: how much of a disco, in Ben's words
+
+"I also see that the white key buttons can do all kind of mad dances. We should have settings for how much of a disco you can put on in the global settings. For example, it might be a dick move to have it flashing for 11hrs on a flight to Mexico. But I'd want it flashing if I was ever shooting some content with it"
+
+To be built with the lights work: one setting under GLO for how much the lights move, from none to a full show.
