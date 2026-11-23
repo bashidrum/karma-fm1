@@ -746,6 +746,35 @@ Cost: rv32 -Os stand-in against ben: code +556 B, constants +16 B, .data+.bss +0
 
 Not checked: no device build. Long tests not run. tests/hostsim's TRACKS run reports FAILED with "free(): invalid pointer" on ben too (identical output): not touched.
 
+## Drum effects under FX (23 Nov): calls made that Ben did not specify
+Ben's words: SPEC.md "23 Nov 2026, 21:30 and 21:35" with his 21:45 answers ("Remove them"; "Yes, a KIT FX switch per sound"), "21:40" ("FILTER should live under Edit. Filter envelope should live under ENV. Sends should live under FX") and "21:41" ("Just mirror the synths as closely as possible where possible").
+
+Where things are now (drum voice; the synth voices unchanged)
+- EDIT: SRC, FLTR (the sound's), then KIT FLT (the kit's FILTER), past a divider as FX has between the voice and the mix. ENV: AMP. LFO: LFO. FX: INS (the kit's INSERT, SEL: INSERT 2), SENDS (the selected sound's), SLICER (the kit's), then MIX, STUT: a synth voice's INS, SENDS, SLICER order (the coordinator's first proposal had SENDS first; Ben's 21:41 rule decided it).
+- SENDS: DELAY, REVERB, KIT FX on KNOBS 1 to 3 (a synth voice's SENDS is DELAY, REVERB, CHORUS: the drums have no chorus send, KIT FX takes that place). Named and ranged as the synth's: 0..127.
+- The kit's pages (INSERT, INSERT 2, SLICER, KIT FLT): header KIT, no chip, SELECT does nothing; the big name says KIT and the kit's name; no sound framed in the map; "THE KIT: n OF 16 SOUNDS". SELECT also does nothing on the drum screen's MIX pages (a synth voice's MIX pages have no type either).
+- AMP 2/2: HEX CRUSH and LEVEL (knobs 1 and 4, where they were); CLASSIC LEVEL alone (knob 4). The CLASSIC machine has nothing else that belongs on AMP; exposing its kit's crush as a CRUSH knob there (as HEX has) would fill it: for Ben.
+- D7, the filter envelope: neither drum machine has one. CLASSIC: FLTR's ENV is an amount; the cutoff follows the sound's pitch sweep (SRC 2/3 SWEEP, SWTIME) and the velocity, no envelope shape of its own. HEX (the LXR's voices): a static filter, no envelope. So ENV stays AMP only. The synth voices checked against Ben's sentence: filter pages under EDIT (FILT, FILT 2), the filter's own envelope under ENV (FILT ENV), sends under FX (SENDS): nothing out of place.
+
+The sends, the format
+- A slot's sends were 0..15 (reverb) and 0..7 (delay) in one byte; now 0..127 each, the reverb in the send byte with bit 7 KIT FX OFF, the delay in the slot's spare byte (rsv). No size change, no RAM. The kit's ver byte says which (PK_VER 2; ver 1 = wave 12's), converted wherever a slot comes in: the project, user kits, a single sound from a user kit, a backup's kits. The conversion is exact: wave 12's audio used v x 127 / 15 and v x 127 / 7, which is what they become.
+- An old project (core rsv[0] below the new PROJ_DSEND_V 4): every slot's sends get the kit's G_DRREV, G_DRDLY added, clamped to 127, which is exactly what the audio did (own + kit, clamped, then the THROWs). Its drum send locks: onto 0..127 plus that core's kit sends (a pattern A to D carries its own kit sends, so its locks fold with its own; its unlocked hits play the project's slots, folded with the project's: a pattern stored with different kit sends than the project's loses that difference). G_DRREV and G_DRDLY are then 0, kept in the core (ids not renumbered or reused), never shown, never heard. The kit-wide sends were never lockable (SC_GLOBAL), so there were no locks of them to convert.
+- Proven by renders of projects saved by wave 14's own code (tests/dfx_ref.sh builds tests/dfx_test.c against ben's c73413f): kit sends with sounds' own and locks, a clamp at 127, the drum FILTER and INSERT on: identical, sample for sample. With the drum SLICER on: not exact, 16.6 dB under the signal on the test pattern (kit sends 40 and 30): the kit's share was sliced (it went in after the SLICER), a sound's own share goes in before it, as it always did. Options for Ben below.
+- An LFO on a send: the send's range is now 0..127, so the LFO moves it in finer steps than the 0..15 it moved before (a small audible change only where a project had an LFO on DEL or REV).
+- MIDI CC 91 / 94 on the drum channel: the selected sound's REVERB / DELAY (they were the kit-wide sends).
+
+KIT FX
+- Per slot, bit 7 of its send byte: saved with the project and with user kits; not lockable (no free lock id is needed and the switch is the slot's). ON to start.
+- Audio: a voice of a sound with KIT FX OFF writes straight into the mix and send buses after the kit's FILTER, INSERT and SLICER (fx.c points drums.c at them for the drum chain's block), the same arithmetic as the neutral path, so it is sample-identical to the same sound in a kit whose three are neutral (tested, with all three on). Its declick tail goes the same way. No extra buffer: 28 bytes of state (four pointers, three tails). The track's mute and solo fade, the mixer's sound mutes and solos, PERFORM's drum mutes, chokes and the sends act on both paths (the mixer's mute tested). HOME's DRUM level and pan apply to both.
+
+Lights, tests, screens
+- Lights: the page buttons light where they move; on SENDS with a step held, DELAY and REVERB lock, KIT FX says NOT LOCKABLE. Hold LFO on SENDS maps DELAY or REVERB (both were already in the DEST list, no cost); KIT FX: NOT MAPPABLE.
+- The tab row: FX on the drums now has a synth voice's five names; on SENDS with the -/+ legend the names close up to 3 px and SLICER shortens to SLI (wave 14's rule, as on a synth voice's rows): legible but tight; worth a look in the review.
+- Memory and CPU, rv32 -Os stand-in against ben (c73413f), both jobs together: code +3,176 B, constants +125 B, .data+.bss +32 B (the drum grid alone: +556, +16, 0). On the device about 553,100 of 581,564 B of image and 96,964 of 98,304 B of .data+.bss. The pool and .noinit unchanged. No 64-bit divide added. CPU: a bit test per voice a block.
+
+Not checked
+- No device build. Long tests not run. hostsim's TRACKS run fails on ben too (identical output).
+
 ## For Ben to confirm
 Every call waves 2 to 7 made that the spec did not cover, and every device-only limit or lossy conversion, one line each. The detail is in each wave's section above.
 
@@ -911,3 +940,11 @@ The artwork (23 Nov 2026, 20:56): THIRD EYE, DESERT, BEACH
 - The boot over BEACH shows the sea, sky and palms without the characters: they broke up the PHE / BUS letters.
 - Host frame time: BEACH about 0.09 ms against THIRD EYE's 0.12 to 0.13 (THIRD EYE was about 0.13 before, its echoes cost). Device speed unknown.
 - VIS_N is 5 in panel.c; the settings word's 4 bits hold it.
+Drum effects under FX
+- FX on the drums in a synth voice's order: INS (kit), SENDS (the sound's), SLICER (kit), MIX, STUT; the kit's FILTER is EDIT's third category KIT FLT.
+- Old projects with the drum SLICER on and kit-wide sends: close, not exact (16.6 dB under on the test). Options: (a) keep (recommended: simple, the sends now behave one way); (b) a hidden per-sound "send after the SLICER" flag set only by the conversion (exact, one more rule nobody can see).
+- The CLASSIC machine's AMP 2/2 is LEVEL alone; option: show its kit's crush there as CRUSH (as HEX has).
+- SELECT does nothing on the drum screen's MIX pages too (as on a synth voice's MIX pages).
+- MIDI CC 91 / 94 on the drum channel set the selected sound's sends.
+- The drum sends are 0..127 like a synth voice's (they were 0..15 and 0..7); an LFO on a send moves it more finely than before.
+- A pattern A to D stored with other kit sends than the project's: its locks fold with its own, its plain hits with the project's.
