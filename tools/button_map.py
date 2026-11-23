@@ -4,6 +4,8 @@
 # Pillow and the Inter font). Wave 10: per button its one idea, categories, SEL pages, hold, -/+ while held, MASTER's pair, SELECT.
 # Wave 11: hold LFO / ENV to map; what lights under a hold; DISCO; SAVE > PATTERNS; the drums teal (Ben's colour code, 11:33)
 # Wave 12: SAVE > KITS; PRESETS on the drums (the slot's sound / the whole kit); hold LFO maps on the drums; QUIET dims the screen
+# Wave 13: the PERFORM set (effects on the white keys, mutes and four extras on the black); the mixer as one map (OCT+ + key
+# solos, OCT- clears, SEL the pans); the STUTTER lane's black keys repeat
 from PIL import Image, ImageDraw, ImageFont
 import sys
 
@@ -32,7 +34,8 @@ B = [
      "- REMOVE this LFO's mappings here", "MOD DEPTH (drums: LFO DEPTH)", "synth: the LFO's WAVE"),
     ("FX", "effects", [("INS", "FX 1 2 3"), ("SENDS", ""), ("SLICER", ""), (MIX, "3 pages")],
      [("FILTER", ""), ("INS", "1 to 2"), ("SENDS", ""), ("SLICER", ""), (MIX, "3 pages")],
-     "PERFORM: the keys are effect pads on the whole mix", "- latches off, + LATCH", "FX MIX (0: dry)",
+     "PERFORM: white keys the effects (1/1 1/2 1/4 1/8 / 1/16 HALF ECHO VERB / ISO LO MID HI, MOTION / CRUSH PHASER JET VOWEL); black: mute V1 V2 V3, KICKS TOPS SH+CL HT+SN, REVERSE STOP SWP DN SWP UP",
+     "- latches off, + LATCH", "FX MIX (0: dry)",
      "synth: the insert TYPE, the SLICER's mode"),
     ("SEQ", "rhythm", [("TRIG", "1 to 2"), ("PATTERN", "1 to 2"), ("A-D", "")], [("TRIG", "1 to 2"), ("PATTERN", "1 to 2"), ("A-D", "")],
      "white keys ROLL (drums RETRIG); F#3-C#4 play A-D, D#4 fill bar; PLAY: FILL (+ latches); K1 RATE K2 SHIFT K3 SWING K4 STEPS",
@@ -40,7 +43,8 @@ B = [
     ("ARP", "notes", [("ARP", "1 to 2"), ("KEY", "1 to 2")], [("CHROMATIC", ""), ("OFF", "keys: steps")],
      "-/+ and MASTER only", "- / + the pattern a SEMITONE", "TRANSP", "nothing"),
     ("GLO", "global", [("GLOBAL", ""), ("SYSTEM", ""), ("MIDI", "1 to 3"), ("DEVICE", "menu")], None,
-     "the MIXER: levels, pans (G#3), mutes, solos; drums: the 16 sounds (F#3 SOLO)", "", "TEMPO", "nothing"),
+     "the MIXER, one map: white keys the 16 drum sounds, F#3-C#4 the voices; tap: mute; SEL: the pans",
+     "- CLEAR every mute and solo, + held with a key: SOLO", "TEMPO", "nothing"),
     ("SAVE", "keep, confirm", [("PRESETS", ""), ("USER", ""), ("KITS", "MY KIT 1-6"), ("PATT", "A-D"), ("TOOLS", "")], None,
      "keys 1-4 store A-D; a question showing: the confirm's ring", "- UNDO, + REDO", "", "nothing"),
     ("HOME", "home", [("HOME", ""), ("SAVER", "4 kinds")], None, "", "", "", "nothing"),
@@ -175,7 +179,8 @@ def draw(out):
         ("OCT-  OCT+  (MINUS, PLUS)", "A tap is the screen's minus and plus, said by the legend at the tab row's right: the page of steps, the pattern, the step, the sound, the preset, or the knob last touched one fine step. Twice within 0.3 s: the octave (the one double press). With something held, minus removes it: a step, a key's note or sound from the pattern, the locks.", WHITE),
         ("SAVE  (KEEP, CONFIRM)", "A white bar says HOLD SAVE: ...? Hold SAVE until the ring fills (red: something goes; white: it only keeps). Hold SAVE + OCT- undo, + OCT+ redo. REC only records.", WHITE),
         ("MASTER WITH A BUTTON HELD", "Turn MASTER while holding FX (FX MIX), SEQ (SWING), ARP (TRANSP), EDIT (LEVEL), ENV (ENV LENGTH), LFO (MOD DEPTH), GLO (TEMPO). Relative: nothing jumps; the volume stays and follows again, without a jump, once MASTER is turned with nothing held.", WHITE),
-        ("BLACK KEYS", "A black key does something only where the screen draws it, in the strip under the header: PERFORM's pads, hold SEQ's A B C D BAR, the mixer's SOLO and PAN, the KEY pages' chord changes. Elsewhere: a note, or nothing, and then its light stays dark.", WHITE),
+        ("BLACK KEYS", "A black key does something only where the screen draws it, in the strip under the header: PERFORM's mutes and extras, the STUTTER lane's repeats (1/1 1/2 1/4 1/8 1/16, 1/4T 1/8T 1/16T, 1/8D 1/16D, 1/32), hold SEQ's A B C D BAR, the mixer's four voices, the KEY pages' chord changes. Elsewhere: a note, or nothing, and then its light stays dark.", WHITE),
+        ("THE MIXER (HOLD GLO)", "The same whichever voice is selected: the 16 white keys are the 16 drum sounds, F#3 G#3 A#3 C#4 voice 1, 2, 3 and the drums. Tap a key: mute (yellow M). Hold OCT+ and tap: solo (ice-blue S); a solo anywhere leaves only what is soloed. OCT-: all off. SEL: the pans. PERFORM's mutes are separate and never change these.", WHITE),
         ("HOLD TO MAP", "On a synth voice's sound page hold LFO (or ENV): the page stays, the dials become that source's amounts, boxed. Turn right +, left -, back to 0: gone. The header says MAP LFO 1; SEL flips to the other LFO (envelope); OCT- removes them on this page. Each one is a cell of the MATRIX. Outside the hold a small wave under a dial: something moves that knob. On a drum sound page hold LFO the same way: the knob you wiggle becomes the sound's one LFO destination (LFO > CUT (WAS DECAY)); hold ENV there is MASTER's pair.", WHITE),
         ("THE LIGHTS", "Hold any button, a step, a key or a pad: what works with it lights, the rest goes dark. A question waiting: SAVE alone. GLO > DEVICE > LIGHTS > DISCO: QUIET (dim, nothing moves, the screen dimmed: for a night flight), NORMAL, SHOW (the keys dance: for filming).", WHITE),
         ("PRESETS ON THE DRUMS", "On the drum screen: the selected slot's SOUND (SOUND 808 SNARE): INIT HEX, INIT CLASSIC, then its kind from every kit, then all; heard as you turn; turn back: what you had; SAVE + OCT-: undo. On HOME: the whole KIT (16 slots); asks HOLD SAVE only over a kit you changed (CUSTOM). Your kits: SAVE > KITS. Ghost and hard hits: TRIG's velocity (KNOB 1, nothing held).", COR),
@@ -186,7 +191,7 @@ def draw(out):
         d.text((LX + 4, y + 20), title, font=f_h, fill=c)
         for j, l in enumerate(lines): d.text((LX + 4, y + 70 + j * 38), l, font=f_txt, fill=GREY)
         y += hh + 18
-    d.text((W / 2, y + 30), "PHEBUS wave 12  ·  23 Nov 2026  ·  the guide: GUIDE.md section 2", font=f_small, fill=DIM, anchor="mm")
+    d.text((W / 2, y + 30), "PHEBUS wave 13  ·  23 Nov 2026  ·  the guide: GUIDE.md section 2", font=f_small, fill=DIM, anchor="mm")
     im = im.crop((0, 0, W, int(y + 70)))
     im.save(out)
     print(out, im.size)
