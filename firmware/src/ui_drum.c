@@ -853,7 +853,8 @@ static void drum_mute_draw(void)
                 op_badge(x + 45, y + 4, m ? 'M' : 'S', m ? TE_MUTE : TE_SOLO);
         }
         cv_text(4, 104, &FONT_S, "KEYS: MUTE", TE_G3);
-        cv_text(236 - text_w(&FONT_S, "SEL+KEY: SOLO"), 104, &FONT_S, "SEL+KEY: SOLO", TE_G3);
+        cv_text(236 - text_w(&FONT_S, "HOLD GLO: SOLO"), 104, &FONT_S, "HOLD GLO: SOLO", TE_G3);   /* (wave 14: it said
+                                                         * SEL+KEY, gone in wave 9; solos are the mixer's, OCT+ with a key) */
         cv_blit(0, SG_BODY_Y);
     }
     if (ui.force || sig != sb) {
