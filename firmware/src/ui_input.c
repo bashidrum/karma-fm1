@@ -422,6 +422,12 @@ static void edit_param_pg(const page_t *pg, uint32_t slot, int32_t steps)   /* (
     v = d->names == ESYNC_NAMES || d->names == N_IBITS || d->names == N_IRATE ? names_turn(d, *vp, steps)   /* (a name a detent) */
                                     : clamp(*vp + accel(EN_K1 + slot, steps, d->max - d->min), d->min, d->max);
     *vp = (int16_t)v;
+    if (pg->scope == SC_TRACK && (id == P_ROOT || id == P_SCALE) && !is_drum(TSEL)) {
+        uint32_t i;                                       /* (wave 9) ARP > KEY: the song's key and scale, every synth voice's
+                                                         * (as the KEY layer, hold SEL, set them: its job now) */
+        for (i = 0; i < NPART; i++)
+            trk[i].p[id] = (int16_t)v;
+    }
     if (pg->scope != SC_GLOBAL)
         ml_knob(TSEL, id);                                /* MIDI LEARN: this parameter (2.6) */
     if (!v)
@@ -622,6 +628,7 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
     static uint8_t down[LY_COUNT], used[LY_COUNT], shown;   /* shown: a bit a layer, shown in this hold (no tap then) */
     static uint32_t t0[LY_COUNT];
     uint32_t l, now = fm1_ms, held = LY_PLAY, eat = 0;
+    ly_eat &= fm1_in.buttons;                             /* (a press the menu took: eaten only while it is still down) */
     if (ly_lock != LY_PLAY) {
         uint32_t keep = 1u << panel.btn[B_PLAY] | 1u << panel.btn[B_REC] | 1u << panel.btn[B_OCTDN] | 1u << panel.btn[B_OCTUP];
         eat = *pressed & ~keep;

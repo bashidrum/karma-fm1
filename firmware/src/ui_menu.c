@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* SLOOP menu (HOME held), in sections as the pages are (2.4): SCREEN (COLOR, ZOOM), LIGHTS (LIGHTS, KEYS, NOTES),
- * AUDIO (LOWCUT, USB AUDIO, USB SERIAL), SYSTEM (HARDWARE CALIBRATION, LEARN CLEAR (2.6), ABOUT). SELECT goes to the section
+ * AUDIO (LOWCUT, USB AUDIO, USB SERIAL), SYSTEM (HARDWARE CALIBRATION, LEARN CLEAR (2.6), ABOUT). (wave 9: SEL, the PAGE button, goes to the next section; GLO to GLOBAL) goes to the section
  * before / after (stopping at the ends), KNOB 1..3 set the section's settings in order (the knob's colour marks
- * its row), PRESETS moves the cursor; OCT+ steps the cursor's setting round or opens it (CALIBRATION, ABOUT),
+ * its row; wave 9: SEL, the PAGE button, the next section, GLO the next category GLOBAL), PRESETS moves the cursor; OCT+ steps the cursor's setting round or opens it (CALIBRATION, ABOUT),
  * OCT- closes (from ABOUT: back to the section). */
 /* ------------------------------------------------------------ menu --- */
 enum { MI_COLOR, MI_ZOOM, MI_LIGHTS, MI_KEYS, MI_NOTES, MI_LOWCUT, MI_USB, MI_SERIAL, MI_PANEL, MI_LCLEAR, MI_ABOUT,
@@ -145,8 +145,8 @@ static void draw_menu(void)
                 if ((i == MI_SERIAL && usb_serial != usb_cdc_now()) || (i == MI_USB && usb_stems_set != USB_STEMS_NOW))
                     cv_text(xv + 8, y + 30, &FONT_S, "RESTART", C_AMB);   /* (usb.c: at the next start) */
             }
-            cv_text(4, MI_Y0 + 3 * MI_DY + 6, &FONT_S, "SELECT SECTION  KNOB SETS", C_DIM);
-            cv_text(4, MI_Y0 + 3 * MI_DY + 22, &FONT_S, "OCT+ OK   OCT- CLOSE", C_DIM);   /* (rows .. 218) */
+            cv_text(4, MI_Y0 + 3 * MI_DY + 6, &FONT_S, "SEL: SECTION  GLO: GLOBAL", C_DIM);
+            cv_text(4, MI_Y0 + 3 * MI_DY + 22, &FONT_S, "KNOBS SET  OCT+ OK  OCT- CLOSE", C_DIM);   /* (rows .. 218) */
         }
         cv_oy = 0;
         cv_blit(0, H_HEAD + 1 + pass * 124u);
@@ -251,15 +251,7 @@ static void menu_input(uint32_t pressed)
         enc_drop();
         return;
     }
-    if ((s = panel_enc(EN_SELECT)) != 0) {             /* the section before / after (stops at the ends) */
-        int32_t to = clamp((int32_t)sec + (s > 0 ? 1 : -1), 0, MS_COUNT - 1);
-        if ((uint32_t)to != sec) {
-            ui.menu_sel = MS_FIRST[to];
-            ui.force = 1;
-        }
-        enc_drop();
-        return;
-    }
+    (void)panel_enc(EN_SELECT);                        /* (wave 9: the sections are SEL's, the PAGE button) */
     if ((s = panel_enc(EN_PRESET)) != 0)               /* the cursor, round the section's rows */
         ui.menu_sel = (uint8_t)(MS_FIRST[sec] + (sel - MS_FIRST[sec] + (s > 0 ? 1u : n - 1u)) % n);
     for (k = 0; k < 4u; k++)

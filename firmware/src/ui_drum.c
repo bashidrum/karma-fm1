@@ -76,6 +76,8 @@ static void drum_screen_open(void)                      /* the drum screen (from
 {
     if (!on_drum_page() || song.sel != TRK_DRUM)
         studio_open(SC_DRUM);
+    if (stl_view)                                       /* (wave 9: left by a page button: its held steps let go too) */
+        stl_held = stl_pend = stl_fresh = 0;
     stl_view = 0;
 }
 /* ---- the values */

@@ -561,8 +561,9 @@ enum { CT_NONE, CT_OSC, CT_FILT, CT_AMP, CT_FENV, CT_LFO1, CT_LFO2, CT_MATRIX, C
 enum { V_TYPE = 0xF0, V_M1, V_M2, V_M3, V_M4, V_M5,
        /* (wave 5) an FX slot's TIME INTENS AMOUNT (as its TYPE means them: xs_knob_id); LFO 2's SYNC and TRIG (mxt_t); the
         * matrix page's SOURCE DEST AMOUNT and its fourth knob (CLEAR, or on an assignable column TARGET) */
-       V_XA, V_XB, V_XC, V_L2SYNC, V_L2TRIG, V_MSRC, V_MDST, V_MAMT, V_MK4,
-       V_LEARN /* (wave 9) GLO > MIDI 3: MIDI LEARN on / off (it was GLO + F#3) */ };
+       V_XA, V_XB, V_XC, V_L2SYNC, V_L2TRIG, V_MSRC, V_MDST, V_MAMT, V_MK4 };
+#define V_LEARN 0xEEu          /* (wave 9) GLO > MIDI 3: MIDI LEARN on / off (it was GLO + F#3); 0xFF is an empty knob */
+_Static_assert(P_COUNT < V_LEARN && G_COUNT < V_LEARN, "V_LEARN above every parameter");
 _Static_assert(P_COUNT <= V_TYPE, "the virtual knob ids above every parameter");
 
 static const page_t PAGES[] = {

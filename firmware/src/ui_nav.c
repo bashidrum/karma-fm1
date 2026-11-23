@@ -149,6 +149,8 @@ static void nav_go(uint32_t c, uint32_t k)
     case CT_PATT:
         if (!on_drum_page() || stl_shown()) {
             studio_open(SC_DRUM);
+            if (stl_view)
+                stl_held = stl_pend = stl_fresh = 0;
             stl_view = 0;
         }
         if (drum)
