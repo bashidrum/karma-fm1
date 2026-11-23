@@ -3813,8 +3813,8 @@ int main(int argc, char **argv)
             go_home(); frames(2);
         }
         {   /* the confirm is SAVE's everywhere: TOOLS NEW asks HOLD SAVE */
-            tap(B_SAVE); tap(B_SAVE); tap(B_SAVE); frames(2);
-            check(cur_page()->cat == CT_TOOLS, "w10: SAVE three times: TOOLS");
+            tap(B_SAVE); tap(B_SAVE); tap(B_SAVE); tap(B_SAVE); frames(2);
+            check(cur_page()->cat == CT_TOOLS, "w10: SAVE four times (wave 11: PATTERNS before it): TOOLS");
             encs[panel.enc[EN_K4]] = 1; frame();
             check(ui.ask == ASK_GO && !strncmp(ui.msg, "HOLD SAVE: NEW", 14), "w10: TOOLS NEW asks HOLD SAVE: NEW");
             tap(B_SAVE); frames(2);
@@ -4353,6 +4353,27 @@ int main(int argc, char **argv)
     check(TE_COL[0] == RGB(140, 118, 240) && TE_COL[1] == RGB(40, 160, 245) && TE_COL[2] == RGB(255, 128, 108) &&
           TE_DRUM == RGB(20, 196, 170) && TE_DRUM == TE_COL[TRK_DRUM],
           "w11: the colour code (Ben, 11:33): voice 1 purple, 2 blue, 3 coral, the drums teal (one place: TE_COL)");
+    {   /* ---- wave 11 (D1): storing a pattern has a home under SAVE: SAVE > PATTERN (the hold stays its shortcut) */
+        uint32_t s0, j;
+        song.sel = 0; go_home(); frames(4);
+        for (j = 0; j < 6u && cur_cat() != CT_SPATT; j++) tap(B_SAVE);
+        check(cur_cat() == CT_SPATT && j == 3u, "w11: SAVE pressed three times: PRESETS, USER, PATTERN");
+        encs[panel.enc[EN_K1]] = 2; frames(3);
+        check(spatt_sel == 2u, "w11: SAVE > PATTERN: KNOB 1 picks the pattern (C)");
+        ui.force = 1; frame(); ppm("w11-save-pattern");
+        s0 = sec_stores;
+        encs[panel.enc[EN_K2]] = 1; frames(3);
+        check(sec_stores == s0 + 1u && live_sec == 2, "w11: SAVE > PATTERN: KNOB 2 STORE into an empty pattern: stored at once (as SAVE + key 3)");
+        encs[panel.enc[EN_K1]] = -5; frames(3);
+        encs[panel.enc[EN_K2]] = 1; frames(3);
+        check(ui.ask == ASK_STORE && sec_stores == s0 + 1u && strstr(ui.msg, "STORE A") != 0,
+              "w11: SAVE > PATTERN: STORE over a stored pattern (A) asks: HOLD SAVE: STORE A");
+        ui.force = 1; frame(); ppm("w11-save-pattern-ask");
+        press(B_SAVE); frames(HOLD_CLEAR_MS / 16u + 6u); release(B_SAVE); frames(3);
+        check(sec_stores == s0 + 2u && live_sec == 0, "w11: ... SAVE held until the ring fills: stored");
+        check(pm_shown_m && !strcmp(pm_shown_m, "PATT"), "w11: SAVE > PATTERN: -/+ the pattern before / after");
+        go_home(); frames(4);
+    }
     {   /* ---- wave 11: the confirm, the black keys and the strip, the DISCO setting */
         uint32_t c, ok, f, i;
         static uint8_t snap[3][FM1_NCOL];

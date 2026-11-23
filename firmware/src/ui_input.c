@@ -359,6 +359,14 @@ static void edit_param_pg(const page_t *pg, uint32_t slot, int32_t steps)   /* (
         }
         return;
     }
+    if (pg->graph == GR_SPATT) {                          /* (wave 11) KNOB 1 the pattern; KNOB 2 STORE: right stores (over a
+                                                         * stored one it asks: hold SAVE), as hold SAVE + key 1..4 */
+        if (slot == 0u)
+            spatt_sel = (uint8_t)clamp((int32_t)spatt_sel + steps, 0, 3);
+        else if (slot == 1u && steps > 0)
+            patt_store(spatt_sel);
+        return;
+    }
     if (pg->graph == GR_USER) {                           /* KNOB 1 slot; LOAD / ERASE / SAVE: GO buttons */
         static const char *const UP_GO[3] = {"LOAD", "ERASE", "SAVE"};
         if (slot == 0u) {
@@ -1024,6 +1032,10 @@ static void pm_page_tap(uint32_t up)
             pm_edit(0, d);
         return;
     }
+    if (pg->graph == GR_SPATT) {                        /* (wave 11) the pattern before, after */
+        pm_edit(0, d);
+        return;
+    }
     if (pm_touch == 0xFFu || pm_touch_pg != ui.page)
         return;
     if (pm_touch == 4u) {
@@ -1091,6 +1103,10 @@ static void pm_words(const char **m, const char **p)
     if (pg->graph == GR_BROWSE || pg->graph == GR_USER) {
         if (!is_drum(TSEL))
             *m = *p = pg->graph == GR_BROWSE ? "SOUND" : "SLOT";
+        return;
+    }
+    if (pg->graph == GR_SPATT) {
+        *m = *p = "PATT";
         return;
     }
     if (pm_touch == 0xFFu || pm_touch_pg != ui.page)

@@ -19,7 +19,7 @@ static const uint8_t NAV_SYN[NB][5] = {
     [B_SEQ] = {CT_TRIG, CT_PATT, CT_PATTS},             /* (wave 10, Ben: "in charge of patterns") */
     [B_ARP] = {CT_ARP, CT_KEY},                         /* (Ben: key, scale and chord "Under ARP") */
     [B_GLO] = {CT_GLOBAL, CT_SYSTEM, CT_MIDI, CT_DEVICE},
-    [B_SAVE] = {CT_PRESETS, CT_USER, CT_TOOLS},
+    [B_SAVE] = {CT_PRESETS, CT_USER, CT_SPATT, CT_TOOLS},
     [B_HOME] = {CT_HOME, CT_SAVER},
 };
 static const uint8_t NAV_DRUM[NB][6] = {               /* the drum voice, parallel (the Rytm's SRC FLTR AMP LFO, its FX track) */
@@ -30,7 +30,7 @@ static const uint8_t NAV_DRUM[NB][6] = {               /* the drum voice, parall
     [B_SEQ] = {CT_TRIG, CT_PATT, CT_PATTS},             /* (wave 10, Ben: "in charge of patterns") */
     [B_ARP] = {CT_CHROM},
     [B_GLO] = {CT_GLOBAL, CT_SYSTEM, CT_MIDI, CT_DEVICE},
-    [B_SAVE] = {CT_PRESETS, CT_USER, CT_TOOLS},
+    [B_SAVE] = {CT_PRESETS, CT_USER, CT_SPATT, CT_TOOLS},
     [B_HOME] = {CT_HOME, CT_SAVER},
 };
 static const char *const CT_NAME[CT_N] = {
@@ -40,7 +40,7 @@ static const char *const CT_NAME[CT_N] = {
     [CT_KEY] = "KEY", [CT_GLOBAL] = "GLOBAL", [CT_SYSTEM] = "SYSTEM", [CT_MIDI] = "MIDI", [CT_PRESETS] = "PRESETS",
     [CT_USER] = "USER", [CT_TOOLS] = "TOOLS", [CT_HOME] = "HOME", [CT_TRIG] = "TRIG", [CT_PATT] = "PATTERN", [CT_PATTS] = "A-D", [CT_SRC] = "SRC",
     [CT_FLTR] = "FLTR", [CT_DAMP] = "AMP", [CT_DLFO] = "LFO", [CT_CHROM] = "CHROM", [CT_DEVICE] = "DEVICE",
-    [CT_SAVER] = "SAVER",
+    [CT_SAVER] = "SAVER", [CT_SPATT] = "PATT",
 };
 /* the drum screen's FX tab: where each category starts among its halves (ui_drum.c dbus_page: FILTER, INSERT, INSERT 2,
  * SENDS, SLICER, then the whole mix's DELAY, REV/CHO, MASTER) */
