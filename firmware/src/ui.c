@@ -763,7 +763,6 @@ static void track_select(uint32_t i)
  * set to it, and stays until something else is learned on it or HOME > SYSTEM > LEARN CLEAR. Then turn the next knob.
  * One CC sets one parameter, a parameter has one CC: learning one again replaces both. The settings keep the map */
 static struct { uint8_t on, pick, trk, id; } mlu;
-static int mlu_on(void) { return mlu.on; }
 static uint32_t ml_code(uint32_t id) { return id >= P_E0 && id <= P_E7 ? ML_E0 + id - P_E0 : id + 1u; }
 static void ml_put(uint32_t i, uint32_t e)       /* (the ISR reads the entry: never half of one) */
 {
@@ -806,6 +805,7 @@ static int ml_clear_all(void)                    /* HOME > SYSTEM > LEARN CLEAR;
 static void ml_toggle(void)                      /* GLO + F#3 */
 {
     mlu.on = (uint8_t)!mlu.on;
+    learn_shown = mlu.on;
     mlu.pick = 0;
     ml_arm = 0;
     ml_heard = 0;

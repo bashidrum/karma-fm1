@@ -686,7 +686,7 @@ static uint32_t pg_id(const page_t *pg, uint32_t k)
     }
     return id;
 }
-static int mlu_on(void);                               /* (ui.c: MIDI LEARN is on) */
+static uint8_t learn_shown;                             /* (wave 9: MIDI LEARN on, for GLO > MIDI 3: ui.c ml_toggle sets it) */
 static const param_desc_t VTYPE_DESC = {"TYPE", F_INT, 0, NVTYPE - 1u, 0, 0, 0};   /* (formatted by vtype_fmt) */
 static int16_t vtype_shown;                            /* (TYPE's value, as page_desc hands it out: vtype_of) */
 static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **valp)
@@ -700,7 +700,7 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
     if (id == V_LEARN) {                                  /* (wave 9) MIDI LEARN on / off (ui.c mlu, not saved) */
         static const char *const OO[] = {"OFF", "ON"};
         static const param_desc_t L = PE("LEARN", OO, 0);
-        vtype_shown = (int16_t)(mlu_on() != 0);
+        vtype_shown = (int16_t)(learn_shown != 0);
         *valp = &vtype_shown;
         return &L;
     }
