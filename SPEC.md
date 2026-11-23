@@ -428,3 +428,19 @@ Applied as: each key still mutes the same drum sound as before; the mixer draws 
 Cymbals near the top. Toms on the second row. Kick in the bottom left with snares in the right hand corner and hi hats in the top left corner."
 
 By picker, 21:15: the first sketch (HAT, OP HAT, CRASH, RIDE / LO TOM, HI TOM, CONGA, C-BELL / PEDAL, SHAKER, RIM, CLAP / KICK, KICK 2, SNARE 2, SNARE) was "Close, I'll describe changes" (his changes awaited). Keys within a column run "Top to bottom". Use it "Everywhere the 16 are drawn".
+
+### 23 Nov 2026, 21:14: the drum grid, as Ben typed it
+
+"Col 1	Col 2	Col 3	Col 4
+HAT	OP HAT	RIDE CRASH
+PEDAL	CONGA	C-BELL SHAKER
+KICK 2 LO TOM	HI TOM CLAP
+KICK RIM SNARE 2	SNARE"
+
+Read as four rows, top to bottom:
+HAT, OP HAT, RIDE, CRASH
+PEDAL, CONGA, C-BELL, SHAKER
+KICK 2, LO TOM, HI TOM, CLAP
+KICK, RIM, SNARE 2, SNARE
+
+With keys running top to bottom in each column: keys 1 to 4 are HAT, PEDAL, KICK 2, KICK; keys 5 to 8 OP HAT, CONGA, LO TOM, RIM; keys 9 to 12 RIDE, C-BELL, HI TOM, SNARE 2; keys 13 to 16 CRASH, SHAKER, CLAP, SNARE.
