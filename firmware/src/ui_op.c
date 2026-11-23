@@ -1309,16 +1309,9 @@ static int32_t hz_badge(int32_t x, int32_t y, uint32_t muted, uint32_t solo, uin
     }
     return x;
 }
-static void home_kit_name(char *nm)                     /* (12) the kit's name, a * when the project's copy plays */
+static void home_kit_name(char *nm)                     /* (wave 12) the kit's name; CUSTOM once a slot differs from it */
 {
-    uint32_t kit = drum_kit();
-    str_cpy(nm, DRUM_KIT_NAMES[kit], 10);
-    if (kit >= DRUM_SYN) {
-        memcpy(nm, dsu_kit(kit - DRUM_SYN)->name, 8);
-        nm[8] = 0;
-    }
-    if (pkit_on())
-        str_cpy(nm + str_len(nm), "*", 2);
+    drum_kit_name(nm, 11);
 }
 static void op_home_body(void)
 {

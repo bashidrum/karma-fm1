@@ -12,7 +12,7 @@ static uint32_t one_hit(uint32_t kit, uint32_t note, int32_t *peak, uint64_t *en
     uint32_t j, k, blocks = 0;
     int32_t l[CTL], r[CTL], rv[CTL];
     memset(&drums, 0, sizeof drums);
-    TDRUM->p[P_E0] = (int16_t)kit;
+    kit_set((uint32_t)((int16_t)kit));
     song.g[G_DRLVL] = 100;
     drum_on(note, 110);
     *peak = 0;
@@ -63,7 +63,7 @@ int main(int argc, char **argv)
         for (k = 0; k < 2u; k++) {
             uint32_t rep_n = 2000;
             memset(&drums, 0, sizeof drums);
-            TDRUM->p[P_E0] = (int16_t)(k ? DRUM_SAMPLED + 1u : 0u);
+            kit_set((uint32_t)((int16_t)(k ? DRUM_SAMPLED + 1u : 0u)));
             clock_gettime(CLOCK_MONOTONIC, &t0);
             for (j = 0; j < rep_n; j++) {
                 if (j % 100u == 0u) {
@@ -87,7 +87,7 @@ int main(int argc, char **argv)
         wav_hdr(f, total / CTL * CTL);
         memset(&drums, 0, sizeof drums);
         for (kit = DRUM_SAMPLED; kit < DRUM_USR; kit++) {
-            TDRUM->p[P_E0] = (int16_t)kit;
+            kit_set((uint32_t)((int16_t)kit));
             for (j = 0; j < 16u; j++) {
                 uint32_t q, s;
                 for (q = 0; q < 3u && P[j][q]; q++) drum_on(P[j][q], q ? 90 : 115);

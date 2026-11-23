@@ -101,6 +101,12 @@ static void host_tracks_init(void)                /* as felucca_init: defaults, 
     memset(eng_arena_own, 0, sizeof eng_arena_own);   /* (the engines' state: as at power-on, not the last test's) */
 }
 
+/* (wave 12) the drum kit a test plays: kit k's 16 sounds into the project's 16 slots (as PRESETS loads a whole kit) */
+static void kit_set(uint32_t k)
+{
+    pkit_load_kit(k);
+    TDRUM->p[P_E0] = (int16_t)k;
+}
 /* the factory preset as ui.c apply_preset_to sets it (sound, sends, arp; not the pattern, not the mix);
  * the engine as the UI asks for it (eng_req: the audio side switches; host_preset: at once) */
 static void host_preset_req(track_t *t, uint32_t e, uint32_t pi)

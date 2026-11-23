@@ -529,7 +529,7 @@ static int32_t fam_stage(uint32_t fam)             /* the chain's stage of a fam
 }
 enum { SC_TRACK, SC_GLOBAL, SC_ENGINE, SC_STEP, SC_TRK, SC_DRUM };
 enum { GR_NONE, GR_ADSR, GR_LFO, GR_STEPS, GR_ARP, GR_SCALE, GR_FX, GR_BROWSE, GR_SLOTS, GR_USER, GR_TRK,
-       GR_SLCR, GR_INS, GR_HEX, GR_XSLOT, GR_LFO2, GR_MATRIX, GR_SENDS, GR_SPATT };
+       GR_SLCR, GR_INS, GR_HEX, GR_XSLOT, GR_LFO2, GR_MATRIX, GR_SENDS, GR_SPATT, GR_UKIT };
 
 typedef struct {
     const char *title;
@@ -552,7 +552,7 @@ typedef struct {
 enum { CT_NONE, CT_OSC, CT_FILT, CT_AMP, CT_FENV, CT_LFO1, CT_LFO2, CT_MATRIX, CT_INS, CT_SENDS, CT_SLICER, CT_MIX,
        CT_DFILT, CT_DINS, CT_DSENDS, CT_DSLICER, CT_ARP, CT_KEY, CT_GLOBAL, CT_SYSTEM, CT_MIDI, CT_PRESETS, CT_USER,
        CT_TOOLS, CT_HOME, CT_GRID,
-       CT_TRIG, CT_PATT, CT_PATTS, CT_SRC, CT_FLTR, CT_DAMP, CT_DLFO, CT_CHROM, CT_DEVICE, CT_SAVER, CT_SPATT, CT_N };
+       CT_TRIG, CT_PATT, CT_PATTS, CT_SRC, CT_FLTR, CT_DAMP, CT_DLFO, CT_CHROM, CT_DEVICE, CT_SAVER, CT_SPATT, CT_KITS, CT_N };
 #define PG_ENG(e) ((uint8_t)((e) + 1u))
 #define PG_OTHER 0xFFu
 
@@ -627,6 +627,8 @@ static const page_t PAGES[] = {
     {"MASTER", FAM_MFX, SC_GLOBAL, GR_NONE, {G_DUST, G_DUCK, 0xFF, 0xFF}, SEL_NONE, CT_MIX},
     {"PRESETS", FAM_SAVE, SC_GLOBAL, GR_BROWSE, {0xFF, 0xFF, 0xFF, 0xFF}, SEL_NONE, CT_PRESETS},   /* browser: PRESETS knob / KNOB 1 */
     {"USER", FAM_SAVE, SC_GLOBAL, GR_USER, {0xFF, 0xFF, 0xFF, 0xFF}, SEL_NONE, CT_USER},       /* user presets: SLOT LOAD ERASE SAVE */
+    /* (wave 12) the user kits, whole drum kits of 16 sounds: KIT LOAD ERASE SAVE (ui_kit.c) */
+    {"KITS", FAM_SAVE, SC_GLOBAL, GR_UKIT, {0xFF, 0xFF, 0xFF, 0xFF}, SEL_NONE, CT_KITS},
     /* (wave 11) storing a pattern a home of its own (it was hold SAVE + key 1..4 only, the shortcut it stays): KNOB 1 the
      * pattern A..D, KNOB 2 STORE (a GO: right stores, over a stored one it asks: hold SAVE) */
     {"PATTERNS", FAM_SAVE, SC_GLOBAL, GR_SPATT, {0xFF, 0xFF, 0xFF, 0xFF}, SEL_NONE, CT_SPATT},
@@ -645,7 +647,7 @@ static const page_t PAGES[] = {
 static int page_for_drum(const page_t *pg)
 {
     if (pg->scope == SC_GLOBAL)
-        return pg->graph != GR_BROWSE && pg->graph != GR_USER;   /* (wave 11: SAVE > PATTERN: the drums' too) */
+        return pg->graph != GR_USER;                /* (wave 11: SAVE > PATTERN: the drums' too; wave 12: PRESETS, their kits) */
     if (pg->eng)                                    /* (a synth engine's own page) */
         return 0;
     return pg->scope != SC_ENGINE && (pg->scope != SC_TRACK || pg->fam == FAM_DRM || pg->graph == GR_SLCR);   /* (wave 8: its

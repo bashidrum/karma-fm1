@@ -235,7 +235,6 @@ static void tracks_edit(uint32_t slot, int32_t steps)
 static void project_new(void)
 {
     uint32_t i;
-    memset(drum_send, 0, sizeof drum_send);             /* (every drum sound dry again) */
     memset(&stl, 0, sizeof stl);                        /* (PHEBUS) the STUTTER lane empty, ON, 16 steps */
     stl.len = 16, stl.act = 1;
     transport_req = 2;
@@ -256,10 +255,7 @@ static void project_new(void)
         fm1_irq_on();
     }
     TDRUM->p[P_E0] = DRUM_DEFAULT_KIT;
-    fm1_irq_off();
-    memset(&pkit, 0, sizeof pkit);                      /* (PHEBUS wave 3) no kit of its own: the built-in 606 */
-    pkit_gen++;
-    fm1_irq_on();
+    pkit_load_kit(DRUM_DEFAULT_KIT);                    /* (wave 12) the kit: the 606's 16 sounds, every one dry */
     drum_mute = 0;                                      /* (2.6: the live mutes) */
     drum_solo = 0;
     memset((void *)mac_env, 0, sizeof mac_env);         /* (wave 10) MASTER's macros: as stored */
@@ -340,8 +336,14 @@ static void edit_param_pg(const page_t *pg, uint32_t slot, int32_t steps)   /* (
         }
         return;
     }
+    if (pg->graph == GR_UKIT) {                           /* (wave 12) SAVE > KITS: KNOB 1 the kit; LOAD ERASE SAVE */
+        ukit_turn(slot, steps);
+        return;
+    }
     if (pg->graph == GR_BROWSE) {                         /* KNOB 1: one preset, KNOB 2: the next / previous engine */
-        if (slot == 0u && !is_drum(TSEL)) {
+        if (slot == 0u && is_drum(TSEL)) {                /* (wave 12) the drums: the whole kit */
+            kit_browse(steps);
+        } else if (slot == 0u && !is_drum(TSEL)) {
             uint32_t total, cur = preset_pos(&total);
             if (total)
                 preset_go((uint32_t)(((int32_t)cur + steps % (int32_t)total + (int32_t)total) % (int32_t)total));
@@ -454,12 +456,13 @@ static void go_do(uint32_t id)
  * to hit: it replaced "turn again within 1.5 s" (GO, USER, the kit), "the key again within 3 s" (SAVE + 5..8) and "KNOB 3
  * twice" (the lane's pads) */
 static void stl_pads_clear(void);                         /* (ui_stut.c) */
-static void kit_replace(void);                            /* (ui_drum.c) */
 static void ask_set(uint32_t kind, uint32_t arg, const char *what)
 {
     ui.ask = (uint8_t)kind;
     ui.ask_arg = (uint8_t)arg;
     ask_keeps = (uint8_t)(kind == ASK_UP && (arg & 3u) == 2u && !up_used(arg >> 2));   /* (SAVE into an empty slot) */
+    if (kind == ASK_KIT || kind == ASK_UKIT)            /* (wave 12: the readout gives way to the question) */
+        brw_t = 0;
     ui_say("HOLD SAVE: ", what);
 }
 /* (wave 10, Ben: "Holding - and edit should clear the whole voice") the voice cleared, its question confirmed: its pattern
@@ -499,8 +502,11 @@ static void ask_do(void)
     case ASK_UP:
         up_ui(a & 3u, a >> 2);
         break;
-    case ASK_KIT:
-        kit_replace();
+    case ASK_KIT:                                         /* (wave 12) a whole kit over a changed one */
+        kit_ask_do(a);
+        break;
+    case ASK_UKIT:                                        /* (wave 12) SAVE > KITS: LOAD, ERASE, SAVE over */
+        ukit_do(a & 3u, a >> 2);
         break;
     case ASK_PADS:
         stl_pads_clear();
@@ -1027,8 +1033,8 @@ static void pm_page_tap(uint32_t up)
     const param_desc_t *dd;
     if (ui.home || vis_shown() || pg->scope == SC_TRK || (is_drum(TSEL) && !page_for_drum(pg)))
         return;
-    if (pg->graph == GR_BROWSE || pg->graph == GR_USER) {   /* the preset / the slot before, after */
-        if (!is_drum(TSEL))
+    if (pg->graph == GR_BROWSE || pg->graph == GR_USER || pg->graph == GR_UKIT) {   /* the preset / the slot before, after */
+        if (!is_drum(TSEL) || pg->graph != GR_USER)
             pm_edit(0, d);
         return;
     }
@@ -1100,8 +1106,10 @@ static void pm_words(const char **m, const char **p)
     pg = cur_page();
     if (ui.home || vis_shown() || pg->scope == SC_TRK || (is_drum(TSEL) && !page_for_drum(pg)))
         return;
-    if (pg->graph == GR_BROWSE || pg->graph == GR_USER) {
-        if (!is_drum(TSEL))
+    if (pg->graph == GR_BROWSE || pg->graph == GR_USER || pg->graph == GR_UKIT) {
+        if (pg->graph == GR_UKIT || (is_drum(TSEL) && pg->graph == GR_BROWSE))
+            *m = *p = "KIT";
+        else if (!is_drum(TSEL))
             *m = *p = pg->graph == GR_BROWSE ? "SOUND" : "SLOT";
         return;
     }
@@ -1127,6 +1135,7 @@ static void pm_words(const char **m, const char **p)
 
 static void ui_input(void)
 {
+    kit_ui_tick();                                      /* (wave 12) the PRESETS readout's time; an old kit kept */
     uint32_t pressed = fm1_input_edges(0), notes = fm1_input_note_edges(), now = fm1_ticks(), id, b, k;
     uint32_t home = btn_hold(&ui.home_t0, B_HOME, now, 0);   /* (wave 10: held, nothing: the menu is GLO's DEVICE only) */
     int32_t s;
@@ -1260,7 +1269,7 @@ static void ui_input(void)
          * being edited. Every detent counts */
         uint32_t total, cur = preset_pos(&total);
         if (is_drum(TSEL))
-            TDRUM->p[P_E0] = drum_kit_step(TDRUM->p[P_E0], s);
+            kit_browse(s);                              /* (wave 12, Ben: "Kits on HOME") the whole kit */
         else if (total)
             preset_go((uint32_t)(((int32_t)cur + s % (int32_t)total + (int32_t)total) % (int32_t)total));
     }

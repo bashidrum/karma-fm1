@@ -43,7 +43,7 @@ static void song_setup(void)
     song.g[G_BPM] = BPM;
     song.master_q12 = 2048;
     memset(&drums, 0, sizeof drums);
-    TDRUM->p[P_E0] = 0;                               /* the sampled kit: no random noise */
+    kit_set((uint32_t)(0));                               /* the sampled kit: no random noise */
     for (j = 0; j < 16u; j++) {
         static const uint8_t KICK[1] = {36}, KS[2] = {36, 38}, HAT[1] = {42};
         if (j % 4u == 0u) put_step(TDRUM, j, j % 8u == 4u ? 2u : 1u, j % 8u == 4u ? KS : KICK, ST_NOTE, 0);
@@ -559,7 +559,7 @@ static void lane_golden(void)
         host_tracks_init();
         song.g[G_BPM] = 120;
         song.master_q12 = 2048;
-        TDRUM->p[P_E0] = DRUM_DEFAULT_KIT;
+        kit_set((uint32_t)(DRUM_DEFAULT_KIT));
         for (j = 0; j < 16u; j++) {
             static const uint8_t KICK[1] = {36}, KS[2] = {36, 38}, HAT[1] = {42};
             if (j % 4u == 0u) put_step(TDRUM, j, j % 8u == 4u ? 2u : 1u, j % 8u == 4u ? KS : KICK, ST_NOTE, 0);

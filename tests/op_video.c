@@ -67,10 +67,10 @@ int main(int argc, char **argv)
     for (k = 0; k < ENGINES[0]->npresets; k++)
         if (!strcmp(ENGINES[0]->presets[k].name, "808 SLIDE"))
             apply_preset_to(&trk[0], k);
-    TDRUM->p[P_E0] = DRUM_DEFAULT_KIT;
+    kit_set((uint32_t)(DRUM_DEFAULT_KIT));
     for (k = 0; k < DRUM_KITS; k++)
         if (!strcmp(DRUM_KIT_NAMES[k], "80S"))
-            TDRUM->p[P_E0] = (int16_t)k;
+            kit_set((uint32_t)((int16_t)k));
     song.g[G_BPM] = 122;
     song.g[G_DRREV] = 0;
     trk[0].p[P_SLEN] = 21;

@@ -28,7 +28,7 @@ static void cost(void)
     for (kit = 0; kit < 5u; kit++) {
         uint64_t i0, t0, n = 0;
         memset(&drums, 0, sizeof drums);
-        TDRUM->p[P_E0] = (int16_t)kit;
+        kit_set((uint32_t)((int16_t)kit));
         i0 = instr_now();
         t0 = now_ns();
         for (b = 0; b < FS * 10u / CTL; b++) {
@@ -100,7 +100,7 @@ int main(int argc, char **argv)
     wav_hdr(out, 0);
     memset(&drums, 0, sizeof drums);
     for (kit = 0; kit < 5u; kit++) {
-        TDRUM->p[P_E0] = (int16_t)kit;
+        kit_set((uint32_t)((int16_t)kit));
         for (j = 0; j < 16u; j++) {
             drum_on(LANE_NOTE_[j], 110);
             run(FS * 2u / 5u / CTL * CTL);

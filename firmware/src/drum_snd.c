@@ -82,6 +82,8 @@ typedef struct {                             /* the project's kit (592 bytes, in
 _Static_assert(sizeof(dslot_t) == 36u && sizeof(pkit_t) == 592u, "the kit: 16 slots of 36 bytes, 592 with its head");
 static pkit_t pkit;
 static volatile uint8_t pkit_gen;            /* (bumped at each edit: the screen, the unsaved dot) */
+static uint8_t pkit_old_kept;                /* (project.c, the UI says it once) an old project's copy of a kit that did not play:
+                                              * 0 none, 1 + n kept as MY KIT n + 1, 0xFF no room (lost) */
 
 static uint32_t kit_model(uint32_t k) { return k >= DRUM_SAMPLED && k < DRUM_USR ? DM_SYN : DM_HEX; }
 static uint32_t sl_mach(uint32_t l) { return pkit.s[l & 15u].mach & 1u; }
@@ -192,6 +194,8 @@ static void slot_init(dslot_t *d, uint32_t mach, uint32_t l)
 static void pkit_load_kit(uint32_t k)       /* the 16 slots made built-in (or MY HEX) kit k (IRQ off: the voices read it) */
 {
     uint32_t l;
+    if (k >= DRUM_KITS || drum_kit_none(k))
+        k = DRUM_DEFAULT_KIT;
     fm1_irq_off();
     memset(&pkit, 0, sizeof pkit);
     for (l = 0; l < DRUM_LANES; l++)

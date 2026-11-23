@@ -89,16 +89,13 @@ static int32_t lk_val(uint32_t id, uint32_t v)           /* a lock's byte as the
     return id == DSP_FINE || id == DSP_NOTE || id == DSP_LDEP || id == DSP_LFAD || id == DSP_S0 + DS_FENV ||
            id == DSP_S0 + DS_LEVEL ? (int32_t)(int8_t)v : (int32_t)v;
 }
-/* the knob of id turned s, nothing held: the selected sound's value. A built-in kit: its project copy made first (a copy
- * of another kit there: it asks, wave 8: hold REC until the ring fills replaces it). The sends are the sound's (not the
- * kit's) */
-static void kit_replace(void)                           /* (the question confirmed: ui_input.c ask_do) */
-{
-    if (pkit_on() || !pkit_other())
-        return;
-    pkit_make();
-    ui_message("YOUR COPY OF THE KIT");
-}
+/* the knob of id turned s, nothing held: the selected slot's value (wave 12: the project's own sound, edited directly; the
+ * sends are the slot's too) */
+static void slot_edited(uint32_t l);                    /* (ui_kit.c) */
+static void snd_browse(int32_t s);
+static int brw_draw(void);
+static uint8_t brw_t;
+static char brw_l1[28];
 static void drum_param_set(uint32_t id, int32_t v);
 static void drum_param_turn(uint32_t id, int32_t s, uint32_t role)
 {
@@ -108,29 +105,16 @@ static void drum_param_turn(uint32_t id, int32_t s, uint32_t role)
         return;
     drum_param_set(id, clamp(snd_val(l, id) + accel(role, s, d->max - d->min), d->min, d->max));
 }
-/* the selected sound's id set to v (in range): a send, or the kit's own copy (made on the first edit) */
+/* the selected slot's id set to v (in range) */
 static void drum_param_set(uint32_t id, int32_t v)
 {
     uint32_t l = drum_lane & 15u;
-    if (id == DSP_REV || id == DSP_DEL) {
-        drum_send[l][id - DSP_REV] = (uint8_t)v;
-        return;
-    }
-    if (!pkit_on()) {
-        if (pkit_other()) {
-            char b[20] = "REPLACE ";
-            str_cpy(b + 8, DRUM_KIT_NAMES[pkit.src % DRUM_KITS], 10);
-            str_cpy(b + str_len(b), "*", 2);
-            if (ui.ask != ASK_KIT)
-                ask_set(ASK_KIT, 0, b);                 /* (one kit's copy a project: the other one's edits would go) */
-            return;
-        }
-        pkit_make();                                    /* the project's own copy of this kit, then the edit in it */
-        ui_message("YOUR COPY OF THE KIT");
-    }
     fm1_irq_off();
-    dsp_put(pkit.model, pkit.snd[l], &pkit.lfo[l], id, v);
-    pkit_gen++;
+    if (id == DSP_REV || id == DSP_DEL)
+        sl_send_set(l, id - DSP_REV, (uint32_t)v);
+    else
+        dsp_put(sl_mach(l), pkit.s[l].snd, &pkit.s[l].lfo, id, v);
+    slot_edited(l);
     fm1_irq_on();
 }
 /* the trigs held (the selected sound's): the lock of id moved s (made at the sound's value first). All or none */
@@ -371,6 +355,7 @@ static void op_dials(const char *const lab[4], const char *const val[4], const i
     if (dial_tint)
         col = (uint16_t)(dial_tint[0] ^ dial_tint[1] * 3u ^ dial_tint[2] * 5u ^ dial_tint[3] * 7u);
     sig = studio_hash(sig + locked * 97u + dim * 7u + col * 131u + dial_mark * 40503u, ui.msg_t ? ui.msg : "");
+    sig = studio_hash(sig * 3u + (brw_t != 0u), brw_t ? brw_l1 : "");   /* (wave 12: the PRESETS readout) */
     for (k = 0; k < 4u; k++) {
         sig = studio_hash(sig * 7u + (uint32_t)ratio[k] + (ui.hot_t && ui.hot_col == k) * 5003u, lab[k]);
         sig = studio_hash(sig, val[k]);
@@ -383,6 +368,10 @@ static void op_dials(const char *const lab[4], const char *const val[4], const i
     if (ui.msg_t) {                                     /* a message: a white bar */
         cv_rect(0, 14, 240, 32, C_WHITE);
         cv_text((240 - text_w(&FONT_S, ui.msg)) / 2, 22, &FONT_S, ui.msg, C_BLACK);
+        cv_blit(0, dials_y);
+        return;
+    }
+    if (brw_draw()) {                                   /* (wave 12) PRESETS turning: what it browses, here on every screen */
         cv_blit(0, dials_y);
         return;
     }
@@ -437,18 +426,7 @@ static void drum_main_draw(void)
     int32_t first = sg_held ? sg_first() : -1;
     int chrom = drum_keys == DK_CHROM;
     char sub[28], info[32];
-    {   /* the header: DRUM, the kit (a * when the project's copy plays), CHROM in chromatic mode */
-        char nm[12];
-        uint32_t kit = drum_kit();
-        str_cpy(nm, DRUM_KIT_NAMES[kit], 10);
-        if (kit >= DRUM_SYN) {
-            memcpy(nm, dsu_kit(kit - DRUM_SYN)->name, 8);
-            nm[8] = 0;
-        }
-        if (pkit_on())
-            str_cpy(nm + str_len(nm), "*", 2);
-        op_header("DRUM", TE_DRUM, nm, &head);
-    }
+    op_header("DRUM", TE_DRUM, "", &head);              /* (the title place is SELECT's chip: the slot) */
     /* the name, what is held, the map */
     if (first >= 0) {
         uint32_t n = 0, w;
@@ -464,20 +442,17 @@ static void drum_main_draw(void)
     } else if (chrom) {
         str_cpy(sub, "CHROMATIC  OCT ", sizeof sub);
         fmt_int(sub + str_len(sub), drum_chr_oct);
-    } else {                                            /* (wave 9) the kit here: the header's title place is SELECT's */
-        uint32_t n = 0, kit = drum_kit();
-        str_cpy(sub, DRUM_KIT_NAMES[kit], 10);
-        if (kit >= DRUM_SYN) {
-            memcpy(sub, dsu_kit(kit - DRUM_SYN)->name, 8);
-            sub[8] = 0;
-        }
-        if (pkit_on())
-            str_cpy(sub + str_len(sub), "*", 2);
+    } else {                                            /* (wave 12) the slot's sound: its kit and its kind (808 SNARE) */
+        uint32_t n = 0;
+        slot_name(&pkit.s[l], sub, 19);
         str_cpy(sub + str_len(sub), "  ", 3);
         for (i = 0; i < len; i++)
             n += (uint32_t)dt_has(i, l);
         fmt_int(sub + str_len(sub), (int32_t)n);
         str_cpy(sub + str_len(sub), n == 1u ? " TRIG" : " TRIGS", 8);
+        if (text_w(&FONT_S, sub) > 146) {               /* (a long name: the count goes, the name stays) */
+            slot_name(&pkit.s[l], sub, 19);
+        }
     }
     sig = studio_hash(drum_map_sig() * 31u + l, sub) + ((drum_mute >> l) & 1u) * 7u + ((drum_solo >> l) & 1u) * 11u;
     if (ui.force || sig != sa) {
@@ -775,8 +750,8 @@ static void drum_grid_input(uint32_t pressed)
     }
     if ((s = panel_enc(EN_SELECT)) != 0)                /* (wave 9) SELECT: the sound (ui_sel.c) */
         sel_turn(s);
-    if ((s = panel_enc(EN_PRESET)) != 0 && !sg_held)
-        TDRUM->p[P_E0] = drum_kit_step(TDRUM->p[P_E0], s);
+    if ((s = panel_enc(EN_PRESET)) != 0 && !sg_held)   /* (wave 12, Ben: "sounds on the drum screen") the slot's sound */
+        snd_browse(s);
     if (sg_held)
         (void)panel_enc(EN_ALGO);
     for (k = 0; k < 4u; k++) {

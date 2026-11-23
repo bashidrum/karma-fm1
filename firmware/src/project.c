@@ -841,7 +841,6 @@ static uint32_t work_sum(uint32_t core_sum) { return core_sum ^ pkit_hash() * 0x
  * ext holds the 16 slots ("PKT2"). Anything older is converted to the 16 slots, the same sound exactly (drum_snd.c
  * pkit_from_old): the kit it played (its core's P_E0), each sound's sends (its dsend), and waves 3 to 11's edited copy where
  * it was of that kit. A copy of another kit (it did not play) is kept as a user kit, in the first free one (pkit_old_kept) */
-static uint8_t pkit_old_kept;                  /* (the UI says it once) 0 none, 1 + n: kept as MY KIT n + 1, 0xFF: no room, lost */
 static void proj_kit_take(const uint8_t *b, int n, const proj_core_t *q)
 {
     const pkit_t *x = (const pkit_t *)(b + sizeof(proj_core_t));

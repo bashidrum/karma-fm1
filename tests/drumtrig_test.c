@@ -51,7 +51,7 @@ static void reset(uint32_t kit)
     song.g[G_BPM] = 120;
     song.g[G_CLOCK] = 0;
     song.rec = 0;
-    TDRUM->p[P_E0] = (int16_t)kit;
+    kit_set((uint32_t)((int16_t)kit));
     TDRUM->p[P_SLEN] = 16;
     TDRUM->p[P_SDIV] = 2;                          /* 1/16 */
     drum_mute = 0;

@@ -26,7 +26,7 @@ static void block(void)
 static void reset(uint32_t kit)
 {
     memset(&drums, 0, sizeof drums);
-    TDRUM->p[P_E0] = (int16_t)kit;
+    kit_set((uint32_t)((int16_t)kit));
     song.g[G_DRLVL] = 100;
     song.g[G_DRREV] = song.g[G_DRDLY] = 0;
 }
@@ -38,8 +38,8 @@ static int32_t send_only_step(uint32_t kit)
     int32_t pd = 0, pdl = 0, worst = 0;
     reset(kit);
     for (l = 0; l < DRUM_LANES; l++) {
-        drum_send[l][0] = DRUM_SEND_REV;
-        drum_send[l][1] = DRUM_SEND_DLY;
+        sl_send_set(l, 0, DRUM_SEND_REV);
+        sl_send_set(l, 1, DRUM_SEND_DLY);
     }
     for (b = 0; b < 44100 * 4 / 32; b++) {
         if (b % 43u == 0)                            /* a kick every ~31 ms: each one cuts the last */
@@ -54,7 +54,7 @@ static int32_t send_only_step(uint32_t kit)
         }
     }
     for (l = 0; l < DRUM_LANES; l++)
-        drum_send[l][0] = drum_send[l][1] = 0;
+        sl_send_set(l, 0, 0), sl_send_set(l, 1, 0);
     return worst;
 }
 static double rms_hit(uint32_t kit, uint32_t note, uint32_t blocks)
