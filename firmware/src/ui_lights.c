@@ -35,6 +35,8 @@ static uint32_t black_keys(void);
 static int key_strip_on(void);
 static uint32_t keys_dead(void)
 {
+    if (kb_grid && stl_shown())                         /* (wave 13) the STUTTER lane: its black keys repeat (drawn) */
+        return 0u;
     return kb_grid || (is_drum(TSEL) && drum_keys != DK_CHROM) || (TSEL->p[P_CHORD] && !key_strip_on() && !is_drum(TSEL))
                ? black_keys() : 0u;
 }
@@ -199,7 +201,7 @@ static void ui_leds(void)
             ll_set(B_SAVE, quiet || ((fm1_ms / 250u) & 1u) ? LL_LIT : LL_GLOW, quiet ? LK_STATE : LK_MOTION);
         if (h == HC_LY0 + LY_FX) {                      /* PERFORM: a pad held lit, a latched one blinks (QUIET: lit) */
             uint32_t p;
-            for (p = 0; p < PF_NPAD; p++)
+            for (p = 0; p < PF_NKEY; p++)               /* (wave 13: the pads on keys; the lane's repeat is the lane's) */
                 if (((perf.held | perf.lat) >> p) & 1u)
                     ll_set(14u + punch_key_of_fx(p), (perf.held >> p) & 1u || quiet || blink ? LL_LIT : LL_GLOW, LK_STATE);
         }
@@ -236,6 +238,8 @@ static void ui_leds(void)
             ll_keys(a & b, LL_LIT, LK_STATE);
             ll_keys((a ^ b) & (blink ? b : a), LL_LIT, LK_MOTION);
             ll_keys(fm1_in.notes, LL_LIT, LK_STATE);
+            ll_keys(bk, LL_GLOW, LK_HINT);              /* (wave 13) its black keys: the repeats, drawn in the strip; the ones */
+            ll_keys(lane_keys_lit(), LL_LIT, LK_STATE); /* playing lit */
         } else if (kb_grid) {                           /* the steps; the play head blinks over them (MOTION) */
             const track_t *t = TSEL;
             uint32_t i, len = trk_len(t), b0 = sg_page() * 16u, ph = song.playing ? t->seq_idx : 0xFFFFu;

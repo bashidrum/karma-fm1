@@ -609,8 +609,8 @@ static void drum_on_(uint32_t note, uint32_t vel)
 {
     if (note != 76u && note != 77u)                 /* the pads and key LEDs (not the click's wood block) */
         drums.hits |= (uint16_t)(1u << lane_of_note(note));
-    if (note == 35u || note == 36u)
-        drums.kick = 1;                             /* (DUCK) */
+    if ((note == 35u || note == 36u) && !((perf_dmute >> lane_of_note(note)) & 1u))
+        drums.kick = 1;                             /* (DUCK; wave 13: not from a kick PERFORM mutes) */
     drum_synth_on(note, vel);
 }
 
@@ -646,11 +646,23 @@ static inline void drum_voice_sends(uint32_t k, int own_only, int32_t *rs, int32
  * METAL, GLITCH, ROOM, then 808, 909 (the rest: 1). The HEX kits' (2026-10-26, the LXR's voices): their grooves as
  * loud as the HEX kits' before (tests/hex_demo.c), each sound's LEVEL set by tools/level_hexkits.py */
 static const uint16_t DRUM_KIT_TRIM[7] = {160, 145, 96, 149, 183, 215, 256};
+/* (PHEBUS wave 13) PERFORM's drum mutes (punch.c perf_dmute): each slot's fade, Q15 (0 heard, 32767 silent), 8 blocks end to
+ * end as a track's mute (fx.c MUTE_STEP); a muted slot's voices go on ringing unheard, so it comes back exactly in place */
+static int16_t dm_att[DRUM_LANES];
 static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dly, int32_t *mono, uint32_t n)
 {
     uint32_t k, i;
     int32_t lvl = song.g[G_DRLVL] * 200, send, dsend, pk = drums.peak;
     int32_t kboost;
+    int16_t la0[DRUM_LANES], la1[DRUM_LANES];
+    uint32_t lmask = perf_dmute, lany = 0;
+    for (k = 0; k < DRUM_LANES; k++) {          /* (wave 13) the slots' fades this block */
+        int32_t a = dm_att[k], to = (lmask >> k) & 1u ? 32767 : 0;
+        la0[k] = (int16_t)a;
+        a = a < to ? (to - a > 4096 ? a + 4096 : to) : (a - to > 4096 ? a - 4096 : to);
+        la1[k] = dm_att[k] = (int16_t)a;
+        lany |= (uint32_t)(la0[k] | la1[k]);
+    }
     int32_t pan = trk[TRK_DRUM].p[P_PAN], gl = 4096 - (pan > 0 ? pan * 64 : 0), gr = 4096 + (pan < 0 ? pan * 64 : 0);
     if (drums.a0 >= 32767 && drums.a1 >= 32767 && !((perf_kill >> TRK_DRUM) & 1u)) {   /* (3.1.3) muted (or another track soloed) all this block: nothing
                                                        * is heard, so nothing is computed (measured on an FM-1: a muted
@@ -712,6 +724,14 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dl
         drum_lfo_tick(k, m);
         kboost = (int32_t)((DRUM_BOOST_Q8 * (drums.trim[k] < 7u ? DRUM_KIT_TRIM[drums.trim[k]] : 256u)) >> 8);   /* (wave 12: the
                                                          * slot's kit's trim, a voice each: a mixed kit as each sound was) */
+        {   /* (wave 13) a slot PERFORM mutes: its fade with the track's (else the track's alone, as before) */
+            uint32_t ln = drums.lane[k] % DRUM_LANES;
+            if (lany && (la0[ln] | la1[ln])) {
+                int32_t g0 = 32767 - la0[ln], g1 = 32767 - la1[ln];
+                for (i = 0; i < m; i++)                 /* (>> 2: no 32-bit overflow on a loud hit) */
+                    ds_buf[i] = ((ds_buf[i] >> 2) * (g0 + (((g1 - g0) * (int32_t)i) >> CTL_LOG2))) >> 13;
+            }
+        }
         for (i = 0; i < m; i++) {
             int32_t s = mulq15(ds_buf[i], mulq15(lvl, 32767 - drums.a0 - (((drums.a1 - drums.a0) * (int32_t)i) >> CTL_LOG2)));
             s = soft_knee((s * kboost) >> 8, DRUM_KNEE);   /* louder, the hits' tips rounded (2026-10-20) */

@@ -1163,6 +1163,13 @@ static void ui_input(void)
         perf.full = 0;
         ui_message("LANE FULL: 31 PADS");
     }
+    if (pev_drop_n) {                                   /* (wave 13) a lane of waves 6 to 12 loaded: its pads with no place now */
+        char b[28] = "LANE: ";
+        fmt_int(b + 6, pev_drop_n);
+        str_cpy(b + str_len(b), pev_drop_n == 1u ? " OLD PAD DROPPED" : " OLD PADS DROPPED", 18);
+        pev_drop_n = 0;
+        ui_message(b);
+    }
     if (sr_on && (!sr_here() || song.sel != sr_trk || ui.menu))
         sr_set(0);                                      /* (STEP REC: the GRID or its track left) */
     chord_mods_drawn = (uint8_t)key_strip_on();         /* (wave 10: the chord modifiers live where drawn, ARP's KEY pages) */
