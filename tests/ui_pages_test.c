@@ -983,7 +983,9 @@ int main(int argc, char **argv)
     tap(B_SCL); ui.force = 1; frame(); ppm("page-fx-master");
     check(!strcmp(PAGES[ui.page].title, "MASTER") && PAGES[ui.page].id[0] == G_DUST && PAGES[ui.page].id[1] == G_DUCK,
           "MIX, SEL: MASTER (DUST, DUCK)");
-    tap(B_FX); check(cur_cat() == CT_INS && !strcmp(PAGES[ui.page].title, "FX 1"), "FX again: round to INS, FX 1");
+    tap(B_FX); check(cur_cat() == CT_STUT && stl_shown() && song.sel == 0u, "FX again (wave 14): STUT, the STUTTER lane, voice 1 still selected");
+    tap(B_SCL); check(cur_cat() == CT_STUT && stl_shown(), "STUT, SEL: one page, nothing moves");
+    tap(B_FX); check(cur_cat() == CT_INS && !strcmp(PAGES[ui.page].title, "FX 1") && !stl_view, "FX again: round to INS, FX 1");
     go_home(); frame(); track_select(TRK_DRUM); frame(); tap(B_FX); check(on_drum_page() && cur_cat() == CT_DFILT, "FX on the drum voice: its own FX first (FILTER)");
     tap(B_FX); tap(B_FX); tap(B_FX); tap(B_FX);
     check(on_drum_page() && cur_cat() == CT_MIX && PAGES[dbus_page(dpg_half())].fam == FAM_MFX, "FX on the drum voice, then MIX");
@@ -1362,8 +1364,9 @@ int main(int argc, char **argv)
         tap(B_FX); frames(2); ok &= cur_cat() == CT_DSLICER;
         tap(B_FX); frames(2); ok &= cur_cat() == CT_MIX;
         ui.force = 1; frame(); ppm("drum-fx-mix");
-        tap(B_FX); frames(2); ok &= cur_cat() == CT_DFILT;
-        check(ok, "drum pages: FX steps FILTER > INS (SEL: INSERT 2) > SENDS > SLICER > MIX > round (the voice's, then the mix)");
+        tap(B_FX); frames(2); ok &= cur_cat() == CT_STUT && stl_shown() && song.sel == TRK_DRUM;
+        tap(B_FX); frames(2); ok &= cur_cat() == CT_DFILT && !stl_view;
+        check(ok, "drum pages: FX steps FILTER > INS (SEL: INSERT 2) > SENDS > SLICER > MIX > STUT > round (the voice's, then the mix)");
         tap(B_ENV); frames(2); ok = drum_pg == 3u && dpg_half() == 0u;
         tap(B_SCL); frames(2); ok &= drum_pg == 3u && dpg_half() == 1u;
         tap(B_ENV); frames(2); ok &= drum_pg == 3u && dpg_half() == 0u;   /* (one category: again, its first page) */
@@ -2433,14 +2436,15 @@ int main(int argc, char **argv)
                   "STUTTER (Ben, 21 Nov: \"1/4 is preferably\"): new steps start at 1/4");
             memset(&stl, 0, sizeof stl); stl.len = 16; stl.act = 1; stl_new = 1;
             ui.force = 1; frame();
-            encs[panel.enc[EN_ALGO]] = 1; frames(2);
+            for (j = 0; j < 8u && cur_cat() != CT_STUT; j++) tap(B_FX);   /* (wave 14: FX's last category) */
+            frames(2);
             check(stl_shown() && song.sel == TRK_DRUM && grid_keys_on() && kb_grid,
-                  "STUTTER: ALGORITHM right of DRUM on the GRID: the lane, the keys its steps");
+                  "STUTTER: FX to its last category, STUT: the lane, the keys its steps");
             ui.force = 1; frame(); ppm("grid-stutter-empty");
-            check(px_count(0, OP_BAR_Y + 24, 240, 3, TE_COL[3]) == 0 && px_count(0, OP_BAR_Y + 24, 240, 3, TE_COL[0]) == 0,
-                  "STUTTER: the track strip underlines no track (the lane is not DR)");
+            check(px_count(0, OP_BAR_Y + 24, 240, 3, TE_COL[3]) > 100u && px_count(0, OP_BAR_Y + 24, 240, 3, TE_COL[0]) == 0,
+                  "STUTTER: the track strip underlines the voice still selected (DR), as on the MIX pages");
             check(px_count(2, 1, 46, 18, TE_G4) > 40u && px_count(48, 0, 4, 20, TE_G4) == 0,
-                  "STUTTER: its header tag drawn in the box (STUT, not SYN)");
+                  "STUTTER: its header tag drawn in the box (MIX, the whole mix's)");
             key(kw12);
             check(stl_lit(12) && stl_code(12) == 1u, "STUTTER: tap step 13: lit, 1/8 (the length for new steps)");
             check(!dt_mask(12), "STUTTER: ... and no drum hit set");
@@ -2513,11 +2517,12 @@ int main(int argc, char **argv)
             }
             /* (saved with the project and its sections: tests/project_test.c) */
             encs[panel.enc[EN_ALGO]] = -1; frames(2);
-            check(!stl_shown() && song.sel == TRK_DRUM && drum_keys == DK_PLAY, "STUTTER: ALGORITHM left: the drum GRID again");
+            check(stl_shown() && song.sel == 2u, "STUTTER (wave 14): ALGORITHM left: voice 3 selected, the lane stays");
             encs[panel.enc[EN_ALGO]] = 1; frames(2);
-            check(stl_shown(), "STUTTER: right again: the lane");
-            track_select(0); frames(1); track_select(TRK_DRUM); frames(1);
-            check(!stl_shown(), "STUTTER: another track picked and back: the drum GRID");
+            encs[panel.enc[EN_ALGO]] = 1; frames(2);
+            check(stl_shown() && song.sel == TRK_DRUM, "STUTTER (wave 14): right, right: DRUM, no fifth voice past it, the lane stays");
+            tap(B_SEQ); frames(2);
+            check(!stl_shown() && song.sel == TRK_DRUM && drum_keys == DK_PLAY && cur_cat() == CT_TRIG, "STUTTER: SEQ: the drum steps again");
             memset(&stl, 0, sizeof stl); stl.len = 16; stl.act = 1;
             ui.force = 1; frame();
         }
@@ -3086,6 +3091,12 @@ int main(int argc, char **argv)
                         uint32_t first = ui.page;
                         okw &= nav_btn_of(cur_cat()) == GB[g];
                         for (p2 = 0; p2 < 8u; p2++) {
+                            if (cur_cat() == CT_STUT) {   /* (wave 14) FX's STUT: the lane, one page (SEL: nothing) */
+                                okw &= stl_shown();
+                                tap(B_SCL);
+                                okw &= stl_shown() && cur_cat() == CT_STUT;
+                                break;
+                            }
                             cnt[ui.page]++;
                             ui.force = 1; frames(2);
                             snprintf(nm, sizeof nm, "chain-%s-%02u", VN[v], (unsigned)nshot++);
@@ -3401,8 +3412,8 @@ int main(int argc, char **argv)
             for (p = 0; p < NPAGES; p++)
                 if (PAGES[p].fam == FAM_GLO || PAGES[p].fam == FAM_MFX) { go_home(); page_go(p); frames(2); ui.force = 1; frame(); n++; }
             go_home(); frames(2);
-            song.sel = TRK_DRUM; studio_open(SC_DRUM); frames(2); stl_algo(1); ui.force = 1; frame(); n++;
-            stl_algo(-1); go_home(); track_select(0); frames(2);
+            song.sel = TRK_DRUM; studio_open(SC_DRUM); frames(2); stl_open(); ui.force = 1; frame(); n++;
+            stl_leave(); go_home(); track_select(0); frames(2);
             over0 = dial_over;
             snprintf(b, sizeof b, "no value past its 40 px column: HOME, PERFORM's 22 pads, every layer, GLO and FX pages, the lane (%u)", n);
             check(over0 == 0u, b);
@@ -3424,9 +3435,9 @@ int main(int argc, char **argv)
             bad += px_count(70, 40, 169, 15, TE_COL[TRK_DRUM]) < 48u;
             release(B_FX); frames(2);
             check(bad == 0u, "colour rule: PERFORM: a voice colour only on that voice's mute chip (V1 V2 V3, the drum mutes teal)");
-            song.sel = TRK_DRUM; studio_open(SC_DRUM); frames(2); stl_algo(1); ui.force = 1; frame();
+            song.sel = TRK_DRUM; studio_open(SC_DRUM); frames(2); stl_open(); ui.force = 1; frame();
             for (v = 0, bad = 0; v < NTRK; v++) bad += px_count(0, 0, 240, OP_BAR_Y, TE_COL[v]);
-            stl_algo(-1); go_home(); track_select(0); frames(2);
+            stl_leave(); go_home(); track_select(0); frames(2);
             check(bad == 0u, "colour rule: the STUTTER lane has no voice colour above the strip");
             for (p = 0; p < NPAGES; p++)
                 if (PAGES[p].fam == FAM_GLO && shared_page(&PAGES[p])) {

@@ -11,6 +11,7 @@
 #define NPART 3                  /* synth parts: tracks 1..3 */
 #define NTRK 4                   /* + the drum track */
 #define TRK_DRUM 3
+#define REC_LANE (1u << NTRK)    /* (wave 14) song.rec: REC on FX's STUTTER lane records its stutters and pads, no voice */
 enum { V_POLY, V_MONO, V_LEGATO, V_UNISON };   /* P_VOICE */
 #define NSTEP 64
 #define HALF_FRAMES 256          /* I2S half buffer: 5.8 ms at 44.1 kHz */
@@ -378,7 +379,7 @@ typedef struct track {
 typedef struct {
     int16_t g[G_COUNT];
     uint8_t playing, seq_mode;
-    uint8_t rec;                 /* live recording armed: bit per track */
+    uint8_t rec;                 /* live recording armed: bit per track; REC_LANE: the STUTTER lane's own take (wave 14) */
     uint8_t sel;                 /* selected track 0..NTRK-1: keys, pages, editor */
     int8_t octave;
     volatile uint8_t solo;       /* bit per track soloed (GLO + key), 0 = none: the others are silent */

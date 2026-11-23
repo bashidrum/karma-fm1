@@ -292,7 +292,7 @@ static void op_badge(int32_t x, int32_t y, char ch, uint16_t bg)   /* 10 x 14: a
 static void op_trackbar(uint32_t *cache)
 {
     static const char *const NAME[NTRK] = {"1", "2", "3", "DR"};
-    uint32_t i, sig = 1u + song.sel + song.rec * 16u + song.solo * 256u + (uint32_t)(on_drum_page() && stl_shown()) * 4096u;
+    uint32_t i, sig = 1u + song.sel + song.rec * 16u + song.solo * 256u;
     for (i = 0; i < NTRK; i++)
         sig = sig * 3u + (trk[i].p[P_MUTE] != 0);
     if (!ui.force && sig == *cache)
@@ -302,7 +302,7 @@ static void op_trackbar(uint32_t *cache)
     cv_rect(0, 0, 240, 1, TE_G1);
     for (i = 0; i < NTRK; i++) {
         int32_t x = 4 + 58 * (int32_t)i, nx = x + OP_HM_W + 4, bx;
-        uint32_t sel = song.sel == i && !(on_drum_page() && stl_shown());   /* (the STUTTER lane, after DR: no track underlined, PHEBUS) */
+        uint32_t sel = song.sel == i;                   /* (wave 14: on the STUTTER lane too: the voice stays selected) */
         op_sprite_wh(OP_SPR_HM[i], OP_HM_W, OP_HM_H, x, 5, TE_COL[i]);
         bx = cv_text(nx, 5, &FONT_S, NAME[i], sel ? TE_COL[i] : TE_G3) + 3;
         if ((song.rec >> i) & 1u)
@@ -1458,9 +1458,10 @@ static void op_home_body(void)
             cv_rect(0, 0, 240, 1, TE_G1);
             x = cv_text(4, 1, &FONT_S, "PERFORM", TE_G3) + 6;
             cv_text(x, 1, &FONT_S, stl.act ? "LANE ON" : "LANE OFF", stl.act ? TE_G4 : TE_G3);
-            t[0] = 0;
+            str_cpy(t, "FX>STUT", sizeof t);             /* (wave 14) where the lane lives, while no pad is latched */
             if (lat) {                                  /* the latched pads by name, else how many */
                 uint32_t p;
+                t[0] = 0;
                 for (p = 0; p < PF_NPAD; p++)
                     if ((lat >> p) & 1u && str_len(t) + str_len(PFD[p].pad) + 1u < sizeof t) {
                         if (t[0])
@@ -1471,8 +1472,8 @@ static void op_home_body(void)
                     fmt_int(t, (int32_t)pf_count(lat));
                     str_cpy(t + str_len(t), " LATCHED", 10);
                 }
-                cv_text(236 - text_w(&FONT_S, t), 1, &FONT_S, t, C_WHITE);
             }
+            cv_text(236 - text_w(&FONT_S, t), 1, &FONT_S, t, lat ? C_WHITE : TE_G3);
             for (j = 0; j < 16u; j++) {                 /* the lane's steps in view: a run of lit steps of one length, one span */
                 uint32_t s = pg * 16u + j;
                 int32_t xx = 4 + (int32_t)j * 14 + (int32_t)(j / 4u) * 2;

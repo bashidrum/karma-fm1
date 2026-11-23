@@ -49,7 +49,7 @@ static uint32_t hold_ctx(void)
         return HC_ASK;
     if (ly_held_now != LY_PLAY)
         return HC_LY0 + ly_held_now;
-    if (kb_grid && sg_held)
+    if (kb_grid && (sg_held || (stl_held && stl_shown())))   /* (wave 14: a STUTTER lane step too) */
         return HC_STEP;
     if ((b & ob) && !(b & pb))
         return HC_OCTDN;
@@ -74,6 +74,15 @@ static int combo_live(uint32_t h, uint32_t c)
         return c == B_SAVE;
     case HC_STEP:                                       /* a step: the page buttons its locks are made from, SEL, OCT- erases;
                                                          * the other steps (held together, one lock for all) */
+        if (stl_shown()) {                              /* (wave 14) a lane step: OCT- erases its pads, the other steps of the
+                                                         * page join the hold (KNOB 1: their length), the black keys stay
+                                                         * the stutters; no page button (none has a lock here) */
+            if (c < 14u)
+                return c == B_OCTDN;
+            if (w < 0)
+                return bi >= 0 && bi < 11;
+            return stl_pg * 16u + (uint32_t)w < stl.len && !((stl_held >> w) & 1u);
+        }
         if (c < 14u)                                    /* (a page button or SEL: only if there is another page to show) */
             return ((c == B_EDIT || c == B_ENV || c == B_LFO || c == B_FX || c == B_SEQ) && nav_moves(c)) ||
                    (c == B_SCL && nav_page_moves()) || c == B_OCTDN;

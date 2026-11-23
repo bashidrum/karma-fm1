@@ -29,6 +29,7 @@ static uint8_t sg_alt;                                  /* a synth step held: 0 
 static uint8_t sg_lpage = 0xFF;                         /* a step held + ENV / LFO / FX / EDIT: the page that locks */
 static uint8_t sg_trk;                                  /* the track the steps held are on (from the first key down) */
 static void stl_key(uint32_t k, uint32_t down);         /* (ui_stut.c) */
+static int stl_shown(void);                            /* (ui_stut.c) */
 /* (PHEBUS wave 4) the synth GRID's tabs, TRIG OSC FILT ENV FX MOD: the drawing and the knobs' values are ui_synth.c's */
 static const char *const SYN_TAB[6] = {"TRIG", "OSC", "FILT", "ENV", "FX", "MOD"};
 #define TH_PATT 2u                                      /* (wave 10) the TRIG tab's halves: 0, 1 TRIG; 2, 3 PATTERN; 4 A-D */
@@ -360,7 +361,7 @@ static void grid_key(uint32_t k, uint32_t down)
     track_t *t = TSEL;
     uint32_t len = trk_len(t), idx;
     int32_t w = punch_key(k);
-    if (stl_view && song.sel == TRK_DRUM) {             /* (PHEBUS) the STUTTER lane's (ui_stut.c) */
+    if (stl_shown()) {                                  /* (PHEBUS) the STUTTER lane's (ui_stut.c; wave 14: any voice) */
         stl_key(k, down);
         return;
     }
@@ -747,7 +748,8 @@ static void sg_held_oct(uint32_t up)
  * One undo (EDIT + OCT-) takes back the whole pass, from REC to REC. Leaving the GRID (or the track) ends it */
 static uint8_t sr_vel = 100, sr_n, sr_nt[4], sr_down, sr_done, sr_trk;
 static uint32_t sr_sess;
-static int sr_here(void) { return grid_keys_on() && !is_drum(TSEL); }   /* a synth track's GRID shown */
+static int sr_here(void) { return grid_keys_on() && !is_drum(TSEL) && !stl_view; }   /* a synth track's GRID shown (not the
+                                                         * STUTTER lane over it, wave 14) */
 static void sr_set(uint32_t on)
 {
     if (on && !sr_on) {
@@ -1029,7 +1031,7 @@ static uint32_t grid_keys_lit(uint32_t blink)
 {
     const track_t *t = TSEL;
     uint32_t i, m = 0, len = trk_len(t), b0 = sg_page() * 16u;
-    if (stl_view && song.sel == TRK_DRUM)
+    if (stl_shown())
         return stl_keys_lit(blink);                     /* (PHEBUS) the STUTTER lane's (ui_stut.c) */
     for (i = 0; i < 16u; i++) {
         uint32_t idx = b0 + i, on;
@@ -1356,7 +1358,7 @@ static void sg_draw(void)
     if (ui.cursor >= len)
         sg_cur_set(len - 1u);
     c = h0 >= 0 ? (uint32_t)h0 : sg_cur();
-    if (sr_on || (song.rec && sr_here()))               /* (PHEBUS) the state: STEP REC, or a live take on the GRID */
+    if (sr_on || (((song.rec >> song.sel) & 1u) && sr_here()))   /* (PHEBUS) the state: STEP REC, or a live take on the GRID */
         str_cpy(title, sr_on ? "STEP REC" : "LIVE REC", 20);
     else
         op_names_str(t, title);

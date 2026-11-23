@@ -775,9 +775,9 @@ static void track_select(uint32_t i)
 {
     if (i >= NTRK || i == song.sel)
         return;
-    song.sel = (uint8_t)i;
-    stl_view = 0;                                    /* (PHEBUS: the GRID's STUTTER lane, after DRUM) */
-    rec_follow(i);                                   /* LIVE: recording follows the selected track */
+    song.sel = (uint8_t)i;                           /* (wave 14: FX's STUTTER lane stays on screen: it is no voice) */
+    rec_follow(i);                                   /* LIVE: recording follows the selected track (the lane's own take
+                                                      * stays the lane's: seq.c) */
     ui.entry_open = 0;
     ui.cursor = 0;
     ui.bank = 0;

@@ -24,6 +24,7 @@ static uint16_t bk_drawn;                               /* (ui_op.c: the black k
 static uint32_t bk_drawn_f;                             /* (.. the frame; wave 13: the STUTTER lane's too, ui_stut.c) */
 static void op_badge(int32_t x, int32_t y, char ch, uint16_t bg);
 static int on_drum_page(void) { return !ui.home && cur_page()->scope == SC_DRUM; }
+static int stl_shown(void);                            /* (ui_stut.c) */
 
 /* ---------------------------------------------------------------- style --- */
 #define TE_G1 RGB(26, 26, 30)            /* tiles */
@@ -172,6 +173,8 @@ static void rec_toggle(void)
         ui_message("REC OFF");
         return;
     }
+    rec_lane = (uint8_t)stl_shown();    /* (wave 14) on FX's STUTTER lane: its own take (its black keys' stutters, the
+                                         * PERFORM pads), no voice armed by surprise */
     if (song.playing)
         rec_begin();                    /* playing: record now */
     else
@@ -375,17 +378,17 @@ static void pads_tick(void)                             /* once a frame: the hit
 
 static uint32_t lvl_rank(uint32_t lvl) { return lvl == LV_GHOST ? 0u : lvl == LV_SOFT ? 1u : lvl == LV_NORM ? 2u : 3u; }
 
-/* the DRUMS screen (the SC_DRUM page): a synth track's GRID (ui_grid.c), the STUTTER lane (ui_stut.c), the drum screen or
- * its MUTE mode (ui_drum.c) */
+/* the DRUMS screen (the SC_DRUM page): the STUTTER lane (ui_stut.c, FX's STUT on any voice), a synth track's GRID
+ * (ui_grid.c), the drum screen or its MUTE mode (ui_drum.c) */
 static void drum_screen_draw(void)
 {
     uint32_t len = trk_len(TDRUM);
-    if (song.sel != TRK_DRUM) {
-        sg_draw();
+    if (stl_shown()) {                                  /* (wave 14: FX's STUT, whichever voice is selected) */
+        stl_draw();
         return;
     }
-    if (stl_shown()) {
-        stl_draw();
+    if (song.sel != TRK_DRUM) {
+        sg_draw();
         return;
     }
     if (drum_cursor >= len)
@@ -410,8 +413,8 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
             transport_req = song.playing ? 2 : 1;
         }
     }
-    if (!sg_held && !stl_held && (s = panel_enc(EN_ALGO)) && !stl_algo(s))   /* the track: the GRID stays, on
-                                                         * the track chosen (after DRUM: the STUTTER lane, ui_stut.c) */
+    if (!sg_held && !stl_held && (s = panel_enc(EN_ALGO)) != 0)   /* the voice: the GRID stays, on the voice chosen (wave 14:
+                                                         * 1, 2, 3, DRUM only; on the STUTTER lane the lane stays) */
         track_select((uint32_t)clamp((int32_t)song.sel + s, 0, 3));
     if (stl_shown()) {
         stl_input(pressed);
@@ -494,7 +497,7 @@ static void rec_screen_draw(void)
     static uint32_t head, body, rows, dials, bar;
     static char lu[4][8], vu[4][8];
     const char *lab2[4];
-    uint32_t sig, rt = song.sel;
+    uint32_t sig, rt = rec_lane ? NTRK : song.sel;     /* (wave 14: the lane's take frames no voice) */
     uint32_t blink = (fm1_ms / 250u) & 1u, count = ci_on;
     if (!rec_shown) {
         lcd_fill(0, 0, 240, 240, C_BLACK);
@@ -503,12 +506,12 @@ static void rec_screen_draw(void)
     rec_shown = 1;
     op_header("REC", TE_RED, count ? "COUNT-IN" : "READY", &head);   /* (wave 7: the header every screen has) */
     /* armed / counting in: what happens next */
-    sig = 2000003u + rec_count * 13u + count * 17u + ci_beat * 19u + blink * 31u;
+    sig = 2000003u + rec_count * 13u + count * 17u + ci_beat * 19u + blink * 31u + rec_lane * 37u;
     if (ui.force || sig != body) {
-        static const char *const L1[2] = {"play a note", "press play"};
-        static const char *const L2[2] = {"it starts the loop", "4 clicks, then rec"};
-        static const char *const L3[2] = {"play: go  rec: cancel", "rec: cancel"};
-        uint32_t m = rec_count ? 1u : 0u;
+        static const char *const L1[3] = {"play a note", "press play", "press play"};
+        static const char *const L2[3] = {"it starts the loop", "4 clicks, then rec", "stutters, pads: lane"};
+        static const char *const L3[3] = {"play: go  rec: cancel", "rec: cancel", "play: go  rec: cancel"};
+        uint32_t m = rec_count ? 1u : rec_lane ? 2u : 0u;   /* (wave 14: the lane's take, NOTE: no note starts it) */
         body = sig;
         cv_begin(240, 56, C_BLACK);
         if (count) {                                    /* the count-in: 4, 3, 2, 1 */
@@ -556,7 +559,7 @@ static void rec_screen_draw(void)
                 lab2[k] = lu[k];
                 val[k] = vu[k];
             }
-            op_dials(lab2, val, ratio, 0, 0, TE_COL[song.sel & 3u], rt * 7u + count * 3u, &dials);
+            op_dials(lab2, val, ratio, 0, 0, rec_lane ? TE_G4 : TE_COL[song.sel & 3u], rt * 7u + count * 3u, &dials);
         }
     }
     op_trackbar(&bar);
