@@ -10,6 +10,8 @@ static void panel_setup(void);
 static void project_load(uint32_t slot);
 static void project_erase(uint32_t slot);        /* SAVE > PROJECT > ERASE (2.6) */
 static int project_used(uint32_t slot);
+static int bank_op(uint32_t op);                 /* (the bank, project.c) 0 KEEP, 1 SWAP, 2 NEW: 0 done, else why not */
+static int bank_summary(uint32_t *npat, int32_t *bpm, char *kit);   /* (the bank) 0 empty; its patterns, tempo, kit */
 static int up_used(uint32_t k);              /* user presets: upreset.c */
 static int up_load(uint32_t k);
 static int up_load_to(track_t *t, uint32_t k);

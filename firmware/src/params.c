@@ -529,7 +529,7 @@ static int32_t fam_stage(uint32_t fam)             /* the chain's stage of a fam
 }
 enum { SC_TRACK, SC_GLOBAL, SC_ENGINE, SC_STEP, SC_TRK, SC_DRUM };
 enum { GR_NONE, GR_ADSR, GR_LFO, GR_STEPS, GR_ARP, GR_SCALE, GR_FX, GR_BROWSE, GR_SLOTS, GR_USER, GR_TRK,
-       GR_SLCR, GR_INS, GR_HEX, GR_XSLOT, GR_LFO2, GR_MATRIX, GR_SENDS, GR_SPATT, GR_UKIT };
+       GR_SLCR, GR_INS, GR_HEX, GR_XSLOT, GR_LFO2, GR_MATRIX, GR_SENDS, GR_SPATT, GR_UKIT, GR_PROJ };
 
 typedef struct {
     const char *title;
@@ -554,6 +554,7 @@ enum { CT_NONE, CT_OSC, CT_FILT, CT_AMP, CT_FENV, CT_LFO1, CT_LFO2, CT_MATRIX, C
        CT_TOOLS, CT_HOME, CT_GRID,
        CT_TRIG, CT_PATT, CT_PATTS, CT_SRC, CT_FLTR, CT_DAMP, CT_DLFO, CT_CHROM, CT_DEVICE, CT_SAVER, CT_SPATT, CT_KITS,
        CT_STUT,                 /* (wave 14, Ben 23 Nov 2026, 15:55: "Both on FX") the STUTTER lane, FX's last category: a screen of its own */
+       CT_PROJ,                 /* (the bank, Ben 22:45) SAVE > PROJECT: KEEP, SWAP, NEW */
        CT_N };
 #define PG_ENG(e) ((uint8_t)((e) + 1u))
 #define PG_OTHER 0xFFu
@@ -634,11 +635,16 @@ static const page_t PAGES[] = {
      * pattern A..D, KNOB 2 STORE (a GO: right stores, over a stored one it asks: hold SAVE) */
     {"PATTERNS", FAM_SAVE, SC_GLOBAL, GR_SPATT, {0xFF, 0xFF, 0xFF, 0xFF}, SEL_NONE, CT_SPATT},
     /* (3.0.5) PROJECT (PARTS) is gone from SAVE: the sections are SAVE held + keys 1..8. SAVE here is the sound's */
-    {"TOOLS", FAM_SAVE, SC_GLOBAL, GR_NONE, {G_CLRSEQ, G_INITSND, 0xFF, G_NEWPRJ}, SEL_NONE, CT_TOOLS},
+    {"TOOLS", FAM_SAVE, SC_GLOBAL, GR_NONE, {G_CLRSEQ, G_INITSND, 0xFF, 0xFF}, SEL_NONE, CT_TOOLS},   /* (the bank: NEW moved to
+                                                         * PROJECT, with KEEP and SWAP; G_NEWPRJ keeps its id) */
     {"ARP", FAM_ARP, SC_TRACK, GR_ARP, {P_AMODE, P_ARATE, P_AOCT, P_AGATE}, SEL_NONE, CT_ARP},
     {"ARP 2", FAM_ARP, SC_TRACK, GR_NONE, {P_ASWING, P_APROB, P_AHOLD, P_AORDER}, SEL_NONE, CT_ARP},
     {"TRACKS", FAM_TRK, SC_TRK, GR_TRK, {0, 1, 2, 3}, SEL_NONE, CT_HOME},   /* REC button; TRACK LEVEL LEN PAN */
     {"DRUMS", FAM_TRK, SC_DRUM, GR_NONE, {0xFF,0xFF,0xFF,0xFF}, SEL_NONE, CT_GRID},
+    /* (the bank, Ben 22:45: "one live one and one dead one") SAVE's first category: the live project and the one kept in the
+     * bank, KEEP (KNOB 1), SWAP (KNOB 2), NEW (KNOB 4): ui_draw.c graph_proj, project.c bank_op. (Last in the list so no page
+     * moves its index; SAVE's order is ui_nav.c's) */
+    {"PROJECT", FAM_SAVE, SC_GLOBAL, GR_PROJ, {0xFF, 0xFF, 0xFF, 0xFF}, SEL_NONE, CT_PROJ},
 };
 #define NPAGES (sizeof(PAGES) / sizeof(PAGES[0]))
 

@@ -1119,7 +1119,7 @@ static uint8_t sec_dirty, song_dirty;           /* live sections / the settings:
 static void proj_fetch(uint32_t slot)
 {
     int n = st_load(OBJ_PRJ0 + (slot & 3u), &proj_tmp, sizeof proj_tmp);
-    if (n < 0)
+    if (n < 0 && !st_flip)                              /* (the old objects belong to the first area: never the bank's) */
         n = st_load(OBJ_PROJECT0 + (slot & 3u), &proj_tmp, sizeof(project_v7_t));
     if (!proj_import(PSLOT(slot), &proj_tmp, n, PROJ_V7_TMP))
         PSLOT(slot)->magic = 0;
@@ -1307,7 +1307,7 @@ static void autosave_resume(void)              /* power-on: the project as it wa
     if (!flash_ok)
         return;
     n = st_load(OBJ_WORK, &proj_tmp, sizeof proj_tmp);
-    if (n < 0) {                                       /* (PHEBUS wave 2) none yet: the old one, once, converted */
+    if (n < 0 && !st_flip) {                           /* (PHEBUS wave 2) none yet: the old one, once, converted */
         n = st_load(OBJ_AUTOSAVE, &proj_tmp, sizeof(project_v7_t));
         old = 1;
         if (n == (int)sizeof(project_v7_t) || n == (int)sizeof(project_v6_t)) {   /* (2.6) updated from 2.5: GLO > DRUMS
@@ -1353,6 +1353,7 @@ static void dsu_boot(void);
 #endif
 #endif
 
+static void bank_boot(void);                      /* (the bank, below) */
 static void persist_boot(void)                    /* before settings_init / panel_init */
 {
 #if FELUCCA_FLASH
@@ -1395,6 +1396,7 @@ static void persist_boot(void)                    /* before settings_init / pane
                 panel = old;
         }
     }
+    bank_boot();                                   /* (the bank) which area is live, before anything reads a project */
     {   /* projects: fill empty RAM slots from flash, so the slot list is right after power-on. A slot
          * still valid in RAM (a warm reset: an update, UPDATE MODE, a crash) may never have reached
          * flash (a live section stored while playing): marked to be written when quiet */
@@ -1733,5 +1735,176 @@ static void sections_flush(void)                        /* main loop */
     if (sec_dirty)
         ui_message("SAVE ERROR: RETRYING");
 }
+
+#if FELUCCA_FLASH
+/* ---- THE BANK (Ben, 23 Nov 2026, 22:45: "Just enough so that I can keep one in the bank. So one live one and one dead one.
+ * Or even just the option of turning the device off and on again without having lost what I was working on"). One more
+ * project, kept in flash only (no RAM: .data+.bss is nearly full): its four patterns and its working project, in the second
+ * project area (storage.c: the live project is named OBJ_PRJ0..OBJ_WORK, the bank OBJ_BPRJ0..OBJ_BWORK, st_phys maps both
+ * onto the two areas through OBJ_BANKP's flip). SAVE > PROJECT (ui_draw.c graph_proj):
+ *   KEEP  the live project, whole, into the bank (asks when the bank holds one: it is replaced). The live one is written to
+ *         flash first (its patterns, its working project), then each of the five objects into the bank's area under a new
+ *         generation, then the generation committed: a power cut before that commit leaves the old bank, whole; after, the new
+ *   SWAP  the live and the bank change places: the live one written to flash first, then ONE write, the pointer's flip (its
+ *         A/B commit); then the new live one read into RAM as at power-on. Nothing is copied, so at every instant both
+ *         projects exist whole in flash. SWAP twice is where you started. It replaces a LOAD (which would lose the live one)
+ *   NEW   a fresh live project, its patterns A to D emptied too; the bank untouched
+ * Only while stopped (a flash erase stalls the audio ~50 ms): refused while playing, with a message. Flash wear: rare, chosen */
+#define BANK_MAGIC 0x314B4E42u                         /* "BNK1" */
+typedef struct {
+    uint32_t magic;
+    uint8_t flip, rsv[3];
+    uint32_t gen[2];
+} bank_ptr_t;
+static void bank_boot(void)                            /* (persist_boot) the pointer: which area is live, their generations */
+{
+    bank_ptr_t b;
+    if (st_load(OBJ_BANKP, &b, sizeof b) == (int)sizeof b && b.magic == BANK_MAGIC && b.flip <= 1u) {
+        st_flip = b.flip;
+        st_gen[0] = b.gen[0];
+        st_gen[1] = b.gen[1];
+    }
+}
+static int bank_ptr_write(uint32_t flip, uint32_t g0, uint32_t g1)
+{
+    bank_ptr_t b;
+    memset(&b, 0, sizeof b);
+    b.magic = BANK_MAGIC;
+    b.flip = (uint8_t)flip;
+    b.gen[0] = g0;
+    b.gen[1] = g1;
+    if (st_save(OBJ_BANKP, &b, sizeof b))
+        return -1;
+    st_flip = (uint8_t)flip;
+    st_gen[0] = g0;
+    st_gen[1] = g1;
+    return 0;
+}
+/* what the bank holds, for the screen: read from flash when SAVE > PROJECT first shows it and after each action (no RAM
+ * but these 14 bytes) */
+static struct {
+    uint8_t known, full, npat;
+    int16_t bpm;
+    char kit[9];
+} bank_s;
+static void bank_scan(void)
+{
+    const proj_core_t *q = (const proj_core_t *)(const void *)proj_tmp.raw;
+    const pkit_t *k = (const pkit_t *)(const void *)(proj_tmp.raw + sizeof(proj_core_t));
+    st_hdr_t h;
+    uint32_t i, chg = 0;
+    memset(&bank_s, 0, sizeof bank_s);
+    bank_s.known = 1;
+    if (!flash_ok || st_load(OBJ_BWORK, &proj_tmp, sizeof proj_tmp) != (int)sizeof(project_t) || !proj_ok(q))
+        return;
+    bank_s.full = 1;
+    bank_s.bpm = q->g[G_BPM];
+    if (k->magic == PK_MAGIC) {
+        for (i = 0; i < DRUM_LANES; i++)
+            chg |= k->s[i].mach & SL_CHG;
+        if (chg)
+            str_cpy(bank_s.kit, "CUSTOM", sizeof bank_s.kit);
+        else
+            kit_name_of(k->base, bank_s.kit, sizeof bank_s.kit);
+    }
+    for (i = 0; i < 4u; i++)
+        if (st_current(OBJ_BPRJ0 + i, &h) >= 0 && h.len >= sizeof(proj_core_t))
+            bank_s.npat++;
+}
+/* the bank for the screen: 0 empty; else 1, how many patterns it holds, its tempo and its kit's name (8 letters) */
+static int bank_summary(uint32_t *npat, int32_t *bpm, char *kit)
+{
+    if (!bank_s.known)
+        bank_scan();
+    *npat = bank_s.npat;
+    *bpm = bank_s.bpm;
+    str_cpy(kit, bank_s.kit, 9);
+    return bank_s.full;
+}
+static int bank_flush(void)                            /* the live project wholly in flash: 0 */
+{
+    persist_flush_now();
+    proj_capture_core(&autosave_buf);
+    return sec_dirty || work_sum(autosave_buf.sum) != autosave_hash ? -1 : 0;
+}
+static void bank_live_load(void)                       /* the live area into RAM: its patterns, its working project (SWAP) */
+{
+    proj_core_t *q = (proj_core_t *)(void *)proj_tmp.raw;
+    uint32_t i;
+    int n;
+    fm1_irq_off();
+    live_sec = -1;
+    live_req = -1;
+    fm1_irq_on();
+    for (i = 0; i < 4u; i++) {
+        memset(PSLOT(i), 0, sizeof *PSLOT(i));
+        proj_fetch(i);
+    }
+    sec_dirty = 0;
+    n = st_load(OBJ_WORK, &proj_tmp, sizeof proj_tmp);
+    if (!proj_import(q, &proj_tmp, n, PROJ_V7_TMP))
+        return;                                        /* (never: SWAP asks the bank to hold a project first) */
+    proj_kit_take(proj_tmp.raw, n, q);
+    autosave_hash = work_sum(q->sum);
+    project_apply(q);
+    undo_init();                                       /* (the other project's undo would undo into this one) */
+}
+static uint32_t bank_gen_next(void)                    /* a generation neither area has (0xFFFFFFFF: the one of before) */
+{
+    uint32_t a = st_gen[0] == 0xFFFFFFFFu ? 0u : st_gen[0], b = st_gen[1] == 0xFFFFFFFFu ? 0u : st_gen[1];
+    a = (a > b ? a : b) + 1u;
+    return a == 0xFFFFFFFFu ? 1u : a;
+}
+/* op 0 KEEP, 1 SWAP, 2 NEW. 0 done; 1 the bank is empty (SWAP); 2 playing; 3 no flash; -1 the live one not written; -2 the
+ * bank not written (the old bank kept); -3 the pointer not written (nothing changed) */
+static int bank_op(uint32_t op)
+{
+    uint32_t i, g, ba = st_flip ? 0u : 1u;
+    int32_t bp;
+    char kb[9];
+    int rc = 0;
+    if (song.playing || transport_req)
+        return 2;
+    if (!flash_ok)
+        return 3;
+    if (op == 2u) {                                    /* NEW: the live project afresh, the bank untouched */
+        project_new();
+        for (i = 0; i < 4u; i++)
+            if (proj_ok(PSLOT(i)) && st_save_big(OBJ_PRJ0 + i, PSLOT(i), 0, 0) == 0) {
+                memset(PSLOT(i), 0, sizeof *PSLOT(i));
+                sec_dirty &= (uint8_t)~(1u << i);
+            }
+        fm1_irq_off();
+        live_sec = -1;
+        live_req = -1;
+        fm1_irq_on();
+        undo_init();
+        return bank_flush() ? -1 : 0;
+    }
+    if (op == 1u && !bank_summary(&i, &bp, kb))
+        return 1;
+    if (bank_flush())
+        return -1;
+    bank_s.known = 0;
+    if (op == 1u) {                                    /* SWAP: one write, the pointer's flip */
+        if (bank_ptr_write(st_flip ^ 1u, st_gen[0], st_gen[1]))
+            return -3;
+        bank_live_load();
+        return 0;
+    }
+    g = bank_gen_next();                               /* KEEP: the five objects under a new generation, then commit it */
+    for (i = 0; i < 4u; i++)
+        rc |= st_save_big_gen(OBJ_BPRJ0 + i, g, PSLOT(i), proj_ok(PSLOT(i)) ? sizeof *PSLOT(i) : 0u, 0, 0, 0);
+    rc |= st_save_big_gen(OBJ_BWORK, g, &autosave_buf, sizeof autosave_buf, &pkit, sizeof pkit, sizeof(proj_ext_t) - sizeof pkit);
+    if (rc)
+        return -2;
+    if (bank_ptr_write(st_flip, ba == 0u ? g : st_gen[0], ba == 1u ? g : st_gen[1]))
+        return -2;
+    return 0;
+}
+#else
+static int bank_op(uint32_t op) { (void)op; return 3; }
+static int bank_summary(uint32_t *npat, int32_t *bpm, char *kit) { *npat = 0, *bpm = 0, kit[0] = 0; return 0; }
+#endif
 #endif
 #endif /* PROJ_HOST */

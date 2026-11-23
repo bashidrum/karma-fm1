@@ -11,7 +11,7 @@
  * A category lives where its voice's pages live: a synth voice's on its sound pages (the keys play notes) or, on its GRID,
  * as the GRID's view (the keys stay steps); the drum voice's on the drum screen; the shared ones (GLO, SAVE, ARP's KEY) on
  * their pages. The tab row (nav_tabs) names the group's categories, the one shown filled, and "2/4" the page in it */
-static const uint8_t NAV_SYN[NB][5] = {
+static const uint8_t NAV_SYN[NB][6] = {
     [B_EDIT] = {CT_OSC, CT_FILT},
     [B_ENV] = {CT_AMP, CT_FENV},
     [B_LFO] = {CT_LFO1, CT_LFO2, CT_MATRIX},
@@ -20,7 +20,8 @@ static const uint8_t NAV_SYN[NB][5] = {
     [B_SEQ] = {CT_TRIG, CT_PATT, CT_PATTS},             /* (wave 10, Ben: "in charge of patterns") */
     [B_ARP] = {CT_ARP, CT_KEY},                         /* (Ben: key, scale and chord "Under ARP") */
     [B_GLO] = {CT_GLOBAL, CT_SYSTEM, CT_MIDI, CT_DEVICE},
-    [B_SAVE] = {CT_PRESETS, CT_USER, CT_KITS, CT_SPATT, CT_TOOLS},   /* (wave 12: KITS, the drums' user kits) */
+    [B_SAVE] = {CT_PROJ, CT_PRESETS, CT_USER, CT_KITS, CT_SPATT, CT_TOOLS},   /* (wave 12: KITS, the drums' user kits; the
+                                                         * bank: PROJECT first, "save my sketch" is what Ben reached for) */
     [B_HOME] = {CT_HOME, CT_SAVER},
 };
 static const uint8_t NAV_DRUM[NB][6] = {               /* the drum voice, parallel (the Rytm's SRC FLTR AMP LFO, its FX track) */
@@ -34,7 +35,7 @@ static const uint8_t NAV_DRUM[NB][6] = {               /* the drum voice, parall
     [B_SEQ] = {CT_TRIG, CT_PATT, CT_PATTS},             /* (wave 10, Ben: "in charge of patterns") */
     [B_ARP] = {CT_CHROM},
     [B_GLO] = {CT_GLOBAL, CT_SYSTEM, CT_MIDI, CT_DEVICE},
-    [B_SAVE] = {CT_PRESETS, CT_USER, CT_KITS, CT_SPATT, CT_TOOLS},   /* (wave 12: KITS, the drum kits of your own) */
+    [B_SAVE] = {CT_PROJ, CT_PRESETS, CT_USER, CT_KITS, CT_SPATT, CT_TOOLS},   /* (wave 12: KITS; the bank: PROJECT first) */
     [B_HOME] = {CT_HOME, CT_SAVER},
 };
 static const char *const CT_NAME[CT_N] = {
@@ -44,7 +45,7 @@ static const char *const CT_NAME[CT_N] = {
     [CT_KEY] = "KEY", [CT_GLOBAL] = "GLOBAL", [CT_SYSTEM] = "SYSTEM", [CT_MIDI] = "MIDI", [CT_PRESETS] = "PRESETS",
     [CT_USER] = "USER", [CT_TOOLS] = "TOOLS", [CT_HOME] = "HOME", [CT_TRIG] = "TRIG", [CT_PATT] = "PATTERN", [CT_PATTS] = "A-D", [CT_SRC] = "SRC",
     [CT_FLTR] = "FLTR", [CT_DAMP] = "AMP", [CT_DLFO] = "LFO", [CT_CHROM] = "CHROM", [CT_DEVICE] = "DEVICE",
-    [CT_SAVER] = "SAVER", [CT_SPATT] = "PATT", [CT_KITS] = "KITS", [CT_STUT] = "STUT",
+    [CT_SAVER] = "SAVER", [CT_SPATT] = "PATT", [CT_KITS] = "KITS", [CT_STUT] = "STUT", [CT_PROJ] = "PROJECT",
 };
 /* the drum screen's FX tab: where each category starts among its halves (ui_drum.c dbus_page: INSERT, INSERT 2, SENDS,
  * SLICER, then the whole mix's DELAY, REV/CHO, MASTER, then the kit's FILTER, EDIT's) */
@@ -59,7 +60,7 @@ static int nav_mix_cat(uint32_t c) { return c == CT_MIX || c == CT_STUT; }    /*
 static const uint8_t *nav_group(uint32_t b, uint32_t *n)
 {
     const uint8_t *g = is_drum(TSEL) ? NAV_DRUM[b % NB] : NAV_SYN[b % NB];
-    uint32_t m = is_drum(TSEL) ? 6u : 5u;
+    uint32_t m = 6u;
     for (*n = 0; *n < m && g[*n]; (*n)++)
         ;
     return g;
