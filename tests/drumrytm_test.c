@@ -73,6 +73,7 @@ static void reset(uint32_t kit)
     song.sel = TRK_DRUM;
     ly_bit[LY_ARP] = 1u << 8;                     /* (the buttons: any bits, as seq2_test) */
     ly_bit[LY_EDIT] = 1u << 4;
+    ly_bit[LY_SEQ] = 1u << 9;                     /* (wave 10: RETRIG is SEQ's) */
 }
 static uint32_t step_blocks(void) { return div_samples(2) / CTL; }
 static uint32_t count(uint32_t note, uint64_t b0, uint64_t b1)
@@ -278,17 +279,19 @@ static void t_live_retrig(void)
     int x;
     reset(DRUM_DEFAULT_KIT);
     TDRUM->p[P_SLEN] = 16;
-    fm1_in.buttons |= ly_bit[LY_ARP];             /* ARP held: the RETRIG layer */
-    key_down(kb);                                   /* a rate */
+    fm1_in.buttons |= ly_bit[LY_SEQ];             /* (wave 10) SEQ held: the RETRIG layer */
+    drt_live = 10;
+    key_down(kb);                                   /* a black key: no rate any more (its job: a pattern, drawn) */
     key_up(kb);
-    check(drt_live == 13u, "live retrig: ARP + the black key G#4 picks 1/32");
+    check(drt_live == 10u, "live retrig: SEQ + a black key: no rate (wave 10: the rate is KNOB 1's)");
+    drt_live = 13;                                  /* (1/32, as SEQ's KNOB 1 sets it) */
     song.rec = 1u << TRK_DRUM;
     transport_req = 1;
     run(sb + 2u);                                  /* (step 2 begins) */
     key_down(key_of_lane(2));                      /* ARP + the snare's key, held a step and a half */
     run(sb + sb / 2u);
     key_up(key_of_lane(2));
-    fm1_in.buttons &= ~ly_bit[LY_ARP];
+    fm1_in.buttons &= ~ly_bit[LY_SEQ];
     run(4);
     song.rec = 0;
     transport_req = 2;
