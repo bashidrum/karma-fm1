@@ -473,3 +473,14 @@ Applied to the drum voice as: the kit's FILTER leaves FX and lives under EDIT, a
 ### 23 Nov 2026, 21:46: the eye's body, in Ben's words
 
 Told that an agent had made the body of the THIRD EYE a dark slate so it would show without its outline: "Make it black again. If I wanted it slate... I'd have asked for slate."
+
+### 23 Nov 2026, 22:07: PERFORM in columns, in Ben's words
+
+With a simulator screenshot of PERFORM: "I feel like this screen could take a leaf out of our analog rytm organisation book. I like that the similar fx land on keys that are next to each other, but maybe organising them a bit more by columns would work better? Black keys for mutes works well. I'm not sure numerically how the fx could tesselate together to make a tight and logical grid, that's a you job. Group them by type into columns as much as possible. With the exception of the black keys which make sense being a row. I feel you could abbreviate the text on the black key row more on the screen to keep all the on screen labelling on one row on the screen as well. Then the 16 white keys arranged in columns below would feel really nice."
+
+Claude's grid, for him to confirm when he sees it. Four columns of four, one type each, keys running top to bottom in a column as on the drum grid:
+- keys 1 to 4, REPEAT: 1/1, 1/2, 1/4, 1/8
+- keys 5 to 8, TIME: 1/16, HALF, ECHO, VERB
+- keys 9 to 12, FILTER: ISO LO, ISO MID, ISO HI, MOTION
+- keys 13 to 16, COLOUR: CRUSH, PHASER, JET, VOWEL
+The eleven black keys stay a row, on one line of the screen with shorter names: V1 V2 V3, the four drum mutes, reverse, stop, sweep down, sweep up.
