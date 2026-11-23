@@ -359,3 +359,9 @@ Mute voice 2
 Mute voice 3
 
 If you could play all those mutes and fx in one place that would be a power house for keeping beats varied in daft punk style drops"
+
+His answers by picker, 23 Nov 2026, 14:25:
+
+- The four spare black keys in PERFORM: "Reverse, tape stop, and 2 filter sweeps - one that moves up, one that moves down and you can set the length/duration, resonance, range and slope"
+- Mutes: "Hold to mute, latch with OCT+".
+- MOTION: "Tempo-synced sweep". A band-pass that sweeps up and down in time with the beat; knobs set rate and depth.
