@@ -221,9 +221,27 @@ static uint32_t stl_keys_lit(uint32_t blink)
     }
     return m;
 }
-/* the lane: the 16 steps of the page as the synth GRID's tiles (two rows of eight), a lit step filled grey with its
- * length (4 8 16 32), the step held white, the playhead a white bar; the page slots; then what the lit steps do (or the
- * step held) and the length a new step takes; the recorded pads as spans (wave 6); the knobs; the tracks */
+/* (wave 13, Ben 23 Nov 2026: "The black keys on the stutter sequencer should just do stutters / beat repeat fx") the black
+ * keys' repeats, drawn in the strip's place: the first octave's five (1/1 1/2 1/4 1/8 1/16) on the top row, the second
+ * octave's six (the triplets, the dotted, 1/32: the lane's own short names) under them; playing: white, latched: a dot */
+static const char *const STL_BK[11] = {"1/1", "1/2", "1/4", "1/8", "1/16", "4T", "8T", "16T", "8D", "16D", "32"};
+static void stl_bk_box(uint32_t i, int32_t *x, int32_t *y, int32_t *w)
+{
+    if (i < 5u)
+        *x = 1 + (int32_t)i * 48, *y = 0, *w = 46;
+    else
+        *x = 1 + (int32_t)(i - 5u) * 40, *y = 13, *w = 38;
+}
+static uint32_t stl_bk_state(uint32_t i)               /* 1 playing (held), 2 latched, 0 not */
+{
+    uint32_t p = lane_pad_of(i), on = (i < 5u || perf.par[PF_LSTUT][0] == (int8_t)(i - 5u));
+    if (!on)
+        return 0;
+    return (perf.held >> p) & 1u ? 1u : (perf.lat >> p) & 1u ? 2u : 0u;
+}
+/* the lane: what the lit steps do (or the step held) and the length a new step takes; the black keys' repeats; the 16 steps
+ * of the page as tiles (two rows of eight), a lit step filled grey with its length (4 8 16 32), the step held white, the
+ * playhead a white bar; the page slots; the recorded pads as spans (wave 6); the knobs; the tracks */
 static void stl_draw(void)
 {
     static uint32_t head, sig_was, footer, bar;
@@ -241,15 +259,26 @@ static void stl_draw(void)
     fmt_int(t + str_len(t), (int32_t)stl_pages());
     op_header("STUT", TE_G4, t, &head);       /* (the tag box holds five letters: STUT, not SYN) */
     sig = studio_hash(stl.len * 7u + stl.act * 131u + stl_pg * 977u + stl_held * 3u + stl_new * 7919u +
-                      (song.playing ? stl_pos + 1u : 0u) * 71u, "");
+                      (song.playing ? stl_pos + 1u : 0u) * 71u + (perf.held | perf.lat) * 13u + (uint32_t)perf.par[PF_LSTUT][0], "");
+    bk_drawn = 0x7FFu, bk_drawn_f = ui.frame;          /* (wave 13: every black key a repeat, drawn: live, lit) */
     for (j = 0; j < sizeof stl; j++)
         sig = sig * 31u + ((const uint8_t *)&stl)[j];
     if (ui.force || sig != sig_was) {
         sig_was = sig;
-        cv_begin(240, 124, C_BLACK);                    /* (the tiles as ui_grid.c sg_tiles_draw, big) */
+        cv_begin(240, 124, C_BLACK);                    /* (the tiles as ui_grid.c sg_tiles_draw) */
+        for (j = 0; j < 11u; j++) {                     /* (wave 13) the black keys' repeats, at y 40 */
+            int32_t x, y, w;
+            uint32_t st = stl_bk_state(j);
+            stl_bk_box(j, &x, &y, &w);
+            y += 18;
+            cv_rect(x, y, w, 12, st == 1u ? C_WHITE : st == 2u ? TE_G3 : TE_G1);
+            te_text_c(x + w / 2, y - 2, STL_BK[j], st == 1u ? C_BLACK : st == 2u ? C_WHITE : TE_G4);
+            if (st == 2u)
+                cv_rect(x + w - 4, y + 1, 3, 3, C_WHITE);
+        }
         for (j = 0; j < 16u; j++) {
             uint32_t s = stl_pg * 16u + j, h = (stl_held >> j) & 1u;
-            int32_t x = 4 + (int32_t)(j % 8u) * 29, y = 2 + (int32_t)(j / 8u) * 24;   /* (wave 6: 22 px, room for the pads) */
+            int32_t x = 4 + (int32_t)(j % 8u) * 29, y = 45 + (int32_t)(j / 8u) * 16;   /* (wave 13: 15 px, under the strip) */
             if (s >= stl.len)
                 continue;
             if (stl_lit(s)) {                           /* (wave 7, "stutter lengths as spans": lit steps in a row with one
@@ -258,27 +287,26 @@ static void stl_draw(void)
                 uint32_t cd = stl_code(s), first = !(j % 8u) || !stl_lit(s - 1u) || stl_code(s - 1u) != cd, n = 1, q;
                 int join = j % 8u != 7u && s + 1u < stl.len && stl_lit(s + 1u) && stl_code(s + 1u) == cd;
                 uint16_t bg = h ? C_WHITE : stl.act ? TE_G4 : TE_G2;
-                cv_rect(x, y, join ? 29 : 27, 21, bg);
+                cv_rect(x, y, join ? 29 : 27, 15, bg);
                 if (h && join)
-                    cv_rect(x + 27, y, 2, 21, stl.act ? TE_G4 : TE_G2);
+                    cv_rect(x + 27, y, 2, 15, stl.act ? TE_G4 : TE_G2);
                 if (first) {
                     const char *nm;
                     for (q = j + 1u; q % 8u && stl_pg * 16u + q < stl.len && stl_lit(stl_pg * 16u + q) &&
                          stl_code(stl_pg * 16u + q) == cd; q++)
                         n++;
                     nm = n > 1u ? STL_LEN[cd % 6u] : STL_LEN[cd % 6u] + 2;   /* (one tile: "16", "4"; a span: "1/16") */
-                    cv_text(x + (n > 1u ? 3 : (27 - text_w(&FONT_S, nm)) / 2), y + 3, &FONT_S, nm,
+                    cv_text(x + (n > 1u ? 3 : (27 - text_w(&FONT_S, nm)) / 2), y - 1, &FONT_S, nm,
                             stl.act || h ? C_BLACK : TE_G4);
                 }
             } else {
-                op_box(x, y, 27, 21, h ? C_WHITE : j % 4u ? TE_G2 : TE_G3);
+                op_box(x, y, 27, 15, h ? C_WHITE : j % 4u ? TE_G2 : TE_G3);
             }
             if (song.playing && s == stl_pos)
-                cv_rect(x, y + 21, 27, 2, C_WHITE);
+                cv_rect(x, y + 14, 27, 1, C_WHITE);
         }
         for (j = 0; j < 4u; j++)                        /* the page slots: the one shown light, the others in use grey */
-            cv_rect(4 + (int32_t)j * 58, 50, 54, 4, j >= stl_pages() ? TE_G1 : j == stl_pg ? TE_G4 : TE_G2);
-        cv_rect(0, 57, 240, 1, TE_G1);
+            cv_rect(4 + (int32_t)j * 58, 77, 54, 3, j >= stl_pages() ? TE_G1 : j == stl_pg ? TE_G4 : TE_G2);
         if (hs < NSTEP) {                               /* a step held: its number and length; OCT- erases its pads */
             str_cpy(t, "STEP ", 16);
             fmt_int(t + 5, (int32_t)hs + 1);
@@ -286,13 +314,13 @@ static void stl_draw(void)
                 str_cpy(t + str_len(t), "  ", 3);
                 str_cpy(t + str_len(t), STL_LEN[c % 6u], 6);
             }
-            cv_text(4, 59, &FONT_S, t, C_WHITE);
+            cv_text(4, 0, &FONT_S, t, C_WHITE);
             for (j = 0; j < PEV_N && !pev_covers(&stl.ev[j], hs); j++)
                 ;
             (void)j;                                    /* (pads recorded over it: OCT- erases them; wave 10: the -/+ legend
                                                          * in the tab row says so) */
         } else {                                        /* what the lit steps do; the length new steps take */
-            cv_text(4, 59, &FONT_S, !stl.act ? "OFF: KEPT, SILENT" : c >= 4u ? "THE STEPS REPLAY" : "LIT STEPS REPEAT",
+            cv_text(4, 0, &FONT_S, !stl.act ? "OFF: KEPT, SILENT" : c >= 4u ? "THE STEPS REPLAY" : "LIT STEPS REPEAT",
                     stl.act ? TE_G4 : TE_G3);
         }
         {   /* (wave 6) the recorded pads over the page's steps: a bar a span, named, two rows (more: "+n"); the ones
@@ -329,9 +357,12 @@ static void stl_draw(void)
                     x = (int32_t)e0 * 15, wd = (int32_t)(w - e0 + 1u) * 15 - 1;
                     now = song.playing && stl.act && pev_covers(e, stl_pos);
                     bg = held ? C_WHITE : now ? TE_G4 : TE_G2, fg = held || now ? C_BLACK : C_WHITE;
-                    cv_rect(x, 77 + (int32_t)r * 16, wd, 14, bg);
-                    if (p < PF_NPAD && (int32_t)text_w(&FONT_S, PFD[p].pad) + 3 <= wd)
-                        cv_text(x + 2, 76 + (int32_t)r * 16, &FONT_S, PFD[p].pad, fg);
+                    cv_rect(x, 81 + (int32_t)r * 14, wd, 13, bg);
+                    {   /* (wave 13: the lane's own repeats by their length) */
+                        const char *nm = p == PF_LSTUT ? LST_NAME[clamp(e->kv, 0, (int32_t)LST_N - 1)] : p < PF_NPAD ? PFD[p].pad : "";
+                        if ((int32_t)text_w(&FONT_S, nm) + 3 <= wd)
+                            cv_text(x + 2, 79 + (int32_t)r * 14, &FONT_S, nm, fg);
+                    }
                 }
             }
             if (hs >= NSTEP) {                          /* (the line's right: the length new steps take, or how many more
@@ -343,10 +374,10 @@ static void stl_draw(void)
                     str_cpy(t, "NEW ", 16);
                     str_cpy(t + 4, STL_LEN[c % 6u], 6);
                 }
-                cv_text(236 - text_w(&FONT_S, t), 59, &FONT_S, t, TE_G4);
+                cv_text(236 - text_w(&FONT_S, t), 0, &FONT_S, t, TE_G4);
             }
             if (!any)
-                cv_text(4, 92, &FONT_S, "REC + PERFORM PADS: HERE", TE_G3);
+                cv_text(4, 84, &FONT_S, "REC + PERFORM PADS: HERE", TE_G3);
         }
         cv_h = 131 - SG_BODY_Y;                        /* (wave 10: down to the tab row) */
         cv_blit(0, SG_BODY_Y);
