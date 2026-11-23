@@ -388,3 +388,27 @@ His answers by picker, 23 Nov 2026, 15:55:
 - What FX opens on: "Option 2 - but obvi without the Perform page." (Option 2 was: this voice's inserts, then sends, slicer, then the mix group.)
 
 So tapping FX steps: inserts, sends, slicer, then MIX, then STUTTER. PERFORM is reached only by holding FX. The stutter sequence leaves the ALGORITHM knob.
+
+### 23 Nov 2026, 20:56: mixer keys, the artwork, drum sends, in Ben's words
+
+With a screenshot of the new mixer and one of the THIRD EYE visual:
+
+"At the moment the mixer page is pretty good. But would work better if the keyboard keys were grouped by track rather than by row.
+
+So there are 16 white keys:
+
+1-4 voice 1
+5-8 voice 2
+9-12 voice 3
+13-16 Drums
+
+Can we slightly edit the artwork too. I think this about the big EYE over the desert pic;
+It would be cleaner if the eye had no white outline. And if the eye was slightly bigger. And remove the 2 black outlines to the eye shape also. White also removing the outlines of the coloured rolling sand dunes too. And clearing the thin black line on the sand dunes also. So a little less noisy and minimalist all over. The colours within the eye are phenomenal. The rolling dunes are great. The background is great and the movement of the eye is great.
+
+Please match the dunes in the other desert view with the sunset on a starry night. Just the dunes need an edit in that one. The starry night and sunset are fantastic. The sun itself is majestic and could be a tiny bit bigger.
+
+If you still have the dancing characters, could you make one more artwork that is all 4 of them dancing together? Maybe on a tropical beach? With a trippy ocean lapping the shore line?
+
+The drums having one global slicer and fx sends is problematic. Delay for example, great on the tops, horrendous on the click and low tom. If it isn't too much, individual sends for every drum voice? OR we could simply have a routing option on the sends for the drum voices that lets you exclude voices from the drum voice's sends? That's arguably the leaner, cleaner build?
+
+Can you maybe just explain the K1 lights and colour section in global for me?"
