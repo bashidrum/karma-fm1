@@ -6,6 +6,14 @@ static const char *const N_DSWAVE[] = {"OFF", "SINE", "TRI", "SQR", "FM", "BELL"
 static const char *const N_DSNOISE[] = {"OFF", "WHITE", "METAL", "CYM", "CHIP", "CLAP"};
 static const char *const N_DSFT[] = {"OFF", "LP", "BP", "HP", "LP+", "BP+", "HP+"};   /* + : the tone through it too */
 static const char *const N_DLDST[] = {"PITCH", "CUT", "RESO", "LEVEL"};   /* (wave 8: RESO, one spelling) */
+/* (wave 12) DEST on each machine: the four, then every knob that can be wiggled (drum_snd.c DLD_HEX, DLD_SYN, in order) */
+static const char *const N_DLDST_HEX[] = {"PITCH", "CUT", "RESO", "LEVEL", "FINE", "ATK", "DEC", "SLOPE", "P.AMT", "P.DEC",
+                                          "M.PIT", "FM", "T.LVL", "T.PIT", "DRIVE", "DIST", "CRUSH", "REV", "DEL"};
+static const char *const N_DLDST_SYN[] = {"PITCH", "CUT", "RESO", "LEVEL", "FINE", "SWEEP", "SWTIM", "HOLD", "DECAY", "TONE",
+                                          "PART2", "P2LVL", "CLICK", "N.LVL", "N.HLD", "N.DEC", "ENV", "HPF", "CHIP", "DRIVE",
+                                          "REV", "DEL"};
+_Static_assert(sizeof N_DLDST_HEX / sizeof N_DLDST_HEX[0] == DL_N + NDLD_HEX &&
+               sizeof N_DLDST_SYN / sizeof N_DLDST_SYN[0] == DL_N + NDLD_SYN, "a DEST name a knob");
 static const char *const N_DLMOD[] = {"TRIG", "FREE", "ONE"};
 #define DD(l, f, mn, mx, df) {l, f, mn, mx, df, 0, 0}
 #define DE(l, n, df) {l, F_ENUM, 0, (int16_t)(sizeof(n) / sizeof(n[0]) - 1), df, n, 0}
@@ -54,6 +62,10 @@ static const param_desc_t *dsp_desc(uint32_t model, const uint8_t *snd, uint32_t
         return model == DM_HEX ? hex_desc_m(snd ? snd[DSP_MODEL] % HM_COUNT : HM_DRUM, id) : 0;
     if (id == DSP_REV || id == DSP_DEL)
         return &DSEND_DESC[id - DSP_REV];
+    if (id == DSP_LDST) {                        /* (wave 12) the machine's own list */
+        static const param_desc_t DH = DE("DEST", N_DLDST_HEX, 0), DS = DE("DEST", N_DLDST_SYN, 0);
+        return model == DM_SYN ? &DS : &DH;
+    }
     if (id >= DSP_LSPD && id <= DSP_LMOD)
         return &DL_DESC[id - DSP_LSPD];
     if (id >= DSP_S0 && id < DSP_S0 + DS_N)
@@ -69,7 +81,7 @@ static int32_t dsp_get(uint32_t model, const uint8_t *snd, const dlfo_t *lf, uin
     if (id < DSP_COUNT)
         return model != DM_HEX ? 0 : id == DSP_FINE ? (int32_t)(int8_t)snd[id] : (int32_t)snd[id];
     if (id == DSP_REV || id == DSP_DEL)
-        return drum_send[l & 15u][id - DSP_REV];
+        return (int32_t)sl_send(l, id - DSP_REV);
     switch (id) {
     case DSP_LSPD: return lf->spd;
     case DSP_LDEP: return lf->dep;

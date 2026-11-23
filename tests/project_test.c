@@ -395,7 +395,7 @@ int main(void)
         trk[0].p[P_LSYNC] = 6, trk[0].p[P_LTRIG] = 1, trk[0].p[P_LPOL] = 1, trk[0].p[P_ESYNC] = 1, trk[0].p[P_FTYPE] = 1;
         song.g[G_DUST] = 33;
         song.g[G_DRDLY] = 77;
-        TDRUM->p[P_E0] = 12;
+        kit_set((uint32_t)(12));
         dt_set(9, 4, 72);                              /* a hat at 72 on step 10, nudged +12, CHNC 33 %, retrig 1/32 */
         x = dt_x_make(9, 4);
         x->micro = 12, x->cond = FC_CHANCE, x->prob = 33, x->rrate = 13, x->rlen = 24, x->rfade = -100;
@@ -404,16 +404,17 @@ int main(void)
         dt_lk_set(9, 4, DSP_CUT, 30);                  /* the hat's cutoff and fine (signed) on step 10 */
         dt_lk_set(9, 4, DSP_FINE, (uint8_t)(int8_t)-20);
         lock_set(TDRUM, 9, P_DIST, 64);                /* the drum track's own (its bus) */
-        drum_send[3][0] = 11, drum_send[3][1] = 6;
+        sl_send_set(3, 0, 11), sl_send_set(3, 1, 6);
         memset(&stl, 0, sizeof stl);
         stl.len = 32, stl.act = 0, stl.on[1] = 0x81, stl.lc[3] = 0xE4, stl.lx[1] = 0x01;
         proj_capture(&a);
-        bad += check("format 8: captured: \"FUN8\", the core's size and sum good, the ext zero",
-                     a.c.magic == 0x46554E38u && a.c.size == 5744u && proj_ok(&a.c) && a.x.kit[0] == 0 && a.x.kit[1023] == 0);
+        bad += check("format 8: captured: \"FUN8\", the core's size and sum good, the ext the kit's 16 slots (wave 12), then zero",
+                     a.c.magic == 0x46554E38u && a.c.size == 5744u && proj_ok(&a.c) && ((pkit_t *)a.x.kit)->magic == PK_MAGIC &&
+                     a.x.kit[sizeof(pkit_t)] == 0 && a.x.kit[1023] == 0);
         host_tracks_init();
-        memset(drum_send, 0, sizeof drum_send);
         memset(&stl, 0, sizeof stl);
         song.g[G_DRDLY] = 0;
+        proj_kit_take((const uint8_t *)&a, (int)sizeof a, &a.c);
         proj_apply(&a.c, 1);
         lk = dt_lk(9, 4, DSP_FINE);
         ok = song.g[G_DRDLY] == 77 && trk[2].p[P_SLEN] == 7 && trk[1].step[2].n == 2 && trk[1].step[2].lvl == 0x0D &&
@@ -424,17 +425,18 @@ int main(void)
              TDRUM->p[P_ITYPE] == 4 && trk[0].p[P_LSYNC] == 6 && trk[0].p[P_LTRIG] == 1 && trk[0].p[P_LPOL] == 1 &&
              trk[0].p[P_ESYNC] == 1 && trk[0].p[P_FTYPE] == 1;
         bad += check("format 8: the synth tracks and globals round trip (nudges, locks, conditions with CHNC, 2.6 parameters, drum DLY)", ok);
-        ok = TDRUM->p[P_E0] == 12 && dt_vel(9, 4) == 72u && dt_vel(9, 0) == 127u && dt_vel(63, 15) == 1u && dt_mask(10) == 0u &&
+        ok = TDRUM->p[P_E0] == 12 && pkit.base == 12u && dt_vel(9, 4) == 72u && dt_vel(9, 0) == 127u && dt_vel(63, 15) == 1u && dt_mask(10) == 0u &&
              dt_x(9, 4) >= 0 && dt_x(9, 0) < 0 && dpat.x[dt_x(9, 4)].micro == 12 && dpat.x[dt_x(9, 4)].cond == FC_CHANCE &&
              dpat.x[dt_x(9, 4)].prob == 33 && dpat.x[dt_x(9, 4)].rrate == 13 && dpat.x[dt_x(9, 4)].rlen == 24 &&
              dpat.x[dt_x(9, 4)].rfade == -100 && dt_lk(9, 4, DSP_CUT) >= 0 && dpat.lk[dt_lk(9, 4, DSP_CUT)].val == 30 &&
              lk >= 0 && (int8_t)dpat.lk[lk].val == -20 && dt_lk(9, 0, DSP_CUT) < 0 && lock_find(TDRUM, 9, P_DIST, 0) >= 0 &&
-             !TDRUM->micro[9] && !step_fill(TDRUM, 9) && drum_send[3][0] == 11 && drum_send[3][1] == 6 &&
+             !TDRUM->micro[9] && !step_fill(TDRUM, 9) && sl_send(3, 0) == 11u && sl_send(3, 1) == 6u &&
              stl.len == 32 && !stl.act && stl.on[1] == 0x81 && stl.lc[3] == 0xE4 && stl.lx[1] == 0x01;
         bad += check("format 8: the drum pattern round trips: velocities, extras (nudge, CHNC 33 %, retrig 1/32 x1.5 curve -100), "
                      "the sound's locks (signed too), the bus lock, the kit, the sends, the STUTTER lane", ok);
         proj_capture(&a);                              /* (as a load leaves it: every value in its range) */
         memset(&dpat, 0, sizeof dpat);
+        proj_kit_take((const uint8_t *)&a, (int)sizeof a, &a.c);
         proj_apply(&a.c, 1);
         proj_capture(&b);
         bad += check("format 8: loaded and saved again: the same bytes", !memcmp(&a, &b, sizeof a));

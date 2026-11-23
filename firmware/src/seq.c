@@ -1369,12 +1369,11 @@ static void roll_block(uint32_t adv)
 }
 
 /* ---------------------------------------------------------- keyboard --- */
-/* the level of a key on the drum track: OCT- held ghost, OCT+ held hard */
-static uint32_t key_lvl(void)
-{
-    uint32_t b = fm1_in.buttons;
-    return (b & dyn_bit[0]) ? LV_GHOST : (b & dyn_bit[1]) ? LV_HARD : LV_NORM;
-}
+/* the level of a key on the drum track (wave 12, Ben 23 Nov 13:35: "Move ghost hits elsewhere": OCT- with a key is only ever
+ * erase): always as played; a drum key's velocity is the TRIG page's new-hit velocity (drum_newvel: TRIG, KNOB 1 with nothing
+ * held), so a ghost or a hard hit is that knob turned first. It was OCT- held ghost, OCT+ held hard */
+static uint8_t drum_newvel = DT_VEL_DEF;         /* (written by the UI: ui_drum.c, TRIG's KNOB 1 with nothing held) */
+static uint32_t key_lvl(void) { return LV_NORM; }
 
 /* CHORD+: the modifiers held (the black keys down in chord mode) */
 static uint32_t chord_mods(void)
@@ -1498,9 +1497,9 @@ static void key_down(uint32_t k)
             return;
         }
         kb_kind[k] = KS_DRUM;
-        drum_input(lane, lvl_vel(lvl, 100), 0, 1);
+        drum_input(lane, lvl_vel(lvl, drum_newvel), 0, 1);
         mc = trk_midi_ch(sel);
-        midi_out_note(mc, (uint32_t)LANE_NOTE[lane], lvl_vel(lvl, 100));
+        midi_out_note(mc, (uint32_t)LANE_NOTE[lane], lvl_vel(lvl, drum_newvel));
         return;
     }
     {
@@ -1658,7 +1657,7 @@ static void audition_block(void)
 /* (wave 10, Ben 23 Nov 2026: "Oct - should be" the erase) MINUS REMOVES: a key held (a note of a synth voice, a drum sound),
  * then OCT- pressed: what that key plays is erased from the selected voice's pattern, as EDIT + key did (playing: from each
  * step the playhead enters while the key stays down; stopped: from every step), one undo. The key stops sounding and erases
- * until it comes up. Pressed the other way round (OCT- held, then a drum key) it is the ghost hit, as ever. Not on the GRID
+ * until it comes up. (Wave 12: OCT- held, then a drum key, is no longer a ghost hit: just the hit.) Not on the GRID
  * (the keys are steps: the UI's step + OCT-), not with a layer held */
 static void oct_erase(uint32_t sel)
 {

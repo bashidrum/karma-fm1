@@ -32,7 +32,7 @@ int main(int argc, char **argv)
     host_preset(&trk[0], 0, 4);
     host_preset(&trk[1], 1, 5);
     host_preset(&trk[2], 3, 0);
-    TDRUM->p[P_E0] = DRUM_SAMPLED;
+    kit_set((uint32_t)(DRUM_SAMPLED));
     for (k = LY_FX; k < LY_COUNT; k++)                        /* the layer buttons (SLOOP 2.0): bits 8.. */
         ly_bit[k] = 1u << (7u + k);
     dyn_bit[0] = 1u << 14;
@@ -57,7 +57,7 @@ int main(int argc, char **argv)
             case 1: if (song.playing) rec_begin(); else rec_wait = 1; break;        /* REC */
             case 2: song.rec = 0; rec_wait = 0; break;                            /* REC off */
             case 3: { uint32_t s = rnd(NTRK); song.sel = (uint8_t)s; rec_follow(s); break; }   /* ALGO */
-            case 4: TDRUM->p[P_E0] = (int16_t)rnd(DRUM_KITS); break;              /* kit */
+            case 4: kit_set((uint32_t)((int16_t)rnd(DRUM_KITS))); break;              /* kit */
             case 5: perf.held = rnd(3) ? 0u : 1u << rnd(PF_NPAD); if (!rnd(8)) perf.lat ^= 1u << rnd(PF_NPAD); break;   /* PERFORM's pads */
             case 6: song.g[G_BPM] = (int16_t)(60 + rnd(140)); break;
             case 7: { uint32_t t = rnd(NPART), e = rnd(NENGINES);                 /* engine / preset */

@@ -56,14 +56,13 @@ static void reset(uint32_t kit)
     for (i = 0; i < NTRK; i++)
         steps_clear(&trk[i]);
     memset(&drums, 0, sizeof drums);
-    memset(&pkit, 0, sizeof pkit);
     nhits = 0;
     seen_age = 0;
     blk = 0;
     song.g[G_BPM] = 120;
     song.g[G_CLOCK] = 0;
     song.rec = 0;
-    TDRUM->p[P_E0] = (int16_t)kit;
+    kit_set((uint32_t)((int16_t)kit));
     TDRUM->p[P_SLEN] = 16;
     TDRUM->p[P_SDIV] = 2;                          /* 1/16 */
     drum_mute = drum_solo = 0;
@@ -108,6 +107,9 @@ static void drum_octave_test(void)              /* chromatic: OCT+ (the UI: drum
     check(a && b && b->base16 - a->base16 == 12 * 16, "chromatic: the octave up (OCT+): the same key 12 semitones higher");
 }
 
+static void sput(uint32_t l, uint32_t id, int32_t v) { dsp_put(sl_mach(l), pkit.s[l].snd, &pkit.s[l].lfo, id, v); }
+/* (wave 12, replacing wave 3's copy-on-write: Ben, 23 Nov 2026: the kit is 16 slots in the project) a slot's sound is the
+ * project's own: edited directly, the built-in kit untouched, saved with the project and loaded back */
 static void t_copy_on_write(void)
 {
     static dkit_t keep;
@@ -118,42 +120,37 @@ static void t_copy_on_write(void)
     reset(DRUM_DEFAULT_KIT);
     keep = DS_KITS[k606()];
     sn606 = &DS_KITS[k606()].s[ds_lane(LANE_NOTE[2], &semi)];
-    check(!pkit_on() && drum_model() == DM_SYN && dsp_desc(DM_SYN, lane_snd(2), DSP_S0 + DS_DECAY) != 0,
-          "copy-on-write: the 606 at power-on is the built-in kit, a synthesised one with the same pages (DECAY on AMP)");
-    pkit_make();                                   /* (the first knob turned on a sound: ui_drum.c drum_param_turn) */
-    dsp_put(pkit.model, pkit.snd[2], &pkit.lfo[2], DSP_S0 + DS_DECAY, 9);
-    dsp_put(pkit.model, pkit.snd[6], &pkit.lfo[6], DSP_S0 + DS_TUNE, 90);   /* (PEDAL: its own sound in the copy) */
+    check(!kit_changed() && pkit.base == DRUM_DEFAULT_KIT && drum_model() == DM_SYN &&
+          dsp_desc(DM_SYN, lane_snd(2), DSP_S0 + DS_DECAY) != 0,
+          "the kit: the 606's 16 sounds in the project's slots, a CLASSIC one with its pages (DECAY on AMP)");
+    sput(2, DSP_S0 + DS_DECAY, 9);
+    sput(6, DSP_S0 + DS_TUNE, 90);                 /* (PEDAL: its own sound) */
     for (l = 0; l < DRUM_LANES; l++)
         ok &= !memcmp(&DS_KITS[k606()].s[l], &keep.s[l], sizeof keep.s[l]);
-    check(ok && pkit_on() && pkit.src == DRUM_DEFAULT_KIT && sn606->decay != 9,
-          "copy-on-write: the edit is in the project's copy; the built-in 606 is untouched");
+    check(ok && sn606->decay != 9, "the kit: an edit is in the project's slot; the built-in 606 is untouched");
     check(snd_val_test(2, DSP_S0 + DS_DECAY) == 9 && snd_val_test(4, DSP_S0 + DS_TUNE) != 90 && snd_val_test(6, DSP_S0 + DS_TUNE) == 90,
-          "copy-on-write: each of the 16 sounds its own (PEDAL edited, the closed HAT it shared in the 606 is not)");
+          "the kit: each of the 16 slots its own (PEDAL edited, the closed HAT it shares in the 606 is not)");
     dt_set(0, 2, 100);
     transport_req = 1;
     run(step_blocks() * 2u);
     transport_req = 2;
     run_block();
-    check(nth(38, 0) && nth(38, 0)->decay == 9, "copy-on-write: the snare plays the project's copy (its DECAY 9)");
+    check(nth(38, 0) && nth(38, 0)->decay == 9, "the kit: the snare plays the project's slot (its DECAY 9)");
     proj_capture(&p);                              /* saved with the project: its ext */
-    memset(&pkit, 0, sizeof pkit);
-    proj_kit_take((const uint8_t *)&p, (int)sizeof p);
-    check(pkit_on() && snd_val_test(2, DSP_S0 + DS_DECAY) == 9 && snd_val_test(6, DSP_S0 + DS_TUNE) == 90,
-          "copy-on-write: saved in the project's ext and loaded back (the copy, its edits)");
-    proj_kit_take((const uint8_t *)&p, (int)sizeof(proj_core_t));
-    check(!pkit_on() && pkit.magic == 0u, "copy-on-write: a project stored without one (a section's core, an older one): none");
-    proj_kit_take((const uint8_t *)&p, (int)sizeof p);
-    TDRUM->p[P_E0] = DRUM_SAMPLED + 1u;            /* the 909: the copy (of the 606) does not play there */
-    check(!pkit_on() && pkit_other() && drum_model() == DM_SYN, "copy-on-write: on another kit the 606's copy stays, unplayed");
-    TDRUM->p[P_E0] = 0;                            /* a HEX kit: the same four pages, the HEX machine's parameters */
+    kit_set(DRUM_SAMPLED);
+    proj_kit_take((const uint8_t *)&p, (int)sizeof p, &p.c);
+    check(snd_val_test(2, DSP_S0 + DS_DECAY) == 9 && snd_val_test(6, DSP_S0 + DS_TUNE) == 90 && pkit.base == DRUM_DEFAULT_KIT,
+          "the kit: saved in the project's ext and loaded back (its edits)");
+    kit_set(0);                                    /* a HEX kit: the same four pages, the HEX machine's parameters */
     check(drum_model() == DM_HEX && dsp_desc(DM_HEX, lane_snd(2), DSP_DEC) && !dsp_desc(DM_HEX, lane_snd(2), DSP_S0 + DS_DECAY),
-          "copy-on-write: a HEX kit's sounds have the HEX machine's parameters on the same pages");
-    {   /* a damaged kit from outside: refused whole */
+          "a HEX kit's sounds have the HEX machine's parameters on the same pages");
+    {   /* a damaged kit from outside: refused whole; the old project's kit (its P_E0) plays */
         pkit_t bad = pkit;
-        bad.model = 7;
+        bad.magic = 7;
         memcpy((uint8_t *)&p + sizeof(proj_core_t), &bad, sizeof bad);
-        proj_kit_take((const uint8_t *)&p, (int)sizeof p);
-        check(pkit.magic == 0u, "copy-on-write: a kit that does not check out is dropped (the built-in kit plays)");
+        proj_kit_take((const uint8_t *)&p, (int)sizeof p, &p.c);
+        check(pkit.magic == PK_MAGIC && pkit.base == (uint32_t)p.c.d.p[P_E0] && !kit_changed(),
+              "a kit that does not check out is refused (the kit its core names plays)");
     }
 }
 
@@ -175,7 +172,7 @@ static void t_lock_606(void)
     check(nth(38, 0) && nth(38, 2) && !nth(38, 0)->own && !nth(38, 2)->own && nth(38, 0)->decay == dec,
           "606 lock: the snare on steps 1 and 9 plays the kit's sound");
     check(nth(36, 0) && !nth(36, 0)->own, "606 lock: the kick on the same step is not locked");
-    check(sn->decay == dec && !pkit_on(), "606 lock: the kit is not changed, no copy made");
+    check(sn->decay == dec && !kit_changed(), "606 lock: the kit is not changed");
 }
 
 static void t_lfo_send(void)
@@ -189,7 +186,7 @@ static void t_lfo_send(void)
     run(step_blocks() * 6u);
     a = nth(38, 0), b = nth(38, 1);
     check(a && b && b->base16 - a->base16 == 7 * 16, "pitch lock: the hit 7 semitones up");
-    check(b && dlr.sov[b->k][0] == 16u && dlr.sov[b->k][1] == 0u && drum_send[2][0] == 0u,
+    check(b && dlr.sov[b->k][0] == 16u && dlr.sov[b->k][1] == 0u && sl_send(2, 0) == 0u,
           "send lock: that hit's own reverb send full (the sound's send as it was)");
     run(step_blocks() * 14u);
     transport_req = 2;
@@ -198,10 +195,9 @@ static void t_lfo_send(void)
         uint32_t k, b0, moved = 0;
         int32_t last = 0;
         reset(DRUM_DEFAULT_KIT);
-        pkit_make();
-        dsp_put(pkit.model, pkit.snd[2], &pkit.lfo[2], DSP_LDEP, 63);
-        dsp_put(pkit.model, pkit.snd[2], &pkit.lfo[2], DSP_LSPD, 110);
-        dsp_put(pkit.model, pkit.snd[2], &pkit.lfo[2], DSP_LDST, DL_PIT);
+        sput(2, DSP_LDEP, 63);
+        sput(2, DSP_LSPD, 110);
+        sput(2, DSP_LDST, DL_PIT);
         trk_note_on(TDRUM, LANE_NOTE[2], 100);
         for (k = 0; k < NDRUM && !(drums.v[k].active && drums.v[k].note == 38); k++)
             ;

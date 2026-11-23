@@ -588,6 +588,52 @@ Battery (an estimate on paper, not a measurement). The LEDs are multiplexed over
 Not checked
 - No device build. The long tests (soak, stress, regress, web) were not run. The simulator's page changes were not run in a browser (no Emscripten here: the C compiles natively, the JS parses).
 
+## Rebuild wave 12, drum sounds per slot (23 Nov): calls made that Ben did not specify
+Ben's words: SPEC.md "23 Nov 2026, 11:02" with his 11:10 answers ("Kits on HOME, sounds on the drum screen", "Same kind first, then all", "Yes, an INIT per engine") and the items proposed by Claude and not objected to; then his 13:35 answers (the step row, ghost hits, hold LFO on the drums, the heads, QUIET dims the screen). Where they left a choice, the Analog Rytm's way (a track holds a sound from a browser, machines per track, kits as stored sets) that fits his four ways.
+
+Memory, on paper first, then measured
+- A slot: its sound 22 B (a HEX hex_snd_t or a CLASSIC dsnd_t: the same size), its LFO 8 B, 6 B more (machine, level trim, changed / edited marks; the kit and slot it came from, its pitch offset; a CLASSIC kit's crush; its two sends), 36 B for either machine. The kit: 16 B head (magic, the kit loaded, a name) + 16 slots = 592 B, in the project's ext (1,024 B; 432 B spare; wave 11's copy used 488).
+- RAM: the kit plays from RAM (drum_snd.c pkit, 592 B) and replaces wave 11's copy buffer (488 B) and the const-kit pointers (a voice's sound pointer now points into the slot); the 32 B of per-sound sends went into the slots; +6 B a trim per drum voice; the browse's state; undo of a kit change uses the undo's own room (.noinit: the kit and the 128 sound locks, 1,104 of its 2,048 B), no RAM of its own. The user kits are in flash, read when wanted (no RAM mirror); the old MY HEX bank (1,464 B) stays where it was.
+- Measured on the rv32 -Os stand-in (clang, the inline asm emptied) against the wave 11 merge (4fdd12b): .data+.bss +208 B (about 96,600 of 98,304 on the device: about 1,700 B left), code +15,870 B and constants +829 B (an image of about 546,200 of 581,564), the pool unchanged (nothing new in it), .noinit unchanged. No new 64-bit divide (the stand-in's __divdi3 / __udivdi3 references are wave 11's). Everything fits: no compile-time limit was needed.
+- Flash: the user kits are one object of their own (OBJ_UKIT, A/B at 0xB4000 / 0xB5000, from the room free since wave 2): six kits, 3,564 of 3,840 B.
+- CPU: the machine was already a voice's own (each voice rendered HEX or CLASSIC by its own flag); per hit a slot lookup and two pitch offsets; per voice and block one multiply for its own trim (it was one per mix). A mixed kit's worst case is wave 11's: six HEX voices at once. An LFO on another knob than PITCH CUT RESO LEVEL costs a HEX voice a 22-byte copy a block; a CLASSIC voice nothing after the hit's start. Estimated under 0.1 % of a block; not measured on an FM-1.
+
+The kit and the slots (items 1, 2)
+- The kit is the project's 16 slots; a new project's are the 606's. A knob edits the slot itself (no copy, no star, no question). Each slot keeps its machine; the drum voice plays each hit with its slot's machine and its own kit's level trim and crush, so a sound sounds as it did in its own kit.
+- A sound keeps its name when its knobs are turned (as a Rytm sound): "808 SNARE" stays 808 SNARE.
+- The pitch offset: the 606's PEDAL is its closed hat a semitone down (the built-in kits played the PEDAL key's note on the hat); the slot keeps that offset with the sound, so "606 PEDAL" taken into another slot sounds as it did. A MIDI note other than the 16 plays the nearest slot's sound at its GM distance (as a project's own kit already did; on a built-in kit wave 11 played a few of those notes, 65 and 66, from another sound: now from the conga's slot).
+- Patterns A to D share the project's kit: a pattern (section) no longer changes the kit or its sends (its core keeps P_E0 and the sends only for an older firmware). Wave 11 switched to a pattern's own kit number. Per-pattern kits would cost 592 B of RAM per pattern (2.4 KB): not affordable. For Ben to confirm.
+- Voices: a slot taking another sound cuts what that slot rings (as a Rytm track does); loading a kit cuts every drum voice.
+- Chokes belong to the slots: HAT and PEDAL cut OPEN HAT, whatever machines sit there.
+- Locks on a machine change (Ben: not lost silently): a lock on a send, the LFO or the pitch stays; a lock on one machine's own knob goes to the other machine's knob of the same name (TUNE, CUTOFF, RESO, TYPE, DRIVE, DECAY, LEVEL, WAVE), at the same share of its range (a TYPE or WAVE by its name only); the rest are dropped and the readout says how many (2 LOCKS OFF, 3 LOCKS MOVED). Back to the first sound in the same turn of PRESETS: every lock as it was (the turn's start is kept in the undo's room). The lock pool is per pattern: patterns other than the one playing keep their locks as they were (a lock for the other machine does nothing, as before).
+
+PRESETS on the drums (items 3 to 5)
+- Drum screen, any tab (and CHROMATIC): the selected slot's sound. Each detent takes the next sound at once and plays it once while stopped (playing: the pattern plays it). Turning back to the start gives exactly what the slot had (its edits too); where the start is not in the list (edited), it sits beside its own entry ("AS IT WAS"). One undo a turn (SAVE + OCT-), redo too. A turn ends when anything else is changed.
+- HOME (the drums selected), SAVE > PRESETS (now the drums' kit list, it showed nothing), TRACKS: the whole kit. Over an unchanged kit it loads at once; over a changed one (any slot taken from elsewhere, edited, or a send changed) the first detent asks HOLD SAVE: LOAD 808; turning on changes the question's kit; after the yes the next kits load at once; turning back to the start gives the changed kit back; SAVE + OCT- too. A kit equal to the user kit it was loaded from counts as unchanged. MIDI Program Change on the drum channel loads kit n of the same list and asks the same way.
+- The readout, the same place both times: the dials' band, while PRESETS turns and 1.5 s after: KIT 808 / SOUND 808 SNARE in the tall face in teal, then the group and the place in it (CLASSIC KITS 2/32, SNARE 6/41), the locks moved or dropped at the right.
+- The sound list: INIT HEX, INIT CLASSIC first (easy to find: one turn left of a kit's first entry, and the list wraps), the slot's kind from every kit in kit order, then the other 15 kinds, KICK to COWBELL, each from every kit; 2 + 16 x 41 = 658 entries with MY HEX 1 to 4 (more with your kits). The place shown is the group's (SNARE 6/41), not the whole list's. The kinds are the 16 slots; the HEX and MY HEX kits have the same 16 (their sounds were always ordered the CLASSIC way); a user kit's sound is of the kind of the slot it sits in. The kits' 17th sound (the clave each kit has, unused since PHEBUS's 16 slots) is not listed: say if wanted.
+- The engines are named HEX (the LXR-02's voices) and CLASSIC (the synthesised model of the 606, 808, 909 ...). The INITs suit the slot: a sine thump at the slot's pitch (kicks, toms, conga, cowbell), a sine and a noise (snares, clap, rim), a high-passed noise (hats, cymbals, shaker); no transient, FM, drive or sweep; within a few dB of the kit sounds (tests/kitmix_test.c prints them).
+- HOME's DRUM zone: the kit's name while the slots are the kit loaded; CUSTOM once one differs. The drum screen: the SELECT chip stays the slot (KICK); the slot's sound name (606 SNARE) is the line SOUND ... under the name (the header's title room fits about seven letters: the chip).
+
+User kits (item 6)
+- SAVE > KITS (SAVE's third category: PRESETS, USER, KITS, PATTERNS, TOOLS): MY KIT 1 to 6, KNOB 1 the place, KNOB 2 LOAD (asks over a changed kit), KNOB 3 ERASE (asks), KNOB 4 SAVE (into an empty place at once; over a kit asks). Header DRUM in teal (it is the drum voice's), whichever voice is selected. Places 1 to 4 never saved over are the old MY HEX 1 to 4 (OLD), loading as they played; erased ones disappear from the lists. Single sounds from user kits are in the sound list (read from flash a detent at a time: cheap).
+- The user kits are not in the backup page's backup yet (it needs a new backup object and the page to know it, and the web tests are long). For Ben to confirm.
+
+Old projects (item 7)
+- A project of waves 3 to 11 with a copy of the kit it plays: that copy becomes the slots, with its sends and locks; on a built-in kit (or MY HEX): that kit's 16 sounds. Proven by render hashes of wave 11's own projects made and played by wave 11's own code (tests/kit12_ref.sh, tests/kit12_ref.txt): the default 606 pattern, HEX METAL with locks (a CLASSIC lock on it too), the 606 edited with locks, the 808 with locks, MY HEX 2, a 606 copy beside the 808: identical; saved again in the new format and loaded: identical. Each render runs in a fork of the test (a render left the effects' running state behind, which changed the next one's hash in wave 11 too).
+- A copy of a kit the project was not playing (it did not sound) is kept as a user kit in the first free place (MY KIT 5, 6, or an erased one) and the screen says so; with no free place it is lost (said). A per-step lock of the kit number (only very old projects: no page has made one since wave 3) now does nothing.
+
+The 13:35 answers
+- Item 10 (Ben confirmed: "it's effectively like having the step sequencer in view twice"): no step row on any drum tab, TRIG included; the keys' lights show the selected slot's steps as before; locks, -/+ step pages and the legend unchanged. The sound pages show SOUND 606 SNARE, its place, and a picture: the level over the first half second and the pitch sweep, worked out from the values (the CLASSIC machine's own laws; the HEX machine's from its comment marks, approximate), no rendering. TRIG / PATTERN / A-D: the keys' page (KEYS 1-16 OF 32 STEPS), the held step's values, nothing held the new-hit velocity. The FX tab: THE WHOLE DRUM VOICE and the page. The synth SEQ screen is unchanged (its tiles show note names and chords); Ben's remark may apply there too: he is being asked.
+- Item 11: OCT- / OCT+ with a drum key no longer give ghost / hard hits (OCT- with a key is only erase; their lights gone). The drum keys now play and record at TRIG's new-hit velocity (KNOB 1 with nothing held; it was a fixed 100), so a ghost note recorded live is: SEQ (TRIG shows), KNOB 1 down to about 40, play the key while recording (three moves; a hit already on a step: hold it, KNOB 1 VEL: two). Before: hold OCT- and hit the key (one chord).
+- Item 12: hold LFO on a drum sound page (SRC FLTR AMP LFO, nothing held, not CHROMATIC): wave 11's MAP view in teal (no SEL: one LFO); a turn sets the LFO's DEST to that knob and DEPTH to the amount; another knob replaces it and says LFO > CUT (WAS DECAY); OCT- removes (undo: the kit's). DEST lists PITCH CUT RESO LEVEL then every knob of the slot's machine that can be wiggled (named values and the LFO's own knobs cannot): stored in the same DEST byte (no storage cost: the list is the slot's machine's). HEX applies it every block; CLASSIC (and the sends on both) at the hit's start, the model working out its envelopes then. Hold ENV on the drums stays MASTER's pair.
+- Item 13: the crocodile is the drums' head (teal), the snake voice 3's (coral): the sprite order swapped at its one source (tools/gen_sprites.py), drawings kept.
+- Item 14: the LCD backlight is PA2, a plain GPIO, on or off (hal/fm1_lcd_hw.h); dimming it would need PWM from a timer: a hal change (not made), and switching the backlight's current fast near the audio is a noise risk. So QUIET dims in software at the one place every band passes (gfx.c, each pixel 9/16 of its level, about -5 dB: white reads as light grey, still clear), and the panel's own brightness register is set too (lcd.c, WRDISBV 0x60; likely no effect on this wiring). The trade-off: no battery is saved (the light itself is as bright); contrast is lower.
+- The simulator: PRESETS from the keyboard is Shift + Left / Right (it had no key).
+
+Not checked
+- No device build (no toolchain here). The long tests (soak, stress, regress, web) were not run. The backup page does not carry the user kits.
+
 ## For Ben to confirm
 Every call waves 2 to 7 made that the spec did not cover, and every device-only limit or lossy conversion, one line each. The detail is in each wave's section above.
 
@@ -612,8 +658,7 @@ Drums (waves 2 and 3)
 - CHANCE counts only with COND CHNC; a CHNC trig starts at 50 %; synth steps keep a fixed 50 % CHNC.
 - RETRIG: rate 1/1 to 1/80 of a bar, length 1/8 step to 16 steps or INF, curve -128 to 127; the next trig ends it.
 - Synthesised kits keep their own model (not converted to the HEX machine); every sound gets an LFO (SPEED DEPTH DEST WAVE, SYNC FADE PHASE MODE).
-- One edited kit a project; another kit asks HOLD REC: REPLACE (wave 8). A way to store your copy into MY HEX is not built.
-- PEDAL gets its own sound in your copy (the built-in kits share the closed hat's).
+- (Replaced in wave 12: the kit is 16 slots, every one the project's; whole kits stored under SAVE > KITS.)
 - MODEL and TYPE cannot be locked (as the Rytm's machine).
 - Sound pick: hold SEL + key; MUTE mode: tap SEL; CHROMATIC: tap ARP; live RETRIG: hold ARP + key, the black keys the rate; FILL: F#5 held, OCT+ to latch (wave 8).
 - Hold a step + OCT-: the last-turned lock, then every lock; on TRIG everything the trig holds.
@@ -696,4 +741,18 @@ Wave 11, mapping and lights
 - DISCO: QUIET's hints at the backlight level (very dim: right for a dark cabin, faint in daylight); SHOW's dance and its screensaver after a minute.
 - THE SCREEN'S BRIGHTNESS is not part of DISCO. Should QUIET also dim the screen (the LCD backlight is the bigger battery cost)?
 - VOICE 3 CORAL AND RECORD RED: coral (255,128,108) and the record red (255,44,52) are close. Where they now sit side by side with voice 3 selected or recording (review/wave11: w11-v3-rec-armed, w11-v3-home-rec, w11-v3-filt-rec): the REC screen's armed row is a red frame around voice 3's coral row; the strip shows voice 3's coral head and number with the red recording dot right after; HOME shows voice 3's coral name inverted with the red dot beside it; a voice 3 header's coral tag sits left of the red beat light and red recording disc. The confirm ring is red with no coral near it (fine). Nothing changed; options: keep; or make the recording dot white with a red ring; or move voice 3 to a less red coral.
-
+Wave 12, drum sounds per slot
+- Patterns A to D share the project's kit (wave 11 switched to a pattern's own kit number): per-pattern kits would cost 2.4 KB of RAM.
+- One kit question only: loading a whole kit over a changed one (PRESETS on HOME, SAVE > PRESETS, SAVE > KITS LOAD, MIDI Program Change). SAVE > KITS ERASE and SAVE over a kit ask too (they replace a stored kit).
+- A sound keeps its name when edited; HOME says CUSTOM once any slot differs from the kit loaded.
+- Locks on a machine change: carried to the same-named knob at the same share of its range, others dropped and counted; back in the same turn: all back.
+- The sound list: INIT HEX and INIT CLASSIC first, the slot's kind, then all kinds; the group's place shown (SNARE 6/41). The clave each kit holds is not listed.
+- The INITs suit the slot's family (thump, snare, noise burst).
+- The machines named HEX and CLASSIC.
+- SAVE > KITS: six places, places 1 to 4 the old MY HEX until saved over; SAVE into an empty place does not ask.
+- An old project's copy of a kit it was not playing is kept as MY KIT 5 or 6 (lost when both are used).
+- The user kits are not in the backup page's backup yet.
+- The drum screen: the chip stays the slot; the sound's name on the line under it. No step row on any drum tab, SEQ's TRIG included (Ben confirmed). The synth SEQ screen: unchanged, a question for Ben.
+- Ghost notes: the keys play at TRIG's new-hit velocity (it was a fixed 100); three moves to record a ghost live.
+- Hold LFO on the drums: HEX moves the knob as it rings, CLASSIC at each hit's start (except PITCH CUT RESO LEVEL).
+- QUIET dims the screen in software (9/16); the backlight itself cannot be dimmed without a hal change; no battery saved.

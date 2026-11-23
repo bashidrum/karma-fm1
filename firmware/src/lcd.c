@@ -44,6 +44,18 @@ static void lcd_data(const void *p, uint32_t n)
     fm1_lcd_send_data(p, n);
     lcd_busy = 1;                  /* completed by lcd_sync */
 }
+/* (wave 12, Ben 23 Nov 13:35: "QUIET also dims the screen") the panel's own brightness (WRDISBV). The FM-1's backlight is a plain
+ * GPIO (PA2, on or off: fm1_lcd_hw.h), not the controller's LEDPWM, so this most likely changes nothing on this panel; it is
+ * sent because it costs nothing and would dim a module wired the other way. The dimming that surely happens is gfx.c's */
+#define LCD_HAS_BRIGHTNESS 1
+static uint8_t lcd_bri_buf[4] __attribute__((aligned(4)));
+static void lcd_brightness(uint8_t v)
+{
+    lcd_cmd(0x51);
+    lcd_bri_buf[0] = v;
+    lcd_data(lcd_bri_buf, 1);
+    lcd_sync();
+}
 
 static void lcd_window(uint32_t x0, uint32_t y0, uint32_t x1, uint32_t y1)
 {

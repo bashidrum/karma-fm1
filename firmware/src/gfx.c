@@ -55,6 +55,7 @@ static void palette_set(uint32_t i)
 
 static inline uint16_t swap16(uint32_t c) { return (uint16_t)(((c >> 8) & 0xFFu) | ((c & 0xFFu) << 8)); }
 
+static uint8_t cv_dimmed;                /* (wave 12) the canvas dimmed already (QUIET: gfx.c cv_dim) */
 static void cv_begin(uint32_t w, uint32_t h, uint16_t bg)
 {
     uint32_t i, n;
@@ -63,16 +64,45 @@ static void cv_begin(uint32_t w, uint32_t h, uint16_t bg)
     lcd_sync();                     /* the last blit may still read cv_px */
     cv_w = w;
     cv_h = h;
+    cv_dimmed = 0;
     n = w * h;
     for (i = 0; i < n; i++)
         cv_px[i] = swap16(bg);
 }
 
-static void cv_blit(uint32_t x, uint32_t y) { lcd_blit(x, y, cv_w, cv_h, cv_px); }
+/* (wave 12, Ben 23 Nov 13:35: "QUIET also dims the screen") the screen dimmed in software: every pixel of a canvas scaled to
+ * 9/16 of its level (about -5 dB) as it goes to the panel, here, where every band of the screen passes. The FM-1's LCD
+ * backlight is a plain GPIO (PA2, on or off: hal/fm1_lcd_hw.h), so the light itself cannot be dimmed without a hal change;
+ * this lowers what the panel shows instead (the backlight's own current is unchanged: no battery saved). The panel's own
+ * brightness register is asked too (lcd.c lcd_brightness), in case a module honours it */
+static uint8_t scr_dim;
+static void cv_dim(uint16_t *p, uint32_t n)
+{
+    uint32_t i;
+    for (i = 0; i < n; i++) {
+        uint32_t c = swap16(p[i]), r = ((c >> 11) * 9u) >> 4, g = (((c >> 5) & 63u) * 9u) >> 4, b = ((c & 31u) * 9u) >> 4;
+        p[i] = swap16(r << 11 | g << 5 | b);
+    }
+}
+static void scr_set_dim(uint32_t on)                    /* (ui: DISCO QUIET on, off) */
+{
+    scr_dim = (uint8_t)(on != 0);
+#ifdef LCD_HAS_BRIGHTNESS
+    lcd_brightness(on ? 0x60u : 0xFFu);
+#endif
+}
+static void cv_blit(uint32_t x, uint32_t y)
+{
+    if (scr_dim && !cv_dimmed)
+        cv_dim(cv_px, cv_w * cv_h), cv_dimmed = 1;
+    lcd_blit(x, y, cv_w, cv_h, cv_px);
+}
 
 /* canvas rows r0 .. cv_h-1 only, to screen row y + r0 */
 static void cv_blit_from(uint32_t x, uint32_t y, uint32_t r0)
 {
+    if (scr_dim && !cv_dimmed)
+        cv_dim(cv_px, cv_w * cv_h), cv_dimmed = 1;
     if (r0 < cv_h)
         lcd_blit(x, y + r0, cv_w, cv_h - r0, cv_px + r0 * cv_w);
 }

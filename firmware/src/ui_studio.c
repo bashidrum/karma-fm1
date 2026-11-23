@@ -242,7 +242,7 @@ static void swing_str(char *b, int32_t v)            /* 0 straight .. 100 the mo
 static int16_t *home_knob(uint32_t k, const param_desc_t **d)
 {
     track_t *t = TSEL;
-    uint32_t i, kit = drum_kit();
+    uint32_t i, kit = 0;
     if (is_drum(t)) {
         static int16_t dec;                             /* (PHEBUS wave 3: the selected sound's DECAY, every kit: a mirror;
                                                          * ui_input.c tracks_edit turns it through the drum pages') */
@@ -369,6 +369,7 @@ static void pads_tick(void)                             /* once a frame: the hit
 #include "ui_grid.c"               /* the step GRID on every track (Elektron style) */
 #include "ui_stut.c"               /* (PHEBUS) the GRID's STUTTER lane, after DRUM */
 #include "ui_drum.c"               /* (PHEBUS wave 3) the drum screen, the Rytm's way */
+#include "ui_kit.c"                /* (wave 12) changing a drum sound, a whole kit; SAVE > KITS */
 
 static uint32_t lvl_rank(uint32_t lvl) { return lvl == LV_GHOST ? 0u : lvl == LV_SOFT ? 1u : lvl == LV_NORM ? 2u : 3u; }
 
@@ -450,10 +451,10 @@ static uint8_t rec_shown;
 /* the four tracks, compact, from y0: the one that records is framed in red */
 static void rec_rows(uint32_t rt, uint32_t y0, uint32_t *cache)
 {
-    uint32_t sig = rt * 3u + rec_wait + drum_kit() * 977u + y0, i, j;
+    uint32_t sig = rt * 3u + rec_wait + pkit_gen * 977u + y0, i, j;
     for (i = 0; i < NTRK; i++) {
         char b[16];
-        if (i == TRK_DRUM) str_cpy(b, DRUM_KIT_NAMES[drum_kit()], sizeof b);
+        if (i == TRK_DRUM) drum_kit_name(b, sizeof b);
         else trk_short_name(i, b);
         sig = studio_hash(sig, b) + (uint32_t)trk[i].p[P_SLEN] * 31u;
         for (j = 0; j < NSTEP; j++) sig = sig * 3u + (uint32_t)trk_step_on(&trk[i], j);
@@ -469,7 +470,7 @@ static void rec_rows(uint32_t rt, uint32_t y0, uint32_t *cache)
         char b[16];
         if (armed) cv_rect(0, y, 240, 18, TE_RED), cv_rect(1, y + 1, 238, 16, C_BLACK);
         cv_rect(4, y + 3, 12, 12, armed ? TE_COL[i] : TE_DIM[i]);
-        if (i == TRK_DRUM) str_cpy(b, DRUM_KIT_NAMES[drum_kit()], sizeof b);
+        if (i == TRK_DRUM) drum_kit_name(b, sizeof b);
         else trk_short_name(i, b);
         b[10] = 0;
         cv_text(22, y + 1, &FONT_S, b, armed ? C_WHITE : TE_G3);

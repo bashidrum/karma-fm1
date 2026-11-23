@@ -58,6 +58,8 @@ static void draw_head(void)
         title = "LEARN";
     if (pg->graph == GR_SPATT && !ui.home)              /* (wave 11) SAVE > PATTERNS: the whole project's, no voice's tag */
         op_header("SAVE", TE_G4, title, &ui.head_sig);
+    else if (pg->graph == GR_UKIT && !ui.home)          /* (wave 12) SAVE > KITS: the drum voice's kit, whichever is selected */
+        op_header("DRUM", TE_DRUM, title, &ui.head_sig);
     else if (shared_page(pg))
         op_header(pg->fam == FAM_MFX ? "MIX" : "GLO", TE_G4, title, &ui.head_sig);   /* (wave 9: the whole mix's, after a
                                                          * voice's FX in the FX group: MIX, never a voice's tag) */   /* (wave 7: the button that opens them) */
@@ -347,8 +349,32 @@ static uint32_t graph_signature(void)
 /* preset browser: the list by kind (ui.c BANK), the current one in white */
 static void graph_browse(void)
 {
-    uint32_t total, cur = preset_pos(&total), e, k;
+    uint32_t total, cur, e, k;
     int32_t row;
+    if (is_drum(TSEL)) {                                 /* (wave 12) the drums: the whole kits, the one loaded teal (CUSTOM:
+                                                         * a kit changed from it, first) */
+        int32_t p = kit_changed() ? -1 : kit_pos(pkit.base);
+        uint32_t n = kit_src_n();
+        for (row = -3; row <= 3; row++) {
+            int32_t y = 4 + (row + 3) * 17, q = (p < 0 ? 0 : p) + row;
+            char nm[13];
+            int sel = row == 0;
+            if (p < 0 && row == 0) {
+                str_cpy(nm, "CUSTOM", sizeof nm);
+            } else {
+                if (p < 0 && row > 0)
+                    q--;
+                q = (q % (int32_t)n + (int32_t)n) % (int32_t)n;
+                kit_name_of(kit_src((uint32_t)q), nm, sizeof nm);
+            }
+            if (sel)
+                cv_rect(4, y + 6, 3, 3, C_WHITE);
+            cv_text(14, y, &FONT_S, p < 0 && sel ? "" : kit_src((uint32_t)q) < DRUM_SAMPLED ? "HEX" : kit_src((uint32_t)q) < DRUM_USR ? "CLS" : "MY", sel ? C_GRAY : C_DIM);
+            cv_text(54, y, &FONT_S, nm, sel ? TE_DRUM : C_GRAY);
+        }
+        return;
+    }
+    cur = preset_pos(&total);
     if (!total)
         return;
     for (row = -3; row <= 3; row++) {
@@ -738,6 +764,10 @@ static void draw_graph(void)
             cv_oy = 0;
             graph_spatt();
             break;
+        case GR_UKIT:
+            cv_oy = 0;
+            graph_ukit();
+            break;
         default:
             if (big_page(pg)) {
                 cv_oy = 0;
@@ -755,11 +785,11 @@ static void draw_graph(void)
         }
     }
     if (!ui.home && !drum_note && !is_drum(t) && !big_page(pg) && pg->graph != GR_BROWSE && pg->graph != GR_SLOTS &&
-        pg->graph != GR_USER && pg->graph != GR_SPATT) {                      /* over a graph (they keep to the lower rows): the track's sound */
+        pg->graph != GR_USER && pg->graph != GR_SPATT && pg->graph != GR_UKIT) {                      /* over a graph (they keep to the lower rows): the track's sound */
         cv_oy = 0;
         op_names(t);
     }
-    top = !ui.home && !drum_note && (pg->graph == GR_BROWSE || pg->graph == GR_SLOTS || pg->graph == GR_USER || pg->graph == GR_SPATT ||
+    top = !ui.home && !drum_note && (pg->graph == GR_BROWSE || pg->graph == GR_SLOTS || pg->graph == GR_USER || pg->graph == GR_SPATT || pg->graph == GR_UKIT ||
                                      big_page(pg));   /* these draw from the top */
     cv_oy = 0;
     if (ui.hot_t && settings.zoom && !(top && big_page(pg) && !drum_note)) {   /* (the big values show it already) */                 /* focus (menu ZOOM): the touched value, large and white */
@@ -875,6 +905,30 @@ static void draw_columns_set(void)
         draw_column(2, "STEPS", val, unit, VAL(2u), RATIO(&TP[P_SLEN], t->p[P_SLEN]), ICON_AUTO);
         param_format(&TP[P_PAN], t->p[P_PAN], val, &unit);
         draw_column(3, "PAN", val, unit, VAL(3u), RATIO(&TP[P_PAN], t->p[P_PAN]), param_icon(&TP[P_PAN], t->p[P_PAN]));
+        return;
+    }
+    if (cur_page()->graph == GR_UKIT) {                  /* (wave 12) KIT, then three GO knobs */
+        int used = ukit_has(ukit_sel);
+        fmt_int(val, (int32_t)ukit_sel + 1);
+        draw_column(0, "KIT", val, "", VAL(0u), (int32_t)ukit_sel * 1000 / (int32_t)(UKIT_N - 1u), ICON_AUTO);
+        draw_column(1, "LOAD", "--", "", used ? C_HI : C_DIM, -1, ICON_AUTO);
+        draw_column(2, "ERASE", "--", "", used ? C_HI : C_DIM, -1, ICON_AUTO);
+        draw_column(3, "SAVE", "--", "", C_HI, -1, ICON_AUTO);
+        return;
+    }
+    if (cur_page()->graph == GR_BROWSE && is_drum(TSEL)) {   /* (wave 12) the drums: the whole kit's place in the list */
+        int32_t p = kit_changed() ? -1 : kit_pos(pkit.base);
+        char u[8];
+        if (p < 0)
+            str_cpy(val, "--", 12);
+        else
+            fmt_int(val, p + 1);
+        str_cpy(u, "/", 8);
+        fmt_int(u + 1, (int32_t)kit_src_n());
+        draw_column(0, "KIT", val, u, VAL(0u), -1, ICON_NONE);
+        draw_column(1, "", "", "", C_HI, -1, ICON_AUTO);
+        draw_column(2, "", "", "", C_HI, -1, ICON_AUTO);
+        draw_column(3, "", "", "", C_HI, -1, ICON_AUTO);
         return;
     }
     if (cur_page()->graph == GR_BROWSE) {

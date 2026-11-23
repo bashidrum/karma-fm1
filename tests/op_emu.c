@@ -73,7 +73,7 @@ int main(void)
         apply_preset_to(&trk[i], TRK_DEF[i][1]);
         trk[i].engine = trk[i].eng_req;
     }
-    TDRUM->p[P_E0] = DRUM_DEFAULT_KIT;
+    kit_set((uint32_t)(DRUM_DEFAULT_KIT));
     emu_demo();
     go_home();
     ui.force = 1;

@@ -441,14 +441,14 @@ int main(int argc, char **argv)
     palette_set(4);
     host_tracks_init();
     for (i = 0; i < NPART; i++) { trk_def_sound(&trk[i], i); trk[i].engine = trk[i].eng_req; }   /* (as main.c felucca_init) */
-    TDRUM->p[P_E0] = DRUM_DEFAULT_KIT;
+    kit_set((uint32_t)(DRUM_DEFAULT_KIT));
     {   /* PHEBUS (21 Nov, Ben: "I don't like having fx on by default"): power-on is dry */
         uint32_t ok = 1, l;
         for (i = 0; i < NPART; i++)
             ok &= !trk[i].p[P_DIST] && !trk[i].p[P_CHOR] && !trk[i].p[P_DLY] && !trk[i].p[P_REV] && !trk[i].p[P_ITYPE] &&
                   !trk[i].p[P_SSWING];
         for (l = 0; l < DRUM_LANES; l++)
-            ok &= !drum_send[l][0] && !drum_send[l][1];
+            ok &= !sl_send(l, 0) && !sl_send(l, 1);
         ok &= !TDRUM->p[P_DIST] && !TDRUM->p[P_DLY] && !TDRUM->p[P_REV] && !TDRUM->p[P_ITYPE] && !song.g[G_DRREV] &&
               !song.g[G_DRDLY] && !song.g[G_SWING] && !song.g[G_DUST] && !song.g[G_DUCK] && !song.g[G_FILT];
         check(ok, "power-on: every send 0 (tracks, drum sounds), no DIST / INSERT, no swing, master FX off");
@@ -549,21 +549,21 @@ int main(int argc, char **argv)
               "HOME knobs, PLAITS: CUTOFF the voice filter's, DECAY the ENV's DEC");
         set_engine_of(&trk[1], ENGI_ELEM); song.sel = 1; frame();
         check(home_knob(0, &d) == &trk[1].p[P_FCUT] && home_knob(1, &d) == &trk[1].p[P_DEC], "HOME knobs, ELEMENTS: CUTOFF, DEC");
-        song.sel = TRK_DRUM; TDRUM->p[P_E0] = 0; drum_lane = 2; frame();
+        song.sel = TRK_DRUM; kit_set((uint32_t)(0)); drum_lane = 2; frame();
         check(home_knob(0, &d) == &TDRUM->p[P_TFLT] && (vp = home_knob(1, &d)) && str_eq(d->label, "DEC") &&
               *vp == HEX_KITS[0].s[1].dec,
               "HOME knobs, drums (HEX kit): CUTOFF the drum track's FILTER, DECAY the selected sound's DEC");
-        TDRUM->p[P_E0] = DRUM_DEFAULT_KIT; frame();
+        kit_set((uint32_t)(DRUM_DEFAULT_KIT)); frame();
         check((vp = home_knob(1, &d)) && str_eq(d->label, "DECAY") && *vp == DS_KITS[DRUM_DEFAULT_KIT - DRUM_SAMPLED].s[1].decay,
               "HOME knobs, drums (606, PHEBUS wave 3: every kit editable): DECAY the selected sound's DECAY");
-        {   /* turned: the project's own copy of the 606 takes it, the built-in kit is untouched */
+        {   /* turned: the project's own slot takes it (wave 12), the built-in kit is untouched */
             int32_t d0 = DS_KITS[DRUM_DEFAULT_KIT - DRUM_SAMPLED].s[1].decay;
             go_home(); frames(16);
             encs[panel.enc[EN_K2]] = 3; frame();
-            check(pkit_on() && dsp_get(DM_SYN, pkit.snd[2], &pkit.lfo[2], 2, DSP_S0 + DS_DECAY) == d0 + 3 &&
-                  DS_KITS[DRUM_DEFAULT_KIT - DRUM_SAMPLED].s[1].decay == d0,
-                  "HOME KNOB 2 on the drums (606): the snare's DECAY +3 in the project's copy, the 606 itself untouched");
-            memset(&pkit, 0, sizeof pkit);
+            check(dsp_get(DM_SYN, pkit.s[2].snd, &pkit.s[2].lfo, 2, DSP_S0 + DS_DECAY) == d0 + 3 &&
+                  DS_KITS[DRUM_DEFAULT_KIT - DRUM_SAMPLED].s[1].decay == d0 && kit_changed(),
+                  "HOME KNOB 2 on the drums (606): the snare's DECAY +3 in the project's slot, the 606 itself untouched");
+            kit_set(DRUM_DEFAULT_KIT);
             ui.msg_t = 0;
         }
         go_home(); ui.force = 1; frame(); ppm("home-knobs-drum");
@@ -596,7 +596,7 @@ int main(int argc, char **argv)
             ok &= !(fam_stage(PAGES[k].fam) >= 0 && (PAGES[k].id[0] == P_PAN || PAGES[k].id[1] == P_PAN ||
                                                        PAGES[k].id[2] == P_PAN || PAGES[k].id[3] == P_PAN));
         check(ok, "pan: the mixer's (wave 4: no voice page holds it: one layout, VOICE 2 is gone)");
-        memcpy(trk, keep, sizeof keep); dpat = keep_dp; trk[2].p[P_TFLT] = tf; TDRUM->p[P_E0] = kit; stl.act = (uint8_t)act; sync_reload = 1;
+        memcpy(trk, keep, sizeof keep); dpat = keep_dp; trk[2].p[P_TFLT] = tf; kit_set((uint32_t)(kit)); stl.act = (uint8_t)act; sync_reload = 1;
         song.sel = 0; go_home(); frames(16);
     }
     {   /* PHEBUS (Ben, 21 Nov 2026, picker "Add PATTERN"): LFO SYNC > TRIG is NOTE, FREE or PATTERN */
@@ -1082,7 +1082,7 @@ int main(int argc, char **argv)
     song.sel = TRK_DRUM; studio_open(SC_DRUM); ui.force = 1; frames(16);   /* (after SAVE: the knobs quiet, #39) */
     check(on_drum_page() && grid_keys_on(), "the drum screen: the keys are the selected sound's steps");
     memset(&pkit, 0, sizeof pkit);
-    TDRUM->p[P_E0] = DRUM_DEFAULT_KIT;
+    kit_set((uint32_t)(DRUM_DEFAULT_KIT));
     {   /* a scene to look at */
         static const uint8_t BEAT[16] = {0x11, 0x10, 0x10, 0x10, 0x14, 0x10, 0x10, 0x21, 0x11, 0x10, 0x01, 0x10, 0x1C, 0x10, 0x10, 0x20};
         uint32_t j;
@@ -1136,8 +1136,8 @@ int main(int argc, char **argv)
         ui.force = 1; frame(); ppm("drum-lfo");
         dpg_go(2, 0); ui.force = 1; frame(); ppm("drum-fltr");      /* (wave 8: CUTOFF RESO ENV TYPE, as the synth's FILT) */
         dpg_go(2, 1); ui.force = 1; frame(); ppm("drum-fltr2");
-        TDRUM->p[P_E0] = 0; dpg_go(2, 0); frames(2); ui.force = 1; frame(); ppm("drum-fltr-hex");
-        TDRUM->p[P_E0] = DRUM_DEFAULT_KIT; frames(2); dpg_go(4, 0); frame();
+        kit_set((uint32_t)(0)); dpg_go(2, 0); frames(2); ui.force = 1; frame(); ppm("drum-fltr-hex");
+        kit_set((uint32_t)(DRUM_DEFAULT_KIT)); frames(2); dpg_go(4, 0); frame();
         check(ok, "drum pages: ENV opens AMP (SEL its 2/2; ENV again its first page); LFO opens LFO");
         dpg_go(1, 0); frame();
         { uint32_t ln = drum_lane, bp = (uint32_t)song.g[G_BPM];
@@ -1152,32 +1152,22 @@ int main(int argc, char **argv)
               dh_id(DM_SYN, DPG_LFO, 0, 1) == DSP_LDEP && dh_id(DM_HEX, DPG_LFO, 0, 1) == DSP_LDEP,
               "drum pages: the same four pages on every sound (SRC TUNE first, AMP 2/2 DEL REV, LFO SPEED DEPTH ..)");
     }
-    {   /* nothing held: a knob edits the selected sound; on a built-in kit the first turn makes the project's copy */
+    {   /* nothing held: a knob edits the selected slot's sound, the project's own (wave 12: no copy, no star, no question) */
         int32_t t0 = DS_KITS[DRUM_DEFAULT_KIT - DRUM_SAMPLED].s[1].pitch;
         uint32_t m;
         frames(16);
         encs[panel.enc[EN_K1]] = 2; frame();
-        check(pkit_on() && pkit.src == DRUM_DEFAULT_KIT && dsp_get(DM_SYN, pkit.snd[2], &pkit.lfo[2], 2, DSP_S0 + DS_TUNE) == t0 + 2 &&
-              DS_KITS[DRUM_DEFAULT_KIT - DRUM_SAMPLED].s[1].pitch == t0,
-              "drum SRC, KNOB 1 (TUNE) on the 606: the project's copy made, the snare +2 in it, the built-in 606 untouched");
-        ui.force = 1; frame();
-        check(str_eq(ui.msg, "YOUR COPY OF THE KIT"), "drum screen: the first turn says the copy was made");
+        check(dsp_get(DM_SYN, pkit.s[2].snd, &pkit.s[2].lfo, 2, DSP_S0 + DS_TUNE) == t0 + 2 && !ui.ask &&
+              DS_KITS[DRUM_DEFAULT_KIT - DRUM_SAMPLED].s[1].pitch == t0 && (pkit.s[2].mach & SL_EDT),
+              "drum SRC, KNOB 1 (TUNE) on the 606: the snare's slot +2 at once, nothing asked, the built-in 606 untouched");
         ui.msg_t = 0; ui.force = 1; frame();
         m = px_count(4, 58, 120, 16, C_WHITE);
-        check(m > 20u, "drum screen: the kit named with a * under the sound (the header's title place is SELECT's: the sound)");
+        check(m > 20u, "drum screen: the slot's sound named under the slot (606 SNARE; the header's title place is SELECT's)");
         ppm("drum-src");
-        TDRUM->p[P_E0] = DRUM_SAMPLED + 1u; frame();  /* the 909: turning makes its copy, the 606's would go: asked first */
+        kit_set(DRUM_SAMPLED + 1u); frame();            /* another kit's sound edited: no question either */
         encs[panel.enc[EN_K1]] = 1; frame();
-        check(pkit.src == DRUM_DEFAULT_KIT && str_eq(ui.msg, "HOLD SAVE: REPLACE 606*") && ui.ask == ASK_KIT,
-              "drum screen: on another kit the first turn asks (HOLD SAVE: REPLACE 606*)");
-        encs[panel.enc[EN_K1]] = 1; frame();
-        check(pkit.src == DRUM_DEFAULT_KIT, "drum screen: turned again (wave 8: no second turn): nothing replaced");
-        ui.force = 1; frame(); ppm("drum-ask-replace");
-        press(B_SAVE); frames(30); ui.force = 1; frame(); ppm("hold-confirm"); frames(60); release(B_SAVE); frames(2);
-        check(pkit.src == DRUM_SAMPLED + 1u && pkit_on() && !song.rec && !rec_wait,
-              "drum screen: SAVE held until the ring fills: the 909's copy replaces it (nothing recorded)");
-        memset(&pkit, 0, sizeof pkit);
-        TDRUM->p[P_E0] = DRUM_DEFAULT_KIT; ui.msg_t = 0; frames(2);
+        check(!ui.ask && (pkit.s[2].mach & SL_EDT), "drum screen: on the 909 too a turn edits its slot at once (no REPLACE)");
+        kit_set(DRUM_DEFAULT_KIT); ui.msg_t = 0; frames(2);
     }
     {   /* hold a trig and turn: the value locked on that trig (the 606: every kit's sounds lock), inverted; OCT- removes it */
         uint32_t k5 = key_of_lane(4);
@@ -1185,11 +1175,17 @@ int main(int argc, char **argv)
         tap(B_ENV); frames(2); dpg_go(3, 0); frames(16);    /* AMP 1/2: HOLD DECAY N.HOLD N.DEC */
         fm1_in.notes = 1u << k5; frame();                    /* step 5 held (the snare's trig there) */
         encs[panel.enc[EN_K2]] = 3; frame();
-        check(dt_lk(4, 2, DSP_S0 + DS_DECAY) >= 0 && (int32_t)dpat.lk[dt_lk(4, 2, DSP_S0 + DS_DECAY)].val == dec + 3 && !pkit_on(),
-              "drum lock: trig 5 held + KNOB 2 (DECAY) on the 606: locked on that trig (+3), no copy of the kit made");
+        check(dt_lk(4, 2, DSP_S0 + DS_DECAY) >= 0 && (int32_t)dpat.lk[dt_lk(4, 2, DSP_S0 + DS_DECAY)].val == dec + 3 && !kit_changed(),
+              "drum lock: trig 5 held + KNOB 2 (DECAY) on the 606: locked on that trig (+3), the kit as it was");
         ui.force = 1; frame(); ppm("drum-held-lock");
         check(px_count(80, SG_KNOB_Y + 21, 40, 34, TE_DRUM) > 300u, "drum lock: the locked value drawn inverted (a filled box)");
-        check(px_count(1 + 4 * 15, 78, 13, 26, C_BLACK) > 10u, "drum lock: the trig carrying it marked (a square in it)");
+        check(px_count(4, 76, 120, 16, TE_DRUM) > 60u, "drum lock: the held step's locks named under STEP 5 HELD (LOCK DECAY)");
+        {   /* (wave 12, Ben 23 Nov 13:35: "I don't need to see the sequence on screen, it's shown on my keys") no step row */
+            uint32_t j2, rowpx = 0;
+            for (j2 = 0; j2 < 16u; j2++)
+                rowpx += px_count(1u + j2 * 15u, 77, 13, 26, vel_col(100)) > 200u;
+            check(rowpx == 0u, "w12: the drum screen draws no row of 16 steps (the keys and their lights are the steps)");
+        }
         encs[panel.enc[EN_K4]] = 2; frame();                 /* N.DEC locked too */
         press(B_OCTDN); release(B_OCTDN);
         check(dt_lk(4, 2, DSP_S0 + DS_NDEC) < 0 && dt_lk(4, 2, DSP_S0 + DS_DECAY) >= 0 && str_eq(ui.msg, "LOCK OFF: N.DEC"),
@@ -1270,9 +1266,9 @@ int main(int argc, char **argv)
         check(!fill_lat && song.playing == pl, "FILL: SEQ + PLAY again: off (as a latched pad)");
     }
     {   /* a HEX kit: the same pages, the HEX machine's parameters */
-        TDRUM->p[P_E0] = 0; dpg_go(1, 0); frames(2); ui.msg_t = 0; ui.force = 1; frame(); ppm("drum-hex");
+        kit_set((uint32_t)(0)); dpg_go(1, 0); frames(2); ui.msg_t = 0; ui.force = 1; frame(); ppm("drum-hex");
         check(drum_model() == DM_HEX && dpg_halves(1) == 3u, "a HEX kit: SRC 1/3 .. 3/3 of the LXR machine's parameters");
-        TDRUM->p[P_E0] = DRUM_DEFAULT_KIT; frames(2);
+        kit_set((uint32_t)(DRUM_DEFAULT_KIT)); frames(2);
     }
     {   /* ---- the step GRID on every track (SPEC.md, 20 Nov 2026: Elektron style; ui_grid.c) */
         track_t *t = &trk[0];
@@ -1803,7 +1799,7 @@ int main(int argc, char **argv)
         memcpy(trk, keep, sizeof keep); dpat = keep_dp;
         rec_wait = 0; frame();
     }
-    for (i = 0; i < DRUM_KITS; i++) { TDRUM->p[P_E0] = (int16_t)i; ui.force = 1; frame(); }
+    for (i = 0; i < DRUM_KITS; i++) { kit_set((uint32_t)((int16_t)i)); ui.force = 1; frame(); }
 
     {   /* menu NOTES (PR #11 by @renebohne): sounding synth voices light their keys */
         song.sel = 0; go_home(); ui.force = 1; frame();
@@ -2478,14 +2474,14 @@ int main(int argc, char **argv)
             frame();
             check(trk[1].eng_req == BANK[x0].e && trk[1].preset == bank_pi[x0] && !strncmp(ui.msg, "TRACK 2 PROG 0", 14),
                   "MIDI Program Change 0: track 2 takes the first sound of its PRESETS list (TRACK 2 PROG 0)");
-            pc_req[3] = 3;                                /* PC 2 on the drum channel: kit 2 */
+            pc_req[3] = 3;                                /* PC 2 on the drum channel: kit 2 (an unchanged kit: at once) */
             frame();
-            check(TDRUM->p[P_E0] == 2, "MIDI Program Change on the drum channel: kit 2");
+            check(pkit.base == 2u && !ui.ask, "MIDI Program Change on the drum channel: kit 2, all 16 slots (wave 12)");
             pc_req[1] = (uint8_t)(tot + 1u);              /* past the end: nothing */
             k = trk[1].eng_req;
             frame();
             check(trk[1].eng_req == k && trk[1].preset == bank_pi[x0], "MIDI Program Change past the list: ignored (no wrap)");
-            TDRUM->p[P_E0] = k0;
+            kit_set((uint32_t)(k0));
             set_engine_of(&trk[1], e0); apply_preset_to(&trk[1], p0); trk[1].engine = trk[1].eng_req;
             frames(4);
             press(B_FX); frames(10);
@@ -3052,9 +3048,9 @@ int main(int argc, char **argv)
         for (i = 0; i < 6u; i++) for (ty = 0; ty < 3u; ty++) { syn_go(i, ty % syn_halves(i)); ui.force = 1; frame(); n++; }
         song.sel = TRK_DRUM; studio_open(SC_DRUM); frames(2);
         for (i = 0; i < 6u; i++) for (ty = 0; ty < 5u; ty++) { dpg_go(i, ty % dpg_halves(i)); ui.force = 1; frame(); n++; }   /* (wave 8: the FX tab, its five halves) */
-        TDRUM->p[P_E0] = 0; frames(2);                  /* (a HEX kit: its FLTR with the empty ENV knob) */
+        kit_set((uint32_t)(0)); frames(2);                  /* (a HEX kit: its FLTR with the empty ENV knob) */
         for (ty = 0; ty < 2u; ty++) { dpg_go(2, ty); ui.force = 1; frame(); n++; }
-        TDRUM->p[P_E0] = DRUM_DEFAULT_KIT; frames(2);
+        kit_set((uint32_t)(DRUM_DEFAULT_KIT)); frames(2);
         dpg_go(4, 0); ui.force = 1; frame();
         {
             char b[80];
@@ -3066,15 +3062,16 @@ int main(int argc, char **argv)
     {   /* PHEBUS (21 Nov 2026): TOOLS > NEW: every send and effect off, the STUTTER lane empty */
         uint32_t ok = 1, l;
         for (i = 0; i < NPART; i++) trk[i].p[P_REV] = 50, trk[i].p[P_DLY] = 40, trk[i].p[P_DIST] = 20;
-        drum_send[3][0] = 2; song.g[G_SWING] = 30; song.g[G_DRREV] = 20; stl.on[0] = 5; stl.len = 40;
+        sl_send_set(3, 0, 2); song.g[G_SWING] = 30; song.g[G_DRREV] = 20; stl.on[0] = 5; stl.len = 40;
         project_new(); frames(4);
         for (i = 0; i < NPART; i++)
             ok &= !trk[i].p[P_DIST] && !trk[i].p[P_CHOR] && !trk[i].p[P_DLY] && !trk[i].p[P_REV] && !trk[i].p[P_ITYPE] &&
                   !trk[i].p[P_SSWING] && trk[i].eng_req == TRK_DEF[i][0] && trk[i].preset == TRK_DEF[i][1];
         for (l = 0; l < DRUM_LANES; l++)
-            ok &= !drum_send[l][0] && !drum_send[l][1];
+            ok &= !sl_send(l, 0) && !sl_send(l, 1);
         ok &= !TDRUM->p[P_DIST] && !TDRUM->p[P_DLY] && !TDRUM->p[P_REV] && !TDRUM->p[P_ITYPE] && !song.g[G_DRREV] &&
-              !song.g[G_DRDLY] && !song.g[G_SWING] && !song.g[G_DUST] && !song.g[G_DUCK] && !song.g[G_FILT];
+              !song.g[G_DRDLY] && !song.g[G_SWING] && !song.g[G_DUST] && !song.g[G_DUCK] && !song.g[G_FILT] &&
+              pkit.base == DRUM_DEFAULT_KIT && !kit_changed();
         check(ok, "TOOLS > NEW: the default sounds dry, every send 0, no swing, master FX off");
         check(plain_defaults(), "TOOLS > NEW: the plain saws again (ACID INIT bass, JUNO chords, PLAITS VA lead)");
         check(!stl.on[0] && stl.len == 16u && stl.act, "TOOLS > NEW: the STUTTER lane empty, 16 steps, ON");
@@ -3826,8 +3823,8 @@ int main(int argc, char **argv)
             go_home(); frames(2);
         }
         {   /* the confirm is SAVE's everywhere: TOOLS NEW asks HOLD SAVE */
-            tap(B_SAVE); tap(B_SAVE); tap(B_SAVE); tap(B_SAVE); frames(2);
-            check(cur_page()->cat == CT_TOOLS, "w10: SAVE four times (wave 11: PATTERNS before it): TOOLS");
+            tap(B_SAVE); tap(B_SAVE); tap(B_SAVE); tap(B_SAVE); tap(B_SAVE); frames(2);
+            check(cur_page()->cat == CT_TOOLS, "w10: SAVE five times (wave 11: PATTERNS, wave 12: KITS before it): TOOLS");
             encs[panel.enc[EN_K4]] = 1; frame();
             check(ui.ask == ASK_GO && !strncmp(ui.msg, "HOLD SAVE: NEW", 14), "w10: TOOLS NEW asks HOLD SAVE: NEW");
             tap(B_SAVE); frames(2);
@@ -4103,7 +4100,7 @@ int main(int argc, char **argv)
                     steps_clear(t); t->p[P_SLEN] = 16;
                     for (j = 0; j < 16u; j += 2u) { t->step[j].n = 1; t->step[j].note[0] = (uint8_t)(48 + j); t->step[j].time = ST_NOTE; t->step[j].vel = 100; }
                     for (j = 0; j < NPART; j++) trk[j].p[P_DLY] = trk[j].p[P_REV] = trk[j].p[P_CHOR] = 0;
-                    memset(drum_send, 0, sizeof drum_send);
+                    for (j = 0; j < DRUM_LANES; j++) pkit.s[j].send = 0;
                     song.g[G_DRDLY] = song.g[G_DRREV] = 0; TDRUM->p[P_DLY] = TDRUM->p[P_REV] = TDRUM->p[P_CHOR] = 0;
                     perf_unlatch(); dpat_clear(&dpat);
                     memset(&stl, 0, sizeof stl); stl.len = 16;
@@ -4313,10 +4310,37 @@ int main(int argc, char **argv)
         press(B_LFO); frames(SHOW_MS / 16u + 4u);
         check(!map_lyr && ui.layer == LY_LFO, "w11: hold LFO on HOME: the MASTER pair layer (wave 10), no map");
         release(B_LFO); frames(4);
-        song.sel = TRK_DRUM; drum_screen_open(); frames(4);
-        press(B_LFO); frames(SHOW_MS / 16u + 4u);
-        check(!map_lyr && ui.layer == LY_LFO, "w11: hold LFO on the drums: the pair only (the drum question is Ben's)");
-        release(B_LFO); frames(4);
+        {   /* (wave 12, Ben 13:35: "Hold LFO maps on drums too") a drum sound page: LFO held maps onto the slot's knobs */
+            uint32_t kd, okc = 1;
+            song.sel = TRK_DRUM; kit_set(DRUM_DEFAULT_KIT); drum_lane = 2; drum_screen_open(); dpg_go(3, 0); frames(4);   /* AMP 1/2 */
+            press(B_LFO); frames(SHOW_MS / 16u + 4u);
+            check(map_lyr == LY_LFO && map_vis && ui.layer != LY_LFO, "w12: hold LFO on a drum sound page (AMP): MAP, the page stays");
+            encs[panel.enc[EN_K2]] = 20; frame();       /* DECAY: +20 */
+            check(pkit.s[2].lfo.dst == dl_of(DM_SYN, DSP_S0 + DS_DECAY) && pkit.s[2].lfo.dep == 20,
+                  "w12: drums, LFO held + KNOB 2 (DECAY): the snare's LFO DEST is DECAY, DEPTH +20");
+            ui.force = 1; frame(); ppm("w12-drum-map");
+            okc &= px_count(0, 131, 240, 23, TE_DRUM) > 40u && dial_over == 0u;
+            for (kd = 0; kd < 240u * 23u; kd++) {           /* the banner: the drums' teal outline, black, grey only */
+                uint16_t c = swap16(screen[(131u + kd / 240u) * 240u + kd % 240u]);
+                okc &= c == TE_DRUM || c == C_BLACK || c == TE_G1 || c == TE_G3 || c == TE_G4 || c == C_WHITE;
+            }
+            check(okc, "w12: the drums' MAP view: MAP LFO outlined in teal, its columns fit, the colour rule");
+            dpg_go(2, 0); frame();                      /* FLTR: CUTOFF onto */
+            encs[panel.enc[EN_K1]] = -10; frame();
+            check(pkit.s[2].lfo.dst == DL_CUT && pkit.s[2].lfo.dep == -10 && !strcmp(ui.msg, "LFO > CUT (WAS DECAY)"),
+                  "w12: another knob replaces it, said: LFO > CUT (WAS DECAY), -10");
+            encs[panel.enc[EN_K4]] = 1; frame();
+            check(strstr(ui.msg, "NOT MAPPABLE") != 0 && pkit.s[2].lfo.dst == DL_CUT, "w12: TYPE (a named value): NOT MAPPABLE");
+            check(combo_live(HC_LY(LY_LFO), B_OCTDN) && !combo_live(HC_LY(LY_LFO), B_SCL),
+                  "w12: lights: OCT- (remove) lit, SEL dark (one LFO a sound)");
+            tap(B_OCTDN); frames(2);
+            check(pkit.s[2].lfo.dep == 0, "w12: OCT- while held: the mapping off");
+            release(B_LFO); frames(4);
+            press(B_ENV); frames(SHOW_MS / 16u + 4u);
+            check(!map_lyr && ui.layer == LY_ENV, "w12: hold ENV on the drums: MASTER's pair only (no envelope to map)");
+            release(B_ENV); frames(4);
+            kit_set(DRUM_DEFAULT_KIT);
+        }
         song.sel = 0; go_home(); frames(4);
         /* the sound: a mapping made by the hold plays exactly as the same cell set on the grid, and differs from none */
         {
@@ -4455,7 +4479,7 @@ int main(int argc, char **argv)
         uint32_t s0, j;
         song.sel = 0; go_home(); frames(4);
         for (j = 0; j < 6u && cur_cat() != CT_SPATT; j++) tap(B_SAVE);
-        check(cur_cat() == CT_SPATT && j == 3u, "w11: SAVE pressed three times: PRESETS, USER, PATTERN");
+        check(cur_cat() == CT_SPATT && j == 4u, "w11: SAVE pressed four times: PRESETS, USER, KITS (wave 12), PATTERN");
         encs[panel.enc[EN_K1]] = 2; frames(3);
         check(spatt_sel == 2u, "w11: SAVE > PATTERN: KNOB 1 picks the pattern (C)");
         ui.force = 1; frame(); ppm("w11-save-pattern");
@@ -4586,6 +4610,94 @@ int main(int argc, char **argv)
         }
         check(!lt_bad, "w11: the lights under every hold (25 holds x 40 controls): each lit control does something with it, each dark one nothing");
         go_home(); frames(4);
+    }
+    {   /* ---- wave 12 (Ben, 23 Nov 2026, 11:02 and 11:10): sounds on the drum screen, kits on HOME, SAVE > KITS */
+        dslot_t s606;
+        uint32_t ok, px, k;
+        char nm[24];
+        song.sel = TRK_DRUM; kit_set(DRUM_DEFAULT_KIT); dpat_clear(&dpat); drum_lane = 2;
+        transport_req = 2; frames(2);
+        drum_screen_open(); dpg_go(1, 0); frames(4);
+        s606 = pkit.s[2];
+        encs[panel.enc[EN_PRESET]] = 1; frame();
+        slot_name(&pkit.s[2], nm, sizeof nm);
+        check(str_eq(nm, "80S SNARE") && str_eq(brw_l1, "SOUND 80S SNARE") && brw_t && !ui.ask,
+              "w12: drum screen, PRESETS +1: the SNARE slot takes the next snare at once (SOUND 80S SNARE), nothing asked");
+        check(str_eq(brw_l2, "SNARE 9/41"), "w12: the readout says the group and the place in it (SNARE 9/41)");
+        ui.force = 1; frame(); ppm("w12-drum-sound-browse");
+        px = px_count(0, SG_KNOB_Y + 4, 240, 34, TE_DRUM);
+        ok = px > 200u;
+        for (k = 0; k < 240u * 50u; k++) {               /* the readout: the drums' teal, grey, white, black only */
+            uint16_t c = swap16(screen[(SG_KNOB_Y + 2u + k / 240u) * 240u + k % 240u]);
+            ok &= c == TE_DRUM || c == TE_G4 || c == C_WHITE || c == C_BLACK || c == TE_G1;
+        }
+        check(ok, "w12: the readout in the dials' band in the drums' teal (the slot's sound), grey and white only");
+        check(str_len(brw_l1) * 8u + 4u <= 236u, "w12: the readout's name fits the screen (the longest: SOUND HEX GLITCH SNARE 2)");
+        encs[panel.enc[EN_PRESET]] = -1; frame();
+        check(!memcmp(&pkit.s[2], &s606, sizeof s606) && !kit_changed(), "w12: PRESETS back one: the 606 SNARE again, the kit unchanged");
+        encs[panel.enc[EN_PRESET]] = -9; frame();
+        check(str_eq(brw_l1, "SOUND INIT HEX") && sl_mach(2) == DM_HEX && kit_changed(),
+              "w12: back to the list's start: INIT HEX, the HEX machine in the 606's snare slot");
+        drum_on(LANE_NOTE[2], 100);
+        for (k = 0, ok = 0; k < NDRUM; k++) ok |= drums.v[k].active && drums.lane[k] == 2u && drums.synth[k] == 2u;
+        check(ok, "w12: the slot plays with its own machine (HEX) in a CLASSIC kit");
+        ui.force = 1; frame(); ppm("w12-drum-init-hex");
+        press(B_SAVE); tap(B_OCTDN); release(B_SAVE); frames(2);
+        check(!memcmp(&pkit.s[2], &s606, sizeof s606), "w12: SAVE + OCT- undoes the whole turn: the 606 SNARE back");
+        press(B_SAVE); tap(B_OCTUP); release(B_SAVE); frames(2);
+        check(sl_mach(2) == DM_HEX, "w12: SAVE + OCT+ redoes it");
+        press(B_SAVE); tap(B_OCTDN); release(B_SAVE); frames(2);
+        /* HOME: whole kits; unchanged: at once; changed: it asks */
+        go_home(); frames(4);
+        encs[panel.enc[EN_PRESET]] = 1; frame();
+        check(pkit.base == kit_src(8) && !ui.ask && str_eq(brw_l1, "KIT 80S") && str_eq(brw_l2, "CLASSIC KITS 4/32"),
+              "w12: HOME, PRESETS +1 over an unchanged kit: the 80S at once, all 16 slots (KIT 80S, CLASSIC KITS 4/32)");
+        ui.force = 1; frame(); ppm("w12-home-kit-browse");
+        drum_param_set(DSP_S0 + DS_DECAY, 20); frames(2);
+        home_kit_name(nm);
+        check(str_eq(nm, "CUSTOM"), "w12: a slot edited: HOME's DRUM zone says CUSTOM");
+        ui.force = 1; frames(100); ppm("w12-home-custom");
+        encs[panel.enc[EN_PRESET]] = 1; frame();
+        check(ui.ask == ASK_KIT && str_eq(ui.msg, "HOLD SAVE: LOAD VINTAGE") && pkit.base == kit_src(8) && kit_changed(),
+              "w12: PRESETS over a changed kit asks (HOLD SAVE: LOAD VINTAGE), nothing loaded yet");
+        ui.force = 1; frame(); ppm("w12-home-kit-ask");
+        press(B_SAVE); frames(100); release(B_SAVE); frames(2);
+        check(pkit.base == kit_src(9) && !kit_changed(), "w12: SAVE held until the ring fills: the VINTAGE kit loads");
+        encs[panel.enc[EN_PRESET]] = 1; frame();
+        check(pkit.base == kit_src(10) && !ui.ask, "w12: and on: unchanged, so no question");
+        press(B_SAVE); tap(B_OCTDN); release(B_SAVE); frames(2);
+        check(pkit.base == kit_src(8) && kit_changed() && pkit.s[2].snd[7] == 20u, "w12: SAVE + OCT-: the changed kit back, its edit in it");
+        /* SAVE > KITS */
+        frames(40);                                       /* (the knobs wait a moment after a layer: #39) */
+        tap(B_SAVE); tap(B_SAVE); tap(B_SAVE); frames(40);
+        check(cur_cat() == CT_KITS, "w12: SAVE three times: KITS (after PRESETS, USER)");
+        ui.force = 1; frame(); ppm("w12-save-kits");
+        encs[panel.enc[EN_K4]] = 1; frame();
+        check(ui.ask == ASK_UKIT && str_eq(ui.msg, "HOLD SAVE: SAVE OVER MY HEX 1"), "w12: SAVE over an old MY HEX kit asks");
+        ask_drop();
+        encs[panel.enc[EN_K1]] = 4; frame();
+        encs[panel.enc[EN_K4]] = 1; frame();
+        check(ukit_state(4) == UK_STORED && !ui.ask && !kit_changed() && pkit.base == DSRC_USER + 4u,
+              "w12: SAVE into an empty kit: stored at once (MY KIT 5), the kit now that one");
+        kit_set(DRUM_DEFAULT_KIT); frames(2);
+        encs[panel.enc[EN_K2]] = 1; frame();
+        check(pkit.base == DSRC_USER + 4u && pkit.s[2].snd[7] == 20u, "w12: LOAD over an unchanged kit: MY KIT 5 at once");
+        ui.force = 1; frame(); ppm("w12-save-kits-stored");
+        ukit_put(4, 0);
+        kit_set(DRUM_DEFAULT_KIT); song.sel = 0; ui.msg_t = 0; go_home(); frames(4);
+    }
+    {   /* ---- wave 12 (Ben 13:35: "QUIET also dims the screen"): QUIET dims every band, NORMAL brings it back, still readable */
+        uint32_t k, maxq = 0, maxn = 0;
+        uint8_t d0 = disco;
+        go_home(); frames(4);
+        disco = DISCO_QUIET; frames(2); ui.force = 1; frame();
+        for (k = 0; k < 240u * 240u; k++) { uint32_t c = swap16(screen[k]); maxq = (c >> 11) > maxq ? (c >> 11) : maxq; }
+        ppm("w12-quiet-dim");
+        disco = DISCO_NORMAL; frames(2); ui.force = 1; frame();
+        for (k = 0; k < 240u * 240u; k++) { uint32_t c = swap16(screen[k]); maxn = (c >> 11) > maxn ? (c >> 11) : maxn; }
+        check(scr_dim == 0u && maxn == 31u && maxq <= 18u && maxq >= 14u,
+              "w12: DISCO QUIET draws the screen at 9/16 (white 31 -> 17 of 31: dim, readable); NORMAL: full again");
+        disco = d0; frames(2);
     }
     printf("ui: %s\n", fails ? "FAILED" : "pages, layers (punch, steps, erase, roll, key, mix), layer lock, song layer, REC hold, drums, REC, 20000-frame fuzz PASS");
     return fails;

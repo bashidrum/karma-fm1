@@ -49,9 +49,8 @@ static int16_t drum_kit_step(int32_t k, int32_t s)
     return (int16_t)k;
 }
 
-/* each sound's own sends, on top of the kit's (GLO > DRUMS REV, DLY): [lane] {reverb 0..15, delay 0..7}; the
- * kit page's KNOB 3 and 4 (ui_studio.c), kept with the project (project.c proj_ds_put) */
-static uint8_t drum_send[DRUM_LANES][2];
+/* each sound's own sends, on top of the drum voice's (FX > SENDS): reverb 0..15, delay 0..7 (wave 12: the slot's, drum_snd.c
+ * dslot_t.send; AMP 2/2 DEL REV) */
 #define DRUM_SEND_REV 15
 #define DRUM_SEND_DLY 7
 
@@ -64,7 +63,7 @@ static struct {
                                   * the echo and the reverb */
     int32_t gs[NDRUM][2];        /* each voice's reverb and delay send gains in the last block, Q15 */
     int32_t peak;                /* largest |output| since the UI last looked (TRACKS meter) */
-    uint8_t kit[NDRUM];
+    uint8_t trim[NDRUM];         /* (wave 12) the level trim of the slot's sound (its kit's: DRUM_KIT_TRIM's index, 7 none) */
     uint8_t synth[NDRUM];        /* the voice plays a synthesised kit (vx[].ds) */
     union {                      /* (PHEBUS wave 3: one or the other, never both: 720 bytes of RAM back) */
         dsv_t ds;
@@ -152,7 +151,8 @@ static uint32_t key_of_lane(uint32_t l)
 /* (PHEBUS wave 3) the selected sound: the one the drum screen's pages, its step keys, chromatic mode and the sound pick
  * address (written by the UI only; seq.c reads it for chromatic mode) */
 static uint8_t drum_lane;
-#include "drum_snd.c"         /* (PHEBUS wave 3) the sounds as the pages edit them: the project's kit, each sound's LFO */
+#include "drum_snd.c"         /* (PHEBUS wave 3) the sounds as the pages edit them; (wave 12) the kit: 16 slots in the project */
+#include "ukit.c"             /* (wave 12) the kits and sounds PRESETS browses, the user kits, the locks on a machine change */
 /* each voice's LFO as it plays, and a locked send (0 none, else the value + 1: reverb, delay) */
 static struct {
     dlfo_t lf[NDRUM];
@@ -440,26 +440,8 @@ static voice_t *drum_pick(uint32_t note)
 static uint8_t drum_lk_n, drum_lk_p[DLK_MAX], drum_lk_v[DLK_MAX];
 static hex_snd_t drum_own[NDRUM];                /* (a hex_snd_t, or a dsnd_t: both 22 bytes) */
 static void dsu_fix_sound(hex_snd_t *d);
-/* the sound a note plays on the kit the drum track is on (model, crush: its machine, a SYN kit's crush) */
-static const uint8_t *drum_note_snd(uint32_t note, uint32_t *model, uint32_t *crush)
-{
-    uint32_t kit = drum_kit();
-    int32_t semi;
-    *crush = 0;
-    if (pkit_on()) {
-        *model = pkit.model;
-        *crush = pkit.crush;
-        return pkit.snd[lane_of_note(note) & 15u];
-    }
-    *model = kit_model(kit);
-    if (*model == DM_SYN)
-        *crush = DS_KITS[(kit - DRUM_SAMPLED) % DS_NKITS].crush;
-    if (kit >= DRUM_SYN)
-        return (const uint8_t *)&dsu_kit(kit - DRUM_SYN)->s[ds_lane(note, &semi) % DS_LANES];
-    if (kit < DRUM_SAMPLED)
-        return (const uint8_t *)&HEX_KITS[kit].s[ds_lane(note, &semi) % DS_LANES];
-    return (const uint8_t *)&DS_KITS[(kit - DRUM_SAMPLED) % DS_NKITS].s[ds_lane(note, &semi) % DS_LANES];
-}
+/* the slot a note plays (wave 12: the project's kit, whatever machine each slot is) */
+static const dslot_t *drum_note_slot(uint32_t note) { return &pkit.s[(note < 128u ? lane_of_note(note) : 0u) & 15u]; }
 static void drum_lfo_val(uint32_t k)             /* voice k's LFO x its depth now (dlr.val) */
 {
     const dlfo_t *f = &dlr.lf[k];
@@ -510,13 +492,24 @@ static void drum_lfo_mod(uint32_t k, int32_t *p16, int32_t *cut, int32_t *res, i
     case DL_PIT: *p16 = v * 192 / 32767; break;      /* +-12 semitones */
     case DL_CUT: *cut = v * 64 / 32767; break;       /* +-64 of 127 */
     case DL_RES: *res = v * 64 / 32767; break;
-    default: *lvl = clamp(16384 + (v >> 1), 0, 32767); break;
+    case DL_LVL: *lvl = clamp(16384 + (v >> 1), 0, 32767); break;
+    default: break;                                 /* (wave 12: another knob, drum_hex_par / drum_synth_on) */
     }
 }
 static void drum_hex_par(uint32_t k, lx_par_t *p)   /* a HEX voice's parameters this block: its sound's, its LFO on them */
 {
     int32_t p16, cut, res, lvl;
-    hex_par(drums.vx[k].hx.d, p);
+    uint32_t id = dl_id(DM_HEX, dlr.lf[k].dst);
+    if (id < DSP_COUNT && dlr.val[k]) {             /* (wave 12) the LFO on another knob: a copy of the sound, moved */
+        hex_snd_t t = *drums.vx[k].hx.d;
+        const param_desc_t *d = dsp_desc(DM_HEX, (const uint8_t *)&t, id);
+        int32_t v = (id == DSP_FINE ? (int32_t)(int8_t)((uint8_t *)&t)[id] : (int32_t)((uint8_t *)&t)[id]) +
+                    dlr.val[k] * (d->max - d->min) / 65534;
+        ((uint8_t *)&t)[id] = (uint8_t)clamp(v, d->min, d->max);
+        hex_par(&t, p);
+    } else {
+        hex_par(drums.vx[k].hx.d, p);
+    }
     drum_lfo_mod(k, &p16, &cut, &res, &lvl);
     if (p16) {                                      /* (COARSE in semitones, FINE +-half a semitone; DRUM / SNARE keep
                                                      * their FINE at 64: theirs is the slope) */
@@ -533,11 +526,19 @@ static void drum_hex_par(uint32_t k, lx_par_t *p)   /* a HEX voice's parameters 
 static void __attribute__((noinline)) drum_synth_on(uint32_t note, uint32_t vel)
 {
     voice_t *v = &drums.v[0];
-    uint32_t i, k, model, crush, lane = note < 128u ? lane_of_note(note) : 0u, own = 0;
-    int32_t xs = 0;
-    const uint8_t *snd = drum_note_snd(note, &model, &crush);
-    dlfo_t lf = *lane_lfo(lane);
-    if (note == 42u || note == 44u)                 /* hi-hat choke */
+    uint32_t i, k, lane = note < 128u ? lane_of_note(note) : 0u, own = 0;
+    int32_t xs = 0, ls, ns;
+    const dslot_t *sl = drum_note_slot(note);
+    const uint8_t *snd = sl->snd;
+    uint32_t model = sl->mach & 1u, crush = model == DM_SYN ? sl->crush : 0u;
+    dlfo_t lf = sl->lfo;
+    /* (wave 12) its pitch: the slot's sound's own offset (the 606's PEDAL: its closed hat a semitone down), and a GM note
+     * other than the slot's own its distance from it (the engines add the note's offset themselves: taken back here) */
+    (void)ds_lane(LANE_NOTE[lane & 15u], &ls);
+    (void)ds_lane(note, &ns);
+    (void)ns;
+    xs = sl_semi(sl) - ls;
+    if (note == 42u || note == 44u)                 /* hi-hat choke (the slots HAT and PEDAL cut OPEN HAT, whatever sound) */
         for (i = 0; i < NDRUM; i++)
             if (drums.v[i].active && drums.v[i].note == 46u) {
                 drums.v[i].active = 0;
@@ -554,14 +555,14 @@ static void __attribute__((noinline)) drum_synth_on(uint32_t note, uint32_t vel)
     v->age = ++drums.age;
     drums.synth[i] = model == DM_HEX ? 2 : 1;
     drums.lane[i] = (uint8_t)lane;
-    drums.kit[i] = (uint8_t)drum_kit();
+    drums.trim[i] = (uint8_t)SL_TRIM(sl->mach);
     dlr.sov[i][0] = dlr.sov[i][1] = 0;
     for (k = 0; k < drum_lk_n && k < DLK_MAX; k++) {   /* the locks: into the voice's own copy, its LFO, sends, pitch */
         uint32_t id = drum_lk_p[k];
         int32_t val = id == DSP_FINE || id == DSP_NOTE || id == DSP_LDEP || id == DSP_LFAD ||
                       id == DSP_S0 + DS_FENV || id == DSP_S0 + DS_LEVEL ? (int32_t)(int8_t)drum_lk_v[k] : (int32_t)drum_lk_v[k];
         if (id == DSP_NOTE) {
-            xs = clamp(val, -48, 48);
+            xs += clamp(val, -48, 48);
         } else if (id == DSP_REV || id == DSP_DEL) {
             dlr.sov[i][id - DSP_REV] = (uint8_t)(clamp(val, 0, id == DSP_REV ? DRUM_SEND_REV : DRUM_SEND_DLY) + 1);
         } else if (id >= DSP_LSPD && id <= DSP_LMOD) {
@@ -575,6 +576,22 @@ static void __attribute__((noinline)) drum_synth_on(uint32_t note, uint32_t vel)
         }
     }
     drum_lfo_start(i, &lf);
+    {   /* (wave 12) the LFO on another knob: a CLASSIC knob or a send takes its value as the hit starts (HEX: each block) */
+        uint32_t id = dl_id(model, lf.dst);
+        if (id != 0xFFu && dlr.val[i]) {
+            const param_desc_t *d = dsp_desc(model, own ? (const uint8_t *)&drum_own[i] : snd, id);
+            if (d && (id == DSP_REV || id == DSP_DEL)) {
+                int32_t base = dlr.sov[i][id - DSP_REV] ? dlr.sov[i][id - DSP_REV] - 1 : (int32_t)sl_send(lane, id - DSP_REV);
+                dlr.sov[i][id - DSP_REV] = (uint8_t)(clamp(base + dlr.val[i] * (d->max - d->min) / 65534, d->min, d->max) + 1);
+            } else if (d && model == DM_SYN) {
+                if (!own)
+                    memcpy(&drum_own[i], snd, 22);
+                own = 1;
+                dsp_put(model, (uint8_t *)&drum_own[i], &lf,
+                        id, dsp_get(model, (const uint8_t *)&drum_own[i], &lf, lane, id) + dlr.val[i] * (d->max - d->min) / 65534);
+            }
+        }
+    }
     if (model == DM_HEX)
         hex_on_snd_x(&drums.vx[i].hx, own ? &drum_own[i] : (const hex_snd_t *)snd, note, vel, xs);
     else
@@ -601,8 +618,8 @@ static void drum_on_(uint32_t note, uint32_t vel)
 static inline void drum_voice_sends(uint32_t k, int own_only, int32_t *rs, int32_t *ds)
 {
     uint32_t ln = drums.lane[k] % DRUM_LANES;
-    int32_t r = (dlr.sov[k][0] ? dlr.sov[k][0] - 1 : drum_send[ln][0]) * 127 / DRUM_SEND_REV;   /* (a locked send: the */
-    int32_t d = (dlr.sov[k][1] ? dlr.sov[k][1] - 1 : drum_send[ln][1]) * 127 / DRUM_SEND_DLY;  /* hit's own, wave 3) */
+    int32_t r = (dlr.sov[k][0] ? dlr.sov[k][0] - 1 : (int32_t)sl_send(ln, 0)) * 127 / DRUM_SEND_REV;   /* (a locked send: */
+    int32_t d = (dlr.sov[k][1] ? dlr.sov[k][1] - 1 : (int32_t)sl_send(ln, 1)) * 127 / DRUM_SEND_DLY;  /* the hit's own) */
     if (own_only) {
         *rs = r * 258;
         *ds = d * 258;
@@ -633,12 +650,7 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dl
 {
     uint32_t k, i;
     int32_t lvl = song.g[G_DRLVL] * 200, send, dsend, pk = drums.peak;
-    uint32_t kt = drum_kit();
     int32_t kboost;
-    if (kt >= DRUM_SYN && kt < DRUM_KITS)            /* (3.1.2) MY HEX: the trim of the HEX kit it started from (it was 256: the
-                                                       * first EDIT knob turned made the kit 3 .. 8.5 dB louder) */
-        kt = dsu.k[(kt - DRUM_SYN) % DSU_N].src % DSU_NSRC;
-    kboost = (int32_t)((DRUM_BOOST_Q8 * (kt < 7u ? DRUM_KIT_TRIM[kt] : 256u)) >> 8);
     int32_t pan = trk[TRK_DRUM].p[P_PAN], gl = 4096 - (pan > 0 ? pan * 64 : 0), gr = 4096 + (pan < 0 ? pan * 64 : 0);
     if (drums.a0 >= 32767 && drums.a1 >= 32767 && !((perf_kill >> TRK_DRUM) & 1u)) {   /* (3.1.3) muted (or another track soloed) all this block: nothing
                                                        * is heard, so nothing is computed (measured on an FM-1: a muted
@@ -698,6 +710,8 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dl
             for (i = 0; i < m; i++)
                 ds_buf[i] = (ds_buf[i] * llvl) >> 14;
         drum_lfo_tick(k, m);
+        kboost = (int32_t)((DRUM_BOOST_Q8 * (drums.trim[k] < 7u ? DRUM_KIT_TRIM[drums.trim[k]] : 256u)) >> 8);   /* (wave 12: the
+                                                         * slot's kit's trim, a voice each: a mixed kit as each sound was) */
         for (i = 0; i < m; i++) {
             int32_t s = mulq15(ds_buf[i], mulq15(lvl, 32767 - drums.a0 - (((drums.a1 - drums.a0) * (int32_t)i) >> CTL_LOG2)));
             s = soft_knee((s * kboost) >> 8, DRUM_KNEE);   /* louder, the hits' tips rounded (2026-10-20) */

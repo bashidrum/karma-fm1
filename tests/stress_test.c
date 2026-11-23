@@ -386,7 +386,7 @@ int main(int argc, char **argv)
     palette_set(4);
     host_tracks_init();
     for (i = 0; i < NPART; i++) { set_engine_of(&trk[i], TRK_DEF[i][0]); apply_preset_to(&trk[i], TRK_DEF[i][1]); trk[i].engine = trk[i].eng_req; }
-    TDRUM->p[P_E0] = DRUM_SAMPLED;
+    kit_set((uint32_t)(DRUM_SAMPLED));
     song.g[G_BPM] = 120;
     go_home(); ui.force = 1;
     frames(4);

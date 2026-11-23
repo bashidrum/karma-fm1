@@ -88,7 +88,7 @@ static struct {
 } ui;
 
 static const page_t *cur_page(void) { return &PAGES[ui.page]; }
-enum { ASK_NONE, ASK_GO, ASK_UP, ASK_KIT, ASK_PADS, ASK_STORE, ASK_HALVE, ASK_CLEAR };
+enum { ASK_NONE, ASK_GO, ASK_UP, ASK_KIT, ASK_PADS, ASK_STORE, ASK_HALVE, ASK_CLEAR, ASK_UKIT };
 static void ask_set(uint32_t kind, uint32_t arg, const char *what);   /* (ui_input.c, wave 8: the one confirm) */
 static int32_t accel(uint32_t role, int32_t s, int32_t range);   /* ui_input.c */
 static void layer_screen_draw(void);                            /* ui_layers.c */
@@ -231,6 +231,9 @@ static void step_clear(step_t *st)
     st->time = ST_REST;
 }
 
+#define UNDO_KIT 0xF0u                                /* (wave 12, ui_kit.c) the kit and the locks */
+static void kit_undo_swap(void);
+static int kit_pc(uint32_t n);
 /* undo / redo (EDIT + OCT- / OCT+): the marked pattern and the one now swap places */
 static int undo_swap(int redo)
 {
@@ -238,6 +241,12 @@ static int undo_swap(int redo)
     int16_t len;
     if (!undo.valid || (uint32_t)!!redo != undo.undone)
         return 0;
+    if (undo.trk == UNDO_KIT) {                       /* (wave 12) the drum kit and its sounds' locks (ui_kit.c) */
+        kit_undo_swap();
+        undo.undone = (uint8_t)!redo;
+        ui.force = 1;
+        return 1;
+    }
     if (undo.trk > NTRK) {                            /* (wave 11) a voice's matrix (hold LFO / ENV + OCT-: ui_map.c) */
         uint8_t *u = (uint8_t *)undo.st, x;
         mxt_t *m = &mxt[(undo.trk - NTRK - 1u) % NPART];
@@ -709,12 +718,13 @@ static void pc_poll(void)
             continue;
         pc_req[i] = 0;
         n = r - 1u;
-        if (is_drum(&trk[i])) {
-            if (n >= DRUM_KITS || drum_kit_none(n))
+        if (is_drum(&trk[i])) {                         /* (wave 12) the n-th kit of PRESETS' list, all 16 slots; over a
+                                                         * changed kit it asks first, as PRESETS (HOLD SAVE: LOAD ..) */
+            if (kit_pc(n))
                 continue;                               /* (no such kit: the program is ignored) */
-            trk[i].p[P_E0] = (int16_t)n;
-            if (&trk[i] == TSEL)
-                sync_reload = 1;
+            sync_reload = 1;
+            ui.force = 1;
+            continue;
         } else if (preset_go_to(&trk[i], n)) {
             continue;
         }

@@ -37,8 +37,8 @@ PHEBUS has four **voices**: three melodic voices and one drum voice. Each voice 
 | --- | --- | --- | --- |
 | **1** | robot | purple | ACID INIT: a plain saw through the 303 filter, mono, an octave down. A bass |
 | **2** | alien | blue | JUNO INIT: a plain saw, polyphonic. Chords |
-| **3** | crocodile | coral | PLAITS VA: a plain saw, mono, about 6 dB quieter. A lead |
-| **DR** | snake | teal | the 606 kit, 16 sounds |
+| **3** | snake | coral | PLAITS VA: a plain saw, mono, about 6 dB quieter. A lead |
+| **DR** | crocodile | teal | the 606's 16 sounds in the kit's 16 slots |
 
 Every voice starts with no effects on and an empty mod matrix. **SAVE > TOOLS > NEW** puts a project back to this start.
 
@@ -101,7 +101,7 @@ The tab row above the dials always shows **the categories of the button you pres
 
 | Button | Idea | Tap (again: its next category, round) | SEL (the next page inside) | Hold | -/+ while held | MASTER while held | SELECT turns |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| **EDIT** | sound | synth: **OSC**, FILT. Drums: **SRC**, FLTR | OSC: OSC 2, 3, 4. FILT: FILT 2. SRC: 2/3, 3/3. FLTR: 2/2 (synthesised kits) | MASTER's pair | - CLEAR the voice (asks: hold SAVE) | LEVEL | synth: OSC the Type, FILT the filter TYPE. Drums: the sound |
+| **EDIT** | sound | synth: **OSC**, FILT. Drums: **SRC**, FLTR | OSC: OSC 2, 3, 4. FILT: FILT 2. SRC: 2/3, 3/3. FLTR: 2/2 (CLASSIC sounds) | MASTER's pair | - CLEAR the voice (asks: hold SAVE) | LEVEL | synth: OSC the Type, FILT the filter TYPE. Drums: the sound |
 | **ENV** | envelopes | synth: **AMP**, FILT envelope. Drums: **AMP** | drums: AMP 2/2 | on a synth sound page: **MAP** the envelope last shown (SEL: the other); elsewhere MASTER's pair | - REMOVE its mappings on this page | ENV LENGTH (drums: the sound's decay) | nothing (synth); the sound (drums) |
 | **LFO** | modulation | synth: **LFO 1**, LFO 2, MATRIX. Drums: **LFO** | LFO 1: its sync page. Drums: LFO 2/2 | on a synth sound page: **MAP** the LFO last shown (SEL: the other); elsewhere MASTER's pair | - REMOVE its mappings on this page | MOD DEPTH (drums: the sound's LFO DEPTH) | synth: the WAVE. Drums: the sound |
 | **FX** | effects | synth: **INS**, SENDS, SLICER, **MIX**. Drums: **FILTER**, INS, SENDS, SLICER, **MIX** | INS: FX 1, 2, 3. Drums INS: INSERT 2. MIX: DELAY, REV/CHO, MASTER | PERFORM (the pads) | - every latch off, + LATCH | FX MIX | synth: FX 1 to 3 the insert TYPE, SLICER its mode. Drums: the sound |
@@ -109,11 +109,11 @@ The tab row above the dials always shows **the categories of the button you pres
 | **ARP** | notes | synth: **ARP**, KEY (key, scale, chord). Drums: **CHROMATIC** (again: off) | ARP: ARP 2. KEY: KEY 2 | -/+ and MASTER only | - / + the pattern a semitone (twice quickly: two) | TRANSP | nothing |
 | **SEL** | page | **PAGE**: the next page of the category shown | | nothing | | | |
 | **GLO** | global | **GLOBAL**, SYSTEM, MIDI, DEVICE (the menu) | MIDI: MIDI 2, MIDI 3. DEVICE: its sections | the mixer | | TEMPO | nothing |
-| **SAVE** | keep, confirm | **PRESETS**, USER, PATTERNS (store A to D), TOOLS | | keys 1 to 4 store A to D; with a question showing: the ring | - UNDO, + REDO | | nothing |
+| **SAVE** | keep, confirm | **PRESETS**, USER, KITS (your drum kits), PATTERNS (store A to D), TOOLS | | keys 1 to 4 store A to D; with a question showing: the ring | - UNDO, + REDO | | nothing |
 | **HOME** | home | **HOME**, the screensaver | screensaver: the next one | nothing | | | nothing |
 | **REC** | record | record / arm (synth steps, stopped: STEP REC); again: stop | | nothing more | | | |
 | **PLAY** | play | start / stop (with SEQ held: the FILL) | | | | | |
-| **OCT- / OCT+** | minus, plus | the screen's minus / plus (the legend says what); twice within 0.3 s: the octave | | OCT- / OCT+ held + a drum key: ghost / hard hit | | | |
+| **OCT- / OCT+** | minus, plus | the screen's minus / plus (the legend says what); twice within 0.3 s: the octave | | nothing more (wave 12: ghost and hard hits are the TRIG page's velocity) | | | |
 
 ### The FM-1's controls
 
@@ -125,7 +125,7 @@ The tab row above the dials always shows **the categories of the button you pres
 | Button | **SEL (PAGE)** | the next page of the category shown. Held: nothing |
 | Buttons | **OCT-**, **OCT+** | minus and plus of the screen; twice quickly: the octave; OCT+ is the latch, OCT- removes |
 | Knob | **ALGORITHM** | choose the voice: 1, 2, 3, DRUM (on the GRID, past DRUM: the STUTTER lane) |
-| Knob | **PRESETS** | the voice's sounds (the drums: the kit) |
+| Knob | **PRESETS** | the voice's sounds. The drums: on the drum screen the selected slot's **sound**; on HOME the whole **kit** |
 | Knob | **SELECT** | knob 5: the TYPE of a synth page; the SOUND on the drum screen. Never a page, never the tempo |
 | Knobs | **KNOB 1** to **KNOB 4** | the four values on the screen, under the four dials |
 | Knob | **MASTER** | the output volume; with a button held, that button's broad parameter (a pot with end stops, used relatively: nothing jumps) |
@@ -144,7 +144,7 @@ SEL is the button between FX and ENV (printed SEL; in this manual **SEL (PAGE)**
 
 | Gesture | The one way | Where |
 | --- | --- | --- |
-| **Confirm** | anything that erases or replaces asks first in a white bar, **HOLD SAVE: ...** (HOLD SAVE: NEW, HOLD SAVE: LOAD U07, HOLD SAVE: REPLACE 606\*, HOLD SAVE: CLEAR PADS, HOLD SAVE: STORE B, HOLD SAVE: HALVE TO 8, HOLD SAVE: CLEAR VOICE 1). **Hold SAVE**: a ring fills (about 1.3 seconds); full, it is done. The ring is **red** when something is taken away or replaced, **white** when the action only keeps (SAVE into an empty user preset slot). Let go early: nothing, the question stays. Tap SAVE, press another button or leave the screen: the question goes. If SAVE is already held when the question comes (storing a pattern), the ring starts at once | SAVE > USER (LOAD, ERASE, SAVE), SAVE > TOOLS (CLRSQ, INIT, NEW), storing over a used pattern, halving a pattern that has steps in its second half, clearing a voice (EDIT + OCT-), replacing your edited kit, clearing the lane's pads. The question stays when the button that asked is let go, so SAVE can be held after it |
+| **Confirm** | anything that erases or replaces asks first in a white bar, **HOLD SAVE: ...** (HOLD SAVE: NEW, HOLD SAVE: LOAD U07, HOLD SAVE: LOAD 808, HOLD SAVE: CLEAR PADS, HOLD SAVE: STORE B, HOLD SAVE: HALVE TO 8, HOLD SAVE: CLEAR VOICE 1). **Hold SAVE**: a ring fills (about 1.3 seconds); full, it is done. The ring is **red** when something is taken away or replaced, **white** when the action only keeps (SAVE into an empty user preset slot). Let go early: nothing, the question stays. Tap SAVE, press another button or leave the screen: the question goes. If SAVE is already held when the question comes (storing a pattern), the ring starts at once | SAVE > USER (LOAD, ERASE, SAVE), SAVE > TOOLS (CLRSQ, INIT, NEW), storing over a used pattern, halving a pattern that has steps in its second half, clearing a voice (EDIT + OCT-), loading a whole kit over one you changed, SAVE > KITS (ERASE, SAVE over a kit), clearing the lane's pads. The question stays when the button that asked is let go, so SAVE can be held after it |
 | **Minus and plus** | a **tap** of OCT- or OCT+ is the screen's minus or plus, at once; the legend at the right of the tab row says what (**[-] STEPS [+]**, **[-] RESO [+]**). No legend: a tap does nothing there | every screen (table in [section 12](#12-every-gesture)) |
 | **Octave** | **OCT- or OCT+ twice within 0.3 seconds**: the octave down or up (both at once: 0). The second tap takes back what the first did. The one double press, Ben's choice | everywhere nothing is held; on the drums' CHROMATIC its keys' octave |
 | **Remove** | **OCT- with the thing held**: a step (its note or hit), a lock, a key's note or drum sound from the whole pattern, a pad's latch; with EDIT held the whole voice (asks) | the steps, the sound pages, PERFORM, EDIT |
@@ -224,7 +224,7 @@ Tap **HOME**. The header says **PATTERN A** (to D) while a pattern plays, otherw
 | --- | --- |
 | **deck** | BAR and the bar of the selected voice's loop; a strip of the **FLOW** backdrop, a band per voice in its colour that swells as that voice gets louder (it flows while something plays and stands still otherwise), with a **>** after it: HOME again opens it full screen; the patterns **A B C D**: the one playing filled white, the one asked for next outlined white, the stored ones outlined grey |
 | **SYNTH** | the three melodic voices side by side: each sound's name in its voice's colour, with **M**, **S** or a red dot, and under it the 16 steps in view (a note in the voice's colour, a tie dim, the step playing white). **The selected voice's name is inverted.** A muted voice's name is grey |
-| **DRUM** | DRUM (inverted when the drums are selected), M or S for the drum voice, the kit (a * after the name when your copy plays), how many sounds the mixer has muted (yellow M and a number) or soloed (ice-blue S), the selected sound's name, and the 16 steps in view: a step with the selected sound's hit in teal, with other sounds' hits dim teal, with only muted sounds grey, the step playing underlined white |
+| **DRUM** | DRUM (inverted when the drums are selected), M or S for the drum voice, the kit's name while the 16 slots are the kit you loaded, **CUSTOM** once one differs, how many sounds the mixer has muted (yellow M and a number) or soloed (ice-blue S), the selected sound's name, and the 16 steps in view: a step with the selected sound's hit in teal, with other sounds' hits dim teal, with only muted sounds grey, the step playing underlined white |
 | **PERFORM** | **LANE ON** or **LANE OFF** for the STUTTER lane, the latched pads by name at the right (or "3 LATCHED" when the names do not fit), and the lane's 16 steps in view: lit steps grey, a run of lit steps of one length drawn as one bar, the step playing underlined |
 
 The HOME knobs play the selected voice while it plays:
@@ -236,7 +236,7 @@ The HOME knobs play the selected voice while it plays:
 | **KNOB 3 STUT** | the STUTTER lane ON (turn right) or OFF (turn left). White-grey: it acts on the whole mix |
 | **KNOB 4 LEVEL** | the voice's level. On a muted voice the first turn unmutes it |
 
-All four values are in the same tall face as on every page. On HOME, **PRESETS** browses the selected voice's sounds and **HOME** again opens the screensaver, HOME's second category ([section 10](#10-settings-midi-and-usb)). SELECT does nothing on HOME. The tempo is set in one place: **GLO > GLOBAL, KNOB 1 BPM**; every header shows it.
+All four values are in the same tall face as on every page. On HOME, **PRESETS** browses the selected voice's sounds (the drums: whole kits) and **HOME** again opens the screensaver, HOME's second category ([section 10](#10-settings-midi-and-usb)). SELECT does nothing on HOME. The tempo is set in one place: **GLO > GLOBAL, KNOB 1 BPM**; every header shows it.
 
 ---
 
@@ -356,7 +356,7 @@ On any of a synth voice's sound pages (OSC, FILT, ENV, FX, SENDS, SLICER, LFO, M
 - **One source of truth**: each amount is a cell of the MATRIX. CUTOFF and RESO are the CUT and RESO columns, the OSC page's three macros M1 to M3, TUNE the PIT column (vibrato), an insert's AMOUNT its FX column; every other knob gets a column of its own. LFO 1 on CUTOFF is the same value as LFO1 > CUT on the grid; the FILT envelope on CUTOFF is FILT's ENV knob.
 - **Not mappable**: TYPE, OCT, GLMODE, VOICE, PRIOR, ALLOC, the filter's ENV, KEY and LINK (modulation amounts and switches), the LFO's POL, SYNC, TRIG, ESYNC, LFO 2's SYNC and TRIG, the SLICER's PAT and RATE, the MATRIX page's knobs. An envelope cannot move its own times and level. An LFO may move its own RATE, PHASE and FADE.
 - **Outside the hold** a knob something moves has a small **wave** under its dial.
-- Velocity and key: on the MATRIX page only. On the drums, HOME, the steps and every other page, holding LFO or ENV is MASTER's pair, as before.
+- Velocity and key: on the MATRIX page only. On HOME, the steps and every other page, holding LFO or ENV is MASTER's pair, as before. On the drums' sound pages holding LFO maps too (section 5, "Hold LFO on a drum sound"); holding ENV there stays MASTER's pair.
 
 ### The GRID: steps on the keys
 
@@ -417,11 +417,19 @@ The drums work the Rytm's way. The drum voice has 16 sounds, one a key:
 | **Key** | **9** | **10** | **11** | **12** | **13** | **14** | **15** | **16** |
 | Sound | SNARE 2 | LOW TOM | HI TOM | CRASH | RIDE | SHAKER | CONGA | COWBELL |
 
-The closed hat cuts the open hat. Holding OCT- while you hit a drum key gives a ghost hit (velocity 42), OCT+ a hard hit (127). The other way round, **a drum key held, then OCT-**: that sound's hits are erased from the pattern (playing: from each step the playhead passes while you hold the key; stopped: all at once). The black keys play no drum sound.
+The closed hat cuts the open hat. **Ghost and hard hits come from velocity** (Ben: "Move ghost hits elsewhere"): the keys play and record at the velocity TRIG's KNOB 1 sets with no step held (100 to start; turn it to about 40 for ghosts, 127 for hard hits), and a hit already on a step gets its own with the step held and TRIG's VEL. OCT- with a key is only ever erase: **a drum key held, then OCT-**: that sound's hits are erased from the pattern (playing: from each step the playhead passes while you hold the key; stopped: all at once). The black keys play no drum sound.
 
 ### The drum screen
 
-Tap **SEQ** or **EDIT** with DRUM selected. The header shows DRUM and the **SELECT chip: the selected sound** (SELECT picks it). The body shows the **selected sound's name** large, the kit and how many steps it plays on (or STEP n HELD), the **sound map** top right (16 tiles; a sound with hits dim teal, lit as it plays, the selected one framed white, a yellow bar muted, ice blue soloed), the selected sound's **16 steps** (a hit filled, its shade its velocity; a black square: locks; three lines: a retrig; a notch: a condition), a line about the held step (RETRIG 1/32, LOCK DECAY ...) or which steps are shown with four page slots, the tab row (the categories of the button pressed: SRC FLTR for EDIT, AMP for ENV, LFO, the FX group, TRIG PATTERN for SEQ) and the dials in teal.
+Tap **SEQ** or **EDIT** with DRUM selected. The header shows DRUM and the **SELECT chip: the selected slot** (SELECT picks it). The body shows the **slot's name** large (SNARE), the kit (or CUSTOM) and how many steps it plays on (or STEP n HELD), the **slot map** top right (16 tiles; a slot with hits dim teal, lit as it plays, the selected one framed white, a yellow bar muted, ice blue soloed).
+
+**The keys are the steps, and only the keys** (Ben, 23 Nov 13:35: "I don't need to see the sequence on screen, it's shown on my keys"): the 16 white keys are the selected slot's 16 steps of the page shown, their lights its hits; the screen does not draw them again. Under the name:
+
+- on a sound page (SRC, FLTR, AMP, LFO): **SOUND 606 SNARE** (what PRESETS browses) and its place in the list (8/41), then a **picture of the sound**: its level over the first half second (teal; a noise of its own in grey) and its pitch sweep (a white line from the top), a mark every eighth of a second. With a step held: that step's locks (LOCK DECAY TUNE);
+- on SEQ (TRIG, PATTERN, A-D): which steps the keys are on (KEYS 1-16 OF 32 STEPS) and, with a step held, its values (VEL, RETRIG, NUDGE, the condition and chance, NOTE, how many locks); nothing held, the velocity new hits and the keys play at;
+- on FX: THE WHOLE DRUM VOICE and the page's name.
+
+Then the tab row (the categories of the button pressed: SRC FLTR for EDIT, AMP for ENV, LFO, the FX group, TRIG PATTERN A-D for SEQ) and the dials in teal.
 
 | You do | Result |
 | --- | --- |
@@ -435,13 +443,13 @@ Tap **SEQ** or **EDIT** with DRUM selected. The header shows DRUM and the **SELE
 | **FX** | the drum voice's FILTER; again INS (SEL: INSERT 2), SENDS, SLICER, then MIX (DELAY, REV/CHO, MASTER: the whole mix, white) |
 | **SEQ** | TRIG (SEL: TRIG 2/2); again PATTERN (DIV SWING STEPS; SEL: SHIFT); again A-D |
 | **OCT-**, **OCT+** tapped | pages of steps, as on the synth steps (A-D: the pattern); twice quickly: the octave |
-| **PRESETS** | the kit |
+| **PRESETS** | the selected slot's sound (below: Kits and sounds) |
 
 The page buttons and SEL also work with a step held, as the Rytm's page keys do; SELECT does not change the sound while a step is held (LET GO OF THE STEP). With nothing held, a knob changes the selected sound.
 
 ### The sound pages
 
-| Page | HEX kits (HEX BOOM .. HEX ROOM, MY HEX 1 to 4) | Synthesised kits (606, 808, 909 and the rest) |
+| Page | a HEX sound (from HEX BOOM .. HEX ROOM, MY HEX, INIT HEX) | a CLASSIC sound (from the 606, 808, 909 and the rest, INIT CLASSIC) |
 | --- | --- | --- |
 | **SRC 1/3** | TUNE, P.AMT, P.DEC, WAVE | TUNE, FINE, WAVE, TONE |
 | **SRC 2/3** | MODEL, MOD, M.PIT, FM | SWEEP, SWTIME, PART2, P2 LVL |
@@ -455,7 +463,7 @@ The page buttons and SEL also work with a step held, as the Rytm's page keys do;
 
 FLTR starts as a synth voice's FILT: CUTOFF, RESO, ENV. Its TYPE stays on KNOB 4 and DRIVE leads 2/2, because the drum screen's SELECT picks the sound (on a synth voice TYPE is SELECT's and DRIVE takes KNOB 4). DEL and REV are the sound's own sends. Every sound has its own LFO: DEST is PITCH (up to 12 semitones), CUT, RES or LEVEL; MODE is TRIG (restarts at each hit), FREE or ONE (one cycle).
 
-**Every kit can be edited.** The first knob you turn on a built-in kit makes your own copy of it in the project (YOUR COPY OF THE KIT; the kit's name gets a *, "606*"). The built-in kit never changes. A project holds one copy: turning a knob on another kit asks HOLD SAVE: REPLACE 606\*; hold SAVE until the ring fills to replace it. Locks do not make a copy. MODEL cannot be locked.
+**Every slot is the project's own.** Turning a knob changes that slot's sound in this project at once; the kit it came from never changes, and nothing asks. Each slot shows its machine's own parameters (the table above), so a kit with HEX and CLASSIC sounds side by side shows each slot's own. Locks: as before; MODEL cannot be locked.
 
 ### TRIG: the hit's own values
 
@@ -466,6 +474,12 @@ FLTR starts as a synth voice's FILT: CUTOFF, RESO, ENV. Its TYPE stays on KNOB 4
 
 With nothing held, TRIG's KNOB 1 is the velocity new hits get (100 to start); the other knobs say HOLD A STEP. A pattern holds 64 hits with a condition, chance, nudge or retrig (TRIG EXTRAS FULL: 64) and 128 sound locks (SOUND LOCKS FULL: 128).
 
+### Hold LFO on a drum sound
+
+Ben: "Hold LFO maps on drums too". On a drum sound page (SRC, FLTR, AMP, LFO), **hold LFO and wiggle a knob**: that knob becomes the slot's LFO destination, and the turn is its amount (DEPTH), right +, left -, back to 0: off. The page stays; the tab row says **MAP LFO** (outlined, as on the synths); the dials show the amount on the knob the LFO moves and 0 on the others; a knob that cannot be mapped (a named value: WAVE, TYPE, MODEL, NOISE, TRANS; the LFO's own knobs) is dark grey "--" and a turn says so. A sound has one LFO and so one destination: wiggling another knob moves it there, and the screen says so (**LFO > CUT (WAS DECAY)**). **OCT-** while holding takes it off (SAVE + OCT- brings it back). Outside the hold the knob it moves has the small wave under its dial. SEL does nothing here (one LFO). **Hold ENV** on the drums stays MASTER's pair (a drum sound has no envelope to map).
+
+The LFO's DEST knob (LFO 1/2) lists the same: PITCH, CUT, RESO, LEVEL, then every knob of the slot's machine that can be wiggled (HEX: FINE ATK DEC SLOPE P.AMT P.DEC M.PIT FM T.LVL T.PIT DRIVE DIST CRUSH REV DEL; CLASSIC: FINE SWEEP SWTIM HOLD DECAY TONE PART2 P2LVL CLICK N.LVL N.HLD N.DEC ENV HPF CHIP DRIVE REV DEL). PITCH, CUT, RESO and LEVEL move the hit as it rings; on a HEX sound every other knob does too; on a CLASSIC sound the others (and the sends on both) take the LFO's value as the hit starts, so the LFO changes them hit by hit.
+
 ### Modes and live play
 
 - **Mutes and solos**: on the mixer. **Hold GLO** with the drums selected: the 16 keys mute and unmute the 16 sounds (yellow); **F#3 SOLO** (drawn in the strip) turns them into solo keys (ice blue), F#3 again back to mutes. Mutes and solos are not saved.
@@ -474,9 +488,53 @@ With nothing held, TRIG's KNOB 1 is the velocity new hits get (100 to start); th
 - **FILL**: hold **SEQ** and **PLAY**: a fill while PLAY is held (the transport is not touched); **OCT+** with them latches it, SEQ + PLAY again (or STOP) ends it. **SEQ + D#4** (BAR) fills the next bar. FILL shows in every header.
 - **FX, the drum voice's own pages**: tap **FX**: its **FILTER** (LP / HP, HOME's KNOB 1 on the drums), **INSERT** (TYPE and three values), **INSERT 2** (MIX), **SENDS** (DELAY, REVERB: the whole drum voice's, on top of each sound's DEL and REV) and **SLICER**, acting on the whole drum voice, in teal, one category a press (INS's second page, INSERT 2, by SEL); one more press is **MIX**, the whole mix's pages in white. The line above the tabs names the page. Hold a step and turn a knob there to lock it per step, as on any tab (SENDS cannot be locked).
 
-### Kits
+### Kits and sounds
 
-**PRESETS** picks the kit: five HEX kits (HEX BOOM, HEX ACID, HEX METAL, HEX GLITCH, HEX ROOM), 32 synthesised kits (808, 909, **606**, 80S, VINTAGE, TRAP, DRILL, BOOMBAP, LO-FI, PHONK, HOUSE, D.HOUSE, TECHNO, MINIMAL, ELECTRO, DISCO, GARAGE, JUNGLE, DUBSTEP, DEMBOW, AMAPIANO, AFRO, LATIN, TRIBAL, SYNTHWV, CHIP, ARCADE, GLITCH, INDUSTR, HYPER, AMBIENT, JAZZ), then MY HEX 1 to 4.
+**The kit is 16 slots, one per white key.** Each slot holds one whole sound: its machine, every parameter on its pages, its sends, its LFO and its name ("606 SNARE"). The slots are this project's own: what you do to them is saved with the project and never changes a built-in kit. A new project starts with the 606's 16 sounds.
+
+**Any slot can hold any sound from any kit.** There are two drum machines, and each slot plays with its own:
+
+- **HEX**: the LXR-02's drum voices (the HEX kits: HEX BOOM, HEX ACID, HEX METAL, HEX GLITCH, HEX ROOM, and the old MY HEX kits)
+- **CLASSIC**: the synthesised model of the classic drum machines (the 606, 808, 909 and the 29 other kits)
+
+So an 808 snare can sit in a 606 kit, or a HEX kick beside a CLASSIC hat.
+
+**PRESETS does two jobs, and the screen always says which**, in the band where the dials are, while you turn it and a moment after:
+
+| Where | PRESETS changes | The screen says |
+| --- | --- | --- |
+| the drum screen (any tab: SRC, FLTR, AMP, LFO, FX, TRIG) | the **selected slot's sound** (SELECT picks the slot) | **SOUND 808 SNARE**, then the group and the place in it: SNARE 6/41 |
+| HOME (the drums selected), SAVE > PRESETS, the mixer page | the **whole kit**: all 16 slots | **KIT 808**, then CLASSIC KITS 2/32 |
+
+**Changing one sound.** On the drum screen each click of PRESETS puts the next sound of the list into the selected slot at once, and you hear it (stopped: once a click; playing: in the pattern). Turn back to where you started and you have the sound you had, exactly, with any changes you had made to it. **SAVE + OCT-** takes the whole browse back in one go (SAVE + OCT+ brings it again).
+
+**The list, for the selected slot** (Ben: "Same kind first, then all"):
+
+1. **INIT HEX** and **INIT CLASSIC**: a plain starting sound of each machine, for sound design from scratch. They suit the slot: on a kick, tom, conga or cowbell slot a clean sine thump at the slot's pitch; on a snare, clap or rim slot a sine and a noise burst; on a hat, cymbal or shaker slot a plain high-passed noise burst. No transient, no FM, no drive.
+2. **The slot's own kind from every kit**, in kit order: on the snare slot HEX BOOM SNARE, HEX ACID SNARE ... 808 SNARE, 909 SNARE, 606 SNARE ... JAZZ SNARE, then the MY HEX and MY KIT snares.
+3. **Every other kind**, KICK to COWBELL, each from every kit.
+
+The kinds are the 16 slots every kit shares: KICK, KICK 2, SNARE, CLAP, HAT, OPEN HAT, PEDAL, RIM, SNARE 2, LOW TOM, HI TOM, CRASH, RIDE, SHAKER, CONGA, COWBELL. The HEX kits and MY HEX kits have the same 16; a sound in one of your kits counts as the kind of the slot it sits in there. The list goes round from the last to the first.
+
+**Walkthrough: an 808 snare in the 606 kit.**
+
+1. Start a new project (SAVE > TOOLS > NEW): the kit is the 606.
+2. Turn **ALGORITHM** to **DRUM** and tap **EDIT**: the drum screen, SRC. The line under the big name says **606 SNARE** when SNARE is selected; turn **SELECT** until the header's chip says **SNARE**.
+3. Turn **PRESETS** two clicks to the **left**. The band at the bottom says **SOUND 909 SNARE**, then **SOUND 808 SNARE** (SNARE 6/41): stop there. You heard each one. (The snares go HEX BOOM .. HEX ROOM, 808, 909, 606, 80S ...: right from the 606 are the 80S, VINTAGE and the rest.)
+4. That's it: the snare slot is the 808's snare, the other 15 are still the 606's. HOME's DRUM zone now says **CUSTOM**. Tap **EDIT** to shape it: its pages are the CLASSIC machine's.
+5. Changed your mind? Turn PRESETS back to 606 SNARE, or SAVE + OCT-.
+
+**Starting from a machine instead**: turn PRESETS left from any sound until **INIT HEX** or **INIT CLASSIC** (they are the first two in the list), then tap EDIT and build the sound.
+
+**Locks when a slot changes machine.** A lock on a send, the LFO or the pitch (NOTE) belongs to every machine and stays. A lock on one machine's own knob goes over to the other machine's knob of the same name (TUNE, CUTOFF, RESO, TYPE, DRIVE, DECAY, LEVEL, WAVE) at the same place in its range (a TYPE or WAVE only where the other has the same name); the rest are taken off, and the band says how many (2 LOCKS OFF, or 3 LOCKS MOVED). Turning back to the first sound brings every lock back as it was.
+
+**The chokes belong to the slots**: whatever sounds sit in them, the HAT and PEDAL slots cut the OPEN HAT slot.
+
+**Loading a whole kit.** On HOME (drums selected) PRESETS steps through the kits: five HEX kits (HEX BOOM, HEX ACID, HEX METAL, HEX GLITCH, HEX ROOM), 32 CLASSIC kits (808, 909, **606**, 80S, VINTAGE, TRAP, DRILL, BOOMBAP, LO-FI, PHONK, HOUSE, D.HOUSE, TECHNO, MINIMAL, ELECTRO, DISCO, GARAGE, JUNGLE, DUBSTEP, DEMBOW, AMAPIANO, AFRO, LATIN, TRIBAL, SYNTHWV, CHIP, ARCADE, GLITCH, INDUSTR, HYPER, AMBIENT, JAZZ), then your kits. A kit replaces all 16 slots. If the kit is still exactly the kit you loaded, it loads at once (nothing to lose). If you changed any slot (HOME says CUSTOM), the first click asks **HOLD SAVE: LOAD 808**: keep turning to choose another, hold SAVE until the ring fills to load it; the kits after that load at once. This is the only drum question. SAVE + OCT- brings your changed kit back.
+
+**Your kits: SAVE > KITS** (tap SAVE three times). Six places, **MY KIT 1 to 6**, each a whole kit of 16 slots of any machines. KNOB 1 picks one; turn **KNOB 2 LOAD**, **KNOB 3 ERASE** or **KNOB 4 SAVE** to the right. SAVE into an empty place stores at once; over a kit, and ERASE, ask first (hold SAVE). LOAD asks only over a changed kit, as PRESETS does. Your kits are in the PRESETS lists too (whole on HOME, sound by sound on the drum screen). Until you save over them, places 1 to 4 hold your old **MY HEX 1 to 4** (marked OLD), which load as they always played.
+
+**Old projects** load with the same sound: the kit they played (with your copy of it, from waves 3 to 11) becomes the 16 slots, and their locks stay. If a project had a copy of a kit it was not playing, that copy is kept as one of your kits in a free place (MY KIT 5 or 6), and the screen says which.
 
 ---
 
@@ -690,7 +748,7 @@ Every button and key has an LED with three levels: **lit**, a **glow** (about a 
 | **GLO** | the mixer's keys: 1 to 4 mutes, 5 to 8 solos, G#3 PAN; drums: the 16 sounds, F#3 SOLO, G#3 PAN |
 | **FX** | every pad (white and black keys with a pad); OCT+ while a pad is held (latch), OCT- while something is latched |
 | **LFO / ENV** (mapping) | SEL (the other source), OCT- (remove) |
-| **OCT- / OCT+** | the other (octave 0); on the drums, where the keys play sounds: the white keys (ghost / hard) |
+| **OCT- / OCT+** | the other (octave 0) |
 | **a step** | the page buttons with another page to show (EDIT ENV LFO FX SEQ), SEL, OCT- (erase), the other steps |
 | **a key (a note, a sound)** | OCT- (erase it from the pattern) |
 
@@ -698,7 +756,7 @@ Every button and key has an LED with three levels: **lit**, a **glow** (about a 
 
 | Light | QUIET | NORMAL | SHOW |
 | --- | --- | --- | --- |
-| the page's button, the held button, REC recording, the octave, OCT- / OCT+ held on the drums | glow | lit | lit |
+| the page's button, the held button, REC recording, the octave | glow | lit | lit |
 | the hints of a hold (above) | backlight | lit | lit (they win over the show) |
 | the confirm's SAVE | glow, still | pulses | pulses |
 | a layer kept open (LOCK) | glow, still | blinks | blinks |
@@ -715,7 +773,7 @@ Every button and key has an LED with three levels: **lit**, a **glow** (about a 
 | the screensavers | only when opened | only when opened | open by themselves after a minute untouched on HOME while playing |
 | the boot screen (3 s) | as always | as always | as always |
 
-DISCO is a ceiling over LIGHTS, KEYS and NOTES: they still set what they set, but QUIET holds the backlight at LOW at most and turns NOTES off whatever it says (the menu shows NOTES grey then). It does not change the screen's brightness.
+DISCO is a ceiling over LIGHTS, KEYS and NOTES: they still set what they set, but QUIET holds the backlight at LOW at most and turns NOTES off whatever it says (the menu shows NOTES grey then). **QUIET also dims the screen** (Ben's answer): everything on it is drawn at about half its light (9/16), still readable; NORMAL and SHOW bring it back. The FM-1's screen light itself is on or off only (a plain switch line in its wiring), so the dimming is done in the picture; it does not save battery.
 
 ### Screensavers
 
@@ -792,7 +850,8 @@ The four ways ([section 2](#2-the-controls-and-the-screen)): a labelled button (
 | a lane step held | OCT-: its recorded pads | ERASE |
 | STEP REC | the step before / after (the red frame) | STEP |
 | the drums' CHROMATIC | the sound before / after | SOUND |
-| SAVE > PRESETS | the sound before / after | SOUND |
+| SAVE > PRESETS | the sound before / after (the drums: the kit) | SOUND (KIT) |
+| SAVE > KITS | the kit place before / after | KIT |
 | SAVE > USER | the slot before / after | SLOT |
 | every other page (the sound pages, ARP, KEY, GLO, FX's MIX) | the knob last turned there (or SELECT) one fine step down / up; nothing turned yet: nothing | the knob's name (RESO, BPM, TYPE ...) |
 | SAVE > TOOLS (its knobs are GO knobs) | nothing | none |
@@ -812,9 +871,8 @@ The four ways ([section 2](#2-the-controls-and-the-screen)): a labelled button (
 | tap EDIT, ENV, LFO, FX, SEQ, ARP, GLO, SAVE | that button's categories, one a press (the button map, section 2) |
 | tap SEL | the next page |
 | ALGORITHM | the voice (on the steps, past DRUM: the STUTTER lane) |
-| PRESETS | the sound (drums: the kit) |
+| PRESETS | the sound (drums: on the drum screen the selected slot's sound, on HOME and SAVE > PRESETS the whole kit) |
 | MASTER | the volume; with a button held, its pair |
-| hold OCT- / OCT+ + drum key | ghost / hard hit |
 | a key held, then OCT- | that note or sound erased from the pattern |
 | hold SAVE + OCT- / OCT+ | undo / redo |
 
@@ -854,6 +912,7 @@ The four ways ([section 2](#2-the-controls-and-the-screen)): a labelled button (
 | tap ARP | CHROMATIC mode (OCT- / OCT+: the sound; twice quickly its octave; ARP again: off) |
 | hold SEQ + key | RETRIG (KNOB 1 its rate) |
 | hold SEQ + PLAY (+ OCT+) | FILL while held (latched) |
+| PRESETS | the selected slot's sound (SOUND 808 SNARE; turn back: the sound you had; SAVE + OCT-: undo) |
 
 ### STUTTER lane
 
@@ -908,11 +967,11 @@ The four ways ([section 2](#2-the-controls-and-the-screen)): a labelled button (
 
 - **SELECT on the drum screen** picks the sound, not a type: Ben's choice. The drum sound's own WAVE, MODEL and filter TYPE stay on knobs.
 - **The octave is a double tap** of OCT- or OCT+: the one double press, Ben's choice, so that a single tap is always the screen's minus or plus.
-- **OCT- before a drum key** is a ghost hit; **a key before OCT-** erases that sound. The order says which.
+- **A drum key held, then OCT-** erases that sound's hits. OCT- held first and then a key is just the hit (no ghost hit since wave 12: ghosts come from TRIG's velocity).
 - **OCT+ on the STUTTER lane's last page** goes round to page 1 instead of adding a page: the lane's length is KNOB 4's.
 - **The drum voice's ARP** has one category, CHROMATIC: pressed again it ends it.
 - **The mixer's keys** follow the voice selected: a synth voice, the four voices' mutes and solos; the drums, the 16 sounds' mutes (F#3 SOLO: solos).
-- **The drum screen keeps its steps on every tab** (the Rytm's way, Ben's "B: four dials over the knobs"); the synth voices' steps show only on SEQ (Ben, 10:33). Whether the drums should follow is a question for Ben (DECISIONS.md).
+- **The drum screen draws no steps** (Ben, 23 Nov 13:35): the keys and their lights are the steps on every drum tab; the screen shows the sound instead. The synth voices' steps show on SEQ, where their note names and chords are drawn (the keys cannot show those).
 - **Power-on holds** (rescue, calibration, update mode) are the loader's and the recovery's, not the UI's: left as they are.
 - **Three controls at once**, the only ones: hold a step, change the page with a page button or SEL, turn a knob (a lock on another page). Everything else is one or two controls.
 
@@ -924,9 +983,9 @@ The four ways ([section 2](#2-the-controls-and-the-screen)): a labelled button (
 - **Do not flash until the unit has arrived and its chip revision is checked.** Newer FM-1 units have a changed chip and can be bricked.
 - **PHEBUS_ARENA_T12** (a setting of the device build only): tracks 1 and 2 have less memory for an oscillator than track 3. On the FM-1 itself, six Types (6-OP A, B, C, STRING, SPEECH, PARTICLE) play on track 3 only; on tracks 1 and 2 they are silent and the OSC page says NOT ON THIS TRACK. The simulator has no such limit.
 - **Polyphony**: eight notes shared by the three synth voices; JUNO up to six; ACID and the heavy Types one.
-- **No velocity or pressure on the keys**: they are plain switches. Use OCT- and OCT+ for ghost and hard drum hits, set velocity per step, or play PHEBUS from the MPC's pads over MIDI.
+- **No velocity or pressure on the keys**: they are plain switches. Set the drums' velocity on TRIG (KNOB 1 with nothing held: the keys and new hits; a step held: its VEL), or play PHEBUS from the MPC's pads over MIDI.
 - **The PERFORM time effects and the STUTTER lane are mono** (16-bit, 12 dB of headroom kept); the buffer is 0.74 seconds, and below about 84 BPM a quarter-note loop is cut to 0.72 seconds.
-- **Limits per pattern or voice**: 24 locks a synth voice, 128 drum sound locks and 64 hits with extras a pattern, 19 matrix cells a voice, 31 recorded pads in the lane, one edited kit a project.
+- **Limits per pattern or voice**: 24 locks a synth voice, 128 drum sound locks and 64 hits with extras a pattern, 19 matrix cells a voice, 31 recorded pads in the lane, one kit of 16 slots a project, six kits of your own (SAVE > KITS).
 - **Mutes, solos and PERFORM's knob settings** are not saved.
 - **Old projects** are converted when loaded; some conversions are approximate (listed in DECISIONS.md under "For Ben to confirm").
 - The ABOUT page and the USB name still say KARMA (the version PHEBUS was forked from).
@@ -977,7 +1036,7 @@ The screen font is Terminus. The PHEBUS wordmark is drawn from TeX Gyre Adventor
 | **category** | what a labelled button opens, one a press: EDIT's OSC and FILT, FX's INS SENDS SLICER MIX ... The tab row names them |
 | **page** (of a category) | one screen of it: "2/4" at the right of the tabs; **SEL** walks them. (A page of steps: 16 steps, OCT- / OCT+) |
 | **SEL (PAGE)** | the button that walks the pages of the category shown. Held: nothing |
-| **SAVE** | keep and confirm: the SAVE pages (PRESETS, USER, PATTERNS, TOOLS); held, store a pattern, undo, redo, the confirm's ring |
+| **SAVE** | keep and confirm: the SAVE pages (PRESETS, USER, KITS, PATTERNS, TOOLS); held, store a pattern, undo, redo, the confirm's ring |
 | **SELECT** | the knob: knob 5, the type of a synth page (named in the header's chip); on the drum screen the sound |
 | **type** | what SELECT turns: the oscillator Type, the filter's TYPE, an insert's TYPE, the LFO's WAVE, the SLICER's mode |
 | **tab** | the row naming the categories of the last button pressed, the one shown filled |
@@ -1002,7 +1061,11 @@ The screen font is Terminus. The PHEBUS wordmark is drawn from TeX Gyre Adventor
 | **A-D** | SEQ's third category: the patterns to play |
 | **STUTTER lane** | the fifth sequencer part, tag STUT; STUT on HOME's KNOB 3 |
 | **pattern** | one of A to D: all four voices' sounds and steps, the kit and the lane. SEQ plays them, SAVE stores them |
-| **kit** | the drum voice's 16 sounds; **your copy** is the project's edited one (a * after its name) |
+| **kit** | the drum voice's 16 slots, the project's own; HOME names the kit you loaded, CUSTOM once a slot differs. Your kits: SAVE > KITS (MY KIT 1 to 6) |
+| **slot** | one of the kit's 16 places (one per white key; SELECT picks it on the drum screen). It holds one whole sound of either machine |
+| **sound** (drums) | what a slot holds: its machine, its parameters, sends, LFO and name ("808 SNARE"); PRESETS on the drum screen picks it |
+| **HEX**, **CLASSIC** | the two drum machines: the LXR-02's voices, and the synthesised model of the 606, 808, 909 and the rest. Each slot plays with its own |
+| **INIT HEX**, **INIT CLASSIC** | the plain starting sound of each drum machine, first in every slot's sound list |
 | **Type** | the oscillator model, SELECT on OSC, 31 of them |
 | **macro** | one of a Type's three knobs, M1 M2 M3 in the matrix |
 | **mute**, **solo** | yellow M, ice-blue S |

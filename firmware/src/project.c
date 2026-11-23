@@ -820,33 +820,64 @@ static void proj_capture_core(proj_core_t *c)  /* what is playing now, as a proj
     }
     for (k = 0; k < P_COUNT; k++)
         c->d.p[k] = TDRUM->p[k];
+    c->d.p[P_E0] = (int16_t)(pkit.base < DRUM_KITS && !drum_kit_none(pkit.base) ? pkit.base : DRUM_DEFAULT_KIT);   /* (wave 12:
+                                                         * the kit is the project's 16 slots, in its ext; P_E0 and dsend only
+                                                         * say which kit and sends, for a firmware before wave 12) */
     for (k = 0; k < DRUM_LANES; k++)
-        c->d.dsend[k] = (uint8_t)((drum_send[k][0] & 15u) | (drum_send[k][1] & 7u) << 4);
+        c->d.dsend[k] = pkit.s[k].send;
     memcpy(c->d.lock, TDRUM->lock, sizeof c->d.lock);
     c->d.pat = dpat;
     c->sum = proj_sum(c);
 }
-static void proj_capture(project_t *p)        /* .. as a whole project, as stored (the ext: the project's kit, wave 3) */
+static void proj_capture(project_t *p)        /* .. as a whole project, as stored (the ext: the project's kit, wave 12's 16 slots) */
 {
     memset(&p->x, 0, sizeof p->x);
-    if (pkit.magic == PK_MAGIC)
-        memcpy(p->x.kit, &pkit, sizeof pkit);
+    memcpy(p->x.kit, &pkit, sizeof pkit);
     proj_capture_core(&p->c);
 }
 /* (PHEBUS wave 3) the working project's sum as stored: its core's and its kit's (the autosave, the unsaved dot) */
 static uint32_t work_sum(uint32_t core_sum) { return core_sum ^ pkit_hash() * 0x9E3779B1u; }
-/* a working project of n bytes as stored (b: its core, then its ext): its kit becomes the project's (none in it: none) */
-static void proj_kit_take(const uint8_t *b, int n)
+/* a working project of n bytes as stored (b: its core, then its ext; q: its core, converted) -> the project's kit. Wave 12's
+ * ext holds the 16 slots ("PKT2"). Anything older is converted to the 16 slots, the same sound exactly (drum_snd.c
+ * pkit_from_old): the kit it played (its core's P_E0), each sound's sends (its dsend), and waves 3 to 11's edited copy where
+ * it was of that kit. A copy of another kit (it did not play) is kept as a user kit, in the first free one (pkit_old_kept) */
+static void proj_kit_take(const uint8_t *b, int n, const proj_core_t *q)
 {
-    _Static_assert(sizeof(pkit_t) <= sizeof(proj_ext_t), "the project's kit fits its ext");
-    fm1_irq_off();
-    if (n == (int)sizeof(project_t))
-        memcpy(&pkit, b + sizeof(proj_core_t), sizeof pkit);
-    else
-        memset(&pkit, 0, sizeof pkit);
-    pkit_fix(&pkit);
-    pkit_gen++;
-    fm1_irq_on();
+    const pkit_t *x = (const pkit_t *)(b + sizeof(proj_core_t));
+    const pkit1_t *c1 = (const pkit1_t *)(b + sizeof(proj_core_t));
+    int other = 0;
+    _Static_assert(sizeof(pkit_t) <= sizeof(proj_ext_t) && sizeof(pkit1_t) <= sizeof(proj_ext_t), "the kit fits the ext");
+    if (n == (int)sizeof(project_t) && x->magic == PK_MAGIC) {
+        pkit_t k;
+        memcpy(&k, x, sizeof k);
+        if (pkit_fix(&k)) {
+            fm1_irq_off();
+            pkit = k;
+            pkit_gen++;
+            fm1_irq_on();
+            return;
+        }
+    }
+    pkit_from_old((uint32_t)clamp(q->d.p[P_E0], 0, DRUM_KITS - 1), q->d.dsend,
+                  n == (int)sizeof(project_t) ? c1 : 0, &other);
+    if (other) {                                   /* (the copy that did not play: into a free user kit) */
+        pkit_t k;
+        uint32_t u, l;
+        if (kit_make(c1->src, &k)) {
+            for (l = 0; l < DRUM_LANES; l++) {
+                dlfo_t lf = c1->lfo[l];
+                memcpy(k.s[l].snd, c1->snd[l], 22);
+                dlfo_fix(&lf);
+                k.s[l].lfo = lf;
+                slot_fix(&k.s[l]);
+            }
+            for (u = 0; u < UKIT_N; u++)
+                if (ukit_state(u) == UK_ERASED || (u >= DSU_N && ukit_state(u) == UK_NONE))
+                    break;
+            k.base = (uint8_t)(DSRC_USER + u);
+            pkit_old_kept = (uint8_t)(u < UKIT_N && !ukit_put(u, &k) ? u + 1u : 0xFFu);
+        }
+    }
 }
 _Static_assert(sizeof proj_tmp == sizeof(project_t) && sizeof(project_v3_t) <= sizeof proj_tmp - 3840u,
                "proj_tmp holds a whole project, or an old one's bytes and format 3");
@@ -870,10 +901,8 @@ static void proj_apply(const proj_core_t *p, int all)
         proj_old_swing = 0;
     song.g[G_SWING] = 0;                                /* (no page: the pattern's swing is the one) */
     song.g[G_FILT] = 0;                                 /* (wave 8: the master DJ filter is gone, PERFORM's LP / HP) */
-    for (k = 0; k < DRUM_LANES; k++) {                  /* each drum sound's own sends: a load and a section */
-        drum_send[k][0] = (uint8_t)(p->d.dsend[k] & 15u);
-        drum_send[k][1] = (uint8_t)((p->d.dsend[k] >> 4) & 7u);
-    }
+    /* (wave 12) each drum sound's own sends are its slot's: the kit is the project's (proj_kit_take), a section never
+     * changes it (its dsend and P_E0 only say what they were) */
     memcpy(stl.on, p->perf.on, sizeof stl.on);          /* (PHEBUS) the STUTTER lane: a load and a section */
     memcpy(stl.lc, p->perf.lc, sizeof stl.lc);
     memcpy(stl.lx, p->perf.lx, sizeof stl.lx);
@@ -1196,7 +1225,7 @@ static void autosave_tick(void)                /* main loop */
     }
     if (!audio_quiet())
         return;
-    if (st_save_big2(OBJ_WORK, &autosave_buf, sizeof autosave_buf, pkit.magic == PK_MAGIC ? &pkit : 0, sizeof pkit,
+    if (st_save_big2(OBJ_WORK, &autosave_buf, sizeof autosave_buf, &pkit, sizeof pkit,
                      sizeof(proj_ext_t) - sizeof pkit) == 0)   /* (the ext: the project's kit, then zeros) */
         autosave_hash = h;
     autosave_ms = fm1_ms;
@@ -1230,7 +1259,7 @@ static void autosave_resume(void)              /* power-on: the project as it wa
     drch_seed = 0;
     if (!proj_import(q, &proj_tmp, n, PROJ_V7_TMP))
         return;
-    proj_kit_take(proj_tmp.raw, old ? 0 : n);           /* (PHEBUS wave 3) the project's kit, from its ext */
+    proj_kit_take(proj_tmp.raw, old ? 0 : n, q);        /* (wave 12) the project's kit, from its ext (older: converted) */
     autosave_hash = old ? 0u : work_sum(q->sum);       /* (converted: saved in the new format when next quiet) */
     proj_apply(q, 1);
     song.sel = (uint8_t)(q->sel < NTRK ? q->sel : 0u);
@@ -1256,6 +1285,9 @@ _Static_assert(__builtin_offsetof(persist_t, song_rsv) == 48u, "the old song ord
 #if FELUCCA_FLASH
 static persist_t persist_saved;
 static void dsu_boot(void);
+#ifndef UKIT_RAM
+#include "ukit_flash.c"                            /* (wave 12) the user drum kits in flash */
+#endif
 #endif
 
 static void persist_boot(void)                    /* before settings_init / panel_init */
@@ -1316,6 +1348,9 @@ static void persist_boot(void)                    /* before settings_init / pane
             }
     }
     dsu_boot();                                    /* SLOOP 2.5: the SYN kits (after the settings) */
+#ifndef UKIT_RAM
+    ukit_boot();                                   /* (wave 12) the user kits' states */
+#endif
     up_boot();                                     /* user presets */
 #endif
 }
@@ -1519,7 +1554,7 @@ static uint32_t project_restore(uint32_t slot, const void *raw, uint32_t n)
         if ((const void *)raw != (const void *)proj_tmp.raw || !proj_import(q, raw, (int)n, PROJ_V7_TMP))
             return 2;
         if (slot == 4u) {
-            proj_kit_take(proj_tmp.raw, (int)n);        /* (wave 3: the kit in its ext) */
+            proj_kit_take(proj_tmp.raw, (int)n, q);     /* (wave 12: the kit in its ext; older: converted) */
             project_apply(q);
             return 0;
         }
@@ -1578,7 +1613,7 @@ static void persist_flush_now(void)
     if (flash_ok) {
         proj_capture_core(&autosave_buf);
         if (work_sum(autosave_buf.sum) != autosave_hash &&
-            st_save_big2(OBJ_WORK, &autosave_buf, sizeof autosave_buf, pkit.magic == PK_MAGIC ? &pkit : 0, sizeof pkit,
+            st_save_big2(OBJ_WORK, &autosave_buf, sizeof autosave_buf, &pkit, sizeof pkit,
                          sizeof(proj_ext_t) - sizeof pkit) == 0)
             autosave_hash = work_sum(autosave_buf.sum);
     }

@@ -15,7 +15,7 @@ static uint64_t render(int use_cpu1)
     for (i = 0; i < G_COUNT; i++) song.g[i] = GP[i].def;
     host_tracks_init();
     memset(&drums, 0, sizeof drums);
-    TDRUM->p[P_E0] = 0;                                   /* HEX BOOM */
+    kit_set((uint32_t)(0));                                   /* HEX BOOM */
     song.g[G_DRREV] = 64;
     song.g[G_DRDLY] = 64;
     for (b = 0; b < FS * 4 / CTL; b++) {
