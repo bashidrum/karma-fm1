@@ -257,3 +257,12 @@ Global should have midi learn. But not fill. Fill should be arp, seq. Maybe hold
 How can we make the black keys un hidden?"
 
 Also, at 08:47: "To my mind, the select button had no business having control of the mutes."
+
+His answers by picker, 23 Nov 2026, 09:20:
+
+- Octave: "Double tap for octave". One exception to the no-double-press rule. A single tap of OCT- or OCT+ is always the screen's minus/plus.
+- Undo and redo: "SAVE with -/+". Hold SAVE: OCT- steps back, OCT+ forward.
+- Black keys: "Only live when drawn". A black key does something only if the screen draws it, in the same strip PERFORM uses. Otherwise it is a note or nothing.
+- MASTER pairs: "Yes, those pairs". Hold a button and turn MASTER: FX = whole-mix effect dry/wet; SEQ = swing; ARP = transpose; EDIT = this voice's level; ENV = envelope length (all stages); LFO = modulation depth; GLO = tempo.
+
+Proposed by Claude from his 09:08 words and not objected to (to be built, for him to confirm): fill is hold SEQ and press PLAY; patterns A to D are a SEQ category, storing a pattern stays with SAVE; the confirm is hold SAVE with the ring; REC only records; clear a voice is OCT- with EDIT then confirm; erase is OCT- with the thing held; MASTER acts relatively so volume never jumps; the settings menu behind hold HOME moves into GLO.
