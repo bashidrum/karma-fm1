@@ -15,6 +15,9 @@
  * The effects act on the whole mix: white and grey (the colour rule); a mute acts on one voice: its colour. */
 #define PF_Y 40                                         /* (wave 7: the frame every screen has) the chips and pads, 114 rows */
 #define PF_CAP_Y 22                                     /* the caption, under the header */
+/* (wave 13) the 16 pads: 58 x 18 under the strip's two rows of 15 (in PF_Y's band) */
+#define PF_PAD_X(i) (1 + (int32_t)((i) % 4u) * 60)
+#define PF_PAD_Y(i) (34 + (int32_t)((i) / 4u) * 20)
 static const char *const VOW_NAME[5] = {"U", "O", "A", "E", "I"};
 static const char *pf_label(uint32_t p)                 /* a pad's short name (the lane's repeat: its length) */
 {
@@ -120,7 +123,7 @@ static void pf_pad(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t p, int c
     uint32_t b = PFB(p), held = (perf.held & b) != 0u, lat = (perf.lat & b) != 0u, lane = (perf.lane & b) != 0u;
     uint16_t col = pf_col(p), mid = col == C_WHITE ? TE_G4 : TE_MID[p >= PF_MKICK ? TRK_DRUM : p - PF_MV1];
     const char *n = PFD[p].pad;
-    int32_t ty = chip ? y - 2 : y + 2;
+    int32_t ty = chip ? y - 1 : y + 1;
     if (held) {
         cv_rect(x, y, w, h, col);
         te_text_c(x + w / 2, ty, n, C_BLACK);
@@ -131,30 +134,30 @@ static void pf_pad(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t p, int c
         cv_rect(x + 1, y + 1, w - 2, h - 2, col == C_WHITE ? TE_G2 : TE_DIM[p >= PF_MKICK ? TRK_DRUM : p - PF_MV1]);
         te_text_c(x + w / 2, ty, n, C_WHITE);
         if (lat)
-            cv_rect(x + w - 7, y + 3, 4, 4, C_WHITE);
+            cv_rect(x + w - 4, y + 1, 3, 3, C_WHITE);
         if (lane && !lat)
             cv_rect(x + 3, y + h - 3, w - 6, 2, C_WHITE);
         return;
     }
     cv_rect(x, y, w, h, TE_G1);
-    if (col != C_WHITE) {                               /* (a mute: its voice's colour, a band on its left, its name) */
-        cv_rect(x, y, 3, h, col);
-        te_text_c(x + 1 + w / 2, ty, n, col);
+    if (col != C_WHITE) {                               /* (a mute: its name in its voice's colour, a line of it under) */
+        cv_rect(x, y + h - 2, w, 2, TE_MID[p >= PF_MKICK ? TRK_DRUM : p - PF_MV1]);
+        te_text_c(x + w / 2, ty, n, col);
         return;
     }
     if (p == perf.last)                                 /* the knobs' pad */
         op_box(x, y, w, h, TE_G3);
-    te_text_c(x + w / 2, ty, n, bright ? TE_G4 : TE_G3);
+    te_text_c(x + w / 2, ty, n, bright ? TE_G4 : TE_G3);   /* (wave 13: every pad bright, the black keys' extras too) */
 }
 /* (wave 13) the black keys' chips: the seven mutes on the top row (V1 V2 V3 narrow, the drum mutes wide), the four extras on
  * the second, over the pads' columns; key order left to right, top then bottom (F#3 .. G#4, A#4 .. F#5) */
 static void pf_chip_box(uint32_t i, int32_t *x, int32_t *y, int32_t *w)
 {
-    static const uint8_t X[7] = {2, 28, 54, 84, 123, 162, 201}, W[7] = {24, 24, 24, 37, 37, 37, 37};
+    static const uint8_t X[7] = {1, 23, 45, 70, 112, 154, 196}, W[7] = {20, 20, 20, 41, 41, 41, 43};
     if (i < 7u)
         *x = X[i], *y = 0, *w = W[i];
     else
-        *x = 2 + (int32_t)(i - 7u) * 60, *y = 13, *w = 56;
+        *x = 1 + (int32_t)(i - 7u) * 60, *y = 17, *w = 58;
 }
 static void perf_screen_draw(void)
 {
@@ -179,10 +182,10 @@ static void perf_screen_draw(void)
         for (i = 0; i < 11u; i++) {
             int32_t x, y, w;
             pf_chip_box(i, &x, &y, &w);
-            pf_pad(x, y, w, 12, PF_MV1 + i, 1, 0);
+            pf_pad(x, y, w, 15, PF_MV1 + i, 1, 1);
         }
         for (i = 0; i < 16u; i++)
-            pf_pad(2 + (int32_t)(i % 4u) * 60, 27 + (int32_t)(i / 4u) * 22, 56, 20, i, 0, i < 8u);
+            pf_pad(PF_PAD_X(i), PF_PAD_Y(i), 58, 18, i, 0, 1);
         cv_blit(0, PF_Y);
     }
     /* the caption: the knobs' pad and what it is doing; LOCK while it stays open; a message in a white bar */

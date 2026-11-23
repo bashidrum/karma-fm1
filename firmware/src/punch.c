@@ -90,7 +90,7 @@ static const uint8_t PL_LEN16[4] = {1, 2, 4, 8}, PL_TIME16[4] = {2, 4, 8, 16}, P
 #define K_ISO {"LOW X", PL_X1, KK_LIST, 0, 0, 11, 6}, {"HIGH X", PL_X2, KK_LIST, 0, 0, 11, 5}, K_NONE, K_AMT
 #define K_MUTE {K_NONE, K_NONE, K_NONE, K_NONE}
 static const struct {
-    const char *pad, *name;               /* the pad's label (six letters; the black keys' five), the caption */
+    const char *pad, *name;               /* the pad's label (seven letters at most; the mutes' five), the caption */
     pk_t k[4];
 } PFD[PF_NPAD] = {
     {"1/1", "1/1 REPLAY", {K_NONE, K_NONE, K_NONE, K_NONE}},
@@ -121,11 +121,11 @@ static const struct {
     {"TOPS", "MUTE ALL BUT TOPS", K_MUTE},
     {"SH+CL", "ALL BUT SHAKER+CLAP", K_MUTE},
     {"HT+SN", "ALL BUT HATS+SNARE", K_MUTE},
-    {"REV", "REVERSE", {{"LENGTH", PL_LEN, KK_LIST, 0, 0, 3, 2}, K_NONE, K_NONE, K_AMT}},
+    {"REVERSE", "REVERSE", {{"LENGTH", PL_LEN, KK_LIST, 0, 0, 3, 2}, K_NONE, K_NONE, K_AMT}},
     {"STOP", "TAPE STOP", {{"TIME", PL_TIME, KK_LIST, 0, 0, 3, 1}, K_NONE, K_NONE, K_AMT}},
-    {"SW DN", "SWEEP DOWN", {{"LENGTH", PL_SWLEN, KK_LIST, 0, 0, 4, 2}, {"RESO", 0, KK_PCT, 0, 0, 100, 30},
+    {"SWP DN", "SWEEP DOWN", {{"LENGTH", PL_SWLEN, KK_LIST, 0, 0, 4, 2}, {"RESO", 0, KK_PCT, 0, 0, 100, 30},
                              {"RANGE", 0, KK_CUT, 0, 0, 100, 30}, {"SLOPE", PL_SLOPE, KK_LIST, 0, 0, 1, 1}}},
-    {"SW UP", "SWEEP UP", {{"LENGTH", PL_SWLEN, KK_LIST, 0, 0, 4, 2}, {"RESO", 0, KK_PCT, 0, 0, 100, 30},
+    {"SWP UP", "SWEEP UP", {{"LENGTH", PL_SWLEN, KK_LIST, 0, 0, 4, 2}, {"RESO", 0, KK_PCT, 0, 0, 100, 30},
                            {"RANGE", 0, KK_CUT, 0, 40, 127, 95}, {"SLOPE", PL_SLOPE, KK_LIST, 0, 0, 1, 1}}},
     {"1/32", "LANE REPEAT", {{"LENGTH", LST_NAME, KK_LIST, 0, 0, 5, 5}, K_NONE, K_NONE, K_NONE}},
 };

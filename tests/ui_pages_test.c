@@ -764,13 +764,13 @@ int main(int argc, char **argv)
     fm1_in.notes = 1u << 4; frame(); check(perf.held == 1u << PF_S4 && perf.last == PF_S4, "FX + the 3rd white key: the 1/4 pad, held");
     ppm("layer-punch-on");
     fm1_in.notes = 0; frame(); check(perf.held == 0u, "key up: the mix comes back");
-    fm1_in.notes = 1u << 20; frame(); check(perf.held == 1u << PF_S8T, "FX + the black key C#5: 1/8T");
+    fm1_in.notes = 1u << 20; frame(); check(perf.held == 1u << PF_STOP, "FX + the black key C#5: TAPE STOP (wave 13)");
     check(keys_lit() == 1u << 20, "its key lights");
     ppm("layer-punch-black");
     fm1_in.notes = 0; frame(); check(perf.held == 0u, "black key up: the mix comes back");
-    encs[panel.enc[EN_K2]] = 3; frame(); check(perf.par[PF_S8T][1] > 0, "FX + KNOB 2: the last pad's second knob (1/8T's DECAY)");
+    encs[panel.enc[EN_K1]] = 1; frame(); check(perf.par[PF_STOP][0] == PFD[PF_STOP].k[0].def + 1, "FX + KNOB 1: the last pad's first knob (TAPE STOP's TIME)");
     ui.force = 1; frame(); ppm("layer-punch-trkflt");
-    perf.par[PF_S8T][1] = 0;
+    perf.par[PF_STOP][0] = PFD[PF_STOP].k[0].def;
     release(B_FX); check(cur_page()->scope == SC_TRK && ui.layer == LY_PLAY, "FX used then let go: no FX page");
 
     /* ---- a layer locked open (wave 8: one keep-open gesture): held 0.7 s untouched, let go; any other button (not PLAY,
@@ -2485,7 +2485,7 @@ int main(int argc, char **argv)
             set_engine_of(&trk[1], e0); apply_preset_to(&trk[1], p0); trk[1].engine = trk[1].eng_req;
             frames(4);
             press(B_FX); frames(10);
-            fm1_in.notes = 1u << key_of_white(14); frame();   /* (wave 6: the ECHO pad is the echo throw) */
+            fm1_in.notes = 1u << key_of_white(PF_ECHO); frame();   /* (wave 6: the ECHO pad is the echo throw) */
             ui.force = 1; frame(); ppm("layer-fx-throw");
             check(perf.thr[1] == 32767 && thr_dly > 0, "PERFORM: the ECHO pad throws into the delay while held");
             fm1_in.notes = 0; frame();
@@ -2635,9 +2635,9 @@ int main(int argc, char **argv)
         press(B_FX); frames(12);
         fm1_in.notes = 1u << key_of_white(2); frame(); frame();
         ui.force = 1; frame(); ppm("perform-held");
-        check(px_count(2 + 2 * 60, 32 + 31, 56, 21, C_WHITE) > 800u, "PERFORM: the 1/4 pad held: drawn white (the whole mix: no voice colour)");
-        check(px_count(0, 32, 240, 122, TE_COL[0]) + px_count(0, 32, 240, 122, TE_COL[1]) + px_count(0, 32, 240, 122, TE_COL[2]) +
-              px_count(0, 32, 240, 122, TE_COL[3]) == 0u, "PERFORM: no voice colour anywhere on the pads (the colour rule)");
+        check(px_count(1 + 2 * 60, 40 + 34, 58, 18, C_WHITE) > 800u, "PERFORM: the 1/4 pad held: drawn white (the whole mix: no voice colour)");
+        check(px_count(0, 67, 240, 88, TE_COL[0]) + px_count(0, 67, 240, 88, TE_COL[1]) + px_count(0, 67, 240, 88, TE_COL[2]) +
+              px_count(0, 67, 240, 88, TE_COL[3]) == 0u, "PERFORM: no voice colour on the effect pads (the colour rule: the whole mix)");
         /* latch: OCT+ while it is held */
         fm1_in.buttons |= BT(B_OCTUP); edges_btn |= BT(B_OCTUP); frame(); fm1_in.buttons &= ~BT(B_OCTUP); frame();
         fm1_in.notes = 0; frame();
@@ -2646,22 +2646,23 @@ int main(int argc, char **argv)
         fm1_in.buttons |= BT(B_OCTUP); edges_btn |= BT(B_OCTUP); frame();
         fm1_in.notes = 1u << key_of_white(8); frame(); fm1_in.notes = 0; frame();
         fm1_in.buttons &= ~BT(B_OCTUP); frame();
-        check(perf.lat == (1u << PF_S4 | 1u << PF_LP), "LATCH: OCT+ held + the LP pad: latched too (2 latched)");
-        stl.ev[0] = (pev_t){PF_GATE + 1u, 0, 16, 0};    /* (the lane plays GATE: as a recorded pad shows) */
+        check(perf.lat == (1u << PF_S4 | 1u << PF_ISOL), "LATCH: OCT+ held + the ISO LO pad: latched too (2 latched)");
+        stl.ev[0] = (pev_t){PF_PHASER + 1u, 0, 16, 0};  /* (the lane plays PHASER: as a recorded pad shows) */
         song.playing = 1; transport_req = 1; frames(3);
         ui.force = 1; frame(); ppm("perform-latched");
-        check(perf.lane == 1u << PF_GATE, "PERFORM: a pad the lane plays (recorded) shows as playing");
-        check(px_count(2 + 49, 40 + 27 + 44 + 3, 4, 4, C_WHITE) == 16u,   /* (wave 7: the frame every screen has) */ "LATCH: the latched LP pad shows its dot");
+        check(perf.lane == 1u << PF_PHASER, "PERFORM: a pad the lane plays (recorded) shows as playing");
+        check(px_count(1 + 54, 40 + 34 + 40 + 1, 3, 3, C_WHITE) == 9u,   /* (wave 7: the frame every screen has) */ "LATCH: the latched ISO LO pad shows its dot");
         /* the knobs: the last pad's */
-        kn = perf.par[PF_LP][0];
+        kn = perf.par[PF_ISOL][0];
         encs[panel.enc[EN_K1]] = -4; frame();
-        check(perf.par[PF_LP][0] < (int8_t)kn && perf.last == PF_LP, "knobs: KNOB 1 turns the last pad pressed (LP: CUTOFF)");
+        check(perf.par[PF_ISOL][0] < (int8_t)kn && perf.last == PF_ISOL && perf.par[PF_ISOH][0] == perf.par[PF_ISOL][0],
+              "knobs: KNOB 1 turns the last pad pressed (ISO LO: LOW X, the three ISO pads' one crossover)");
         fm1_in.notes = 1u << key_of_white(11); frame(); fm1_in.notes = 0; frame();
-        kn = perf.par[PF_GATE][1];
+        kn = perf.par[PF_MOTION][1];
         encs[panel.enc[EN_K2]] = 3; frame();
-        check(perf.last == PF_GATE && perf.par[PF_GATE][1] > (int8_t)kn && perf.par[PF_LP][1] == PFD[PF_LP].k[1].def,
-              "knobs: then the GATE pad: KNOB 2 its WIDTH, LP's untouched");
-        ui.force = 1; frame(); ppm("perform-knobs-gate");
+        check(perf.last == PF_MOTION && perf.par[PF_MOTION][1] > (int8_t)kn && perf.par[PF_ISOL][1] == PFD[PF_ISOL].k[1].def,
+              "knobs: then the MOTION pad: KNOB 2 its DEPTH, ISO's untouched");
+        ui.force = 1; frame(); ppm("perform-knobs-motion");
         /* exit with latches on: they stay (hands free to play), the header says FX 2; STOP lets them go */
         release(B_FX); frames(2);
         go_home(); ui.force = 1; frame(); ppm("home-fx-latched");
@@ -2672,7 +2673,7 @@ int main(int argc, char **argv)
         fm1_in.buttons |= BT(B_OCTUP); edges_btn |= BT(B_OCTUP); frame();
         fm1_in.notes = 1u << key_of_white(9); frame(); fm1_in.notes = 0; frame(); fm1_in.buttons &= ~BT(B_OCTUP); frame();
         release(B_FX); frames(2);
-        check(perf.lat == 1u << PF_HP, "(HP latched, PERFORM left)");
+        check(perf.lat == 1u << PF_ISOM, "(ISO MID latched, PERFORM left)");
         tap(B_PLAY); frames(3);
         check(!song.playing && !perf.lat, "STOP: the latches go");
         memset(stl.ev, 0, sizeof stl.ev);
@@ -2694,7 +2695,7 @@ int main(int argc, char **argv)
         }
         {
             char b[96];
-            snprintf(b, sizeof b, "PERFORM: no knob value past its 40 px column (22 pads, each knob at its least, middle, most)");
+            snprintf(b, sizeof b, "PERFORM: no knob value past its 40 px column (%d pads, each knob at its least, middle, most)", (int)PF_NPAD);
             check(dial_over == over0, b);
         }
         release(B_FX); frames(2);
@@ -2707,9 +2708,9 @@ int main(int argc, char **argv)
         check(stl_shown(), "(the STUTTER lane on the GRID)");
         memset(&stl, 0, sizeof stl); stl.len = 16; stl.act = 1;
         stl.ev[0] = (pev_t){PF_S8 + 1u, 4, 2, 0};
-        stl.ev[1] = (pev_t){PF_LP + 1u, 8, 6, 0};
+        stl.ev[1] = (pev_t){PF_SWDN + 1u, 8, 6, 0};
         stl.ev[2] = (pev_t){PF_CRUSH + 1u, 12, 3, 0};
-        stl.ev[3] = (pev_t){PF_GATE + 1u, 0, 16, 0};
+        stl.ev[3] = (pev_t){PF_MTOPS + 1u, 0, 16, 0};
         lane_set_ui(12, 0), lane_set_ui(13, 0);
         ui.force = 1; frame(); ppm("stut-fx");
         check(px_count(4 * 15, 22 + 77, 2 * 15 - 1, 14, TE_G2) + px_count(4 * 15, 22 + 93, 2 * 15 - 1, 14, TE_G2) > 200u,
@@ -2720,7 +2721,7 @@ int main(int argc, char **argv)
         ui.force = 1; frame(); ppm("stut-fx-held");
         fm1_in.buttons |= BT(B_OCTDN); edges_btn |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
         fm1_in.notes &= ~(1u << key_of_white(9)); frame();
-        check(!stl.ev[1].fx && !stl.ev[3].fx && stl.ev[0].fx && stl.ev[2].fx, "STUTTER lane: step 10 held + OCT-: the pads over it erased (LP, GATE), the rest kept");
+        check(!stl.ev[1].fx && !stl.ev[3].fx && stl.ev[0].fx && stl.ev[2].fx, "STUTTER lane: step 10 held + OCT-: the pads over it erased (SW DN, TOPS), the rest kept");
         check(!stl_lit(9), "STUTTER lane: ... and step 10, lit by that press, unlit again (the press was for the pads)");
         press(B_SAVE); press(B_OCTDN); release(B_OCTDN); release(B_SAVE); frames(2);
         check(stl.ev[1].fx && stl.ev[3].fx, "STUTTER lane: SAVE + OCT-: the erase undone");
@@ -3116,7 +3117,7 @@ int main(int argc, char **argv)
         check(px_count(83, ZY[0] + 16, 74, 18, TE_COL[1]) == 0u, "HOME SYNTH: a muted voice's name grey, not its colour");
         check(px_count(0, ZY[1], 240, 18, TE_MUTE) > 40u && home_zone_sig[1] != z1, "HOME DRUM: sounds muted in MUTE mode: a yellow M and how many");
         trk[1].p[P_MUTE] = 0; song.solo = 0; drum_mute = 0;
-        perf.lat = 1u << PF_LP | 1u << PF_GATE; stl.act = 0; ui.force = 1; frame(); ppm("home-zones-perform");
+        perf.lat = 1u << PF_SWDN | 1u << PF_PHASER; stl.act = 0; ui.force = 1; frame(); ppm("home-zones-perform");
         check(px_count(150, ZY[2] + 1, 88, 16, C_WHITE) > 40u && home_zone_sig[2] != z2,
               "HOME PERFORM: the latched pads named at the right, white");
         perf.lat = 0; stl.act = 1;
@@ -3173,9 +3174,18 @@ int main(int argc, char **argv)
         {
             uint32_t v, bad = 0, p, o2;
             press(B_FX); frames(12); ui.force = 1; frame();
-            for (v = 0; v < NTRK; v++) bad += px_count(0, 0, 240, OP_BAR_Y, TE_COL[v]);
+            /* (wave 13) the mute chips (the strip's top row, y 40..54) carry their voice's colour: V1 V2 V3 theirs, the drum
+             * mutes teal, each only its own; everything else on PERFORM none */
+            for (v = 0; v < NTRK; v++) bad += px_count(0, 0, 240, 40, TE_COL[v]) + px_count(0, 55, 240, OP_BAR_Y - 55, TE_COL[v]);
+            for (v = 0; v < 3u; v++) {
+                uint32_t o;
+                for (o = 0; o < NTRK; o++)
+                    bad += o != v ? px_count(1 + 22 * v, 40, 20, 15, TE_COL[o]) : px_count(1 + 22 * v, 40, 20, 15, TE_COL[o]) < 12u;
+            }
+            for (v = 0; v < 3u; v++) bad += px_count(70, 40, 169, 15, TE_COL[v]);
+            bad += px_count(70, 40, 169, 15, TE_COL[TRK_DRUM]) < 48u;
             release(B_FX); frames(2);
-            check(bad == 0u, "colour rule: PERFORM has no voice colour above the strip");
+            check(bad == 0u, "colour rule: PERFORM: a voice colour only on that voice's mute chip (V1 V2 V3, the drum mutes teal)");
             song.sel = TRK_DRUM; studio_open(SC_DRUM); frames(2); stl_algo(1); ui.force = 1; frame();
             for (v = 0, bad = 0; v < NTRK; v++) bad += px_count(0, 0, 240, OP_BAR_Y, TE_COL[v]);
             stl_algo(-1); go_home(); track_select(0); frames(2);
