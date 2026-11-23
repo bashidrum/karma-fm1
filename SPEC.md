@@ -191,3 +191,9 @@ He asked for an audit, not a build (review/LAYOUT-AUDIT-2026-11-22.md). His answ
 - Key legend on every screen: "Leave as built".
 - Hidden depth: "One rule everywhere". One latch gesture, one keep-open gesture, one confirm gesture, no double presses. Nothing deeper than a hold.
 - Same words: same filter page on drums and synths (CUTOFF, RESO, ENV, TYPE; one spelling everywhere); one repeat word (RATCH becomes RETRIG; ROLL stays for held keys; SLICER decided separately); cut the spare filters (the hidden CC 74 filter and the GLO DJ filter; PERFORM LP and HP do that job); tempo in one place.
+
+### 23 Nov 2026: after the layout wave, by picker
+
+- SLICER on each voice: "Keep as it is".
+- Tap tempo: "Leave it out".
+- Reaching a voice's own effects in two presses: Ben asked "What is actually on the ENV button?" (open).
