@@ -381,3 +381,10 @@ With four simulator screenshots of the FLOW visual crossed by horizontal glitch 
 Knob one in the screenshot doesn't pick a type. Select knob does.
 
 Not sure where the master stutter sequence has gone?"
+
+His answers by picker, 23 Nov 2026, 15:55:
+
+- A home for PERFORM and the stutter sequence: "Both on FX as you've recommended but don't walk the PERFORM page. The perform page is only in the long press for FX button"
+- What FX opens on: "Option 2 - but obvi without the Perform page." (Option 2 was: this voice's inserts, then sends, slicer, then the mix group.)
+
+So tapping FX steps: inserts, sends, slicer, then MIX, then STUTTER. PERFORM is reached only by holding FX. The stutter sequence leaves the ALGORITHM knob.
