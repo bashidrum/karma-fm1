@@ -286,6 +286,7 @@ static uint16_t drum_tile_col(uint32_t l)               /* a sound's tile in the
         has = dt_has(i, l);
     return pad_lit[l] ? TE_DRUM : has ? TE_MID[3] : TE_G1;
 }
+static uint8_t drum_map_nosel;                          /* (a kit page: the map frames no sound) */
 /* the 16 sounds as a 4 x 4 map at (x0, y0), tiles w x h on a pitch of px, py: the drum grid (drums.c DRUM_GRID) */
 static void drum_map(int32_t x0, int32_t y0, int32_t w, int32_t h, int32_t px, int32_t py)
 {
@@ -298,7 +299,7 @@ static void drum_map(int32_t x0, int32_t y0, int32_t w, int32_t h, int32_t px, i
             cv_rect(x + w - 5, y + 2, 3, h - 4, TE_MUTE);
         else if ((drum_solo >> l) & 1u)
             cv_rect(x + w - 5, y + 2, 3, h - 4, TE_SOLO);
-        if (l == drum_lane)
+        if (l == drum_lane && !drum_map_nosel)
             op_box(x - 1, y - 1, w + 2, h + 2, C_WHITE);
     }
 }
@@ -550,6 +551,8 @@ static void drum_main_draw(void)
     } else if (chrom) {
         str_cpy(sub, "CHROMATIC  OCT ", sizeof sub);
         fmt_int(sub + str_len(sub), drum_chr_oct);
+    } else if (dpg_kit()) {                             /* (the drum effects under FX) a kit page: the kit, not a sound */
+        drum_kit_name(sub, 11);
     } else {                                            /* (wave 12) the kit (CUSTOM once a slot differs) and the slot's trigs */
         uint32_t n = 0;
         drum_kit_name(sub, 11);
@@ -559,23 +562,28 @@ static void drum_main_draw(void)
         fmt_int(sub + str_len(sub), (int32_t)n);
         str_cpy(sub + str_len(sub), n == 1u ? " TRIG" : " TRIGS", 8);
     }
-    sig = studio_hash(drum_map_sig() * 31u + l, sub) + ((drum_mute >> l) & 1u) * 7u + ((drum_solo >> l) & 1u) * 11u;
+    sig = studio_hash(drum_map_sig() * 31u + l, sub) + ((drum_mute >> l) & 1u) * 7u + ((drum_solo >> l) & 1u) * 11u +
+          (uint32_t)dpg_kit() * 977u;
     if (ui.force || sig != sa) {
         sa = sig;
         cv_begin(240, 54, C_BLACK);
         {
             char nm[10];
-            str_cpy(nm, LANE_NAME[l], 9);
+            str_cpy(nm, dpg_kit() ? "KIT" : LANE_NAME[l], 9);   /* (a kit page: KIT, no sound's name) */
             while (text_w(&FONT_L, nm) > 146)
                 nm[str_len(nm) - 1u] = 0;
             cv_text(4, 2, &FONT_L, nm, TE_DRUM);
         }
         i = (uint32_t)cv_text(4, 36, &FONT_S, sub, C_WHITE);
-        if ((drum_mute >> l) & 1u)
+        if (dpg_kit())
+            ;                                           /* (a kit page: no sound's mute or solo badge) */
+        else if ((drum_mute >> l) & 1u)
             op_badge((int32_t)i + 6, 37, 'M', TE_MUTE);
         else if ((drum_solo >> l) & 1u)
             op_badge((int32_t)i + 6, 37, 'S', TE_SOLO);
+        drum_map_nosel = (uint8_t)dpg_kit();            /* (a kit page: no sound framed: the page is all 16's) */
         drum_map(155, 4, 18, 9, 21, 12);
+        drum_map_nosel = 0;
         cv_blit(0, SG_BODY_Y);
     }
     /* (wave 12) the sound (chromatic: the keys as a keyboard). The keys are the steps and their lights show the pattern: the
