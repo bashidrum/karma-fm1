@@ -316,3 +316,16 @@ His answers by picker, 23 Nov 2026, 11:10:
 - Engine: "Yes, an INIT per engine". The sound list includes a plain starting sound for each drum engine.
 
 Proposed by Claude and not objected to (for him to confirm when built): the kit is 16 slots in the project, each holding any sound from any kit; no separate edited copy and no star; loading a whole kit replaces all 16 and is the only thing that asks for a confirm. To be built as its own wave after wave 11, with the memory cost worked out first.
+
+### 23 Nov 2026, 11:33: the colour code, in Ben's words
+
+"I've actually been a bit silly... I use a colour code for my tracks. That teal is meant to be drums. The others are for synths. My normal colour code is:
+
+Blue for bass
+Surf green for drums
+Purple for synths
+Coral for vocals
+
+Happy to keep it with just swapping the surf green to drums"
+
+Applied as: the drum voice is teal (20,196,170) and voice 3 is coral (255,128,108). Voice 1 stays purple and voice 2 blue. This replaces the earlier colour rule wherever it named coral for the drums and teal for voice 3.
