@@ -68,6 +68,8 @@ a { color: inherit; }
 .start p { margin: 0; max-width: 32em; text-align: center; color: #fff; }
 .keys, footer { margin: 16px 0 0; color: var(--dim); text-align: center; }
 .keys span { white-space: nowrap; margin: 0 8px; }
+.cap { font: 600 9px ui-monospace, Menlo, monospace; fill: #8f8f93; pointer-events: none; }
+.lit .cap, .held .cap { fill: #55554f; }
 kbd { font: 600 11px ui-monospace, Menlo, monospace; border: 1px solid var(--rule); padding: 0 4px; color: var(--fg); }
 footer { margin-top: 12px; font-size: 12px; }
 footer nav a { margin: 0 6px; }
@@ -84,7 +86,8 @@ footer small { font-size: 11px; opacity: .8; }
 
 <p class="keys">
   <span><kbd>Z</kbd>–<kbd>'</kbd> <kbd>Q</kbd>–<kbd>O</kbd> keys</span>
-  <span><kbd>1</kbd>–<kbd>=</kbd> FX … REC</span>
+  <span>Each button and key shows its computer key. Number row <kbd>1</kbd>–<kbd>=</kbd>: FX SEL ENV LFO EDIT GLO HOME SAVE ARP SEQ PLAY REC</span>
+  <span><kbd>Shift</kbd>+<kbd>←</kbd> <kbd>→</kbd> PRESETS</span>
   <span><kbd>[</kbd> <kbd>]</kbd> OCT- OCT+ (twice quickly: octave)</span>
   <span><kbd>PgUp</kbd> <kbd>PgDn</kbd> or <kbd>\</kbd> <kbd>`</kbd> MASTER (hold a button: its pair)</span>
   <span><kbd>↑</kbd> <kbd>↓</kbd> SELECT</span>
@@ -350,6 +353,23 @@ const KEYMAP = {};
 ["Digit1", "Digit2", "Digit3", "Digit4", "Digit5", "Digit6", "Digit7", "Digit8", "Digit9", "Digit0", "Minus", "Equal"]
   .forEach((c, i) => KEYMAP[c] = { btn: B[[...ROW1, ...ROW2][i]] });
 Object.assign(KEYMAP, { BracketLeft: { btn: B["OCT-"] }, BracketRight: { btn: B["OCT+"] } });
+// each control wears its computer key, small, so nobody has to look it up (Ben, 23 Nov 2026: "those aren't showing in the simulator")
+const CAP = { Comma: ",", Period: ".", Slash: "/", Semicolon: ";", Quote: "'", Minus: "-", Equal: "=", BracketLeft: "[", BracketRight: "]" };
+function wearKeys() {
+  for (const [code, m] of Object.entries(KEYMAP)) {
+    const cap = CAP[code] || code.replace(/^Key|^Digit/, "");
+    const tgt = m.btn !== undefined ? buttons.find((b) => b.bit === m.btn) : keys[m.key];
+    if (!tgt || !tgt.g || !tgt.g.getBBox) continue;
+    const bb = tgt.g.getBBox(), t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    t.setAttribute("class", "cap");
+    t.setAttribute("text-anchor", "middle");
+    t.setAttribute("x", bb.x + bb.width / 2);
+    t.setAttribute("y", m.btn !== undefined ? bb.y + bb.height - 4 : bb.y + bb.height - 8);
+    t.textContent = cap;
+    tgt.g.appendChild(t);
+  }
+}
+requestAnimationFrame(wearKeys);
 const ARROWS = { ArrowUp: [EN.SELECT, 1], ArrowDown: [EN.SELECT, -1], ArrowRight: [EN.ALGORITHM, 1], ArrowLeft: [EN.ALGORITHM, -1] };
 // (wave 10) MASTER from the keyboard, so a button can be held while it turns: Page Up / Page Down, or \ and ` (a laptop)
 const MASTER_KEYS = { PageUp: 1, Backslash: 1, PageDown: -1, Backquote: -1 };
