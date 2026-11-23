@@ -8,7 +8,8 @@
  *         in the strip); PLAY: FILL while held, OCT+ with it latches; knobs: RATE SHIFT SWING STEPS; OCT- halve, OCT+
  *         double; MASTER: SWING
  *   ARP   NOTES: OCT- / OCT+ transpose the voice's pattern a semitone; MASTER: TRANSP (KEY 2's TRANS)
- *   GLO   the MIXER: levels, pans, mutes, solos (drums: the 16 sounds'); MASTER: TEMPO
+ *   GLO   the MIXER (wave 13: one map): the white keys the 16 drum sounds, F#3 .. C#4 the voices; a tap mutes, OCT+ held with
+ *         a key solos, OCT- clears; SEL the pans; MASTER: TEMPO
  *   SAVE  keys 1..4 store the playing state into A..D; OCT- undo, OCT+ redo; with a question showing, the confirm's ring
  *   EDIT  OCT- clears the voice (after the confirm); MASTER: LEVEL. ENV: MASTER ENV LENGTH. LFO: MASTER MOD DEPTH
  *   SEL   no layer (the PAGE button); HOME, REC: none
