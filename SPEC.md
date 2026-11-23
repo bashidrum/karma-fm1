@@ -412,3 +412,19 @@ If you still have the dancing characters, could you make one more artwork that i
 The drums having one global slicer and fx sends is problematic. Delay for example, great on the tops, horrendous on the click and low tom. If it isn't too much, individual sends for every drum voice? OR we could simply have a routing option on the sends for the drum voices that lets you exclude voices from the drum voice's sends? That's arguably the leaner, cleaner build?
 
 Can you maybe just explain the K1 lights and colour section in global for me?"
+
+His answers by picker, 23 Nov 2026, 21:10:
+
+- The mixer's keys: "OHHHH I'm so sorry I've just seen the screen, totally my misread, that's where the kit's 16 mutes and solos are and then the top black note keys are the other voices and drum group mute. OK, that's fine to keep them as is, but please rearrange the way the white keys with the 16 drum pad grid. Can you make notes 1-4 mute the drum voices in the left column, 5-8 mute drum voices in column 2, 9-12 mute the drum voices in column 3 and 13-16 mute the pads in the right hand column. My mistake"
+- Drum sound mutes moving: "forget about it".
+- Drum effects (per-sound sends exist on AMP page 2; whole-kit sends, slicer, insert and filter on the drum FX tab): "leave it".
+
+Applied as: each key still mutes the same drum sound as before; the mixer draws the 16 tiles running down the columns, so keys 1 to 4 are the left column.
+
+### 23 Nov 2026, 21:07: the drum grid like the Rytm's, in Ben's words
+
+"I would however prefer the drum voices were depicted in their 16 note grid in a format that more closely followed the analog rytm's layout.
+
+Cymbals near the top. Toms on the second row. Kick in the bottom left with snares in the right hand corner and hi hats in the top left corner."
+
+By picker, 21:15: the first sketch (HAT, OP HAT, CRASH, RIDE / LO TOM, HI TOM, CONGA, C-BELL / PEDAL, SHAKER, RIM, CLAP / KICK, KICK 2, SNARE 2, SNARE) was "Close, I'll describe changes" (his changes awaited). Keys within a column run "Top to bottom". Use it "Everywhere the 16 are drawn".
