@@ -21,8 +21,8 @@
   --dim: #a09eb3;
   --t1: #8c76f0;   /* track 1 (robot) */
   --t2: #28a0f5;   /* track 2 (alien) */
-  --t3: #14c4aa;   /* track 3 (crocodile) */
-  --t4: #ff806c;   /* drums (snake) */
+  --t3: #ff806c;   /* track 3 (crocodile): coral (wave 11, Ben's colour code) */
+  --t4: #14c4aa;   /* drums (snake): teal */
   --all: #c4c4cc;  /* what every voice shares: neutral */
   --lav: #8d82ec;  /* accents */
   --scr: #000;     /* the FM-1 screen in the small diagrams */
@@ -133,7 +133,7 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
 
 /* ---------- print: white paper, every card shown, nothing moving ---------- */
 @media print {
-  :root { --bg: #fff; --panel: #fff; --inset: #f3f3f6; --line: #c9c9d2; --fg: #000; --dim: #444; --t3: #0e8a78; --t2: #1a72b0; --t1: #5b45c4; --t4: #c4503c; --all: #555; --lav: #5a4fc4; --scr: #fff; }
+  :root { --bg: #fff; --panel: #fff; --inset: #f3f3f6; --line: #c9c9d2; --fg: #000; --dim: #444; --t3: #c4503c; --t2: #1a72b0; --t1: #5b45c4; --t4: #0e8a78; --all: #555; --lav: #5a4fc4; --scr: #fff; }
   @page { margin: 12mm; }
   html, body { background: #fff !important; color: #000; }
   body { padding: 0; font-size: 11.5px; }
@@ -159,7 +159,7 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
   </div>
   <h1>PHEBUS <span>cheat sheet</span></h1>
   <p>Ben's FM-1 firmware, a fork of KARMA: MiniFreak-style synth voices, Rytm-style drums, MPC-style performance pads. One idea per control: EDIT the sound, ENV the envelopes, LFO the modulation, FX the effects, SEQ the rhythm and the patterns, ARP the notes, GLO everything global, SAVE keeps and confirms, REC only records, OCT- / OCT+ minus and plus. Four ways to move, in order: a labelled button opens its first category (again: the next category); SEL is PAGE, the next page inside it; SELECT is knob 5, the TYPE (on the drum screen: the sound); holds are shortcuts or performance layers. Hold a button and turn MASTER: that button's broad parameter. Unreleased: not yet run on a real FM-1. Do not flash until the unit's chip revision is checked.</p>
-  <div class="legend"><span>Colour = the voice it acts on:</span><b class="c1">1 purple</b><b class="c2">2 blue</b><b class="c3">3 teal</b><b class="c4">drums coral</b><span>shared (tag GLO, STUT, PERFORM): white / grey. Yellow M = mute, ice-blue S = solo, red = record / erase only</span></div>
+  <div class="legend"><span>Colour = the voice it acts on:</span><b class="c1">1 purple</b><b class="c2">2 blue</b><b class="c3">3 coral</b><b class="c4">drums teal</b><span>shared (tag GLO, STUT, PERFORM): white / grey. Yellow M = mute, ice-blue S = solo, red = record / erase only</span></div>
 </header>
 
 <div class="grid">
@@ -169,13 +169,13 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
   <table>
     <tr><td>EDIT</td><td><b>sound</b> · OSC · FILT (drums: SRC · FLTR) · SEL: OSC 1-4, FILT 1-2 · hold: OCT- clears the voice (then hold SAVE) · MASTER: LEVEL · SELECT: OSC Type, FILT TYPE</td></tr>
     <tr><td>ENV</td><td><b>envelopes</b> · AMP · FILT envelope (drums: AMP, SEL its 2/2) · MASTER: ENV LENGTH (every amp stage; drums: the sound's decay)</td></tr>
-    <tr><td>LFO</td><td><b>modulation</b> · LFO 1 (SEL: sync page) · LFO 2 · MATRIX (drums: LFO) · MASTER: MOD DEPTH · SELECT: the WAVE</td></tr>
+    <tr><td>LFO</td><td><b>modulation</b> · LFO 1 (SEL: sync page) · LFO 2 · MATRIX (drums: LFO) · hold on a synth sound page: MAP (turn a knob) · MASTER: MOD DEPTH · SELECT: the WAVE</td></tr>
     <tr><td>FX</td><td><b>effects</b> · INS (SEL: FX 1 2 3) · SENDS · SLICER | MIX (white). Drums: FILTER · INS · SENDS · SLICER | MIX · hold: PERFORM, OCT+ latch, OCT- latches off · MASTER: FX MIX · SELECT: insert TYPE, SLICER mode</td></tr>
     <tr><td>SEQ</td><td><b>rhythm</b> · the steps on TRIG (SEL: TRIG 2/2) · PATTERN (GATE DIV SWING STEPS; SEL: SHIFT) · A-D (the patterns) · hold: white keys ROLL (drums RETRIG), F#3-C#4 play A-D, D#4 fill bar, PLAY fill (OCT+ latches), K1 RATE K2 SHIFT K3 SWING K4 STEPS, OCT- halve, OCT+ double · MASTER: SWING</td></tr>
     <tr><td>ARP</td><td><b>notes</b> · ARP (SEL: ARP 2) · KEY: ROOT SCALE QNT CHORD (SEL: KEY 2). Drums: CHROMATIC (again: off) · hold: OCT- / OCT+ the pattern a semitone · MASTER: TRANSP</td></tr>
     <tr><td>SEL</td><td>PAGE: the next page of the category shown (round). Held: nothing</td></tr>
     <tr><td>GLO</td><td><b>global</b> · GLOBAL (K1 BPM) · SYSTEM · MIDI (SEL: MIDI 2, MIDI 3 with LEARN) · DEVICE, the menu · hold: the mixer · MASTER: TEMPO</td></tr>
-    <tr><td>SAVE</td><td><b>keep, confirm</b> · PRESETS · USER · TOOLS · hold: keys 1-4 store A-D, OCT- undo, OCT+ redo; a question showing: the ring</td></tr>
+    <tr><td>SAVE</td><td><b>keep, confirm</b> · PRESETS · USER · PATTERNS (store A-D) · TOOLS · hold: keys 1-4 store A-D, OCT- undo, OCT+ redo; a question showing: the ring</td></tr>
     <tr><td>HOME</td><td>HOME · the screensaver (SEL: the next one) · hold: nothing</td></tr>
     <tr><td>REC</td><td><b>record</b> only: tap to record or arm (a synth's steps, stopped: STEP REC). Held: nothing more</td></tr>
     <tr><td>OCT- / OCT+</td><td><b>minus, plus</b> of the screen (the legend at the tab row's right says what). Twice quickly: the octave. With something held: minus removes it</td></tr>
@@ -203,7 +203,7 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
   <h2>HOME <small>three zones: SYNTH, DRUM, PERFORM</small></h2>
   <div class="roles">
     <div class="ca"><b>SYNTH</b><span>The three voices' sounds in their colours, the selected one inverted; M (yellow), S (ice blue), a red dot recording; each voice's 16 steps in view.</span></div>
-    <div class="c4"><b>DRUM</b><span>The kit (* when your copy plays), the sounds muted or soloed on the mixer, the selected sound, the 16 steps: its hits coral, other sounds' dim.</span></div>
+    <div class="c4"><b>DRUM</b><span>The kit (* when your copy plays), the sounds muted or soloed on the mixer, the selected sound, the 16 steps: its hits teal, other sounds' dim.</span></div>
     <div class="ca"><b>PERFORM</b><span>STUTTER lane ON / OFF, the latched pads by name, the lane's steps as spans.</span></div>
   </div>
   <div class="knobs"><div class="c1">CUTOFF<span>K1: the voice filter</span></div><div class="c1">DECAY<span>K2: the moving envelope</span></div><div class="ca">STUT<span>K3: lane on / off</span></div><div class="c1">LEVEL<span>K4: the voice</span></div></div>
@@ -219,7 +219,8 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
     <tr><td>GLO</td><td><b>MIXER</b> (below). MASTER: TEMPO</td></tr>
     <tr><td>SAVE</td><td>Keys 1-4: store into A-D. OCT- undo, OCT+ redo. A question showing: the confirm's ring</td></tr>
     <tr><td>EDIT</td><td>OCT-: clear the voice (asks; hold SAVE). MASTER: LEVEL</td></tr>
-    <tr><td>ENV, LFO</td><td>MASTER: ENV LENGTH, MOD DEPTH</td></tr>
+    <tr><td>ENV, LFO</td><td>On a synth sound page: MAP. The page stays; turn a knob: the LFO (envelope) last shown moves it, right +, left -, 0 removes (boxed on the dial; a small wave under it afterwards). SEL: the other LFO (envelope). OCT-: remove them on this page. A cell of the MATRIX. Elsewhere, and always: MASTER is ENV LENGTH, MOD DEPTH</td></tr>
+    <tr><td>any hold</td><td>What works with it lights, the rest goes dark (and does nothing). A question waiting: SAVE alone. GLO &gt; DEVICE &gt; LIGHTS &gt; DISCO: QUIET (dim, still), NORMAL, SHOW (the keys dance)</td></tr>
     <tr><td>SEL, HOME, REC</td><td>Nothing</td></tr>
   </table>
 </section>
@@ -328,6 +329,7 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
   <table>
     <tr><td>SEQ, SEQ, SEQ</td><td>A-D: K1 the pattern to play; -/+ the one before / after</td></tr>
     <tr><td>hold SEQ</td><td>F#3 G#3 A#3 C#4: play A to D (playing: on the next bar). Stopped: load</td></tr>
+    <tr><td>SAVE &gt; PATTERNS</td><td>KNOB 1 the pattern, KNOB 2 STORE (a stored one asks: hold SAVE)</td></tr>
     <tr><td>hold SAVE</td><td>Keys 1-4: store into A to D (a used one asks: keep SAVE held, the ring fills)</td></tr>
   </table>
   <p class="note">A pattern holds all four voices' sounds and steps, the kit and the STUTTER lane.</p>
