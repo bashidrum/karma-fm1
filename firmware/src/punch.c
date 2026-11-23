@@ -107,7 +107,7 @@ static const struct {
     {"ISO HI", "ISOLATE HIGH", {K_ISO}},
     {"MOTION", "MOTION FILTER", {{"RATE", PL_MRATE, KK_LIST, 0, 0, 3, 2}, {"DEPTH", 0, KK_PCT, 0, 0, 100, 70},
                                  {"RESO", 0, KK_PCT, 0, 0, 100, 50}, K_AMT}},
-    {"CRUSH", "BIT CRUSH", {{"BITS", 0, KK_INT, 0, 2, 12, 9}, {"RATE", 0, KK_X, 0, 1, 16, 2}, {"THIN", 0, KK_PCT, 0, 0, 100, 40},
+    {"CRUSH", "BIT CRUSH", {{"BITS", 0, KK_INT, 0, 2, 12, 9}, {"RATE", 0, KK_X, 0, 1, 16, 2}, {"THIN", 0, KK_PCT, 0, 0, 100, 20},
                             K_AMT}},
     {"PHASER", "PHASER", {{"RATE", PL_PRATE, KK_LIST, 0, 0, 4, 2}, {"DEPTH", 0, KK_PCT, 0, 0, 100, 70},
                           {"FDBK", 0, KK_PCT, 0, 0, 90, 50}, K_AMT}},
@@ -837,7 +837,7 @@ static void punch_colour(int32_t *l, int32_t *r, uint32_t n, uint32_t beat)
                 for (c = 0; c < 2u; c++) {
                     (void)fsvf(&cv1, pxs.vo[c][0], o[c], &bp);
                     (void)fsvf(&cv2, pxs.vo[c][1], o[c], &b2);
-                    o[c] += ((bp + 0.6f * b2) * vk * 1.6f - o[c]) * w;
+                    o[c] += ((bp + 0.6f * b2) * vk * 1.2f - o[c]) * w;
                 }
             }
             if (run & 1u << PP_PHASER) {

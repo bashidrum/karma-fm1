@@ -116,50 +116,190 @@ static double held_ratio(uint32_t p, double hz)       /* the held pad's level on
     run_fx(p, g_sine, FS * 2u, FS / 2u, FS * 3u / 2u, 0);
     return rms(ol, FS * 11u / 10u, FS * 7u / 5u) / rms(ol, FS / 10u, FS * 2u / 5u);
 }
+static double held_ratio_at(uint32_t p, double hz, int playing)   /* the same, the transport on or off */
+{
+    sweep_hz = hz;
+    run_fx(p, g_sine, FS * 2u, FS / 2u, FS * 3u / 2u, playing);
+    return rms(ol, FS * 11u / 10u, FS * 7u / 5u) / rms(ol, FS / 10u, FS * 2u / 5u);
+}
+static double iso_ratio(uint32_t mask, double hz)    /* the isolator's bands in mask (1 LO, 2 MID, 4 HI) held on a tone */
+{
+    uint32_t b, i;
+    int8_t keep[PF_NPAD][4];
+    memcpy(keep, perf.par, sizeof keep);
+    sweep_hz = hz;
+    beat_setup();
+    memcpy(perf.par, keep, sizeof keep);
+    song.playing = 0;
+    for (b = 0; b < FS * 2u / CTL; b++) {
+        int32_t l[CTL], r[CTL];
+        uint32_t t0 = b * CTL;
+        for (i = 0; i < CTL; i++) l[i] = r[i] = g_sine(t0 + i, 0);
+        perf.held = t0 >= FS / 2u && t0 < FS * 3u / 2u ? mask << PF_ISOL : 0u;
+        stl_seq();
+        punch_process(l, r, CTL);
+        for (i = 0; i < CTL; i++) ol[t0 + i] = l[i], or_[t0 + i] = r[i];
+    }
+    perf.held = 0;
+    return rms(ol, FS, FS * 7u / 5u) / rms(ol, FS / 10u, FS * 2u / 5u);
+}
+static double max_step(uint32_t a, uint32_t b)       /* the largest change from one sample to the next */
+{
+    double m = 0;
+    uint32_t t;
+    for (t = a; t + 1u < b; t++) m = fabs((double)ol[t + 1u] - ol[t]) > m ? fabs((double)ol[t + 1u] - ol[t]) : m;
+    return m;
+}
 static void punch_pads_say(void)
 {
     uint32_t beat = FS / 2u, t, i;
-    double a, b2;
-    /* LOW CUT: 24 dB/oct at its FREQ (251 Hz to start) */
-    a = held_ratio(PF_LCUT, 60), b2 = held_ratio(PF_LCUT, 1000);
-    printf("low cut: 60 Hz %.3f, 1 kHz %.3f\n", a, b2);
-    assert(a < 0.06 && fabs(b2 - 1) < 0.12);
-    perf.par[PF_LCUT][0] = 70;                        /* FREQ up to ~900 Hz: 400 Hz goes too */
-    sweep_hz = 400;
-    run_fx(PF_LCUT, g_sine, FS * 2u, FS / 2u, FS * 3u / 2u, 0);
-    perf.par[PF_LCUT][0] = PFD[PF_LCUT].k[0].def;
-    assert(rms(ol, FS * 11u / 10u, FS * 7u / 5u) < 0.15 * rms(ol, FS / 10u, FS * 2u / 5u));
-    /* LP: down to its CUTOFF (380 Hz) in SPEED (1/2): 5 kHz gone, 100 Hz through; HP up to its CUTOFF: 60 Hz gone */
-    a = held_ratio(PF_LP, 5000), b2 = held_ratio(PF_LP, 100);
-    printf("low-pass sweep: 5 kHz %.3f, 100 Hz %.3f\n", a, b2);
-    assert(a < 0.05 && b2 > 0.7);
-    a = held_ratio(PF_HP, 60), b2 = held_ratio(PF_HP, 8000);
-    printf("high-pass sweep: 60 Hz %.3f, 8 kHz %.3f\n", a, b2);
-    assert(a < 0.1 && b2 > 0.7);
-    /* PITCH DROP: an octave down (DEPTH 12) in its TIME: 440 Hz in, 220 Hz out */
-    sweep_hz = 440;
-    run_fx(PF_DROP, g_sine, FS * 3u, FS / 2u, FS * 5u / 2u, 0);
-    a = tone_pow(ol, FS * 2u, FS * 5u / 2u, 220), b2 = tone_pow(ol, FS * 2u, FS * 5u / 2u, 440);
-    printf("pitch drop: 220 Hz / 440 Hz power %.1f, level %.2f\n", a / b2, rms(ol, FS * 2u, FS * 5u / 2u) / rms(ol, 0, FS / 2u));
-    assert(a > 30 * b2 && fabs(rms(ol, FS * 2u, FS * 5u / 2u) / rms(ol, 0, FS / 2u) - 1) < 0.3);
-    /* GATE: on the grid, 1/16, half open: the second half of each 1/16 silent */
-    sweep_hz = 1000;
-    run_fx(PF_GATE, g_sine, FS * 2u, FS / 2u, FS * 3u / 2u, 1);
+    double a, b2, c;
+    /* (wave 13) THE ISOLATOR (Ben: "isolate, as in - I want to hear this band"; 220 Hz and 1.1 kHz): one band held lets only
+     * that band through (24 dB/oct skirts), two let both, the three the whole mix; no click in or out */
     {
-        uint32_t step = beat / 4u, k = 0, ok = 0;
-        for (t = FS * 3u / 4u; t + step < FS * 5u / 4u; t += step, k++) {
-            uint32_t s0 = t - t % step;
-            ok += rms(ol, s0 + 200u, s0 + step / 2u - 200u) > 0.6 * 70711 && rms(ol, s0 + step / 2u + 200u, s0 + step - 200u) < 0.01 * 70711;
+        static const double F[7] = {60, 150, 400, 600, 2000, 5000, 9000};
+        double lo[7], mid[7], hi[7], all[7], lm[7], mh[7];
+        uint32_t k;
+        for (k = 0; k < 7u; k++) {
+            lo[k] = iso_ratio(1, F[k]), mid[k] = iso_ratio(2, F[k]), hi[k] = iso_ratio(4, F[k]);
+            all[k] = iso_ratio(7, F[k]), lm[k] = iso_ratio(3, F[k]), mh[k] = iso_ratio(6, F[k]);
+            printf("isolator %5.0f Hz: LO %.3f MID %.3f HI %.3f | LO+MID %.3f MID+HI %.3f ALL %.3f\n", F[k], lo[k], mid[k], hi[k],
+                   lm[k], mh[k], all[k]);
         }
-        printf("gate: %u of %u sixteenths open then shut\n", ok, k);
-        assert(ok == k);
+        /* one band: its own band through, the rest down by the 24 dB/oct skirts (LO: nothing above about 400 Hz beyond
+         * the skirt, -20 dB there) */
+        assert(fabs(lo[0] - 1) < 0.05 && lo[2] < 0.1 && lo[3] < 0.05 && lo[4] < 0.005 && lo[5] < 0.001);
+        assert(mid[0] < 0.02 && fabs(mid[3] - 1) < 0.2 && mid[5] < 0.02 && mid[6] < 0.005);
+        assert(hi[0] < 0.001 && hi[2] < 0.03 && hi[3] < 0.1 && fabs(hi[5] - 1) < 0.05 && fabs(hi[6] - 1) < 0.05);
+        /* all three: the whole mix (an all-pass: the level within 0.1 dB at every frequency); two: the mix without the
+         * third (LO + MID: the highs gone, the rest within 0.1 dB of dry; MID + HI: the lows gone, the rest the same) */
+        for (k = 0; k < 7u; k++)                     /* (the bands are in step: two held are exactly the whole less the
+                                                      * third, within 1 % of the level, at every frequency) */
+            assert(fabs(all[k] - 1) < 0.012 && fabs(lm[k] - (1 - hi[k])) < 0.01 && fabs(mh[k] - (1 - lo[k])) < 0.01);
+        /* the whole mix, three held, on the chord and its burst: the level as dry within 1 % */
+        perf.held = 0;
+        run_fx(PF_ISOL, g_burst, FS, 0, FS / 2u, 0);   /* (one pad first: the run below holds three) */
+        {
+            uint32_t b;
+            beat_setup();
+            for (b = 0; b < FS / CTL; b++) {
+                int32_t l[CTL], r[CTL];
+                for (i = 0; i < CTL; i++) l[i] = g_burst(b * CTL + i, 0), r[i] = g_burst(b * CTL + i, 1);
+                perf.held = b * CTL >= FS / 10u ? 7u << PF_ISOL : 0u;
+                stl_seq();
+                punch_process(l, r, CTL);
+                for (i = 0; i < CTL; i++) ol[b * CTL + i] = l[i];
+            }
+            perf.held = 0;
+            for (i = 0; i < FS / 2u; i++) or_[i] = g_burst(i, 0);
+            a = rms(ol, FS / 5u, FS * 2u / 5u) / rms(or_, FS / 5u, FS * 2u / 5u);
+            printf("isolator, all three held, on a chord: %.4f of the dry level\n", a);
+            assert(fabs(a - 1) < 0.01);
+        }
+        /* no click: ISO HI on a 100 Hz tone, pressed and let go: no step larger than 2.5 x the tone's own steepest */
+        sweep_hz = 100;
+        run_fx(PF_ISOH, g_sine, FS * 2u, FS / 2u, FS * 3u / 2u, 0);
+        c = 2 * M_PI * 100 / FS * 100000;
+        a = max_step(FS / 2u - 100u, FS / 2u + 300u), b2 = max_step(FS * 3u / 2u - 100u, FS * 3u / 2u + 300u);
+        printf("isolator in / out on 100 Hz: largest step %.0f / %.0f (the tone's own %.0f)\n", a, b2, c);
+        assert(a < 2.5 * c && b2 < 2.5 * c);
+        /* its knobs: LOW X up to 500 Hz lets 400 Hz through LO */
+        perf.par[PF_ISOL][0] = 11;
+        a = iso_ratio(1, 300);
+        perf.par[PF_ISOL][0] = PFD[PF_ISOL].k[0].def;
+        printf("isolator LOW X 500 Hz: LO at 300 Hz %.2f\n", a);
+        assert(a > 0.8);
     }
-    /* CRUSH: BITS 7 (steps of 2^11), RATE 1 */
-    run_fx(PF_CRUSH, g_sine, FS, FS / 4u, FS * 3u / 4u, 0);
-    for (t = FS / 2u; t < FS * 3u / 4u; t++) {        /* (within the wet gain's 1/4096 of a step of 2048) */
-        int32_t q = ol[t] % 2048;
-        q = q < 0 ? -q : q;
-        assert(q <= 40 || q >= 2048 - 40);
+    /* (wave 13) MOTION: a band-pass up and down once a bar (RATE 1/1), in time: a tone at its top (150 Hz x 2^(0.7 x 6))
+     * loud half way through each bar, quiet at the bar's start, the same in the next bar */
+    {
+        uint32_t bar = beat * 4u, h0 = 0;
+        double top = 150.0 * pow(2.0, 0.7 * 6.0), q0, q1, q2, q3;
+        sweep_hz = top;
+        run_fx(PF_MOTION, g_sine, FS * 6u, h0, FS * 6u, 1);
+        q0 = rms(ol, bar - 2000u, bar + 2000u), q1 = rms(ol, bar + bar / 2u - 2000u, bar + bar / 2u + 2000u);
+        q2 = rms(ol, 2u * bar - 2000u, 2u * bar + 2000u), q3 = rms(ol, 2u * bar + bar / 2u - 2000u, 2u * bar + bar / 2u + 2000u);
+        printf("motion: a %.0f Hz tone at the bar %.0f, half way %.0f; next bar %.0f, %.0f\n", top, q0, q1, q2, q3);
+        assert(q1 > 6 * q0 && q3 > 6 * q2 && fabs(q1 / q3 - 1) < 0.05 && q1 > 0.5 * 70711);
+    }
+    /* (wave 13) THE SWEEPS: DOWN a low-pass from open to RANGE (146 Hz) in LENGTH (a bar), then held; UP a high-pass from the
+     * bottom to RANGE (3.4 kHz); let go, back to dry */
+    {
+        uint32_t bar = beat * 4u, on = FS / 2u;
+        sweep_hz = 1000;
+        run_fx(PF_SWDN, g_sine, FS * 5u, on, on + FS * 3u, 0);
+        a = rms(ol, on + FS / 5u, on + FS * 3u / 10u) / 70711, b2 = rms(ol, on + bar + FS / 10u, on + bar + FS / 5u) / 70711;
+        c = rms(ol, on + FS * 3u - FS / 5u, on + FS * 3u) / 70711;
+        printf("sweep down on 1 kHz: 0.2 s in %.3f, a bar in %.5f, 2.8 s in (held) %.5f, after %.3f\n", a, b2, c,
+               rms(ol, on + FS * 3u + FS / 5u, on + FS * 4u) / 70711);
+        assert(a > 0.9 && b2 < 0.01 && c < 0.01 && fabs(rms(ol, on + FS * 3u + FS / 5u, on + FS * 4u) / 70711 - 1) < 0.01);
+        assert(max_step(on + FS * 3u - 50u, on + FS * 3u + 3000u) < 2.5 * 2 * M_PI * 1000 / FS * 100000);   /* (smoothly back) */
+        sweep_hz = 200;
+        run_fx(PF_SWUP, g_sine, FS * 5u, on, on + FS * 3u, 0);
+        a = rms(ol, on + FS / 10u, on + FS / 5u) / 70711, b2 = rms(ol, on + bar + FS / 10u, on + bar + FS / 5u) / 70711;
+        printf("sweep up on 200 Hz: 0.1 s in %.3f, a bar in %.5f\n", a, b2);
+        assert(a > 0.85 && b2 < 0.01);
+        sweep_hz = 9000;
+        run_fx(PF_SWUP, g_sine, FS * 4u, on, on + FS * 3u, 0);
+        a = rms(ol, on + bar + FS / 10u, on + FS * 3u) / 70711;
+        printf("sweep up on 9 kHz, held at its RANGE: %.3f\n", a);
+        assert(a > 0.8);
+        /* the length: in a bar, reached (and not before) */
+        {
+            uint32_t b;
+            beat_setup();
+            song.playing = 0;
+            for (b = 0; b < (bar + FS / 10u) / CTL; b++) {
+                int32_t l[CTL], r[CTL];
+                memset(l, 0, sizeof l), memset(r, 0, sizeof r);
+                perf.held = 1u << PF_SWDN;
+                stl_seq();
+                punch_process(l, r, CTL);
+                if (b == bar * 95u / 100u / CTL)
+                    assert(pxs.swp[0] < 0.97f);
+            }
+            assert(pxs.swp[0] == 1.0f);
+            perf.held = 0;
+            printf("sweep down: LENGTH 1/1 reached in a bar, then held there PASS\n");
+        }
+    }
+    /* (wave 13) CRUSH at its start: subtle (thin and papery): the difference from dry 14 to 30 dB down on the chord; BITS 2
+     * RATE 16 much further */
+    {
+        double d0, d1;
+        uint32_t k;
+        run_fx(PF_CRUSH, g_burst, FS, 0, FS, 0);
+        for (t = FS / 10u, d0 = 0, k = 0; t < FS * 2u / 5u; t++, k++) d0 += pow(ol[t] - g_burst(t, 0), 2);
+        d0 = 10 * log10(d0 / k / pow(rms(ol, FS / 10u, FS * 2u / 5u), 2));
+        perf.par[PF_CRUSH][0] = 2, perf.par[PF_CRUSH][1] = 16;
+        run_fx(PF_CRUSH, g_burst, FS, 0, FS, 0);
+        perf.par[PF_CRUSH][0] = PFD[PF_CRUSH].k[0].def, perf.par[PF_CRUSH][1] = PFD[PF_CRUSH].k[1].def;
+        for (t = FS / 10u, d1 = 0, k = 0; t < FS * 2u / 5u; t++, k++) d1 += pow(ol[t] - g_burst(t, 0), 2);
+        d1 = 10 * log10(d1 / k / pow(rms(ol, FS / 10u, FS * 2u / 5u), 2));
+        printf("crush: at its start the difference from dry is %.1f dB; BITS 2 RATE 16: %.1f dB\n", d0, d1);
+        assert(d0 < -14 && d0 > -30 && d1 > -6);
+    }
+    /* (wave 13) VOWEL at A (730 and 1090 Hz): those through, 3 kHz and 100 Hz down; at I its second formant (2.3 kHz) */
+    a = held_ratio(PF_VOWEL, 730), b2 = held_ratio(PF_VOWEL, 3000), c = held_ratio(PF_VOWEL, 100);
+    printf("vowel A: 730 Hz %.2f, 3 kHz %.3f, 100 Hz %.3f\n", a, b2, c);
+    assert(a > 0.5 && b2 < 0.2 && c < 0.2);
+    perf.par[PF_VOWEL][0] = 40;
+    a = held_ratio(PF_VOWEL, 2290), b2 = held_ratio(PF_VOWEL, 730);
+    perf.par[PF_VOWEL][0] = PFD[PF_VOWEL].k[0].def;
+    printf("vowel I: 2.3 kHz %.2f, 730 Hz %.3f\n", a, b2);
+    assert(a > 0.4 && b2 < 0.35);
+    /* (wave 13) PHASER: notches that move (a tone's level changes over a bar), the sides apart, bounded */
+    {
+        double lo = 1e9, hi = 0;
+        sweep_hz = 700;
+        run_fx(PF_PHASER, g_sine, FS * 3u, 0, FS * 3u, 1);
+        for (t = FS / 10u; t + 2000u < FS * 2u; t += 2000u) {
+            double v = rms(ol, t, t + 2000u);
+            lo = v < lo ? v : lo, hi = v > hi ? v : hi;
+        }
+        for (t = FS / 5u, i = 0; t < FS * 2u / 5u; t++) i += ol[t] != or_[t];
+        printf("phaser on 700 Hz: level from %.0f to %.0f over a bar; sides apart %u of %u\n", lo, hi, i, FS / 5u);
+        assert(hi > 3 * lo && i > FS / 10u);
     }
     /* TAPE STOP: to a stop in its TIME (a beat): silent after, while held */
     sweep_hz = 300;
@@ -167,10 +307,15 @@ static void punch_pads_say(void)
     printf("tape stop: half a beat in %.2f, after a beat %.4f\n", rms(ol, FS / 2u + beat / 2u - 500u, FS / 2u + beat / 2u + 500u) / rms(ol, 0, FS / 2u),
            rms(ol, FS / 2u + beat + 200u, FS * 3u / 2u) / rms(ol, 0, FS / 2u));
     assert(rms(ol, FS / 2u + beat + 200u, FS * 3u / 2u) < 0.01 * rms(ol, 0, FS / 2u));
-    /* 1/8T: a third of a beat, over and over (on the grid, the chord stopped) */
-    run_fx(PF_S8T, g_burst, FS * 2u, FS / 4u, FS * 3u / 2u, 0);
+    /* (wave 13) the lane's repeats: 1/8T a third of a beat, 1/8D three quarters of one, over and over */
+    perf.par[PF_LSTUT][0] = 1;
+    run_fx(PF_LSTUT, g_burst, FS * 2u, FS / 4u, FS * 3u / 2u, 0);
     for (t = FS * 3u / 5u; t < FS * 3u / 5u + beat; t++) assert(ol[t] == ol[t + beat / 3u]);
     assert(rms(ol, FS * 3u / 5u, FS * 3u / 5u + beat) > 0.3 * rms(ol, FS / 10u, FS / 5u));
+    perf.par[PF_LSTUT][0] = 3;
+    run_fx(PF_LSTUT, g_burst, FS * 2u, FS / 8u, FS * 7u / 4u, 0);
+    for (t = FS * 3u / 5u; t < FS * 3u / 5u + beat; t++) assert(ol[t] == ol[t + beat * 3u / 4u]);   /* (after its first pass) */
+    perf.par[PF_LSTUT][0] = PFD[PF_LSTUT].k[0].def;
     /* 1/4 with PITCH +12: the repeat read twice as fast (the 220 Hz chord note comes back at 440) */
     sweep_hz = 220;
     perf.par[PF_S4][0] = 12;
@@ -206,12 +351,14 @@ static void punch_pads_say(void)
     printf("tape stop at AMOUNT 50: %.2f of the level left after the stop\n", a);
     assert(a > 0.4 && a < 0.6);
     perf.par[PF_STOP][3] = 100;
-    /* FLANGER: stereo, bounded, different */
-    run_fx(PF_FLNG, g_burst, FS, FS / 10u, FS * 9u / 10u, 0);
+    /* JET: stereo, bounded, different */
+    run_fx(PF_JET, g_burst, FS, FS / 10u, FS * 9u / 10u, 0);
     for (t = FS / 5u, i = 0; t < FS * 2u / 5u; t++) i += ol[t] != or_[t];
     assert(i > FS / 10u);
+    (void)held_ratio_at;
     song.playing = 0;
-    printf("pads: LOW CUT, LP, HP, PITCH DROP, GATE, CRUSH, TAPE STOP, 1/8T, the stutters' PITCH, DECAY, GATE, AMOUNT do what they say PASS\n");
+    printf("pads: ISO LO / MID / HI (one, two, three), MOTION, SWEEP DOWN / UP, CRUSH, VOWEL, PHASER, TAPE STOP, the lane's "
+           "1/8T and 1/8D, the stutters' PITCH, DECAY, GATE, AMOUNT, JET do what they say PASS\n");
 }
 
 /* (wave 7) the loops' start in 32 bits (the device has no __umoddi3) equals the 64-bit form over every real value:
@@ -253,7 +400,7 @@ int main(int argc, char **argv)
     FILE *f = argc > 1 ? fopen(argv[1], "wb") : 0;
     for (fx = 0; fx < PF_NPAD; fx++) {
         uint64_t diff = 0;
-        if (fx == PF_S1 || fx == PF_S2 || fx == PF_ECHO || fx == PF_VERB || fx == PF_KDRUM || fx == PF_KBASS)
+        if (fx == PF_S1 || fx == PF_S2 || fx == PF_ECHO || fx == PF_VERB || ((PF_MUTES >> fx) & 1u))
             continue;                                 /* (the sequencer, the sends, the mutes: tests/perf_test.c) */
         beat_setup();
         song.playing = 1;
@@ -270,7 +417,7 @@ int main(int argc, char **argv)
             while (clk_pos >= BEAT_U) clk_pos -= BEAT_U, clk_beat++;
             for (i = 0; i < CTL; i++) {
                 assert(l[i] > -(1 << 22) && l[i] < (1 << 22) && r[i] > -(1 << 22) && r[i] < (1 << 22));
-                if (b < on || b >= off + 3u)
+                if (b < on || b >= off + (fx == PF_SWDN || fx == PF_SWUP ? 70u : 3u))   /* (the sweeps: 46 ms back) */
                     assert(l[i] == l0[i] && r[i] == r0[i]);   /* dry before, dry again after */
                 else
                     diff += (uint64_t)(l[i] > l0[i] ? l[i] - l0[i] : l0[i] - l[i]);
@@ -306,10 +453,11 @@ int main(int argc, char **argv)
             events_block(CTL);
             assert(!perf.held);
         }
-        assert(seen == (1u << PF_NPAD) - 1u);           /* every pad on a key of its own */
+        assert(seen == (1u << PF_NKEY) - 1u);           /* every pad on a key of its own (the lane's repeat: the lane's) */
         assert(punch_key(0) == 0 && punch_key(26) == 15);
-        assert(punch_fx_of_key(1) == PF_KDRUM && punch_fx_of_key(8) == PF_FLNG && punch_fx_of_key(20) == PF_S8T &&
-               punch_fx_of_key(25) == -1);
+        assert(punch_fx_of_key(1) == PF_MV1 && punch_fx_of_key(5) == PF_MV3 && punch_fx_of_key(8) == PF_MKICK &&
+               punch_fx_of_key(15) == PF_MHTSN && punch_fx_of_key(17) == PF_REV && punch_fx_of_key(20) == PF_STOP &&
+               punch_fx_of_key(22) == PF_SWDN && punch_fx_of_key(25) == PF_SWUP);
         fm1_in.buttons = 0;
         song.rec = 0;
         transport_req = 2;
@@ -337,7 +485,7 @@ int main(int argc, char **argv)
         printf("punch-in ring: 16 bits linear, a sample read back within %d of the mix (its step: %d)\n", (int)worst, 1 << PUNCH_SH);
     }
     if (f) {   /* demo: one beat dry, then each effect for one beat with a beat dry between */
-        uint32_t beat = FS / 2u / CTL, b, total = beat * (1u + 2u * PF_NPAD);
+        uint32_t beat = FS / 2u / CTL, b, total = beat * (1u + 2u * PF_NKEY);
         static int32_t blk[CTL * 2u];
         wav_hdr(f, total * CTL);
         beat_setup();
