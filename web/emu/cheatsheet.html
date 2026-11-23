@@ -158,24 +158,37 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
     <span class="chips" aria-label="The four voices and their colours"><span class="chip c1">1 ROBOT</span><span class="chip c2">2 ALIEN</span><span class="chip c3">3 CROCODILE</span><span class="chip c4">DRUMS SNAKE</span></span>
   </div>
   <h1>PHEBUS <span>cheat sheet</span></h1>
-  <p>Ben's FM-1 firmware, a fork of KARMA: MiniFreak-style synth voices, Rytm-style drums, MPC-style performance pads. Tap a button to open its pages (tap again, or turn SELECT, for the next). Hold a button for its layer on the keys and knobs. Unreleased: not yet run on a real FM-1. Do not flash until the unit's chip revision is checked.</p>
+  <p>Ben's FM-1 firmware, a fork of KARMA: MiniFreak-style synth voices, Rytm-style drums, MPC-style performance pads. Four ways to move, in order: a labelled button opens its first category (again: the next category); SEL is PAGE, the next page inside it; SELECT is knob 5, the TYPE (on the drum screen: the sound); holds are shortcuts or performance layers. Hold a button for its layer on the keys and knobs. Unreleased: not yet run on a real FM-1. Do not flash until the unit's chip revision is checked.</p>
   <div class="legend"><span>Colour = the voice it acts on:</span><b class="c1">1 purple</b><b class="c2">2 blue</b><b class="c3">3 teal</b><b class="c4">drums coral</b><span>shared (tag GLO, STUT, PERFORM): white / grey. Yellow M = mute, ice-blue S = solo, red = record / erase only</span></div>
 </header>
 
 <div class="grid">
+
+<section class="sl wide">
+  <h2>The button map <small>tap · again · SEL · hold · SELECT</small></h2>
+  <table>
+    <tr><td>EDIT</td><td>OSC · FILT (drums: SRC · FLTR) · SEL: OSC 1-4, FILT 1-2 · hold: ERASE · SELECT: OSC Type, FILT TYPE</td></tr>
+    <tr><td>ENV</td><td>AMP · FILT envelope (drums: AMP, SEL its 2/2) · SELECT: nothing</td></tr>
+    <tr><td>LFO</td><td>LFO 1 (SEL: its sync page) · LFO 2 · MATRIX (drums: LFO) · SELECT: the WAVE</td></tr>
+    <tr><td>FX</td><td>INS (SEL: FX 1 2 3) · SENDS · SLICER, in the voice's colour | then MIX (SEL: DELAY REV/CHO MASTER), white. Drums: FILTER · INS · SENDS · SLICER | MIX · hold: PERFORM · SELECT: insert TYPE, SLICER mode</td></tr>
+    <tr><td>SEQ</td><td>the GRID on TRIG (SEL: TRIG 2/2) · PATTERN (GATE DIV SWING STEPS) · hold: the same four, + OCT- halve, + OCT+ double (a clone)</td></tr>
+    <tr><td>ARP</td><td>ARP (SEL: ARP 2) · KEY: ROOT SCALE QNT CHORD (SEL: KEY 2). Drums: CHROMATIC (again: off) · hold: ROLL / RETRIG</td></tr>
+    <tr><td>SEL</td><td>PAGE: the next page of the category shown (round). Held: nothing</td></tr>
+    <tr><td>GLO</td><td>GLOBAL (K1 BPM: the tempo) · SYSTEM · MIDI (SEL: MIDI 2, MIDI 3 with LEARN) · DEVICE, the menu · hold: the mixer</td></tr>
+    <tr><td>SAVE</td><td>PRESETS · USER · TOOLS · hold: patterns A to D</td></tr>
+    <tr><td>HOME</td><td>HOME · the screensaver (SEL: the next one) · hold: the menu</td></tr>
+    <tr><td>SELECT</td><td>Knob 5: the TYPE of a synth page, named in the header's dark chip (no chip: nothing). Drum screen: the sound (1 of 16). Never a page, never the tempo</td></tr>
+    <tr><td>a lock</td><td>Hold the step, press the page's button (and SEL) until the page shows, turn a knob (or SELECT for a type that locks)</td></tr>
+  </table>
+</section>
 
 <section class="sl">
   <h2>Getting around</h2>
   <table>
     <tr><td>ALGORITHM</td><td>Voice: 1, 2, 3, DRUM (on the GRID, one more: STUTTER)</td></tr>
     <tr><td>PRESETS</td><td>The voice's sounds (drums: the kit)</td></tr>
-    <tr><td>SELECT</td><td>Next / previous page (on HOME: the screensavers). Never the tempo: GLO &gt; GLOBAL K1 BPM</td></tr>
     <tr><td>OCT- / OCT+</td><td>Octave -3 to +3 (both: 0). Held with a drum key: ghost / hard. OCT+ with a pad or F#5 held: latch</td></tr>
-    <tr><td>tap SEQ</td><td>The GRID (steps on the 16 white keys). From a sound page: the GRID on that page. On the GRID: TRIG, again its next half</td></tr>
-    <tr><td>tap HOME</td><td>HOME (closes a screensaver)</td></tr>
-    <tr><td>tap FX</td><td>The whole mix's effects: DELAY, REV/CHO, MASTER (white). Never a voice</td></tr>
-    <tr><td>hold HOME</td><td>The menu (0.7 s)</td></tr>
-    <tr><td>tap SAVE</td><td>The SAVE pages: PRESETS, USER, TOOLS (every screen)</td></tr>
+    <tr><td>tab row</td><td>The categories of the button you pressed (the one shown filled) and the page inside ("2/4")</td></tr>
     <tr><td>EDIT + OCT-</td><td>Undo. EDIT + OCT+: redo</td></tr>
     <tr><td>keep open</td><td>Hold any layer button 0.7 s untouched, let go: it stays (LOCK). The same button or any other lets go</td></tr>
     <tr><td>confirm</td><td>HOLD REC: ... in a white bar? Hold REC until the ring fills. Let go early, tap REC or press another button: nothing</td></tr>
@@ -186,22 +199,22 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
   <h2>HOME <small>three zones: SYNTH, DRUM, PERFORM</small></h2>
   <div class="roles">
     <div class="ca"><b>SYNTH</b><span>The three voices' sounds in their colours, the selected one inverted; M (yellow), S (ice blue), a red dot recording; each voice's 16 steps in view.</span></div>
-    <div class="c4"><b>DRUM</b><span>The kit (* when your copy plays), the sounds muted or soloed in MUTE mode, the selected sound, the 16 steps: its hits coral, other sounds' dim.</span></div>
+    <div class="c4"><b>DRUM</b><span>The kit (* when your copy plays), the sounds muted or soloed on the mixer, the selected sound, the 16 steps: its hits coral, other sounds' dim.</span></div>
     <div class="ca"><b>PERFORM</b><span>STUTTER lane ON / OFF, the latched pads by name, the lane's steps as spans.</span></div>
   </div>
   <div class="knobs"><div class="c1">CUTOFF<span>K1: the voice filter</span></div><div class="c1">DECAY<span>K2: the moving envelope</span></div><div class="ca">STUT<span>K3: lane on / off</span></div><div class="c1">LEVEL<span>K4: the voice</span></div></div>
-  <p class="note">Above the zones: the bar, the FLOW strip (Ben kept it), patterns A B C D (playing filled, next outlined). The header says PATTERN A to D while one plays; a white dot: unsaved. The &gt; after the strip: SELECT right opens the screensavers.</p>
+  <p class="note">Above the zones: the bar, the FLOW strip (Ben kept it), patterns A B C D (playing filled, next outlined). The header says PATTERN A to D while one plays; a white dot: unsaved. The &gt; after the strip: HOME again opens the screensaver (SEL: the next one).</p>
 </section>
 
 <section class="sl">
   <h2>Hold a button <small>its layer</small></h2>
   <table>
     <tr><td>FX</td><td><b>PERFORM</b>: the keys are effect pads on the whole mix (below)</td></tr>
-    <tr><td>EDIT</td><td><b>ERASE</b>: key erases that note or sound. K1 SHIFT, K2 DOUBLE (x2 / half), K3 TRANSP</td></tr>
+    <tr><td>EDIT</td><td><b>ERASE</b>: key erases that note or sound. K1 SHIFT, K3 TRANSP. + OCT- undo, + OCT+ redo</td></tr>
     <tr><td>ARP</td><td><b>ROLL</b>: hold a key to repeat. K1 rate</td></tr>
-    <tr><td>SEQ</td><td><b>STEPS</b>: K1 GATE, K2 DIV, K3 SWING, K4 STEPS (keys do nothing)</td></tr>
-    <tr><td>SEL</td><td><b>KEY</b>: a key sets the song key. K1 CHORD, K2 SCALE, K3 KEYS, K4 TRANSP</td></tr>
-    <tr><td>GLO</td><td><b>MIX</b>: mixer (below)</td></tr>
+    <tr><td>SEQ</td><td><b>STEPS</b>: K1 GATE, K2 DIV, K3 SWING, K4 STEPS (also SEQ's PATTERN page). OCT- halves (asks if steps would go: keep SEQ, hold REC), OCT+ doubles as a clone</td></tr>
+    <tr><td>SEL</td><td>Nothing (SEL is PAGE)</td></tr>
+    <tr><td>GLO</td><td><b>MIX</b>: mixer (below; the drums selected: their 16 sounds' mutes)</td></tr>
     <tr><td>SAVE</td><td><b>PATTERN</b>: patterns A to D (below)</td></tr>
   </table>
 </section>
@@ -214,10 +227,10 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
     <div class="ca"><b>PAGES</b><span>Black keys 1-4: steps 1-16, 17-32, 33-48, 49-64. The next empty slot adds a page. OCT-/OCT+: page (OCT+ on the last adds one). Max 64. The view follows the playhead.</span></div>
   </div>
   <table>
-    <tr><td>tabs</td><td>TRIG OSC FILT ENV FX MOD, as the drum screen's. EDIT: OSC, again the next stage (FILT, ENV, FX, MOD). ENV, LFO: their tab (again: its next half). SEQ: TRIG (again: its next half). SELECT: every half. With a step held too</td></tr>
+    <tr><td>buttons</td><td>EDIT, ENV, LFO, FX: their categories on the GRID (the keys stay steps); SEL the pages; SEQ: TRIG, PATTERN. SELECT: the page's TYPE (a step held: locked where it can be). With a step held too</td></tr>
     <tr><td>nothing held</td><td>A sound tab: the knobs edit the sound. TRIG: K1 NOTE (pen), K2 STEP (cursor), K3 HIT (right sets, left clears), K4 VEL. PRESETS the sound</td></tr>
-    <tr><td>Spice and Dice</td><td>TRIG 2/2 (SELECT right on TRIG), nothing held: K1 SPICE (0: the pattern as written), K2 DICE (each click right a new roll, left the roll before). The tiles show the variation; the notes never change</td></tr>
-    <tr><td>step + OCT- / OCT+</td><td>OCT-: the lock of the knob last turned off; again: every lock (on TRIG: locks, nudge, condition). OCT+: next condition. 24 locks a voice</td></tr>
+    <tr><td>Spice and Dice</td><td>TRIG 2/2 (SEL on TRIG), nothing held: K1 SPICE (0: the pattern as written), K2 DICE (each click right a new roll, left the roll before). The tiles show the variation; the notes never change</td></tr>
+    <tr><td>step + OCT-</td><td>The lock of the knob last turned off; again: every lock (on TRIG: locks, nudge, condition). 24 locks a voice</td></tr>
   </table>
 </section>
 
@@ -226,11 +239,11 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
   <div class="how">tap SEQ (or EDIT) with DRUM selected: the drum screen. The 16 keys are the selected sound's steps</div>
   <div class="knobs"><div class="c4">PAGE<span>KNOB 1</span></div><div class="c4">PAGE<span>KNOB 2</span></div><div class="c4">PAGE<span>KNOB 3</span></div><div class="c4">PAGE<span>KNOB 4</span></div></div>
   <ul>
-    <li>Pages: EDIT = SRC, again FLTR, AMP, LFO. ENV = AMP, LFO = LFO (again: the page's next half). SEQ = TRIG (again: back). SELECT walks every half.</li>
+    <li>SELECT: the sound (1 of 16, heard while stopped; the header's chip names it). EDIT = SRC, again FLTR. ENV = AMP. LFO = LFO. FX = FILTER, INS, SENDS, SLICER, then MIX. SEQ = TRIG, again PATTERN. SEL: the page inside (SRC 1/3 .., AMP 2/2, TRIG 2/2).</li>
     <li>Nothing held: a knob edits the selected sound. The first turn on a built-in kit makes your own copy (kit name gets a *).</li>
     <li>Hold a step + turn: a lock on that sound's hit (shown inverted). OCT-: that lock off; again: every lock. On TRIG: VEL RETRIG NUDGE COND / CHANCE LENGTH CURVE NOTE.</li>
-    <li>SEL held + key: pick the sound. SEL tapped: MUTE mode (keys mute, SEL + key solos). ARP tapped: CHROMATIC (keys play the sound at pitches, OCT-/OCT+ octave). ARP held + key: RETRIG (black keys pick the rate).</li>
-    <li>F#5 on the drum screen: FILL while held; with OCT+: latched (F#5 again: off). PRESETS picks the kit (power-on: 606). Tabs TRIG SRC FLTR AMP LFO FX: FLTR is CUTOFF RESO ENV TYPE (2/2 DRIVE), as a synth's FILT; FX (EDIT past LFO) is the drum voice's own FILTER, INSERT, SENDS, SLICER. Another kit over your edited one: HOLD REC.</li>
+    <li>Mutes and solos: hold GLO (the drums selected: the keys mute the 16 sounds; F#3 makes them solo). ARP tapped: CHROMATIC (keys play the sound at pitches, OCT-/OCT+ octave). ARP held + key: RETRIG (black keys pick the rate).</li>
+    <li>F#5 on the drum screen: FILL while held; with OCT+: latched (F#5 again: off). PRESETS picks the kit (power-on: 606). FLTR: CUTOFF RESO ENV TYPE (2/2 DRIVE); FX: the drum voice's own FILTER, INSERT, SENDS, SLICER, then MIX. Another kit over your edited one: HOLD REC.</li>
     <li>Keys 1-16: KICK, KICK 2, SNARE, CLAP, HAT, OPEN HAT, PEDAL, RIM, SNARE 2, LOW TOM, HI TOM, CRASH, RIDE, SHAKER, CONGA, COWBELL.</li>
   </ul>
 </section>
@@ -248,24 +261,25 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
 </section>
 
 <section class="sl">
-  <h2>Sound chain <small>OSC > FILT > ENV > FX > MOD</small></h2>
+  <h2>Sound pages <small>OSC > FILT > ENV > FX > MOD</small></h2>
   <table>
-    <tr><td>EDIT</td><td>Enters at OSC. Again: next stage, MOD wraps to OSC</td></tr>
-    <tr><td>ENV / LFO</td><td>That stage's first page. Again: its next page (ENV: AMP, then FILT, the filter's own). ENV then EDIT: the FX stage</td></tr>
-    <tr><td>FX 1 2 3</td><td>Three inserts in series: K1 TYPE (PHASER FLANGER DIST SOFT HARD FOLD FUZZ CRUSH EQ), then its three knobs. All OFF to start</td></tr>
-    <tr><td>SENDS</td><td>This voice's DELAY, REVERB, CHORUS sends to the whole mix's effects (their settings: the FX button)</td></tr>
-    <tr><td>MATRIX</td><td>The grid: K1 SOURCE (row), K2 DEST (column), K3 AMOUNT (+-), K4 CLEAR (on AS1 AS2: TARGET, the parameter it moves). The FILT page's ENV and KEY, LFO to PIT, CUT, LVL and PENV to PIT are cells of the grid</td></tr>
-    <tr><td>OSC 4</td><td>GLMODE (glide RATE or TIME), ALLOC (poly ROT or REUSE)</td></tr>
-    <tr><td>SELECT</td><td>Walks every page of the chain</td></tr>
+    <tr><td>OSC 1-4</td><td>SELECT: TYPE. 1: the Type's M1 M2 M3 M4. 2: OCT TUNE GLIDE GLMODE. 3: M5 VOICE DTUNE PRIOR. 4: ALLOC</td></tr>
+    <tr><td>FILT 1-2</td><td>SELECT: TYPE (LP24 LP12 BP HP). 1: CUTOFF RESO ENV DRIVE. 2: KEY LINK</td></tr>
+    <tr><td>ENV</td><td>AMP, then FILT (the filter's own; LINK AMP: turn one and it is OWN)</td></tr>
+    <tr><td>FX 1 2 3</td><td>SELECT: TYPE (PHASER FLANGER DIST SOFT HARD FOLD FUZZ CRUSH EQ), K1-K3 its three knobs. All OFF to start</td></tr>
+    <tr><td>SENDS</td><td>This voice's DELAY, REVERB, CHORUS to the whole mix's effects (their settings: FX's MIX)</td></tr>
+    <tr><td>SLICER</td><td>SELECT: its mode. K1 PAT, K2 RATE, K3 DEPTH</td></tr>
+    <tr><td>LFO 1</td><td>SELECT: WAVE. RATE PHASE FADE POL; SEL: SYNC TRIG ESYNC</td></tr>
+    <tr><td>LFO 2</td><td>SELECT: WAVE. RATE SYNC TRIG</td></tr>
+    <tr><td>MATRIX</td><td>K1 SOURCE (row), K2 DEST (column), K3 AMOUNT (+-), K4 CLEAR (on AS1 AS2: TARGET)</td></tr>
   </table>
-  <div class="pages" aria-label="Pages in order"><span class="on">OSC</span><span>OSC 2</span><span>OSC 3</span><span>OSC 4</span><span class="on">FILT</span><span>FILT 2</span><span class="on">ENV</span><span>FILT ENV</span><span class="on">FX 1</span><span>FX 2</span><span>FX 3</span><span>SENDS</span><span>SLICER</span><span class="on">LFO</span><span>LFO SYNC</span><span>LFO 2</span><span>MATRIX</span></div>
-  <div class="knobs"><div class="c1">TYPE</div><div class="c2">MACRO</div><div class="c3">MACRO</div><div class="c4">MACRO<span>OSC: names change with the Type</span></div></div>
-  <div class="knobs"><div class="c1">CUTOFF</div><div class="c2">RESO</div><div class="c3">ENV</div><div class="c4">TYPE<span>FILT: LP24 LP12 BP HP. FILT 2: KEY DRIVE LINK</span></div></div>
-  <p class="note">The same pages on every voice. OSC 2: OCT TUNE GLIDE VOICE. OSC 3: the Type's other controls, DTUNE, PRIOR. LINK AMP: the filter follows the amp ENV; turn a FILT ENV knob and it has its OWN. The tabs show the stage and its half (1/3).</p>
+  <div class="knobs"><div class="c1">M1</div><div class="c2">M2</div><div class="c3">M3</div><div class="c4">M4<span>OSC: names change with the Type; SELECT the Type</span></div></div>
+  <div class="knobs"><div class="c1">CUTOFF</div><div class="c2">RESO</div><div class="c3">ENV</div><div class="c4">DRIVE<span>FILT: SELECT the TYPE</span></div></div>
+  <p class="note">The same pages on every voice. The tab row names the button's categories (EDIT: OSC FILT) and "2/4" the page inside.</p>
 </section>
 
 <section class="sl">
-  <h2>Oscillator Types <small>OSC, KNOB 1: 31 on every voice</small></h2>
+  <h2>Oscillator Types <small>OSC, SELECT: 31 on every voice</small></h2>
   <table>
     <tr><td>ACID, JUNO</td><td>The 303 (WAVE ACCENT SLIDE), the Juno DCO (WAVE PW SUB)</td></tr>
     <tr><td>Plaits</td><td>VA, VCF, FOLD, PHASE D, 2-OP FM, 6-OP A B C, WAVETABLE, TERRAIN, ADDITIVE, CHORD, STR MACH, SWARM, FORMANT, CHIPTUNE, STRING, MODAL, NOISE, SPEECH, PARTICLE, KICK, SNARE, HI-HAT</td></tr>
@@ -282,7 +296,7 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
     <tr><td>white, row 3</td><td><b>LP</b> sweep down · <b>HP</b> sweep up · <b>CRUSH</b> · <b>GATE</b></td></tr>
     <tr><td>white, row 4</td><td><b>STOP</b> tape stop · <b>DROP</b> pitch drop · <b>ECHO</b> throw · <b>VERB</b> throw</td></tr>
     <tr><td>black keys</td><td>F#3 <b>-DRM</b> kill drums · G#3 <b>-BAS</b> kill bass · A#3 <b>LCUT</b> low cut · C#4 <b>FLNG</b> flanger · C#5 <b>8T</b> · D#5 <b>16T</b> (the rest: none)</td></tr>
-    <tr><td>knobs</td><td>The last pad pressed: K4 AMOUNT. Stutters: PITCH · DECAY · GATE. LP / HP: CUTOFF · RESO · SPEED. CRUSH: BITS · RATE. GATE: RATE · WIDTH. STOP: TIME. DROP: DEPTH · TIME. ECHO: K2 FDBK. VERB: AMOUNT only (the delay time and reverb size: the FX button). REVRS / HALF: LENGTH. LCUT: CUTOFF. FLNG: RATE · FDBK. -BAS: VOICE</td></tr>
+    <tr><td>knobs</td><td>The last pad pressed: K4 AMOUNT. Stutters: PITCH · DECAY · GATE. LP / HP: CUTOFF · RESO · SPEED. CRUSH: BITS · RATE. GATE: RATE · WIDTH. STOP: TIME. DROP: DEPTH · TIME. ECHO: K2 FDBK. VERB: AMOUNT only (the delay time and reverb size: FX's MIX pages). REVRS / HALF: LENGTH. LCUT: CUTOFF. FLNG: RATE · FDBK. -BAS: VOICE</td></tr>
     <tr><td>OCT+</td><td>Latch: hold it and press a pad, or press it with pads held. A latched pad pressed again: off</td></tr>
     <tr><td>OCT-</td><td>Every latch off (STOP too). Latched pads play on outside PERFORM: the header says PERF 2</td></tr>
     <tr><td>in / out</td><td>Hold FX: while held. Held 0.7 s untouched, let go: stays (LOCK); FX again or any page button: out. Latch: OCT+ with a pad held</td></tr>
@@ -298,9 +312,10 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
     <tr><td>Keys 5-8</td><td>Solo (ice-blue S)</td></tr>
     <tr><td>Key 9 (hold)</td><td>Fill while held</td></tr>
     <tr><td>Key 10</td><td>Fill next bar (again cancels)</td></tr>
-        <tr><td>F#3</td><td>MIDI LEARN on / off</td></tr>
+    <tr><td>Key 11</td><td>The knobs set the pans (again: levels)</td></tr>
+    <tr><td>Drums selected</td><td>Keys 1-16 mute the 16 sounds; F#3 solo instead; G#3 fill held; A#3 next bar; C#4 pans</td></tr>
   </table>
-  <p class="note">Key 11: the knobs set the pans (again: levels). Hold GLO 0.7 s untouched and let go: the mixer stays. Tap GLO: GLOBAL (BPM CLICK TUNE), SYSTEM, MIDI, MIDI 2, MIDI 3 (tag GLO). Tap FX: DELAY (TIME FDBK COLOR MIX), REV/CHO (SIZE DAMP RATE DEPTH), MASTER (DUST DUCK).</p>
+  <p class="note">Hold GLO 0.7 s untouched and let go: the mixer stays. MIDI LEARN: GLO &gt; MIDI 3 K2. FX's MIX: DELAY (TIME FDBK COLOR MIX), REV/CHO (SIZE DAMP RATE DEPTH), MASTER (DUST DUCK), white.</p>
 </section>
 
 <section class="sl">
@@ -317,7 +332,7 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
   <table>
     <tr><td>tap REC</td><td>Playing: records now (PERFORM pads go into the lane). Stopped: arms (on a synth GRID: STEP REC). Again: stop / cancel</td></tr>
     <tr><td>hold REC</td><td>Clears the selected voice (a ring fills; let go early and nothing happens). With HOLD REC: ... showing: yes</td></tr>
-    <tr><td>REC screen</td><td>K3 START (NOTE or COUNT); the length: hold SEQ K4</td></tr>
+    <tr><td>REC screen</td><td>K3 START (NOTE or COUNT); the length: SEQ's PATTERN K4</td></tr>
     <tr><td>EDIT + OCT-</td><td>Undo: brings a cleared track back</td></tr>
   </table>
 </section>
@@ -326,10 +341,10 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
   <h2>Key, scale, tempo</h2>
   <table>
     <tr><td>Tempo</td><td>GLO &gt; GLOBAL K1 BPM (its one place; every header shows it)</td></tr>
-    <tr><td>Swing</td><td>hold SEQ + K3 (the pattern's, one place)</td></tr>
-    <tr><td>Gate</td><td>hold SEQ + K1 (a synth voice's note length)</td></tr>
-    <tr><td>Key / scale</td><td>Hold SEL + a key / K2</td></tr>
-    <tr><td>Chord</td><td>Hold SEL + K1 (OFF TRIAD 7TH 9TH SUS4 POWER)</td></tr>
+    <tr><td>Swing</td><td>SEQ, SEQ (PATTERN) K3, or hold SEQ + K3</td></tr>
+    <tr><td>Gate</td><td>PATTERN K1 (a synth voice's note length)</td></tr>
+    <tr><td>Key / scale</td><td>ARP, ARP (KEY): K1 ROOT, K2 SCALE (all three voices)</td></tr>
+    <tr><td>Chord</td><td>KEY K4 (OFF TRIAD 7TH 9TH SUS4 POWER)</td></tr>
   </table>
 </section>
 
@@ -344,8 +359,8 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
 </section>
 
 <section class="sl">
-  <h2>MENU <small>hold HOME</small></h2>
-  <div class="how">SELECT = section (SCREEN, LIGHTS, AUDIO, SYSTEM) · K1-K3 set its rows · PRESETS moves the cursor · OCT+ steps / opens · OCT- closes</div>
+  <h2>MENU <small>GLO's DEVICE · hold HOME</small></h2>
+  <div class="how">SEL = section (SCREEN, LIGHTS, AUDIO, SYSTEM) · K1-K3 set its rows · PRESETS moves the cursor · OCT+ steps / opens · OCT- or HOME closes · GLO: GLOBAL</div>
   <table>
     <tr><td>USB AUDIO</td><td>MASTER, FULL, or STEMS (at the next start: six channels)</td></tr>
     <tr><td>SYSTEM</td><td>HARDWARE CALIBRATION, MIDI LEARN CLEAR, ABOUT</td></tr>
@@ -369,7 +384,9 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
     <tr><td>trig</td><td>What is on a step: a note or a hit. TRIG: the tab with the held step's values</td></tr>
     <tr><td>lock</td><td>A value on one step: hold the step, turn. Drawn inverted</td></tr>
     <tr><td>RETRIG</td><td>A step repeated: a drum hit at a rate, a synth step x1 to x4</td></tr>
-    <tr><td>PERFORM</td><td>The pads layer (hold FX). The FX button always means the whole mix</td></tr>
+    <tr><td>PERFORM</td><td>The pads layer (hold FX). Tapped, FX is this voice's effects, then MIX (the whole mix)</td></tr>
+    <tr><td>category</td><td>What a button opens, one a press (EDIT: OSC, FILT). SEL walks its pages</td></tr>
+    <tr><td>type</td><td>What SELECT turns: the Type, the filter's TYPE, an insert's TYPE, the LFO's WAVE, the SLICER's mode</td></tr>
     <tr><td>SEND</td><td>A voice's share of the whole mix's delay, reverb or chorus (its SENDS page)</td></tr>
     <tr><td>pattern</td><td>A to D: all four voices, the kit and the lane</td></tr>
   </table>
@@ -380,11 +397,11 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
   <table>
     <tr><td>Double-click</td><td>Hold a button or a key down (blue outline); click again to let go. Shift-click does the same.</td></tr>
     <tr><td>PERFORM</td><td>Hold <kbd>1</kbd> (FX) and press pads on Z X C V B N M , . / (white 1-10), Q W R Y U O (white 11-16), S D F H (-DRM -BAS LCUT FLNG), E T (8T 16T). Hold <kbd>]</kbd> to latch, <kbd>[</kbd> unlatches all</td></tr>
-    <tr><td>1 2 3 4 5 6</td><td>FX · SEL · ENV · LFO · EDIT · GLO</td></tr>
+    <tr><td>1 2 3 4 5 6</td><td>FX · SEL (PAGE) · ENV · LFO · EDIT · GLO</td></tr>
     <tr><td>7 8 9 0 - =</td><td>HOME · SAVE · ARP · SEQ · PLAY · REC</td></tr>
     <tr><td>Z ... ' · Q ... O</td><td>The keyboard's notes</td></tr>
     <tr><td>[ ]</td><td>OCT- / OCT+</td></tr>
-    <tr><td>Up Down / Left Right</td><td>SELECT / ALGORITHM</td></tr>
+    <tr><td>Up Down / Left Right</td><td>SELECT (the type; drums: the sound) / ALGORITHM</td></tr>
   </table>
 </section>
 
