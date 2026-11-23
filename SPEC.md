@@ -292,3 +292,9 @@ His answers by picker, 23 Nov 2026, 10:50:
 - Velocity and key: "Matrix page only".
 
 To be built as its own wave after wave 10.
+
+### 23 Nov 2026, 10:45: the lights, in Ben's words
+
+"I can't see how the buttons illuminate but I'm sure it would be helpful if they aren't doing it already, that all buttons that are related combinations illuminate to make it obvious that there are "hidden" controls under those buttons?"
+
+To be built with the hold-to-map wave: while a button (or a step) is held, every button and key that does something with it lights, and those that do nothing go dark.
