@@ -496,7 +496,7 @@ static void desert_row(uint16_t *q, int32_t sy, int sky)   /* (sky 0: the sky le
 #define TE_Y 98
 #define TE_HW 72
 #define TE_HH 34
-#define TE_SCLERA RGB(34, 28, 58)
+#define TE_SCLERA RGB(40, 36, 56)                  /* (a slate no voice colour takes, at any level) */
 static void third_prep(void)
 {
     uint32_t T = vs.tq >> 8, i;
@@ -524,8 +524,8 @@ static void third_prep(void)
  * bands with a few stars, and the ocean: FLOW's bands (the voices, black between) laid flat into the distance, rolling
  * in to a shoreline that laps in and out slowly. Flat shapes, no outlines, as Ben asked of the dunes the same evening.
  * The dance: on the beat while the song plays, each character only while its own voice sounds (the crocodile with the
- * drums): lean, arms up, lean the other way, arms up, the robot and the snake leaning one way while the alien and the
- * crocodile lean the other; a note: a little hop; otherwise a gentle sway. DISCO QUIET: all of it stands still. The
+ * drums): lean, arms up, lean the other way, arms up, each a beat on from its neighbour (a ripple along the row: never
+ * two side by side in the same pose); a note: a little hop; otherwise a gentle sway. DISCO QUIET: all of it stands still. The
  * pictures (op_sprites.h, tools/gen_sprites.py) are run-length coded rows, read here row by row as the bands are drawn;
  * the characters are on this screen only (Ben: "Heads in the strip only" stands for the working screens). */
 #define BH_HOR 92                                   /* the horizon */
@@ -544,13 +544,13 @@ static void beach_prep(void)
     {                                               /* the ocean's bands: a voice each, wider as it plays (as FLOW's) */
         uint32_t w[4], sum = 0, acc = 0;
         for (i = 0; i < 4u; i++)
-            sum += w[i] = 40u + vs.e[i] * 40u / 256u;
+            sum += w[i] = 48u + vs.e[i] * 20u / 256u;
         for (i = 0; i < 3u; i++)
             bh_b[i] = (uint8_t)((acc += w[i]) * 256u / sum);
     }
     bh_f = 0;
     for (i = 0; i < 4u; i++) {
-        uint32_t b = (clk_beat + (i & 1u) * 2u) & 3u, pose = 0;
+        uint32_t b = (clk_beat + i) & 3u, pose = 0;   /* (each a beat on from its neighbour: a ripple along the row) */
         int32_t x = 2 + (int32_t)i * 60, y = BH_FEET - OP_BCH_H + 1;
         if (!quiet && song.playing && (vs.e[i] > 24u || vs.flash[i])) {   /* dancing: its voice sounds */
             pose = b & 1u ? 2u : 1u;
@@ -592,10 +592,10 @@ static const uint8_t *beach_spr(const uint8_t *p, uint16_t *q, int32_t x0, int32
 static void beach_row(uint16_t *q, int32_t sy)      /* rows sy, sy + 1 */
 {
     uint32_t T = bh_t, x, i, k;
-    int32_t lap = isin(T * 5u) * 6 >> 15, td = 0, D = 0, dz = sy - BH_HOR;
+    int32_t lap = isin(T * 5u) * 6 >> 15, td = 0, D = 0, dz = sy - BH_HOR, bc = 120 + (isin(T * 2u + 700u) * 28 >> 15);
     uint16_t sand = mix565(TE_DIM[2], TE_MID[2], 190), wet = mix565(sand, C_BLACK, 56), pal[6];
     if (sy >= BH_HOR - 2 && sy < BH_SHORE + 12) {   /* the ocean's row: its distance (bands narrower far off), the rare tear */
-        D = 94000 / (dz + 48);
+        D = 160000 / (dz + 40);
         td = vis_tear((uint32_t)sy);
     }
     for (x = 0; x < 240u; x += 2u) {
@@ -610,9 +610,12 @@ static void beach_row(uint16_t *q, int32_t sy)      /* rows sy, sy + 1 */
                     c = ((hs >> 8) + T) % 40u < 4u ? C_WHITE : vp[hs & 3u][2];
             }
         } else if (sy < shore) {                    /* the ocean: bands of the voices laid flat, rolling in, morphing */
-            int32_t u = (xi + td - 120) * 64 / (dz + 48), v, j = 0;
-            v = D + (isin((uint32_t)(u * 6 + D * 2) + T * 3u) * 110 >> 15);
-            v += isin((uint32_t)(u * 3 - D * 3 + (v >> 1)) + T * 2u + 300u) * 80 >> 15;   /* (a second wave on the first: they curl) */
+            int32_t u = (xi + td - 120) * 64 / (dz + 40), v, j = 0;
+            v = D + (isin((uint32_t)(u * 6 + D * 2) + T * 3u) * 56 >> 15);
+            v += isin((uint32_t)((xi + td) * 4 + D + (v >> 1)) + T * 2u + 300u) * 36 >> 15;   /* (a second wave on the first: they curl) */
+            v += (xi - bc) * (xi - bc) * 10 >> 8;   /* (the bands bow as they roll in, the bow drifting from side to side:
+                                                     * more than a band from its middle to a side, more than the waves can
+                                                     * undo: no row of one colour across) */
             v = (int32_t)(((uint32_t)(v + (int32_t)(T * 2u)) >> 2) & 255u);
             while (j < 3 && v >= bh_b[j])
                 j++;
