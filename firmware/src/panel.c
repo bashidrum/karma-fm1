@@ -109,7 +109,7 @@ static uint8_t usb_stems_set;                   /* menu USB AUDIO = STEMS: the 6
 #ifndef USB_STEMS_NOW
 #define USB_STEMS_NOW 0                         /* (a build without usb.c: the host tests of the UI) */
 #endif
-#define VIS_N 4u                                /* the screensavers: FLOW, EYES, DESERT, THIRD EYE (ui_vis.c) */
+#define VIS_N 5u                                /* the screensavers: FLOW, EYES, DESERT, THIRD EYE, BEACH (ui_vis.c) */
 static uint8_t vis_style;                       /* the screensaver shown, 0..VIS_N-1 (ui_vis.c) */
 static uint32_t lights_word(void)
 {
