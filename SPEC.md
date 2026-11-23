@@ -226,3 +226,10 @@ His answers by picker, 23 Nov 2026 (these replace the 22 Nov answer "FX = whole 
 Hit the edit key, which brings Osc and Filter categories. And if the Osc category has 4 pages, you cycle through those using the Sel or save button, if you press edit again it moves to the next category of Filter?"
 
 This revises the 08:25 answer "EDIT: osc, filter, alternating": a labelled button steps through its categories, and one page button walks the pages inside the current category.
+
+His answers by picker, 23 Nov 2026, 08:50:
+
+- PAGE button: "SEL". SEL becomes PAGE. Its old jobs (scale, drum mutes, drum sound pick) move elsewhere.
+- Drum sound pick: "SELECT knob". On the drum screen, turning SELECT steps through the 16 sounds. The sound's wave or model goes on a normal knob. (On synth pages SELECT is the type, as answered at 08:25.)
+- Key, scale and chord: "Under ARP". ARP steps through: arpeggiator, then key/scale/chord.
+- Drum mutes: "On the mixer". Hold GLO: with the drums selected, the keys mute the 16 sounds; voice mutes stay on keys 1 to 4 otherwise.
