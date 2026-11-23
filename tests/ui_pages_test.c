@@ -4366,6 +4366,18 @@ int main(int argc, char **argv)
     check(TE_COL[0] == RGB(140, 118, 240) && TE_COL[1] == RGB(40, 160, 245) && TE_COL[2] == RGB(255, 128, 108) &&
           TE_DRUM == RGB(20, 196, 170) && TE_DRUM == TE_COL[TRK_DRUM],
           "w11: the colour code (Ben, 11:33): voice 1 purple, 2 blue, 3 coral, the drums teal (one place: TE_COL)");
+    {   /* ---- wave 11 (E): voice 3 coral beside the record red: the screens to look at (screenshots for Ben) */
+        track_select(2); go_home(); frames(3);
+        rec_wait = 1; ui.force = 1; frame(); ppm("w11-v3-rec-armed"); rec_wait = 0; frames(2);
+        transport_req = 1; frames(6); song.rec = 1u << 2; ui.force = 1; frames(3); ppm("w11-v3-home-rec");
+        chain_goto(FAM_FLT, "FILT"); frames(3); ui.force = 1; frame(); ppm("w11-v3-filt-rec");
+        song.rec = 0; transport_req = 2; frames(4);
+        go_home(); frames(2); press(B_EDIT); frames(2); tap(B_OCTDN); release(B_EDIT); frames(2);
+        press(B_SAVE); frames(40); ui.force = 1; frame(); ppm("w11-v3-confirm-ring"); release(B_SAVE); frames(3);
+        tap(B_HOME); ui.ask = 0; ui.msg_t = 0; frames(3);
+        track_select(TRK_DRUM); drum_screen_open(); frames(3); ui.force = 1; frame(); ppm("w11-drum-teal");
+        track_select(0); go_home(); frames(3);
+    }
     {   /* ---- wave 11: the lights sheet (review/wave11/lights.png): the panel under each hold, QUIET NORMAL SHOW */
         char path[512];
         static const struct { const char *n; uint32_t b; } H[] = {{"hold FX (PERFORM)", B_FX}, {"hold SEQ", B_SEQ}, {"hold ARP", B_ARP},
