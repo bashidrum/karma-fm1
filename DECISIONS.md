@@ -478,6 +478,67 @@ Memory, measured on an rv32 -Os stand-in (clang, the HAL's asm stubbed, felucca.
 Not checked
 - No device build (no toolchain here). The long tests (soak, stress, regress, web) were not run. The sound: a forked render proves the new routes (SELECT on FILT, LFO, FX 1; PATTERN SWING; KEY ROOT; SEQ + OCT+) give the same audio as the values written straight; no engine, project format or preset changed.
 
+## Rebuild wave 10, one idea per control (23 Nov): calls made that Ben did not specify
+Ben's words (SPEC.md, "23 Nov 2026, 09:08"), his picker answers at 09:20, the items marked "Proposed by Claude", and his 10:33 remark about the steps staying on screen. Where they left a choice, the call that best fits "one idea per control" and the four ways was taken.
+
+OCT- and OCT+: minus and plus (Ben: "Double tap for octave")
+- A single tap acts at once on its press; the same button again within 0.3 s is the octave, and the second press takes back what the first did (the page, the fine step, the preset, the pattern queued). Picked over waiting 0.3 s: the single tap never lags, and every first-tap action is reversible.
+- What a tap does on each screen: pages of steps (the steps, the drum screen, the lane; OCT+ on the last adds a copy, as before); SEQ's A-D: the pattern before / after; STEP REC: the step before / after (KNOB 1 is still the octave); CHROMATIC: the sound before / after (its octave by the double tap); SAVE > PRESETS: the sound; SAVE > USER: the slot; every other page: the knob (or SELECT) last turned on that page one fine step, none turned yet: nothing; TOOLS (GO knobs), HOME, the screensaver, the REC screen: nothing; the menu keeps its own OUT / OK and no double tap there.
+- The legend: a boxed minus, a word, a boxed plus, white and grey, at the right end of the tab row (pages) or of the line under the header (layers); one word when both move the same thing ([-] STEPS [+]), two otherwise ([-] UNDO [+] REDO). Where the tab row is too long (the drums' FX row) the categories not shown are cut to three letters (FILTER INS SEN SLI | MIX). The lane got the tab row too (its pad bars two rows, not three).
+- With a layer held the double tap is not the octave: each press is the layer's (ARP: two semitones). With a key or step held, no double tap either.
+- On a page screen with the drums selected a tap of OCT- still acts (it is also the ghost hit's modifier when held before a key); only on pages where a knob was touched.
+
+Minus removes
+- A step held + OCT-: on TRIG the step itself (note or hit, its locks, nudge, condition); on a lock view the last-turned lock, then every lock (as before), then the step. A lane step: its pads (as before).
+- A key held, then OCT-: that note (synth) or sound (drums) erased from the selected voice's pattern, as EDIT + key did (playing: as the playhead passes; stopped: every step); OCT- first, then a key, stays the ghost hit. "Holding a sound" is its key on a screen where the keys play sounds (HOME, the sound pages); on the drum screen the keys are steps, so a sound's hits go one hit at a time there.
+- PERFORM: OCT- with pads held unlatches those; nothing held, every latch (as before). A latched pad pressed again was already off (wave 6), so "a pad's latch" was already one gesture.
+- EDIT + OCT-: CLEAR VOICE n (asks; hold SAVE). It was REC held. EDIT held erases nothing; its keys do nothing; its knobs nothing; it shows MASTER's LEVEL.
+
+SAVE keeps and confirms (proposed by Claude: "the confirm is hold SAVE with the ring")
+- Every question says HOLD SAVE: ...; SAVE held fills the ring (1.3 s, from its press, or at once when SAVE is already held as the question comes: storing a pattern). Tapped: the question goes. The question now stays when the layer that asked is let go (EDIT, SEQ), so SAVE can be held after it.
+- Ring colour: red when something goes or is replaced (every question but one); white when it only keeps: SAVE into an empty user preset slot.
+- Hold SAVE: keys 1 to 4 store into A to D (they were keys 5 to 8; playing moved to SEQ); OCT- undo, OCT+ redo (they were EDIT's). SAVE held with a question is never the layer.
+- REC only records: no hold, no ring, no confirm. The message line grew from 23 to 29 letters (HOLD SAVE: CLEAR VOICE 1 fits).
+
+SEQ is rhythm
+- Categories TRIG, PATTERN (GATE DIV SWING STEPS; 2/2 SHIFT, the old EDIT KNOB 1), A-D (KNOB 1 the pattern, -/+ before / after).
+- Hold SEQ, one layer: white keys ROLL (drums RETRIG); black keys F#3 G#3 A#3 C#4 play A B C D, D#4 BAR (fill on the next bar: the mixer's old key 10), all drawn in the strip; PLAY: FILL while held, OCT+ with PLAY held latches, OCT- with PLAY held or PLAY again lets it go; KNOB 1 RATE (roll / retrig), KNOB 2 SHIFT, KNOB 3 SWING, KNOB 4 STEPS; OCT- halve, OCT+ double; MASTER SWING. GATE and DIV left the hold (on the PATTERN page): the knobs went to the performance ones. The old pattern-in-time drawing of hold SEQ is gone (the rolls' tiles took its place).
+- Rolls are on the white keys only: a synth's black-key notes cannot roll (they are the patterns). The drums' RETRIG rate is KNOB 1 only (the black-key rates are gone).
+- With SEQ held PLAY never starts or stops the transport.
+
+ARP is notes
+- Categories as wave 9 (ARP, KEY; drums CHROMATIC). Hold ARP: OCT- / OCT+ the selected voice's pattern a semitone (the old EDIT KNOB 3 TRANSP; one undo each); MASTER TRANS (KEY 2's, a live transpose, not stored notes). Keys and knobs do nothing while held. On the drums: nothing on -/+ and MASTER (shown so).
+- STEP REC: ARP the tie (a note matter), SEQ the rest (rhythm), as wave 9 already had.
+
+GLO is everything global
+- MIDI LEARN stays GLO > MIDI 3. The menu is only GLO's DEVICE: the hold-HOME shortcut is gone (nothing needed hold HOME: the power-on holds are OCT-'s). Hold HOME and hold SEL are free.
+- The mixer: levels, pans, mutes, solos only. Keys 9, 10 (fill, fill bar) and 11 (pan) gone; PAN is G#3, drawn in the strip on both mixers; with the drums selected F#3 SOLO, drawn (an outline, not live, on a synth voice's mixer, whose keys 5 to 8 solo). The podiums are shorter to make room for the strip.
+
+MASTER with a button held (Ben: "Yes, those pairs")
+- Relative by value scaling: a pot move from a to b moves the value the same share of the way to the end it turns toward (up: by (1 - p)(b - a)/(1023 - a), down: by p(a - b)/a). No jump ever; both ends reachable; the pot and the value meet at the end stops. Picked over pickup (a dead knob until it passes the value) and plain relative (the ends unreachable once apart). Moves under 4 of 1023 are ADC noise. The volume after a pair: it stays, and the next turn with nothing held moves it from where it is by the same rule.
+- FX MIX: the shared delay, reverb and chorus returns times 0 to 100 %, eased over a block; sends and PERFORM throws untouched; at 0 the output is the dry mix exactly (tested). A return level, not a crossfade: at 100 % it is the mix as before.
+- ENV LENGTH: the selected synth voice's amp ATTACK, DECAY and RELEASE coefficients scaled by 2^(-v/32) (v -64..63: a quarter to about 3.9 times as long; SUSTAIN untouched; with LINK the filter follows the amp). LFO MOD DEPTH: every matrix amount whose source is LFO1, LFO2, AENV, FENV or PENV (the fixed LFO1 > PIT, CUT, LVL, FENV > CUT, PENV > PIT and the free cells, the PAN, FX and AS columns too) times (64 + v)/64 (none to about twice); VEL and KEY rows untouched (they are playing, not modulation). Both are scales: nothing stored changes; 0 gives the stored sound exactly (tested for ENV).
+- FX MIX, ENV LENGTH and MOD DEPTH are performance state, not saved (power-on and NEW: as stored), like the mutes and PERFORM's knobs: saving them needs a slot in the project format.
+- On the drums: EDIT the drum voice's level, ENV the selected sound's decay, LFO the selected sound's LFO DEPTH (these are stored sound values, turned relatively), ARP nothing.
+- The header shows the pair as a chip (a little dial and its word, in what it acts on's colour: the voice's for SWING TRANSP LEVEL LENGTH DEPTH, white for FX MIX and TEMPO); while it turns, the white bar says it ("FX MIX 40 %"). When FILL or latched pads take the title place, they win over the chip (the readout still shows when MASTER turns).
+- Holding a layer open (LOCK) counts as held for MASTER. SAVE has no pair.
+
+Black keys only where drawn (Ben: "Only live when drawn")
+- The strip is PERFORM's (y 40, two rows, 37 x 12 a key); a key with no job here is an empty outline.
+- Every black-key job found, and what happened to it: step pages 1 to 4 on the GRID, the drum screen and the lane: gone (OCT- / OCT+); F#5 FILL on the drum screen: gone (SEQ + PLAY); the drum RETRIG rates on hold ARP: gone (hold SEQ, KNOB 1); the mixer's SOLO (drums), FILL, BAR, PAN: SOLO and PAN drawn in its strip, FILL and BAR moved to SEQ; PERFORM's -DRM -BAS LCUT FLNG 8T 16T: kept, drawn; the chord modifiers (3RD 7TH SUS4 9TH INV): drawn and live on ARP's KEY pages only (elsewhere a black key does nothing in chord mode); the drum voice's black keys, which played the white key's sound below them: now nothing; the STEP REC and CHROMATIC black keys: notes (they are note screens); the old EDIT + black key (drum mute mode): already gone in wave 9.
+
+The steps only on SEQ (Ben, 10:33)
+- A synth voice's steps: with nothing held, EDIT, ENV, LFO, FX (and every other button) open the real page; a step held: the page's knobs under the steps, the tab row a LOCK: banner with the page's name, and letting go of the last step returns to TRIG (its 1/2 or 2/2). SEQ from a sound page opens the steps on TRIG.
+- The drum screen is left as wave 3 built it (its sound pages with the step row on top, Ben's "B: four dials over the knobs"): a question for Ben (below).
+
+Hold layers (rule 3), every one: FX PERFORM (performance); SEQ RHYTHM (performance, and a shortcut to PATTERN's SWING STEPS SHIFT and to A-D); ARP NOTES (transpose: KEY 2's TRANS is its page; the pattern transpose has no page, it is a performance edit like SHIFT, which also lives on PATTERN 2/2); GLO the mixer (performance; levels also on HOME and the voice pages); SAVE (store: SAVE has no store page, see below; undo, redo); EDIT, ENV, LFO: MASTER's pair only; SEL, HOME, REC: none.
+- Storing a pattern is a hold only (SAVE + key). A SAVE page for it was not added: Ben's words put it on SAVE "with a key while the patterns show", and A-D (SEQ) shows them; say if a SAVE > PATTERN page is wanted.
+
+Memory, measured on an rv32 -Os stand-in (clang, the inline asm emptied, felucca.c) against the wave 9 merge (9b35d75): .bss +44 B, .sbss +80 B, .sdata +12 B (.data+.bss about +136 B: about 96,240 of 98,304 on the device, about 2,060 B left), code +3,982 B and constants +444 B (an image of about 521,950 of 581,564), the pool unchanged (nothing new in it), .noinit unchanged. Removing the hold-SEQ time drawing and the old layers gave back less than the new code took. No 64-bit divide (64-bit multiplies only, in the FX return and ENV LENGTH).
+
+Not checked
+- No device build. The long tests (soak, stress, regress, web) were not run. Golden renders: FX MIX 100 %, ENV LENGTH and MOD DEPTH 0 leave every render as before (the old paths run unchanged).
+
 ## For Ben to confirm
 Every call waves 2 to 7 made that the spec did not cover, and every device-only limit or lossy conversion, one line each. The detail is in each wave's section above.
 
@@ -561,3 +622,18 @@ Wave 9, how to move around
 - Halving clears the dropped half (the old DOUBLE knob kept it hidden); STEP REC's SEQ with keys held writes them then a rest.
 - The header shows the type (or the drum sound) instead of the sound's name on typed pages; the drum kit's name moved under the sound.
 - MIDI LEARN is GLO > MIDI 3 KNOB 2; the HOME screensaver is HOME pressed again (wave 8's "no second meaning" call reversed by the new rule).
+Wave 10, one idea per control
+- Proposed by Claude from Ben's words, not objected to: FILL is hold SEQ + PLAY (not ARP); playing a pattern moved to SEQ (A-D, hold SEQ + black keys 1 to 4) while storing stays with SAVE (hold SAVE + keys 1 to 4); the confirm is hold SAVE with the ring; REC only records; clearing a voice is EDIT + OCT-, then the confirm; erase is OCT- with the thing held; MASTER acts relatively (value scaling) so the volume never jumps; the settings menu moved from hold HOME into GLO (DEVICE only; hold HOME is free).
+- The double tap's window: 0.3 s, the first tap acting at once and the second taking it back.
+- What -/+ do on each screen (GUIDE section 12's table); a page with nothing touched does nothing; the legend's look and place (the tab row's right end; the drums' FX names cut to three letters to make room).
+- The steps only on SEQ (Ben, 10:33, Claude's reading): applied to the synth voices. THE DRUM SCREEN: its sound pages (SRC FLTR AMP LFO FX) keep the step row on top, as Ben chose in wave 3 ("B: four dials over the knobs", the Rytm's way); with nothing held a page button stays on the drum screen and changes the dials; the keys stay steps. Choose: keep it so (the Rytm way, as decided); or make the drums like the synths (a sound page without the steps, the keys playing the 16 sounds, the steps back only on SEQ and while a step is held); or a middle way (the drum screen's step row stays, but only SEQ makes the keys steps; on SRC FLTR AMP LFO FX the keys play the sounds).
+- Hold SEQ: KNOB 1 RATE, 2 SHIFT, 3 SWING, 4 STEPS (GATE and DIV only on the PATTERN page); synth rolls on the white keys only.
+- MASTER pairs on the drums: LEVEL the drum voice's, ENV the selected sound's decay, LFO its LFO DEPTH, ARP nothing.
+- FX MIX is a return level (0 dry, 100 as before), not a dry/wet crossfade; FX MIX, ENV LENGTH, MOD DEPTH are not saved with the project.
+- MOD DEPTH leaves the VEL and KEY rows alone (they are playing, not modulation).
+- The chord modifiers live only on ARP's KEY pages (drawn there); play chords elsewhere without them.
+- The drum voice's black keys no longer play the sound of the white key below them.
+- A key held + OCT- erases (a ghost hit is OCT- first): on the drums, holding a long kick and pressing OCT- for a ghost snare would erase the kicks (SAVE + OCT- undoes). Say if the erase should need something more.
+- The mixer: PAN on G#3 for both mixers (key 11 gone); a synth voice's mixer still solos on keys 5 to 8.
+- No SAVE page for storing a pattern (a hold only, as Ben's words suggest); say if one is wanted.
+- The white ring: only SAVE into an empty user preset slot.
