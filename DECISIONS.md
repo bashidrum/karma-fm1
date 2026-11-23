@@ -723,6 +723,29 @@ Memory, measured on the rv32 -Os stand-in against ben (6bfe28a's tree): code +76
 Not checked
 - No device build (no toolchain here); the simulator's stand-in compile is clean. Long tests (soak, stress, regress, web) not run. tests/stress_test.c does not compile on ben either (black_keys redeclared: the test's array against wave 11's function), not touched.
 
+## The drum grid, Rytm style (23 Nov): calls made that Ben did not specify
+Ben's words: SPEC.md "23 Nov 2026, 21:07" (the Rytm's layout), his 21:10 and 21:15 answers (keys "Top to bottom" in each column; "Everywhere the 16 are drawn") and "21:14" (the grid as he typed it). They govern the mixer section of wave 13 where they clash.
+
+The one table
+- drums.c DRUM_GRID: 16 bytes in flash, the grid's place (row by row from the top left) to the slot: HAT OP HAT RIDE CRASH / PEDAL CONGA C-BELL SHAKER / KICK 2 LO TOM HI TOM CLAP / KICK RIM SNARE 2 SNARE. White key w is place (w mod 4) x 4 + w / 4 (down the columns); the same sum turns a place back into its key. lane_of_key, key_of_lane, lane_step (SELECT's order) and every drawing of the 16 read it; key_of_white is the plain "white key n" for steps and pads. No RAM.
+- Presentation and key order only: the slots, the project format (FUN8), the kits, MIDI note numbers in and out (a key sends its sound's GM note, as before), trigs, locks, PERFORM's drum mutes (by slot) do not change. A project saved before plays the same: kit12_test's and w13's renders unchanged.
+
+Where the 16 appear, and what changed
+- The mixer (hold GLO): tiles in the grid; white key n mutes / solos the n-th sound of the key order; the tile under the key is the one that changes. Its key lights: every white key lit while GLO is held (each does something); there is no per-key mute light on the mixer (there was none before either), so nothing else to reorder.
+- The muted / soloed tile: the M / S tab now 8 px flush with the tile's right edge (was 9 px a pixel in), so a six-letter name (OP HAT, SHAKER, C-BELL, KICK 2, LO TOM, HI TOM, SNARE2) keeps a pixel clear of the tile's edge and the tab. In the new arrangement OP HAT and SHAKER, muted, touched both (OP HAT read as DP HAT). The names are the short names already in the code (SNARE2 without a space: the chip and dials need six letters).
+- The drum screen's slot map: the grid; the selected slot framed in its place; slots with hits dim teal, lit as they play.
+- SELECT on the drum screen: key order (HAT, PEDAL, KICK 2, KICK, OP HAT ... CLAP, SNARE) and round (it stopped at either end before; the brief asked for the wrap). The chip's dial shows the key's place. A new project starts on KICK (slot 1, as before; key 4): the natural first sound to edit, rather than HAT at place 1. The selected sound is kept by slot.
+- CHROMATIC mode's OCT- / OCT+ (the sound before / after): key order, stopping at HAT and SNARE (as it stopped before; no wrap, so a tap past the end does not jump).
+- The keys playing drum sounds (HOME and every screen where they are not steps, live recording, MIDI out of what they play): key n plays the n-th sound of the key order. What a recorded pattern plays does not change (trigs are stored by slot).
+- Hold SEQ: RETRIG on a key is that key's sound; its 16 tiles are drawn as the grid (tile under the held key lit).
+- A hit lights its sound's key (the key that plays it) on HOME and in DISCO SHOW; "a sound's key held + OCT-" erases that key's sound.
+- The old drum MUTE screen (unreachable since wave 9) drawn in the grid too, so its keys and tiles would agree.
+- Not changed: the drum steps (the 16 keys are the selected sound's steps), HOME's DRUM zone (16 steps, not sounds), SAVE > KITS (no list of the 16), the sound list's kind order for PRESETS (KICK to COWBELL: a browse order, not keys; left as is, for Ben below), MIDI.
+
+Cost: rv32 -Os stand-in against ben: code +556 B, constants +16 B, .data+.bss +0, pool and .noinit unchanged; no divide. An image of about 550,370 of 581,564.
+
+Not checked: no device build. Long tests not run. tests/hostsim's TRACKS run reports FAILED with "free(): invalid pointer" on ben too (identical output): not touched.
+
 ## For Ben to confirm
 Every call waves 2 to 7 made that the spec did not cover, and every device-only limit or lossy conversion, one line each. The detail is in each wave's section above.
 
@@ -874,3 +897,8 @@ Wave 14, the stutter sequence on FX
 - Hold SEQ's halve / double refused on the lane; hold ARP, EDIT and the rest act on the selected voice.
 - A lane step held now blocks the page buttons until let go (as a step held on the steps), so the lights can say it.
 - HOME's PERFORM zone says FX>STUT while no pad is latched.
+The drum grid
+- Hand-played drum keys follow the grid as Ben chose ("Everywhere"): the lowest key is now HAT and the kick is key 4 (it was key 1, as on a General MIDI-like keyboard where the kick is lowest). Recommendation: keep it (one key, one sound on every screen); the MIDI notes in and out stay GM, so an external pad controller is unaffected.
+- SELECT goes round (SNARE to HAT); CHROMATIC's -/+ still stops at either end.
+- PRESETS' sound list keeps its kind order (KICK, KICK 2, SNARE ... COWBELL) after the slot's own kind. Recommendation: keep (it is a list, not a layout); say if it should follow the grid's key order instead.
+- The mixer's M / S tab moved a pixel right and lost a pixel of width so the six-letter names fit.
