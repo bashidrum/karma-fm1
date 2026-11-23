@@ -308,3 +308,11 @@ To be built with the lights work: one setting under GLO for how much the lights 
 ### 23 Nov 2026, 11:02: changing one drum's sound, in Ben's words
 
 With a simulator screenshot (drum screen, RIM selected, kit HEX BOOM, the bar "HOLD SAVE: REPLACE 606*"): "Kind of confusing how to change the sound of individual drums. I could do sound design on a preset snare but couldn't see how to load in like an 808 snare with a 606 kit preset. Or just choose the snare engine and then do sound design. Bit confusing. Also it seemed like it wanted me to hold save to change away from loading a 606 snare or something?"
+
+His answers by picker, 23 Nov 2026, 11:10:
+
+- PRESETS knob on the drums: "Kits on HOME, sounds on the drum screen". PRESETS loads whole kits when you are on HOME, and single sounds when you are on a drum sound page.
+- Sound list: "Same kind first, then all". On the snare slot you get every kit's snares first, then everything else.
+- Engine: "Yes, an INIT per engine". The sound list includes a plain starting sound for each drum engine.
+
+Proposed by Claude and not objected to (for him to confirm when built): the kit is 16 slots in the project, each holding any sound from any kit; no separate edited copy and no star; loading a whole kit replaces all 16 and is the only thing that asks for a confirm. To be built as its own wave after wave 11, with the memory cost worked out first.
