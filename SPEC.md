@@ -465,3 +465,7 @@ So on the drum voice: EDIT and ENV are dry sound design only (SRC, FLTR, AMP, LF
 "FILTER should live under Edit. Filter envelope should live under ENV. Sends should live under FX"
 
 Applied to the drum voice as: the kit's FILTER leaves FX and lives under EDIT, after the sound's own SRC and FLTR; anything that is a filter envelope's own shape lives under ENV; sends live under FX. So drum FX steps: SENDS (the selected sound's), then the kit's INS and SLICER, then MIX, STUT.
+
+### 23 Nov 2026, 21:41: the drums' layout, the rule, in Ben's words
+
+"Just mirror the synths as closely as possible where possible"
