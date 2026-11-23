@@ -499,6 +499,27 @@ static uint32_t proj_sum(const proj_core_t *c) { return proj_hash(c, sizeof *c -
  * send with no slot 0 (modmx.c fx_sends_from_slots); a synth track's FILT (CC 74's DJ filter) onto its voice filter; GLO >
  * MASTER FILT dropped; GLO > GLOBAL SWING added to every track's own (proj_apply) */
 #define PROJ_SEND_V 3u
+/* (Ben, 23 Nov 2026, 21:45: the drum effects under FX, "Remove them") 4 = no kit-wide drum sends: each sound's own only, 0..127
+ * (drum_snd.c PK_VER 2). Below 4, when it is applied: the drum pattern's send locks onto 0..127 with that core's kit sends
+ * added (the audio added them, clamped to 127: drums.c drum_voice_sends of before), G_DRREV and G_DRDLY then 0; the
+ * project's kit gets the project's kit sends the same way (proj_kit_take). P_ and G_ ids unchanged: G_DRREV and G_DRDLY stay
+ * in the core, always 0 from now on */
+#define PROJ_DSEND_V 4u
+static uint8_t proj_kfold_n;                   /* (the host tests) the sounds whose sends an old project's kit sends went into */
+/* an old core's drum send locks (dpat): onto 0..127 (wave 12's 0..15 / 0..7, as drum_snd.c slot_old_sends), plus its kit
+ * sends kr, kd, clamped to 127: what the hit's send was in the audio */
+static void dpat_old_sends(dpat_t *p, int32_t kr, int32_t kd)
+{
+    uint32_t i;
+    for (i = 0; i < DT_NLK; i++) {
+        dlk_t *k = &p->lk[i];
+        int32_t v;
+        if (k->step == DT_FREE || (k->param != DSP_REV && k->param != DSP_DEL))
+            continue;
+        v = k->param == DSP_REV ? (int32_t)send_old_rev(k->val) + kr : (int32_t)send_old_dly(k->val) + kd;
+        k->val = (uint8_t)(v > 127 ? 127 : v < 0 ? 0 : v);
+    }
+}static int32_t proj_kr, proj_kd;              /* (proj_apply) the kit sends of the core applied, when it is old (else 0) */
 static int16_t proj_old_swing;                 /* (wave 8) the GLOBAL SWING of the last project of before loaded: a section
                                                 * stored then borrowed it, so it is added to such a section's tracks too */
 /* (wave 11) mod[46], layout 2: byte 7 is MXL2 (layout 1, waves 5 to 10, always had 0 there); the other 45 bytes a stream of
@@ -797,8 +818,9 @@ static void proj_capture_core(proj_core_t *c)  /* what is playing now, as a proj
         c->g[i] = song.g[i];
     c->sel = song.sel;
     c->drdly = (uint8_t)song.g[G_DRDLY];
-    c->rsv[0] = PROJ_SEND_V;                            /* (wave 4: the voice filter's values are in it; wave 5: the FX
-                                                         * slots and the matrix; wave 8: the sends their own) */
+    c->rsv[0] = PROJ_DSEND_V;                           /* (wave 4: the voice filter's values are in it; wave 5: the FX
+                                                         * slots and the matrix; wave 8: the sends their own; the drum
+                                                         * effects under FX: no kit-wide drum sends) */
     memcpy(c->perf.on, stl.on, sizeof c->perf.on);
     memcpy(c->perf.lc, stl.lc, sizeof c->perf.lc);
     memcpy(c->perf.lx, stl.lx, sizeof c->perf.lx);
@@ -842,12 +864,33 @@ static uint32_t work_sum(uint32_t core_sum) { return core_sum ^ pkit_hash() * 0x
  * ext holds the 16 slots ("PKT2"). Anything older is converted to the 16 slots, the same sound exactly (drum_snd.c
  * pkit_from_old): the kit it played (its core's P_E0), each sound's sends (its dsend), and waves 3 to 11's edited copy where
  * it was of that kit. A copy of another kit (it did not play) is kept as a user kit, in the first free one (pkit_old_kept) */
+/* (Ben 21:45, "Remove them": only per-sound sends remain; "old projects fold the kit amount into each sound") a core saved
+ * with kit-wide drum sends: each slot's own plus the kit's, clamped to 127, which is the send each hit had (drums.c
+ * drum_voice_sends of before: own + G_DRREV, clamped, then the THROWs). Exact without the SLICER; with the drum SLICER on, the
+ * kit's share went in after the SLICER (gated with it) and now goes in before it, as a sound's own always did */
+static void proj_kit_fold(const proj_core_t *q)
+{
+    int32_t kr = clamp(q->g[G_DRREV], 0, 127), kd = clamp(q->drdly, 0, 127);
+    uint32_t l;
+    if (q->rsv[0] >= PROJ_DSEND_V || !(kr | kd))
+        return;
+    fm1_irq_off();
+    for (l = 0; l < DRUM_LANES; l++) {
+        sl_send_set(l, 0, (uint32_t)clamp((int32_t)sl_send(l, 0) + kr, 0, 127));
+        sl_send_set(l, 1, (uint32_t)clamp((int32_t)sl_send(l, 1) + kd, 0, 127));
+        pkit.s[l].mach |= SL_CHG;
+    }
+    pkit_gen++;
+    fm1_irq_on();
+    proj_kfold_n = DRUM_LANES;
+}
 static void proj_kit_take(const uint8_t *b, int n, const proj_core_t *q)
 {
     const pkit_t *x = (const pkit_t *)(b + sizeof(proj_core_t));
     const pkit1_t *c1 = (const pkit1_t *)(b + sizeof(proj_core_t));
     int other = 0;
     _Static_assert(sizeof(pkit_t) <= sizeof(proj_ext_t) && sizeof(pkit1_t) <= sizeof(proj_ext_t), "the kit fits the ext");
+    proj_kfold_n = 0;
     if (n == (int)sizeof(project_t) && x->magic == PK_MAGIC) {
         pkit_t k;
         memcpy(&k, x, sizeof k);
@@ -856,6 +899,7 @@ static void proj_kit_take(const uint8_t *b, int n, const proj_core_t *q)
             pkit = k;
             pkit_gen++;
             fm1_irq_on();
+            proj_kit_fold(q);
             return;
         }
     }
@@ -879,6 +923,7 @@ static void proj_kit_take(const uint8_t *b, int n, const proj_core_t *q)
             pkit_old_kept = (uint8_t)(u < UKIT_N && !ukit_put(u, &k) ? u + 1u : 0xFFu);
         }
     }
+    proj_kit_fold(q);
 }
 _Static_assert(sizeof proj_tmp == sizeof(project_t) && sizeof(project_v3_t) <= sizeof proj_tmp - 3840u,
                "proj_tmp holds a whole project, or an old one's bytes and format 3");
@@ -896,6 +941,16 @@ static void proj_apply(const proj_core_t *p, int all)
                                                                  * its slot and G_INFO's held KARMA's TEXTURE) */
             song.g[i] = (int16_t)clamp(p->g[i], GP[i].min, GP[i].max);
     song.g[G_DRDLY] = (int16_t)clamp(p->drdly, GP[G_DRDLY].min, GP[G_DRDLY].max);   /* (a load and a section, as REV) */
+    /* (Ben 21:45: the kit-wide drum sends removed) read only to fold an old core's into its locks (below) and the kit
+     * (proj_kit_take): never heard, never shown, 0 */
+    {
+        int32_t kr = song.g[G_DRREV], kd = song.g[G_DRDLY];
+        song.g[G_DRREV] = song.g[G_DRDLY] = 0;
+        if (p->rsv[0] < PROJ_DSEND_V)
+            proj_kr = kr, proj_kd = kd;
+        else
+            proj_kr = proj_kd = 0;
+    }
     if (all && p->rsv[0] < PROJ_SEND_V)                 /* (wave 8) the old GLOBAL SWING, onto every track's (below) */
         proj_old_swing = (int16_t)clamp(song.g[G_SWING], 0, 100);
     else if (all)
@@ -945,6 +1000,9 @@ static void proj_apply(const proj_core_t *p, int all)
             memset(t->fill, 0, sizeof t->fill);
             memcpy(&dpat, &p->d.pat, sizeof dpat);
             pat_fix(&dpat);
+            if (p->rsv[0] < PROJ_DSEND_V)               /* (the drum effects under FX) its send locks onto 0..127, with
+                                                         * its kit sends (this core's: a section's own) */
+                dpat_old_sends(&dpat, proj_kr, proj_kd);
         } else {
             const proj_syn_t *s = &p->t[k];
             t->preset = (uint8_t)(ENGINES[e]->npresets ? (s->preset == 0xFFu ? 0u : s->preset >= ENGINES[e]->npresets ? ENGINES[e]->npresets - 1u : s->preset) : 0u);   /* (3.1.3: a removed

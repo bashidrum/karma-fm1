@@ -35,7 +35,12 @@ static const param_desc_t DL_DESC[8] = {     /* DSP_LSPD .. DSP_LMOD */
     DD("SPEED", F_LFOHZ, 0, 127, 64), DD("DEPTH", F_INT, -64, 63, 0), DE("DEST", N_DLDST, 0), DE("WAVE", N_LWAVE, 0),
     DE("SYNC", N_LSYNC, 0), DD("FADE", F_INT, -64, 63, 0), DD("PHASE", F_INT, 0, 127, 0), DE("MODE", N_DLMOD, 0),
 };
-static const param_desc_t DSEND_DESC[2] = {DD("REV", F_INT, 0, DRUM_SEND_REV, 0), DD("DEL", F_INT, 0, DRUM_SEND_DLY, 0)};
+/* (the drum effects under FX) the sound's sends, named and ranged as a synth voice's SENDS (params.c P_DLY, P_REV: 0..127);
+ * its KIT FX switch (Ben 21:45: "a KIT FX switch per sound"): ON through the kit's FILTER, INSERT and SLICER, OFF straight to
+ * the mix. DSP_KFX is a knob of the SENDS page only, no lock id (not lockable: it lives in the slot's send byte) */
+static const param_desc_t DSEND_DESC[2] = {DD("REVERB", F_INT, 0, DRUM_SEND_REV, 0), DD("DELAY", F_INT, 0, DRUM_SEND_DLY, 0)};
+#define DSP_KFX 0xF0u
+static const param_desc_t DKFX_DESC = DE("KIT FX", N_ONOFF, 1);
 static const param_desc_t DNOTE_DESC = DD("NOTE", F_SEMI, -48, 48, 0);   /* (chromatic: 27 keys, OCT -2 .. +2) */
 /* a HEX byte's descriptor as the sound's model reads it (the DRUM model's are params.c GP's, G_HXMODEL ..) */
 static const param_desc_t *hex_desc_m(uint32_t m, uint32_t id)
@@ -62,6 +67,8 @@ static const param_desc_t *dsp_desc(uint32_t model, const uint8_t *snd, uint32_t
         return model == DM_HEX ? hex_desc_m(snd ? snd[DSP_MODEL] % HM_COUNT : HM_DRUM, id) : 0;
     if (id == DSP_REV || id == DSP_DEL)
         return &DSEND_DESC[id - DSP_REV];
+    if (id == DSP_KFX)
+        return &DKFX_DESC;
     if (id == DSP_LDST) {                        /* (wave 12) the machine's own list */
         static const param_desc_t DH = DE("DEST", N_DLDST_HEX, 0), DS = DE("DEST", N_DLDST_SYN, 0);
         return model == DM_SYN ? &DS : &DH;
@@ -82,6 +89,8 @@ static int32_t dsp_get(uint32_t model, const uint8_t *snd, const dlfo_t *lf, uin
         return model != DM_HEX ? 0 : id == DSP_FINE ? (int32_t)(int8_t)snd[id] : (int32_t)snd[id];
     if (id == DSP_REV || id == DSP_DEL)
         return (int32_t)sl_send(l, id - DSP_REV);
+    if (id == DSP_KFX)
+        return (int32_t)!sl_kfx_off(l);
     switch (id) {
     case DSP_LSPD: return lf->spd;
     case DSP_LDEP: return lf->dep;
@@ -200,7 +209,7 @@ static const dhalf_t DH_HEX[] = {
     {DPG_FLTR, {DSP_CUT, DSP_RES, 0xFF, DSP_FTYPE}},
     {DPG_FLTR, {DSP_DRIVE, 0xFF, 0xFF, 0xFF}},
     {DPG_AMP, {DSP_ATK, DSP_DEC, DSP_SLOPE, DSP_AUX2}},             /* the envelope, DIST (the Rytm's OVR) */
-    {DPG_AMP, {DSP_CRUSH, DSP_DEL, DSP_REV, DSP_LEVEL}},
+    {DPG_AMP, {DSP_CRUSH, 0xFF, 0xFF, DSP_LEVEL}},                 /* (the drum effects under FX: DEL REV left for FX > SENDS) */
     {DPG_LFO, {DSP_LSPD, DSP_LDEP, DSP_LDST, DSP_LWAV}},
     {DPG_LFO, {DSP_LSYN, DSP_LFAD, DSP_LSPH, DSP_LMOD}},
 };
@@ -211,7 +220,7 @@ static const dhalf_t DH_SYN[] = {
     {DPG_FLTR, {S_(FREQ), S_(RES), S_(FENV), S_(FTYPE)}},
     {DPG_FLTR, {S_(DRIVE), S_(HPF), 0xFF, 0xFF}},                   /* (DRIVE, then the noise's own high-pass) */
     {DPG_AMP, {S_(HOLD), S_(DECAY), S_(NHOLD), S_(NDEC)}},
-    {DPG_AMP, {0xFF, DSP_DEL, DSP_REV, S_(LEVEL)}},                  /* (DEL REV LEVEL where the HEX machine has them) */
+    {DPG_AMP, {0xFF, 0xFF, 0xFF, S_(LEVEL)}},                        /* (LEVEL where the HEX machine has it; DEL REV: FX > SENDS) */
     {DPG_LFO, {DSP_LSPD, DSP_LDEP, DSP_LDST, DSP_LWAV}},
     {DPG_LFO, {DSP_LSYN, DSP_LFAD, DSP_LSPH, DSP_LMOD}},
 };

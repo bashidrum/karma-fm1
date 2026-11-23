@@ -57,6 +57,13 @@ static int ukit_slot(uint32_t n, uint32_t l, dslot_t *d)
     return uk_read(sizeof(uk_head_t) + n * sizeof(pkit_t) + __builtin_offsetof(pkit_t, s) + (l & 15u) * sizeof(dslot_t), d,
                    sizeof *d);
 }
+static uint32_t ukit_ver(uint32_t n)                   /* its slots' format (pkit_t ver: 1 wave 12's sends) */
+{
+    uint8_t v = PK_VER;
+    if (ukit_state(n) == UK_STORED)
+        (void)uk_read(sizeof(uk_head_t) + n * sizeof(pkit_t) + __builtin_offsetof(pkit_t, ver), &v, 1);
+    return v;
+}
 /* kit n stored (k 0: erased): the object as it is into st_buf, the kit changed there, the other copy written */
 static int ukit_put(uint32_t n, const pkit_t *k)
 {

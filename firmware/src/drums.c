@@ -49,10 +49,14 @@ static int16_t drum_kit_step(int32_t k, int32_t s)
     return (int16_t)k;
 }
 
-/* each sound's own sends, on top of the drum voice's (FX > SENDS): reverb 0..15, delay 0..7 (wave 12: the slot's, drum_snd.c
- * dslot_t.send; AMP 2/2 DEL REV) */
-#define DRUM_SEND_REV 15
-#define DRUM_SEND_DLY 7
+/* each sound's own sends (FX > SENDS, the selected sound's: Ben 21:45, "Remove them": the drum voice's kit-wide sends are
+ * gone, an old project's folded into each sound's, project.c): reverb and delay 0..127, as a synth voice's (wave 12 kept
+ * them 0..15 and 0..7, drum_snd.c slot_old_sends) */
+#define DRUM_SEND_REV 127
+#define DRUM_SEND_DLY 127
+/* (Ben 21:45: "a KIT FX switch per sound") where a sound with KIT FX OFF goes: the mix and its sends after the kit's FILTER,
+ * INSERT and SLICER (fx.c sets them round the drum voice's chain; 0: with the others, as on the host's own renders) */
+static int32_t *dbp_l, *dbp_r, *dbp_v, *dbp_d;
 
 static struct {
     voice_t v[NDRUM];
@@ -646,21 +650,21 @@ static void drum_on_(uint32_t note, uint32_t vel)
     drum_synth_on(note, vel);
 }
 
-/* the reverb and delay sends of voice k, Q15: the kit's plus its sound's own; own_only: the sound's alone */
+/* the reverb and delay sends of voice k, Q15: its sound's own (a locked send: the hit's own); own_only: without the THROWs
+ * (the mono path under the SLICER, as before). (Until the drum effects moved under FX the kit's sends were added here,
+ * r + G_DRREV clamped to 127: an old project's are folded into the sounds' own the same way, project.c) */
 static inline void drum_voice_sends(uint32_t k, int own_only, int32_t *rs, int32_t *ds)
 {
     uint32_t ln = drums.lane[k] % DRUM_LANES;
-    int32_t r = (dlr.sov[k][0] ? dlr.sov[k][0] - 1 : (int32_t)sl_send(ln, 0)) * 127 / DRUM_SEND_REV;   /* (a locked send: */
-    int32_t d = (dlr.sov[k][1] ? dlr.sov[k][1] - 1 : (int32_t)sl_send(ln, 1)) * 127 / DRUM_SEND_DLY;  /* the hit's own) */
+    int32_t r = dlr.sov[k][0] ? dlr.sov[k][0] - 1 : (int32_t)sl_send(ln, 0);
+    int32_t d = dlr.sov[k][1] ? dlr.sov[k][1] - 1 : (int32_t)sl_send(ln, 1);
     if (own_only) {
         *rs = r * 258;
         *ds = d * 258;
         return;
     }
-    r += song.g[G_DRREV];
-    d += song.g[G_DRDLY];
-    *rs = send_thr((r > 127 ? 127 : r) * 258, thr_rev);   /* (2.6: the THROWs) */
-    *ds = send_thr((d > 127 ? 127 : d) * 258, thr_dly);
+    *rs = send_thr(r * 258, thr_rev);                   /* (2.6: the THROWs) */
+    *ds = send_thr(d * 258, thr_dly);
 }
 
 /* adds the drums into the dry mix and the reverb and delay sends; mono != 0: into mono instead, before
@@ -687,13 +691,15 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dl
     int32_t lvl = song.g[G_DRLVL] * 200, send, dsend, pk = drums.peak;
     int32_t kboost;
     int16_t la0[DRUM_LANES], la1[DRUM_LANES];
-    uint32_t lmask = perf_dmute, lany = 0;
+    uint32_t lmask = perf_dmute, lany = 0, byp = 0;
     for (k = 0; k < DRUM_LANES; k++) {          /* (wave 13) the slots' fades this block */
         int32_t a = dm_att[k], to = (lmask >> k) & 1u ? 32767 : 0;
         la0[k] = (int16_t)a;
         a = a < to ? (to - a > 4096 ? a + 4096 : to) : (a - to > 4096 ? a - 4096 : to);
         la1[k] = dm_att[k] = (int16_t)a;
         lany |= (uint32_t)(la0[k] | la1[k]);
+        if (dbp_l && sl_kfx_off(k))                 /* (KIT FX OFF: past the kit's effects, into the mix) */
+            byp |= 1u << k;
     }
     int32_t pan = trk[TRK_DRUM].p[P_PAN], gl = 4096 - (pan > 0 ? pan * 64 : 0), gr = 4096 + (pan < 0 ? pan * 64 : 0);
     if (drums.a0 >= 32767 && drums.a1 >= 32767 && !((perf_kill >> TRK_DRUM) & 1u)) {   /* (3.1.3) muted (or another track soloed) all this block: nothing
@@ -727,9 +733,13 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dl
         voice_t *v = &drums.v[k];
         uint32_t m = n < CTL ? n : CTL;             /* (the mix runs in blocks of CTL) */
         int32_t lp16, lcut, lres, llvl;
+        int32_t *vl = ml, *vr = mr, *vv = rev, *vd = dly, *vm = mono;
         if (!v->active || !drums.synth[k])
             continue;
-        drum_voice_sends(k, mono != 0, &send, &dsend);
+        if ((byp >> (drums.lane[k] % DRUM_LANES)) & 1u)   /* (KIT FX OFF: as a sound with the kit's effects neutral, into
+                                                         * the mix after them; the stereo path, as without the SLICER) */
+            vl = dbp_l, vr = dbp_r, vv = dbp_v, vd = dbp_d, vm = 0;
+        drum_voice_sends(k, vm != 0, &send, &dsend);
         drums.gs[k][0] = send;                      /* (3.1.2: for drum_cut) */
         drums.gs[k][1] = dsend;
         drum_lfo_mod(k, &lp16, &lcut, &lres, &llvl);   /* (PHEBUS wave 3) the sound's LFO */
@@ -770,20 +780,20 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dl
             v->s[7] = s;
             if (s > pk || -s > pk)
                 pk = s < 0 ? -s : s;
-            if (mono) {
-                mono[i] += s;
+            if (vm) {
+                vm[i] += s;
                 if (send)
-                    rev[i] += mulq15(s, send);
+                    vv[i] += mulq15(s, send);
                 if (dsend)
-                    dly[i] += mulq15(s, dsend);
+                    vd[i] += mulq15(s, dsend);
                 continue;
             }
-            ml[i] += (s * gl) >> 12;
-            mr[i] += (s * gr) >> 12;
+            vl[i] += (s * gl) >> 12;
+            vr[i] += (s * gr) >> 12;
             if (send)
-                rev[i] += mulq15(s, send);
+                vv[i] += mulq15(s, send);
             if (dsend)
-                dly[i] += mulq15(s, dsend);
+                vd[i] += mulq15(s, dsend);
         }
         if (!v->active) {
             drum_cut(k);                            /* ended: no step at the end */

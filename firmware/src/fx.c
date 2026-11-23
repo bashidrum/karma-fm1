@@ -1434,6 +1434,7 @@ static void mix_block(int32_t *out, uint32_t n)
         static int32_t dl[CTL], dr[CTL], dv[CTL], dd[CTL];
         tsvf_t fc;
         djf_t *f = &tflt_dr;
+        dbp_l = mix_l, dbp_r = mix_r, dbp_v = send_r, dbp_d = send_d;   /* (KIT FX OFF: straight into the mix, drums.c) */
         if (n <= CTL && djf_block(f, TDRUM->p[P_TFLT], &fc)) {   /* the drum track's FILTER: left, right, the sends */
             for (i = 0; i < n; i++)
                 dl[i] = dr[i] = dv[i] = dd[i] = 0;
@@ -1463,6 +1464,7 @@ static void mix_block(int32_t *out, uint32_t n)
         } else {
             slicer_drums(mix_l, mix_r, send_r, send_d, n);   /* drums_render, through the SLICER when on */
         }
+        dbp_l = dbp_r = dbp_v = dbp_d = 0;
     }
     if (fx_stems)
         stem_take(TRK_DRUM, n, 1);                      /* the drums' stem */

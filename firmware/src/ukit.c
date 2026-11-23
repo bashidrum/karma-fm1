@@ -15,6 +15,7 @@
 static uint32_t ukit_state(uint32_t n);                   /* 0 never stored, 1 stored, 2 erased */
 static int ukit_get(uint32_t n, pkit_t *k);               /* the whole kit (1: read) */
 static int ukit_slot(uint32_t n, uint32_t l, dslot_t *d); /* one of its slots (1: read) */
+static uint32_t ukit_ver(uint32_t n);                     /* its slots' format (pkit_t ver) */
 static int ukit_put(uint32_t n, const pkit_t *k);         /* stored (k 0: erased); 0 done */
 enum { UK_NONE, UK_STORED, UK_ERASED };
 
@@ -36,6 +37,7 @@ static int ukit_slot(uint32_t n, uint32_t l, dslot_t *d)
     *d = uk_ram[n].s[l & 15u];
     return 1;
 }
+static uint32_t ukit_ver(uint32_t n) { return n < UKIT_N ? uk_ram[n].ver : PK_VER; }
 static int ukit_put(uint32_t n, const pkit_t *k)
 {
     if (n >= UKIT_N)
@@ -148,7 +150,7 @@ static int kit_make(uint32_t src, pkit_t *k)
             slot_from_kit(&k->s[l], src, l);
         k->magic = PK_MAGIC;
         k->base = (uint8_t)src;
-        k->ver = 1;
+        k->ver = PK_VER;
     }
     for (l = 0; l < DRUM_LANES; l++)
         k->s[l].mach &= (uint8_t)~(SL_CHG | SL_EDT);
@@ -219,6 +221,8 @@ static int snd_make(uint32_t L, uint32_t e, dslot_t *d)
     if (src >= DSRC_USER) {
         if (!ukit_slot(src - DSRC_USER, kind, d))
             return 0;
+        if (ukit_ver(src - DSRC_USER) < PK_VER)    /* (a kit stored by wave 12: its sends onto 0..127) */
+            slot_old_sends(d);
         slot_fix(d);
         d->src = (uint8_t)src;
         d->orig = (uint8_t)((d->orig & 0xF0u) | kind);
