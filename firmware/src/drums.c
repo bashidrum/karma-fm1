@@ -49,10 +49,14 @@ static int16_t drum_kit_step(int32_t k, int32_t s)
     return (int16_t)k;
 }
 
-/* each sound's own sends, on top of the drum voice's (FX > SENDS): reverb 0..15, delay 0..7 (wave 12: the slot's, drum_snd.c
- * dslot_t.send; AMP 2/2 DEL REV) */
-#define DRUM_SEND_REV 15
-#define DRUM_SEND_DLY 7
+/* each sound's own sends (FX > SENDS, the selected sound's: Ben 21:45, "Remove them": the drum voice's kit-wide sends are
+ * gone, an old project's folded into each sound's, project.c): reverb and delay 0..127, as a synth voice's (wave 12 kept
+ * them 0..15 and 0..7, drum_snd.c slot_old_sends) */
+#define DRUM_SEND_REV 127
+#define DRUM_SEND_DLY 127
+/* (Ben 21:45: "a KIT FX switch per sound") where a sound with KIT FX OFF goes: the mix and its sends after the kit's FILTER,
+ * INSERT and SLICER (fx.c sets them round the drum voice's chain; 0: with the others, as on the host's own renders) */
+static int32_t *dbp_l, *dbp_r, *dbp_v, *dbp_d;
 
 static struct {
     voice_t v[NDRUM];
@@ -61,6 +65,7 @@ static struct {
     int32_t tail;                /* declick: the last output of cut voices, decaying */
     int32_t trev, tdly;          /* (3.1.2) .. and their reverb and delay sends: they stepped to 0, a click in
                                   * the echo and the reverb */
+    int32_t btail, btrev, btdly; /* (KIT FX OFF) the same declick of a sound past the kit's effects: past them too */
     int32_t gs[NDRUM][2];        /* each voice's reverb and delay send gains in the last block, Q15 */
     int32_t peak;                /* largest |output| since the UI last looked (TRACKS meter) */
     uint8_t trim[NDRUM];         /* (wave 12) the level trim of the slot's sound (its kit's: DRUM_KIT_TRIM's index, 7 none) */
@@ -100,20 +105,26 @@ static void drums_hex_pre(uint32_t n)          /* CPU1 */
     hx_pre_mask = (uint8_t)m;
 }
 
+static uint32_t sl_kfx_off(uint32_t l);         /* (drum_snd.c: a sound's KIT FX OFF) */
 /* voice k stops (stolen, choked, ended): what it was playing fades out, its sends too (drums_mix) */
 static void drum_cut(uint32_t k)
 {
     const int32_t s = drums.v[k].s[7];
+    if (sl_kfx_off(drums.lane[k])) {                /* (KIT FX OFF: its declick past the kit's effects too) */
+        drums.btail += s;
+        drums.btrev += mulq15(s, drums.gs[k][0]);
+        drums.btdly += mulq15(s, drums.gs[k][1]);
+        return;
+    }
     drums.tail += s;
     drums.trev += mulq15(s, drums.gs[k][0]);
     drums.tdly += mulq15(s, drums.gs[k][1]);
 }
 
 /* ------------------------------------------------------------ lanes --- */
-/* The drum track's 16 sounds, one per white key, F3 (kick) .. G5 (cowbell): kicks, snare and clap,
- * the hi-hats, rim and a second snare, the toms, the cymbals, the percussion. Each plays a GM note
- * (the synthesised kits: drum_synth.c DS_MAP). A black key plays
- * the lane of the white key left of it (two fingers on one sound). */
+/* The drum track's 16 sounds (slots), in slot order: kicks, snare and clap, the hi-hats, rim and a second snare, the toms,
+ * the cymbals, the percussion. Each plays a GM note (the synthesised kits: drum_synth.c DS_MAP). Which white key plays which
+ * is the grid's (DRUM_GRID below, since the drum grid wave; until then key n played slot n) */
 static const uint8_t LANE_NOTE[DRUM_LANES] = {36, 35, 38, 39, 42, 46, 44, 37, 40, 43, 48, 49, 51, 70, 63, 56};
 static const char *const LANE_NAME[DRUM_LANES] = {
     "KICK", "KICK 2", "SNARE", "CLAP", "HAT", "OPEN HAT", "PEDAL", "RIM",
@@ -132,21 +143,54 @@ static uint32_t lane_of_note(uint32_t note)
 {
     return note < 35u ? 0u : note > 81u ? 13u : LANE_OF_GM[note - 35u];
 }
-/* the lane of key k (0 = F3 .. 26 = G5): white keys in order, a black key the white key left of it */
+/* (the drum grid, Rytm style: Ben, 23 Nov 2026, 21:07 and 21:14, as he typed it) THE ONE LAYOUT of the 16 sounds, used
+ * everywhere they are drawn (the mixer, the drum screen's map, the hold SEQ tiles) and everywhere the white keys choose or
+ * play one (the keys, RETRIG, the mixer's mutes and solos, SELECT's order): the grid's place, row by row from the top
+ * left, -> the slot.
+ *     HAT     OP HAT  RIDE    CRASH
+ *     PEDAL   CONGA   C-BELL  SHAKER
+ *     KICK 2  LO TOM  HI TOM  CLAP
+ *     KICK    RIM     SNARE 2 SNARE
+ * The white keys run down the columns, top to bottom (his picker): keys 1 to 4 the left column (HAT PEDAL KICK 2 KICK),
+ * 5 to 8 the second, 9 to 12 the third, 13 to 16 the right. Presentation and key order only: the slots, the project, the
+ * kits, the MIDI notes, the trigs and locks, PERFORM's mutes stay by slot */
+static const uint8_t DRUM_GRID[DRUM_LANES] = {4, 5, 12, 11, 6, 14, 15, 13, 1, 9, 10, 3, 0, 7, 8, 2};
+/* white key w (0..15) -> its place in the grid; the same sum turns a place back into its key (the transpose) */
+static uint32_t dgrid_of_white(uint32_t w) { return (w & 3u) * 4u + ((w >> 2) & 3u); }
+static uint32_t lane_of_white(uint32_t w) { return DRUM_GRID[dgrid_of_white(w & 15u)]; }
+static uint32_t dgrid_of_lane(uint32_t l)               /* the grid's place of slot l */
+{
+    uint32_t p;
+    for (p = 0; p < 15u && DRUM_GRID[p] != (l & 15u); p++)
+        ;
+    return p;
+}
+static uint32_t white_of_lane(uint32_t l) { return dgrid_of_white(dgrid_of_lane(l)); }   /* slot l's white key, 0..15 */
+/* the sound d keys on from slot l, in key order (SELECT, CHROMATIC's -/+); wrap: round, else it stops at either end */
+static uint32_t lane_step(uint32_t l, int32_t d, int wrap)
+{
+    int32_t w = (int32_t)white_of_lane(l) + d;
+    w = wrap ? (w & 15) : w < 0 ? 0 : w > 15 ? 15 : w;
+    return lane_of_white((uint32_t)w);
+}
+/* the lane of key k (0 = F3 .. 26 = G5): the white key's sound (the grid's order), a black key the white key left of it */
 static uint32_t lane_of_key(uint32_t k)
 {
     static const int8_t W[12] = {0, -1, 1, -1, 2, -1, 3, 4, -1, 5, -1, 6};   /* from F */
     int32_t i = W[k % 12u];
     if (i < 0)
         i = W[(k - 1u) % 12u];
-    return (uint32_t)((int32_t)(k / 12u) * 7 + i) & 15u;
+    return lane_of_white((uint32_t)((int32_t)(k / 12u) * 7 + i) & 15u);
 }
-/* the white key of lane l (key index), for the key LEDs */
-static uint32_t key_of_lane(uint32_t l)
+/* white key w (0 .. 15: a step, a pad, a place) -> its key index */
+static uint32_t key_of_white(uint32_t w)
 {
     static const uint8_t K[7] = {0, 2, 4, 6, 7, 9, 11};      /* F G A B C D E */
-    return (l / 7u) * 12u + K[l % 7u];
+    w &= 15u;
+    return (w / 7u) * 12u + K[w % 7u];
 }
+/* the key of slot l (its sound's white key, the grid's order), for the key LEDs */
+static uint32_t key_of_lane(uint32_t l) { return key_of_white(white_of_lane(l)); }
 
 /* (PHEBUS wave 3) the selected sound: the one the drum screen's pages, its step keys, chromatic mode and the sound pick
  * address (written by the UI only; seq.c reads it for chromatic mode) */
@@ -614,21 +658,21 @@ static void drum_on_(uint32_t note, uint32_t vel)
     drum_synth_on(note, vel);
 }
 
-/* the reverb and delay sends of voice k, Q15: the kit's plus its sound's own; own_only: the sound's alone */
+/* the reverb and delay sends of voice k, Q15: its sound's own (a locked send: the hit's own); own_only: without the THROWs
+ * (the mono path under the SLICER, as before). (Until the drum effects moved under FX the kit's sends were added here,
+ * r + G_DRREV clamped to 127: an old project's are folded into the sounds' own the same way, project.c) */
 static inline void drum_voice_sends(uint32_t k, int own_only, int32_t *rs, int32_t *ds)
 {
     uint32_t ln = drums.lane[k] % DRUM_LANES;
-    int32_t r = (dlr.sov[k][0] ? dlr.sov[k][0] - 1 : (int32_t)sl_send(ln, 0)) * 127 / DRUM_SEND_REV;   /* (a locked send: */
-    int32_t d = (dlr.sov[k][1] ? dlr.sov[k][1] - 1 : (int32_t)sl_send(ln, 1)) * 127 / DRUM_SEND_DLY;  /* the hit's own) */
+    int32_t r = dlr.sov[k][0] ? dlr.sov[k][0] - 1 : (int32_t)sl_send(ln, 0);
+    int32_t d = dlr.sov[k][1] ? dlr.sov[k][1] - 1 : (int32_t)sl_send(ln, 1);
     if (own_only) {
         *rs = r * 258;
         *ds = d * 258;
         return;
     }
-    r += song.g[G_DRREV];
-    d += song.g[G_DRDLY];
-    *rs = send_thr((r > 127 ? 127 : r) * 258, thr_rev);   /* (2.6: the THROWs) */
-    *ds = send_thr((d > 127 ? 127 : d) * 258, thr_dly);
+    *rs = send_thr(r * 258, thr_rev);                   /* (2.6: the THROWs) */
+    *ds = send_thr(d * 258, thr_dly);
 }
 
 /* adds the drums into the dry mix and the reverb and delay sends; mono != 0: into mono instead, before
@@ -655,13 +699,15 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dl
     int32_t lvl = song.g[G_DRLVL] * 200, send, dsend, pk = drums.peak;
     int32_t kboost;
     int16_t la0[DRUM_LANES], la1[DRUM_LANES];
-    uint32_t lmask = perf_dmute, lany = 0;
+    uint32_t lmask = perf_dmute, lany = 0, byp = 0;
     for (k = 0; k < DRUM_LANES; k++) {          /* (wave 13) the slots' fades this block */
         int32_t a = dm_att[k], to = (lmask >> k) & 1u ? 32767 : 0;
         la0[k] = (int16_t)a;
         a = a < to ? (to - a > 4096 ? a + 4096 : to) : (a - to > 4096 ? a - 4096 : to);
         la1[k] = dm_att[k] = (int16_t)a;
         lany |= (uint32_t)(la0[k] | la1[k]);
+        if (dbp_l && sl_kfx_off(k))                 /* (KIT FX OFF: past the kit's effects, into the mix) */
+            byp |= 1u << k;
     }
     int32_t pan = trk[TRK_DRUM].p[P_PAN], gl = 4096 - (pan > 0 ? pan * 64 : 0), gr = 4096 + (pan < 0 ? pan * 64 : 0);
     if (drums.a0 >= 32767 && drums.a1 >= 32767 && !((perf_kill >> TRK_DRUM) & 1u)) {   /* (3.1.3) muted (or another track soloed) all this block: nothing
@@ -672,6 +718,7 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dl
         for (k = 0; k < NDRUM; k++)
             drums.v[k].active = 0;
         drums.tail = drums.trev = drums.tdly = 0;
+        drums.btail = drums.btrev = drums.btdly = 0;
         drums.peak = 0;
         hx_pre_mask = 0;
         return;
@@ -690,14 +737,32 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dl
         DRUM_FADE(drums.trev);
         DRUM_FADE(drums.tdly);
     }
+    for (i = 0; i < n && (drums.btail | drums.btrev | drums.btdly); i++) {   /* (KIT FX OFF) theirs, past the kit's effects */
+        int32_t *bl = dbp_l ? dbp_l : ml, *br = dbp_l ? dbp_r : mr, *bv = dbp_l ? dbp_v : rev, *bd = dbp_l ? dbp_d : dly;
+        if (bl) {
+            bl[i] += drums.btail;
+            br[i] += drums.btail;
+        } else {
+            mono[i] += drums.btail;
+        }
+        bv[i] += drums.btrev;
+        bd[i] += drums.btdly;
+        DRUM_FADE(drums.btail);
+        DRUM_FADE(drums.btrev);
+        DRUM_FADE(drums.btdly);
+    }
 #undef DRUM_FADE
     for (k = 0; k < NDRUM; k++) {               /* synthesised voices: render, then as below */
         voice_t *v = &drums.v[k];
         uint32_t m = n < CTL ? n : CTL;             /* (the mix runs in blocks of CTL) */
         int32_t lp16, lcut, lres, llvl;
+        int32_t *vl = ml, *vr = mr, *vv = rev, *vd = dly, *vm = mono;
         if (!v->active || !drums.synth[k])
             continue;
-        drum_voice_sends(k, mono != 0, &send, &dsend);
+        if ((byp >> (drums.lane[k] % DRUM_LANES)) & 1u)   /* (KIT FX OFF: as a sound with the kit's effects neutral, into
+                                                         * the mix after them; the stereo path, as without the SLICER) */
+            vl = dbp_l, vr = dbp_r, vv = dbp_v, vd = dbp_d, vm = 0;
+        drum_voice_sends(k, vm != 0, &send, &dsend);
         drums.gs[k][0] = send;                      /* (3.1.2: for drum_cut) */
         drums.gs[k][1] = dsend;
         drum_lfo_mod(k, &lp16, &lcut, &lres, &llvl);   /* (PHEBUS wave 3) the sound's LFO */
@@ -738,20 +803,20 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dl
             v->s[7] = s;
             if (s > pk || -s > pk)
                 pk = s < 0 ? -s : s;
-            if (mono) {
-                mono[i] += s;
+            if (vm) {
+                vm[i] += s;
                 if (send)
-                    rev[i] += mulq15(s, send);
+                    vv[i] += mulq15(s, send);
                 if (dsend)
-                    dly[i] += mulq15(s, dsend);
+                    vd[i] += mulq15(s, dsend);
                 continue;
             }
-            ml[i] += (s * gl) >> 12;
-            mr[i] += (s * gr) >> 12;
+            vl[i] += (s * gl) >> 12;
+            vr[i] += (s * gr) >> 12;
             if (send)
-                rev[i] += mulq15(s, send);
+                vv[i] += mulq15(s, send);
             if (dsend)
-                dly[i] += mulq15(s, dsend);
+                vd[i] += mulq15(s, dsend);
         }
         if (!v->active) {
             drum_cut(k);                            /* ended: no step at the end */

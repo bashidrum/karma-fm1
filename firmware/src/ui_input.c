@@ -56,7 +56,7 @@ static uint32_t keys_sounding(const track_t *t)
     if (is_drum(t)) {
         for (i = 0; i < DRUM_LANES; i++)
             if (pad_lit[i])
-                m |= 1u << key_of_white(i);
+                m |= 1u << key_of_lane(i);         /* (its sound's key: the grid's order) */
         return m;
     }
     for (i = 0; i < NVOICE; i++) {
@@ -94,7 +94,7 @@ static uint32_t erase_lanes(const track_t *t)   /* EDIT erase, drum track: the s
             uint32_t l, d = dt_mask(i);
             for (l = 0; d; l++, d >>= 1)
                 if (d & 1u)
-                    m |= 1u << key_of_white(l);
+                    m |= 1u << key_of_lane(l);
         }
     return m;
 }
@@ -113,7 +113,7 @@ static uint32_t keys_lit(void)
                                                     * on F#3 .. C#4 */
         for (i = 0; i < 16u; i++)
             if (!trk_silent(TDRUM) && !drum_silenced(i))
-                m |= 1u << key_of_white(i);
+                m |= 1u << key_of_lane(i);         /* (the sound's key: the grid's order) */
         for (i = 0; i < 4u; i++)
             if (!trk_silent(&trk[i]))
                 m |= 1u << PUNCH_BLACK[i];

@@ -2609,8 +2609,14 @@ static void __attribute__((noinline)) midi_cc(track_t *t, uint32_t cc, uint32_t 
     if (id == 0xFFFFu)
         return;
     if (is_drum(t)) {
-        if (id == P_LEVEL || id == P_REV || id == P_DLY) {
-            id = id == P_LEVEL ? G_DRLVL : id == P_REV ? G_DRREV : G_DRDLY;
+        if (id == P_REV || id == P_DLY) {               /* (the drum effects under FX: no kit-wide sends; the selected
+                                                         * sound's own, as its SENDS page, 0..127 as a synth voice's) */
+            sl_send_set(drum_lane, id == P_DLY, value > 127u ? 127u : value);
+            pkit.s[drum_lane & 15u].mach |= SL_CHG | SL_EDT;
+            pkit_gen++;
+            return;
+        } else if (id == P_LEVEL) {
+            id = G_DRLVL;
             d = &GP[id];
             slot = &song.g[id];
         } else if (id == P_PAN || id == P_FCUT) {

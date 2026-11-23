@@ -223,7 +223,7 @@ static uint32_t stl_keys_lit(uint32_t blink)
         if (song.playing && s == stl_pos)
             on = !on || blink;
         if (on || ((stl_held >> i) & 1u))
-            m |= 1u << key_of_lane(i);
+            m |= 1u << key_of_white(i);
     }
     return m;
 }

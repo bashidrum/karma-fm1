@@ -102,15 +102,19 @@ typedef struct {
     uint8_t src;                             /* where it came from: a kit's number (P_E0's), DSRC_USER + n, DSRC_INIT */
     uint8_t orig;                            /* bits 0..3: the slot it had there; 4..7: its pitch offset, semitones + 8 */
     uint8_t crush;                           /* CLASSIC: its kit's crush (dkit_t.crush) */
-    uint8_t send;                            /* its sends: reverb 0..15 | delay 0..7 << 4 */
-    uint8_t rsv;
+    uint8_t send;                            /* (ver 2, Ben 21:45: the drum sends under FX, as a synth voice's) its reverb send
+                                              * 0..127 | SL_KFX_OFF (bit 7: KIT FX OFF, straight to the mix). Ver 1 (wave 12):
+                                              * reverb 0..15 | delay 0..7 << 4, converted on the way in (slot_old_sends) */
+    uint8_t rsv;                             /* (ver 2) its delay send 0..127 (ver 1: 0) */
 } dslot_t;
+#define SL_KFX_OFF 0x80u                     /* send bit 7: the sound skips the kit's FILTER, INSERT and SLICER */
+#define PK_VER 2u                            /* the slots' format: 2, the sends 0..127 and KIT FX (1: wave 12's) */
 #define PK_MAGIC 0x32544B50u                 /* "PKT2" (wave 12) */
 #define PK_NONE 0xFFu                        /* base: no whole kit to name (never: NEW loads the 606) */
 typedef struct {                             /* the project's kit (592 bytes, in the project's ext: project.c) */
     uint32_t magic;                          /* PK_MAGIC */
     uint8_t base;                            /* the whole kit last loaded: a kit's number (P_E0's), or DSRC_USER + n */
-    uint8_t ver, rsv[2];
+    uint8_t ver, rsv[2];                     /* ver: PK_VER (1: wave 12's sends, 0..15 and 0..7) */
     char name[8];                            /* a user kit's name (base DSRC_USER + n), 0-padded */
     dslot_t s[DRUM_LANES];
 } pkit_t;
@@ -127,14 +131,34 @@ static uint32_t sl_lane(const dslot_t *d) { return d->orig & 15u; }
 static uint32_t drum_model(void) { return sl_mach(drum_lane); }   /* the selected slot's machine (the pages show its own) */
 static const uint8_t *lane_snd(uint32_t l) { return pkit.s[l & 15u].snd; }
 static const dlfo_t *lane_lfo(uint32_t l) { return &pkit.s[l & 15u].lfo; }
-static uint32_t sl_send(uint32_t l, uint32_t which)   /* 0: its reverb send (0..15), 1: its delay send (0..7) */
+static uint32_t sl_send(uint32_t l, uint32_t which)   /* 0: its reverb send, 1: its delay send (0..127 each, as a synth voice's) */
 {
-    return which ? (pkit.s[l & 15u].send >> 4) & 7u : pkit.s[l & 15u].send & 15u;
+    return which ? pkit.s[l & 15u].rsv & 127u : pkit.s[l & 15u].send & 127u;
 }
 static void sl_send_set(uint32_t l, uint32_t which, uint32_t v)
 {
     dslot_t *d = &pkit.s[l & 15u];
-    d->send = (uint8_t)(which ? (d->send & 15u) | (v & 7u) << 4 : (d->send & 0x70u) | (v & 15u));
+    v = v > 127u ? 127u : v;
+    if (which)
+        d->rsv = (uint8_t)v;
+    else
+        d->send = (uint8_t)((d->send & SL_KFX_OFF) | v);
+}
+static uint32_t sl_kfx_off(uint32_t l) { return (pkit.s[l & 15u].send & SL_KFX_OFF) != 0u; }   /* KIT FX OFF */
+static void sl_kfx_set(uint32_t l, uint32_t off)
+{
+    dslot_t *d = &pkit.s[l & 15u];
+    d->send = (uint8_t)((d->send & 127u) | (off ? SL_KFX_OFF : 0u));
+}
+/* a wave 12 slot's sends (reverb 0..15, delay 0..7 << 4) as ver 2's, the same amounts exactly: the audio took them as
+ * v x 127 / 15 and v x 127 / 7 of a 0..127 send (drums.c, wave 12), which is what they become */
+static uint32_t send_old_rev(uint32_t v) { return (v & 15u) * 127u / 15u; }
+static uint32_t send_old_dly(uint32_t v) { return (v & 7u) * 127u / 7u; }
+static void slot_old_sends(dslot_t *d)
+{
+    uint32_t s = d->send;
+    d->send = (uint8_t)send_old_rev(s);
+    d->rsv = (uint8_t)send_old_dly(s >> 4);
 }
 /* the level trim of kit k's sounds (drums.c DRUM_KIT_TRIM: HEX BOOM .. ROOM, 808, 909; MY HEX: the HEX kit it started from) */
 static uint32_t kit_trim(uint32_t k)
@@ -237,7 +261,7 @@ static void pkit_load_kit(uint32_t k)       /* the 16 slots made built-in (or MY
         slot_from_kit(&pkit.s[l], k, l);
     pkit.magic = PK_MAGIC;
     pkit.base = (uint8_t)k;
-    pkit.ver = 1;
+    pkit.ver = PK_VER;
     pkit_gen++;
     fm1_irq_on();
 }
@@ -279,24 +303,26 @@ static void slot_fix(dslot_t *d)
     else
         dsu_fix_sound((hex_snd_t *)d->snd);
     dlfo_fix(&d->lfo);
-    d->send &= 0x7Fu;
     if (d->src != DSRC_INIT && (d->src & 0x80u))
         d->src = DSRC_INIT;
     if (((d->orig >> 4) & 15u) < 4u)        /* (its pitch offset: -4 .. +7) */
         d->orig = (uint8_t)((d->orig & 15u) | 8u << 4);
-    d->rsv = 0;
+    d->rsv &= 127u;                          /* (its delay send) */
 }
 static int pkit_fix(pkit_t *p)               /* a kit from outside: checked (0: not one) */
 {
     uint32_t l;
     if (p->magic != PK_MAGIC)
         return 0;
-    for (l = 0; l < DRUM_LANES; l++)
+    for (l = 0; l < DRUM_LANES; l++) {
+        if (p->ver < PK_VER)                 /* (wave 12's: its sends onto 0..127, the same amounts) */
+            slot_old_sends(&p->s[l]);
         slot_fix(&p->s[l]);
+    }
     for (l = 0; l < 8u; l++)
         if (p->name[l] && (p->name[l] < 32 || p->name[l] > 126))
             p->name[l] = ' ';
-    p->ver = 1;
+    p->ver = PK_VER;
     p->rsv[0] = p->rsv[1] = 0;
     return 1;
 }
@@ -337,7 +363,8 @@ static void pkit_from_old(uint32_t k0, const uint8_t *dsend, const pkit1_t *c, i
     }
     for (l = 0; dsend && l < DRUM_LANES; l++) {
         pkit.s[l].send = (uint8_t)(dsend[l] & 0x7Fu);
-        if (pkit.s[l].send)
+        slot_old_sends(&pkit.s[l]);          /* (waves 3 to 11: 0..15 and 0..7, as wave 12's) */
+        if (pkit.s[l].send | pkit.s[l].rsv)
             pkit.s[l].mach |= SL_CHG;
     }
     pkit_gen++;

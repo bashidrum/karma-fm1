@@ -723,6 +723,58 @@ Memory, measured on the rv32 -Os stand-in against ben (6bfe28a's tree): code +76
 Not checked
 - No device build (no toolchain here); the simulator's stand-in compile is clean. Long tests (soak, stress, regress, web) not run. tests/stress_test.c does not compile on ben either (black_keys redeclared: the test's array against wave 11's function), not touched.
 
+## The drum grid, Rytm style (23 Nov): calls made that Ben did not specify
+Ben's words: SPEC.md "23 Nov 2026, 21:07" (the Rytm's layout), his 21:10 and 21:15 answers (keys "Top to bottom" in each column; "Everywhere the 16 are drawn") and "21:14" (the grid as he typed it). They govern the mixer section of wave 13 where they clash.
+
+The one table
+- drums.c DRUM_GRID: 16 bytes in flash, the grid's place (row by row from the top left) to the slot: HAT OP HAT RIDE CRASH / PEDAL CONGA C-BELL SHAKER / KICK 2 LO TOM HI TOM CLAP / KICK RIM SNARE 2 SNARE. White key w is place (w mod 4) x 4 + w / 4 (down the columns); the same sum turns a place back into its key. lane_of_key, key_of_lane, lane_step (SELECT's order) and every drawing of the 16 read it; key_of_white is the plain "white key n" for steps and pads. No RAM.
+- Presentation and key order only: the slots, the project format (FUN8), the kits, MIDI note numbers in and out (a key sends its sound's GM note, as before), trigs, locks, PERFORM's drum mutes (by slot) do not change. A project saved before plays the same: kit12_test's and w13's renders unchanged.
+
+Where the 16 appear, and what changed
+- The mixer (hold GLO): tiles in the grid; white key n mutes / solos the n-th sound of the key order; the tile under the key is the one that changes. Its key lights: every white key lit while GLO is held (each does something); there is no per-key mute light on the mixer (there was none before either), so nothing else to reorder.
+- The muted / soloed tile: the M / S tab now 8 px flush with the tile's right edge (was 9 px a pixel in), so a six-letter name (OP HAT, SHAKER, C-BELL, KICK 2, LO TOM, HI TOM, SNARE2) keeps a pixel clear of the tile's edge and the tab. In the new arrangement OP HAT and SHAKER, muted, touched both (OP HAT read as DP HAT). The names are the short names already in the code (SNARE2 without a space: the chip and dials need six letters).
+- The drum screen's slot map: the grid; the selected slot framed in its place; slots with hits dim teal, lit as they play.
+- SELECT on the drum screen: key order (HAT, PEDAL, KICK 2, KICK, OP HAT ... CLAP, SNARE) and round (it stopped at either end before; the brief asked for the wrap). The chip's dial shows the key's place. A new project starts on KICK (slot 1, as before; key 4): the natural first sound to edit, rather than HAT at place 1. The selected sound is kept by slot.
+- CHROMATIC mode's OCT- / OCT+ (the sound before / after): key order, stopping at HAT and SNARE (as it stopped before; no wrap, so a tap past the end does not jump).
+- The keys playing drum sounds (HOME and every screen where they are not steps, live recording, MIDI out of what they play): key n plays the n-th sound of the key order. What a recorded pattern plays does not change (trigs are stored by slot).
+- Hold SEQ: RETRIG on a key is that key's sound; its 16 tiles are drawn as the grid (tile under the held key lit).
+- A hit lights its sound's key (the key that plays it) on HOME and in DISCO SHOW; "a sound's key held + OCT-" erases that key's sound.
+- The old drum MUTE screen (unreachable since wave 9) drawn in the grid too, so its keys and tiles would agree.
+- Not changed: the drum steps (the 16 keys are the selected sound's steps), HOME's DRUM zone (16 steps, not sounds), SAVE > KITS (no list of the 16), the sound list's kind order for PRESETS (KICK to COWBELL: a browse order, not keys; left as is, for Ben below), MIDI.
+
+Cost: rv32 -Os stand-in against ben: code +556 B, constants +16 B, .data+.bss +0, pool and .noinit unchanged; no divide. An image of about 550,370 of 581,564.
+
+Not checked: no device build. Long tests not run. tests/hostsim's TRACKS run reports FAILED with "free(): invalid pointer" on ben too (identical output): not touched.
+
+## Drum effects under FX (23 Nov): calls made that Ben did not specify
+Ben's words: SPEC.md "23 Nov 2026, 21:30 and 21:35" with his 21:45 answers ("Remove them"; "Yes, a KIT FX switch per sound"), "21:40" ("FILTER should live under Edit. Filter envelope should live under ENV. Sends should live under FX") and "21:41" ("Just mirror the synths as closely as possible where possible").
+
+Where things are now (drum voice; the synth voices unchanged)
+- EDIT: SRC, FLTR (the sound's), then KIT FLT (the kit's FILTER), past a divider as FX has between the voice and the mix. ENV: AMP. LFO: LFO. FX: INS (the kit's INSERT, SEL: INSERT 2), SENDS (the selected sound's), SLICER (the kit's), then MIX, STUT: a synth voice's INS, SENDS, SLICER order (the coordinator's first proposal had SENDS first; Ben's 21:41 rule decided it).
+- SENDS: DELAY, REVERB, KIT FX on KNOBS 1 to 3 (a synth voice's SENDS is DELAY, REVERB, CHORUS: the drums have no chorus send, KIT FX takes that place). Named and ranged as the synth's: 0..127.
+- The kit's pages (INSERT, INSERT 2, SLICER, KIT FLT): header KIT, no chip, SELECT does nothing; the big name says KIT and the kit's name; no sound framed in the map; "THE KIT: n OF 16 SOUNDS". SELECT also does nothing on the drum screen's MIX pages (a synth voice's MIX pages have no type either).
+- AMP 2/2: HEX CRUSH and LEVEL (knobs 1 and 4, where they were); CLASSIC LEVEL alone (knob 4). The CLASSIC machine has nothing else that belongs on AMP; exposing its kit's crush as a CRUSH knob there (as HEX has) would fill it: for Ben.
+- D7, the filter envelope: neither drum machine has one. CLASSIC: FLTR's ENV is an amount; the cutoff follows the sound's pitch sweep (SRC 2/3 SWEEP, SWTIME) and the velocity, no envelope shape of its own. HEX (the LXR's voices): a static filter, no envelope. So ENV stays AMP only. The synth voices checked against Ben's sentence: filter pages under EDIT (FILT, FILT 2), the filter's own envelope under ENV (FILT ENV), sends under FX (SENDS): nothing out of place.
+
+The sends, the format
+- A slot's sends were 0..15 (reverb) and 0..7 (delay) in one byte; now 0..127 each, the reverb in the send byte with bit 7 KIT FX OFF, the delay in the slot's spare byte (rsv). No size change, no RAM. The kit's ver byte says which (PK_VER 2; ver 1 = wave 12's), converted wherever a slot comes in: the project, user kits, a single sound from a user kit, a backup's kits. The conversion is exact: wave 12's audio used v x 127 / 15 and v x 127 / 7, which is what they become.
+- An old project (core rsv[0] below the new PROJ_DSEND_V 4): every slot's sends get the kit's G_DRREV, G_DRDLY added, clamped to 127, which is exactly what the audio did (own + kit, clamped, then the THROWs). Its drum send locks: onto 0..127 plus that core's kit sends (a pattern A to D carries its own kit sends, so its locks fold with its own; its unlocked hits play the project's slots, folded with the project's: a pattern stored with different kit sends than the project's loses that difference). G_DRREV and G_DRDLY are then 0, kept in the core (ids not renumbered or reused), never shown, never heard. The kit-wide sends were never lockable (SC_GLOBAL), so there were no locks of them to convert.
+- Proven by renders of projects saved by wave 14's own code (tests/dfx_ref.sh builds tests/dfx_test.c against ben's c73413f): kit sends with sounds' own and locks, a clamp at 127, the drum FILTER and INSERT on: identical, sample for sample. With the drum SLICER on: not exact, 16.6 dB under the signal on the test pattern (kit sends 40 and 30): the kit's share was sliced (it went in after the SLICER), a sound's own share goes in before it, as it always did. Options for Ben below.
+- An LFO on a send: the send's range is now 0..127, so the LFO moves it in finer steps than the 0..15 it moved before (a small audible change only where a project had an LFO on DEL or REV).
+- MIDI CC 91 / 94 on the drum channel: the selected sound's REVERB / DELAY (they were the kit-wide sends).
+
+KIT FX
+- Per slot, bit 7 of its send byte: saved with the project and with user kits; not lockable (no free lock id is needed and the switch is the slot's). ON to start.
+- Audio: a voice of a sound with KIT FX OFF writes straight into the mix and send buses after the kit's FILTER, INSERT and SLICER (fx.c points drums.c at them for the drum chain's block), the same arithmetic as the neutral path, so it is sample-identical to the same sound in a kit whose three are neutral (tested, with all three on). Its declick tail goes the same way. No extra buffer: 28 bytes of state (four pointers, three tails). The track's mute and solo fade, the mixer's sound mutes and solos, PERFORM's drum mutes, chokes and the sends act on both paths (the mixer's mute tested). HOME's DRUM level and pan apply to both.
+
+Lights, tests, screens
+- Lights: the page buttons light where they move; on SENDS with a step held, DELAY and REVERB lock, KIT FX says NOT LOCKABLE. Hold LFO on SENDS maps DELAY or REVERB (both were already in the DEST list, no cost); KIT FX: NOT MAPPABLE.
+- The tab row: FX on the drums now has a synth voice's five names; on SENDS with the -/+ legend the names close up to 3 px and SLICER shortens to SLI (wave 14's rule, as on a synth voice's rows): legible but tight; worth a look in the review.
+- Memory and CPU, rv32 -Os stand-in against ben (c73413f), both jobs together: code +3,176 B, constants +125 B, .data+.bss +32 B (the drum grid alone: +556, +16, 0). On the device about 553,100 of 581,564 B of image and 96,964 of 98,304 B of .data+.bss. The pool and .noinit unchanged. No 64-bit divide added. CPU: a bit test per voice a block.
+
+Not checked
+- No device build. Long tests not run. hostsim's TRACKS run fails on ben too (identical output).
+
 ## For Ben to confirm
 Every call waves 2 to 7 made that the spec did not cover, and every device-only limit or lossy conversion, one line each. The detail is in each wave's section above.
 
@@ -874,6 +926,11 @@ Wave 14, the stutter sequence on FX
 - Hold SEQ's halve / double refused on the lane; hold ARP, EDIT and the rest act on the selected voice.
 - A lane step held now blocks the page buttons until let go (as a step held on the steps), so the lights can say it.
 - HOME's PERFORM zone says FX>STUT while no pad is latched.
+The drum grid
+- Hand-played drum keys follow the grid as Ben chose ("Everywhere"): the lowest key is now HAT and the kick is key 4 (it was key 1, as on a General MIDI-like keyboard where the kick is lowest). Recommendation: keep it (one key, one sound on every screen); the MIDI notes in and out stay GM, so an external pad controller is unaffected.
+- SELECT goes round (SNARE to HAT); CHROMATIC's -/+ still stops at either end.
+- PRESETS' sound list keeps its kind order (KICK, KICK 2, SNARE ... COWBELL) after the slot's own kind. Recommendation: keep (it is a list, not a layout); say if it should follow the grid's key order instead.
+- The mixer's M / S tab moved a pixel right and lost a pixel of width so the six-letter names fit.
 The artwork (23 Nov 2026, 20:56): THIRD EYE, DESERT, BEACH
 - THIRD EYE: the eye's white line, its two black echoes and the thin black ring round the iris are gone. Without a line, a black eye vanished into the sky's black bands, so its white is a flat slate (40, 36, 56), a shade no voice colour takes at any level. The eye is 72 x 34 half (was 64 x 30; measured 143 x 68 px against 129 x 61, +11 %), the iris and pupil about 12 % larger, 2 px higher so its lower lid sits where it did. The gaze, the blink and the iris colours are as they were.
 - The dunes of both deserts are drawn by the one function: no bright crest line, no dark contour, only the lit and shaded faces. DESERT's sun is the old one magnified 32/29 (+10 %), rings with it; its outer ring now reaches 72 px over the horizon (was 66). Stars, sky and glow untouched.
@@ -883,3 +940,11 @@ The artwork (23 Nov 2026, 20:56): THIRD EYE, DESERT, BEACH
 - The boot over BEACH shows the sea, sky and palms without the characters: they broke up the PHE / BUS letters.
 - Host frame time: BEACH about 0.09 ms against THIRD EYE's 0.12 to 0.13 (THIRD EYE was about 0.13 before, its echoes cost). Device speed unknown.
 - VIS_N is 5 in panel.c; the settings word's 4 bits hold it.
+Drum effects under FX
+- FX on the drums in a synth voice's order: INS (kit), SENDS (the sound's), SLICER (kit), MIX, STUT; the kit's FILTER is EDIT's third category KIT FLT.
+- Old projects with the drum SLICER on and kit-wide sends: close, not exact (16.6 dB under on the test). Options: (a) keep (recommended: simple, the sends now behave one way); (b) a hidden per-sound "send after the SLICER" flag set only by the conversion (exact, one more rule nobody can see).
+- The CLASSIC machine's AMP 2/2 is LEVEL alone; option: show its kit's crush there as CRUSH (as HEX has).
+- SELECT does nothing on the drum screen's MIX pages too (as on a synth voice's MIX pages).
+- MIDI CC 91 / 94 on the drum channel set the selected sound's sends.
+- The drum sends are 0..127 like a synth voice's (they were 0..15 and 0..7); an LFO on a send moves it more finely than before.
+- A pattern A to D stored with other kit sends than the project's: its locks fold with its own, its plain hits with the project's.

@@ -236,7 +236,7 @@ static void t_ratchet(void)
 
 static void t_roll(void)
 {
-    uint32_t i, k = 6, n;                           /* key 6 = B3 -> lane 3 (clap) */
+    uint32_t i, k = key_of_lane(3), n;              /* the clap's key (the drum grid: key 15, F5) */
     reset(120);
     song.g[G_ROLL] = 2;                              /* 1/32 (the synth tracks' rolls) */
     drt_live = 13;                                   /* (PHEBUS wave 3: the drum track's ARP + key is the Rytm's live
@@ -279,7 +279,7 @@ static void t_erase_undo(void)
     transport_req = 1;
     while (TDRUM->seq_idx != 4u)
         run_block();
-    fm1_in.notes = 1u << 7;                         /* (wave 10) the hat key (C4 = key 7) held, then OCT-: erase */
+    fm1_in.notes = 1u << key_of_lane(4);            /* (wave 10) the hat's key (the drum grid: key 1, F3) held, then OCT-: erase */
     run_block();
     fm1_in.buttons = dyn_bit[0];
     while (TDRUM->seq_idx != 7u)
@@ -309,7 +309,7 @@ static void t_erase_undo(void)
     check(left == 16u && undo.trk == TRK_DRUM, "undo: the erased hats are back");
     transport_req = 2;
     run_block();
-    fm1_in.notes = 1u << 7;                         /* stopped: every hat of the pattern */
+    fm1_in.notes = 1u << key_of_lane(4);            /* stopped: every hat of the pattern */
     run_block();
     fm1_in.buttons = dyn_bit[0];
     run_block();
@@ -331,22 +331,22 @@ static void t_levels(void)
     song.rec = 1u << TRK_DRUM;
     transport_req = 1;
     run_block();
-    drum_newvel = 42;                                /* TRIG, KNOB 1: 42 (a ghost), then a snare (A3 = key 4) */
-    fm1_in.notes = 1u << 4;
+    drum_newvel = 42;                                /* TRIG, KNOB 1: 42 (a ghost), then a snare (the drum grid: key 16) */
+    fm1_in.notes = 1u << key_of_lane(2);
     run_block();
     fm1_in.notes = 0;
     run_block();
     while (TDRUM->seq_idx != 3u)
         run_block();
-    drum_newvel = 127;                               /* 127 (hard), a kick */
-    fm1_in.notes = 1u << 0;
+    drum_newvel = 127;                               /* 127 (hard), a kick (key 4) */
+    fm1_in.notes = 1u << key_of_lane(0);
     run_block();
     fm1_in.notes = 0;
     run_block();
     fm1_in.buttons = dyn_bit[0];                     /* OCT- held, then a key: just the hit, at that velocity (no ghost) */
     while (TDRUM->seq_idx != 6u)
         run_block();
-    fm1_in.notes = 1u << 2;                          /* (G3: KICK 2) */
+    fm1_in.notes = 1u << key_of_lane(1);             /* (KICK 2: key 3) */
     run_block();
     fm1_in.notes = fm1_in.buttons = 0;
     run_block();
@@ -1912,10 +1912,11 @@ static void t_midicc(void)
     cc_push(drch, 7, 0); cc_push(drch, 91, 127); cc_push(drch, 10, 0); cc_push(drch, 74, 127); cc_push(drch, 73, 127);
     cc_push(drch, 94, 64);
     run_block(); run_block();
-    check(song.g[G_DRLVL] == 0 && song.g[G_DRREV] == 127 && song.g[G_DRDLY] == 64 && TDRUM->p[P_PAN] == -64 && TDRUM->p[P_TFLT] == 63
+    check(song.g[G_DRLVL] == 0 && song.g[G_DRREV] == 0 && song.g[G_DRDLY] == 0 && sl_send(drum_lane, 0) == 127u &&
+          sl_send(drum_lane, 1) == 64u && TDRUM->p[P_PAN] == -64 && TDRUM->p[P_TFLT] == 63
           && TDRUM->p[P_ATK] == before[P_ATK] && TDRUM->p[P_DLY] == before[P_DLY],
-          "2.5: the drum channel: 7 / 91 / 94 = DRUMS LVL / REV / DLY, 10 PAN, 74 FILTER; 73 ignored");
-    song.g[G_DRDLY] = 0;
+          "the drum channel: 7 LVL, 91 / 94 the selected sound's REVERB / DELAY (no kit-wide sends since the drum effects moved under FX), 10 PAN, 74 FILTER; 73 ignored");
+    sl_send_set(drum_lane, 0, 0), sl_send_set(drum_lane, 1, 0);
     song.g[G_ROUTE] = 1;
     cc_push(0, 7, 55);
     run_block(); run_block();
@@ -2016,15 +2017,15 @@ static double drdly_echo(int32_t dly, int32_t flt)
 {
     double e;
     reset(120);
-    song.g[G_DRREV] = 0;
-    song.g[G_DRDLY] = (int16_t)dly;
+    sl_send_set(2, 0, 0);                                /* (the snare's own delay send: the kit-wide one is gone) */
+    sl_send_set(2, 1, (uint32_t)dly);
     TDRUM->p[P_TFLT] = (int16_t)flt;
     tf_measure(40);
     trk_note_on(TDRUM, 38u, 120);
     tf_measure(400);                                     /* the hit (2026-10-26: the HEX snare, the LXR's, rings 0.25 s) */
     tf_measure(1600);                                    /* then its echoes (or silence) */
     e = tf_rms;
-    song.g[G_DRDLY] = 0;
+    sl_send_set(2, 1, 0);
     TDRUM->p[P_TFLT] = 0;
     return e;
 }
@@ -2033,7 +2034,7 @@ static void t_drdly(void)
     double off = drdly_echo(0, 0), on = drdly_echo(127, 0), onf = drdly_echo(127, -30), half = drdly_echo(64, 0);
     printf("  drum DLY: echo rms off %.0f, 64 %.0f, 127 %.0f, 127 + filter %.0f\n", off, half, on, onf);
     check(on > off * 10.0 + 1.0 && half < on && half > off * 3.0 && onf > off * 10.0 + 1.0,
-          "2.5: GLO > DRUMS > DLY: the drums echo in the tempo delay (more with more DLY, through the FILTER too); 0: none");
+          "a drum sound's DELAY send: it echoes in the tempo delay (more with more, through the kit's FILTER too); 0: none");
 }
 
 /* (wave 7) the drum RETRIG grid and the retrig curve in 32 bits (the device has no 64-bit divide) equal the 64-bit forms */

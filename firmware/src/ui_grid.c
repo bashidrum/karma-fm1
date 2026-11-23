@@ -1041,7 +1041,7 @@ static uint32_t grid_keys_lit(uint32_t blink)
         if (song.playing && idx == t->seq_idx)
             on = !on || blink;
         if (on || ((sg_held >> i) & 1u))
-            m |= 1u << key_of_lane(i);
+            m |= 1u << key_of_white(i);
     }
     return m;
 }

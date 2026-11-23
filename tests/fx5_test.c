@@ -372,7 +372,7 @@ static void t_project(void)
     mxt[1].as[0] = P_FDRV + 1u, mxt[1].l2sync = 5, mxt[1].l2trig = 2, mxt[1].spice = 66, mxt[1].dice = 1234;
     lock_set(&trk[1], 3, P_X1TIME, 90);
     proj_capture(&w);
-    ok &= w.c.rsv[0] == PROJ_SEND_V && proj_ok(&w.c);
+    ok &= w.c.rsv[0] >= PROJ_SEND_V && proj_ok(&w.c);
     reset();
     proj_apply(&w.c, 1);
     l = lock_find(&trk[1], 3, P_X1TIME, 0);

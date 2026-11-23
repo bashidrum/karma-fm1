@@ -24,10 +24,13 @@ static const uint8_t NAV_SYN[NB][5] = {
     [B_HOME] = {CT_HOME, CT_SAVER},
 };
 static const uint8_t NAV_DRUM[NB][6] = {               /* the drum voice, parallel (the Rytm's SRC FLTR AMP LFO, its FX track) */
-    [B_EDIT] = {CT_SRC, CT_FLTR},
+    [B_EDIT] = {CT_SRC, CT_FLTR, CT_DFILT},             /* (Ben 21:40: "FILTER should live under Edit": the kit's, after the
+                                                         * sound's own, past a divider) */
     [B_ENV] = {CT_DAMP},
     [B_LFO] = {CT_DLFO},
-    [B_FX] = {CT_DFILT, CT_DINS, CT_DSENDS, CT_DSLICER, CT_MIX, CT_STUT},
+    [B_FX] = {CT_DINS, CT_DSENDS, CT_DSLICER, CT_MIX, CT_STUT},   /* (Ben 21:41: "mirror the synths": a synth voice's INS,
+                                                         * SENDS, SLICER order; SENDS the selected sound's, INS and SLICER the
+                                                         * kit's; no FILTER: EDIT's) */
     [B_SEQ] = {CT_TRIG, CT_PATT, CT_PATTS},             /* (wave 10, Ben: "in charge of patterns") */
     [B_ARP] = {CT_CHROM},
     [B_GLO] = {CT_GLOBAL, CT_SYSTEM, CT_MIDI, CT_DEVICE},
@@ -37,16 +40,18 @@ static const uint8_t NAV_DRUM[NB][6] = {               /* the drum voice, parall
 static const char *const CT_NAME[CT_N] = {
     [CT_OSC] = "OSC", [CT_FILT] = "FILT", [CT_AMP] = "AMP", [CT_FENV] = "FILT", [CT_LFO1] = "LFO 1", [CT_LFO2] = "LFO 2",
     [CT_MATRIX] = "MATRIX", [CT_INS] = "INS", [CT_SENDS] = "SENDS", [CT_SLICER] = "SLICER", [CT_MIX] = "MIX",
-    [CT_DFILT] = "FILTER", [CT_DINS] = "INS", [CT_DSENDS] = "SENDS", [CT_DSLICER] = "SLICER", [CT_ARP] = "ARP",
+    [CT_DFILT] = "KIT FLT", [CT_DINS] = "INS", [CT_DSENDS] = "SENDS", [CT_DSLICER] = "SLICER", [CT_ARP] = "ARP",
     [CT_KEY] = "KEY", [CT_GLOBAL] = "GLOBAL", [CT_SYSTEM] = "SYSTEM", [CT_MIDI] = "MIDI", [CT_PRESETS] = "PRESETS",
     [CT_USER] = "USER", [CT_TOOLS] = "TOOLS", [CT_HOME] = "HOME", [CT_TRIG] = "TRIG", [CT_PATT] = "PATTERN", [CT_PATTS] = "A-D", [CT_SRC] = "SRC",
     [CT_FLTR] = "FLTR", [CT_DAMP] = "AMP", [CT_DLFO] = "LFO", [CT_CHROM] = "CHROM", [CT_DEVICE] = "DEVICE",
     [CT_SAVER] = "SAVER", [CT_SPATT] = "PATT", [CT_KITS] = "KITS", [CT_STUT] = "STUT",
 };
-/* the drum screen's FX tab: where each category starts among its halves (ui_drum.c dbus_page: FILTER, INSERT, INSERT 2,
- * SENDS, SLICER, then the whole mix's DELAY, REV/CHO, MASTER) */
-static uint32_t dfx_first(uint32_t c) { return c == CT_DFILT ? 0u : c == CT_DINS ? 1u : c == CT_DSENDS ? 3u : c == CT_DSLICER ? 4u : 5u; }
-static uint32_t dfx_cat(uint32_t h) { return h < 1u ? CT_DFILT : h < 3u ? CT_DINS : h < 4u ? CT_DSENDS : h < 5u ? CT_DSLICER : CT_MIX; }
+/* the drum screen's FX tab: where each category starts among its halves (ui_drum.c dbus_page: INSERT, INSERT 2, SENDS,
+ * SLICER, then the whole mix's DELAY, REV/CHO, MASTER, then the kit's FILTER, EDIT's) */
+static uint32_t dfx_first(uint32_t c) { return c == CT_DINS ? 0u : c == CT_DSENDS ? 2u : c == CT_DSLICER ? 3u : c == CT_DFILT ? 7u : 4u; }
+static uint32_t dfx_cat(uint32_t h) { return h < 2u ? CT_DINS : h < 3u ? CT_DSENDS : h < 4u ? CT_DSLICER : h < 7u ? CT_MIX : CT_DFILT; }
+static int nav_div(uint32_t c) { return c == CT_MIX || c == CT_DFILT; }   /* a divider before it: the voice | the mix; the
+                                                         * sound | the kit (the drums' EDIT) */
 static int nav_grid(void) { return on_drum_page() && !stl_shown(); }   /* the GRID or the drum screen shown */
 static int nav_voice_cat(uint32_t c) { return c >= CT_OSC && c <= CT_MIX; }   /* a synth voice's (and the mix's) PAGES */
 static int nav_mix_cat(uint32_t c) { return c == CT_MIX || c == CT_STUT; }    /* (wave 14) the whole mix's group: white */
@@ -356,7 +361,7 @@ static void nav_tabs(uint16_t col, const char *banner, uint32_t *cache)
             for (;;) {
                 tw = 0;
                 for (i = 0; i < ng; i++)
-                    tw += text_w(&FONT_S, nm[i]) + (g[i] == CT_MIX && i ? 5 : 0);
+                    tw += text_w(&FONT_S, nm[i]) + (nav_div(g[i]) && i ? 5 : 0);
                 for (gap = 9; gap > 3 && tw + gap * (int32_t)(ng ? ng - 1u : 0u) > room; gap--)
                     ;
                 if (tw + gap * (int32_t)(ng ? ng - 1u : 0u) <= room || cut < 3)
@@ -382,7 +387,7 @@ static void nav_tabs(uint16_t col, const char *banner, uint32_t *cache)
         uint16_t cc = mix ? C_WHITE : col;
         if (i < 4u)
             nav_tabs_shown |= (uint32_t)g[i] << (8u * i);
-        if (g[i] == CT_MIX && i) {                      /* the boundary: this voice | the whole mix */
+        if (nav_div(g[i]) && i) {                       /* the boundary: this voice | the whole mix (the sound | the kit) */
             cv_rect(x - 2, 3, 2, 19, TE_G4);
             x += 5;
         }

@@ -43,7 +43,7 @@ static int map_page_ok(void)
 static int map_drum_ok(void)
 {
     return !ui.home && !ui.menu && !vis_shown() && !rec_wait && is_drum(TSEL) && on_drum_page() && !stl_shown() &&
-           drum_pg >= 1u && drum_pg < DPG_FX && drum_keys == DK_PLAY && !sg_held && !ui.ask;
+           dpg_snd() && drum_keys == DK_PLAY && !sg_held && !ui.ask;   /* (the drum effects under FX: its SENDS too) */
 }
 static int map_ok_for(uint32_t held) { return held == LY_LFO ? map_page_ok() || map_drum_ok() : held == LY_ENV && map_page_ok(); }
 /* the page seen: which LFO / envelope is "the one last shown" (every frame, ui_input.c) */

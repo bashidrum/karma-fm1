@@ -95,6 +95,12 @@ run "PHEBUS wave 4: every Type on every track, the voice filter moves (CUTOFF RE
 
 $CC -O1 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/w13_test" tests/w13_test.c $PLX -lm
 run "PHEBUS wave 13: the mixer's solo and mute heard through the keys (the snare alone, sample for sample), its screen, the lane's black keys" "$OUT/w13_test" "$OUT"
+$CC -O1 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/grid_test" tests/grid_test.c $PLX -lm
+run "the drum grid, Rytm style: the 16 places, the mixer's keys in column order (heard, sample for sample), the drum map, SELECT's order, the keys elsewhere" "$OUT/grid_test" "$OUT"
+$CC -O1 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/dfx_test" tests/dfx_test.c $PLX -lm
+run "the drum effects under FX: wave 14 projects with kit-wide drum sends sound the same (tests/dfx_ref, by tests/dfx_ref.sh), KIT FX saved" "$OUT/dfx_test" tests/dfx_ref
+$CC -O1 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/dfxui_test" tests/dfxui_test.c $PLX -lm
+run "the drum effects under FX: EDIT and ENV dry, FX as a synth voice's, the kit's pages say KIT, per-sound sends, KIT FX bypass (heard)" "$OUT/dfxui_test" "$OUT"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o "$OUT/ui_pages_test" tests/ui_pages_test.c $PLX -lm
 run "live UI: pages, layers (punch, steps, erase, roll, key, mix), holds, drums, REC, fuzz" "$OUT/ui_pages_test" "$OUT"
 # no divide by 0 (the FM-1 runs with the div0 trap off, hal/fm1_irq.h: a real one would give a wrong value

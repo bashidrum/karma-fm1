@@ -190,17 +190,14 @@ static void slicer_drums(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dly, u
         sl_dbuf[i] = 0;
     drums_render_mono(rev, dly, sl_dbuf, n);
     slicer_track(t, sl_dbuf, n);
-    {
-        int32_t send = send_thr(song.g[G_DRREV] * 258, thr_rev), dsend = send_thr(song.g[G_DRDLY] * 258, thr_dly), pan = t->p[P_PAN];
+    {   /* (the drum effects under FX, Ben 21:45: the kit-wide sends are gone; each sound's own come from drums_mix, before
+         * the SLICER, as they always did) */
+        int32_t pan = t->p[P_PAN];
         int32_t gl = 4096 - (pan > 0 ? pan * 64 : 0), gr = 4096 + (pan < 0 ? pan * 64 : 0);
         for (i = 0; i < n; i++) {
             int32_t x = sl_dbuf[i];
             ml[i] += (x * gl) >> 12;
             mr[i] += (x * gr) >> 12;
-            if (send)
-                rev[i] += mulq15(x, send);
-            if (dsend)
-                dly[i] += mulq15(x, dsend);
         }
     }
 }

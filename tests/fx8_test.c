@@ -136,7 +136,7 @@ static void t_convert(void)
     int l, ok;
     base();
     proj_capture(&w);
-    check(w.c.rsv[0] == PROJ_SEND_V, "a project saved now is marked as wave 8's (rsv 3: the sends their own)");
+    check(w.c.rsv[0] >= PROJ_SEND_V, "a project saved now is marked as wave 8 or later (rsv 3: the sends their own; 4: no kit-wide drum sends)");
     w.c.rsv[0] = PROJ_FX_V;
     {
         int16_t *p = w.c.t[0].p;
