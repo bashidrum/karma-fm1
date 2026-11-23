@@ -211,3 +211,10 @@ He asked for an audit, not a build (review/LAYOUT-AUDIT-2026-11-22.md). His answ
 3. Long presses: good for a quick hidden shortcut only for the things that users want a lot for performance flow. But to be thought of as an additional quick short cut rather than a main way to move around or select things.
 
 4. Button combo presses are the least pleasant of all. Maybe ok if one of the buttons is always the same and then the shortcut you're triggering is an obvious linked feature to the button you're pressing. Like -oct and sequence could halve the sequence. Or +oct and sequence could double it as a clone"
+
+His answers by picker, 23 Nov 2026 (these replace the 22 Nov answer "FX = whole mix only" where they differ):
+
+- FX button: "Voice FX, then mix FX". Pressing FX walks this voice's inserts, sends and slicer (voice colour), then master delay, reverb, master (white).
+- Filter home: "EDIT: osc, filter, alternating". EDIT press 1 oscillator, press 2 filter, then the deeper oscillator and filter pages.
+- SELECT knob: "Yes, SELECT = type". SELECT chooses the type on the current page (oscillator type, insert type, filter type, LFO wave). Pages are walked only by pressing the labelled button again.
+- When: "Build it now".
