@@ -304,3 +304,7 @@ To be built with the hold-to-map wave: while a button (or a step) is held, every
 "I also see that the white key buttons can do all kind of mad dances. We should have settings for how much of a disco you can put on in the global settings. For example, it might be a dick move to have it flashing for 11hrs on a flight to Mexico. But I'd want it flashing if I was ever shooting some content with it"
 
 To be built with the lights work: one setting under GLO for how much the lights move, from none to a full show.
+
+### 23 Nov 2026, 11:02: changing one drum's sound, in Ben's words
+
+With a simulator screenshot (drum screen, RIM selected, kit HEX BOOM, the bar "HOLD SAVE: REPLACE 606*"): "Kind of confusing how to change the sound of individual drums. I could do sound design on a preset snare but couldn't see how to load in like an 808 snare with a 606 kit preset. Or just choose the snare engine and then do sound design. Bit confusing. Also it seemed like it wanted me to hold save to change away from loading a 606 snare or something?"
