@@ -232,7 +232,7 @@ The HOME knobs play the selected voice while it plays:
 | Knob | Does |
 | --- | --- |
 | **KNOB 1 CUTOFF** | the voice filter's cutoff (on the drums: the drum voice's own FILTER) |
-| **KNOB 2 DECAY** | the decay of the envelope that moves the sound: the filter's own envelope's DECAY while it is OWN (as ACID INIT is), else the amp envelope's; on the drums the selected sound's decay, on every kit |
+| **KNOB 2 DECAY** | the amp envelope's DECAY, on every synth voice; on the drums the selected sound's decay, on every kit |
 | **KNOB 3 STUT** | the STUTTER lane ON (turn right) or OFF (turn left). White-grey: it acts on the whole mix |
 | **KNOB 4 LEVEL** | the voice's level. On a muted voice the first turn unmutes it |
 

@@ -258,10 +258,10 @@ static int16_t *home_knob(uint32_t k, const param_desc_t **d)
         dec = (int16_t)dsp_get(drum_model(), lane_snd(drum_lane), lane_lfo(drum_lane), drum_lane, drum_dec_id());
         return &dec;
     }
-    /* (PHEBUS wave 4) every synth voice the same: CUTOFF the voice filter's; DECAY the filter's own envelope's while it is
-     * OWN (what moves the sound: ACID's 303 decay), else the amp ENV's */
+    /* (PHEBUS wave 4) every synth voice the same: CUTOFF the voice filter's; DECAY always the amp ENV's
+     * (Ben, 23 Nov 2026; wave 4 had made it the filter's own envelope's while that is OWN) */
     (void)i;
-    i = k ? (t->p[P_FLINK] ? P_FDEC : P_DEC) : P_FCUT;
+    i = k ? P_DEC : P_FCUT;                              /* (Ben, 23 Nov 2026: "it should be the amp envelope decay") */
     *d = &TP[i];
     return &t->p[i];
 }

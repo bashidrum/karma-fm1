@@ -769,9 +769,10 @@ int main(int argc, char **argv)
         uint32_t act = stl.act, k, ok;
         memcpy(keep, trk, sizeof keep); keep_dp = dpat;
         set_engine_of(&trk[0], ENGI_ACID); song.sel = 0; frame();
-        /* (wave 4) every voice the same: CUTOFF the voice filter's, DECAY its own envelope's while OWN, else the amp ENV's */
-        check(home_knob(0, &d) == &trk[0].p[P_FCUT] && home_knob(1, &d) == &trk[0].p[P_FDEC] && str_eq(d->label, "DECAY"),
-              "HOME knobs, ACID: CUTOFF the voice filter's (its 303 ladder), DECAY its OWN envelope's (the 303's decay)");
+        /* every voice the same: CUTOFF the voice filter's, DECAY always the amp ENV's (Ben, 23 Nov 2026: "it should be the
+         * amp envelope decay"), even while the filter's envelope is OWN, as on ACID INIT */
+        check(home_knob(0, &d) == &trk[0].p[P_FCUT] && home_knob(1, &d) == &trk[0].p[P_DEC],
+              "HOME knobs, ACID (filter envelope OWN): CUTOFF the voice filter's, DECAY the amp ENV's");
         set_engine_of(&trk[0], ENGI_JUNO); frame();
         check(home_knob(0, &d) == &trk[0].p[P_FCUT] && str_eq(d->label, "CUTOFF") && home_knob(1, &d) == &trk[0].p[P_DEC],
               "HOME knobs, JUNO: CUTOFF the voice filter's, DECAY the amp ENV's (LINK)");

@@ -373,3 +373,11 @@ With two simulator screenshots of the mixer (hold GLO) with the drums selected, 
 ### 23 Nov 2026, 14:22: the screensaver's lines, in Ben's words
 
 With four simulator screenshots of the FLOW visual crossed by horizontal glitch lines, one of them a full-width white line: "Also these horizontal lines that scroll vertically across the screen come over very harsh. They should be super infrequent. And I don't like the white one at all. Also, don't know where to find the other screensavers / graphics now? Would be cool if it loaded a different one at random every time behind the Phebus boot and for the screensaver on the home button"
+
+### 23 Nov 2026, 15:44: three things from the simulator, in Ben's words
+
+"Ohh the decay that is mapped to the home of each device is a filter decay! haha... it should be the amp envelope decay.. sorry, my lack of clarity there.
+
+Knob one in the screenshot doesn't pick a type. Select knob does.
+
+Not sure where the master stutter sequence has gone?"

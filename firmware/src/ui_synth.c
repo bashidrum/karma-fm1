@@ -497,7 +497,7 @@ static void syn_body(track_t *t, const page_t *pg, uint32_t half, uint32_t *cach
             sp_t = 64, sp_b = 106;
             syn_fx_pic(t, k, c);
             if (!ty)
-                str_cpy(sub, "EMPTY: KNOB 1 PICKS A TYPE", 40);
+                str_cpy(sub, "EMPTY: SELECT PICKS A TYPE", 40);
             else
                 str_cpy(sub, "IN SERIES", 40);
             cv_text(4, 45, &FONT_S, sub, TE_G4);
