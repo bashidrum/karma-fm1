@@ -82,6 +82,8 @@ $CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/voice4_tes
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/fx5_test" tests/fx5_test.c $PLX -lm
 run "PHEBUS wave 5: FX slots (each type, bypass, no FX by default), every matrix source to every destination, the fixed cells, Spice and Dice, projects" "$OUT/fx5_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/fx8_test" tests/fx8_test.c $PLX -lm
+$CC -O1 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/mx11_test" tests/mx11_test.c $PLX -lm
+run "PHEBUS wave 11: the matrix's layout 2 (19 columns), old matrices read and sounding as wave 10 (tests/mx11_ref.txt)" "$OUT/mx11_test" tests/mx11_ref.txt
 run "PHEBUS wave 8: the sends a voice's own (no slot), inserts independent, wave 5 to 7 projects converted, CC 74 the voice filter" "$OUT/fx8_test"
 run "PHEBUS wave 4: every Type on every track, the voice filter moves (CUTOFF RESO ENV LFO TYPE) on every engine family, LINK / OWN, OCT / TUNE" "$OUT/voice4_test"
 

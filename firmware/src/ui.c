@@ -238,6 +238,25 @@ static int undo_swap(int redo)
     int16_t len;
     if (!undo.valid || (uint32_t)!!redo != undo.undone)
         return 0;
+    if (undo.trk > NTRK) {                            /* (wave 11) a voice's matrix (hold LFO / ENV + OCT-: ui_map.c) */
+        uint8_t *u = (uint8_t *)undo.st, x;
+        mxt_t *m = &mxt[(undo.trk - NTRK - 1u) % NPART];
+        uint32_t i;
+        fm1_irq_off();
+        for (i = 0; i < sizeof m->c; i++)
+            x = ((uint8_t *)m->c)[i], ((uint8_t *)m->c)[i] = u[i], u[i] = x;
+        for (i = 0; i < sizeof m->as; i++)
+            x = m->as[i], m->as[i] = u[sizeof m->c + i], u[sizeof m->c + i] = x;
+        for (i = 0; i < NELEM(MX_ALIAS); i++) {       /* (the fixed cells' parameters) */
+            int16_t *al = (int16_t *)(u + 64), y = trk[(undo.trk - NTRK - 1u) % NPART].p[MX_ALIAS[i][2]];
+            trk[(undo.trk - NTRK - 1u) % NPART].p[MX_ALIAS[i][2]] = al[i];
+            al[i] = y;
+        }
+        undo.undone = (uint8_t)!redo;
+        fm1_irq_on();
+        ui.force = 1;
+        return 1;
+    }
     if (undo.trk >= NTRK) {                           /* (PHEBUS) the STUTTER lane's (ui_stut.c stl_mark) */
         uint8_t x[sizeof stl];
         fm1_irq_off();

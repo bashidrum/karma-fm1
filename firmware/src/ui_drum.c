@@ -345,6 +345,7 @@ static uint32_t drum_trig_sig(uint32_t l, uint32_t bank)
 static uint32_t dial_over;                              /* values drawn past their column (0, always) */
 static uint32_t dials_y = SG_KNOB_Y;                    /* where the dials go (PHEBUS wave 6: PERFORM's lower) */
 static const uint16_t *dial_tint;                       /* (wave 7) a colour a knob (HOME, the mixer); 0: col for all four */
+static uint8_t dial_mark;                               /* (wave 11) a bit a knob: something is mapped onto it (ui_map.c) */
 static int32_t dial_adv(const char *s) { return str_len(s) >= 5u ? 7 : 8; }
 static int32_t dial_w(const char *s) { return (int32_t)str_len(s) * dial_adv(s); }
 static int32_t cv_text_tall_n(int32_t x, int32_t y, const char *s, uint16_t c, int32_t adv)   /* FONT_S x2 tall, adv a letter */
@@ -369,7 +370,7 @@ static void op_dials(const char *const lab[4], const char *const val[4], const i
     uint32_t k;
     if (dial_tint)
         col = (uint16_t)(dial_tint[0] ^ dial_tint[1] * 3u ^ dial_tint[2] * 5u ^ dial_tint[3] * 7u);
-    sig = studio_hash(sig + locked * 97u + dim * 7u + col * 131u, ui.msg_t ? ui.msg : "");
+    sig = studio_hash(sig + locked * 97u + dim * 7u + col * 131u + dial_mark * 40503u, ui.msg_t ? ui.msg : "");
     for (k = 0; k < 4u; k++) {
         sig = studio_hash(sig * 7u + (uint32_t)ratio[k] + (ui.hot_t && ui.hot_col == k) * 5003u, lab[k]);
         sig = studio_hash(sig, val[k]);
@@ -399,6 +400,10 @@ static void op_dials(const char *const lab[4], const char *const val[4], const i
             cv_text(x0 + 1, 4, &FONT_S, lab[k], c);
         }
         te_dial(x0 + 7, 38, 6, ratio[k], c, TE_G2);
+        if ((dial_mark >> k) & 1u) {                    /* (wave 11) mapped: a small wave mark under the ring, the voice's */
+            cv_rect(x0 + 3, 49, 2, 2, c), cv_rect(x0 + 5, 47, 2, 2, c), cv_rect(x0 + 7, 49, 2, 2, c), cv_rect(x0 + 9, 51, 2, 2, c);
+            cv_rect(x0 + 11, 49, 2, 2, c);
+        }
         vw = dial_w(val[k]);
         dial_over += vw > DIAL_VW - 3;                  /* (its ink and a clear gap: wave 3's 40 px "PITCH" touched the next ring) */
         if (lk) {                                       /* locked on the trig held: inverted (the Rytm's way) */

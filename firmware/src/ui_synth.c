@@ -17,6 +17,7 @@
  *                  SELECT every half; with a step held too. Nothing held, the knobs edit the sound (TRIG: NOTE STEP HIT VEL,
  *                  the pen); a step held, a knob LOCKS what it shows on the step (TRIG: the step's NOTE LEN VEL COND, FLAG
  *                  RETRIG NUDGE), the locked value inverted; OCT- the lock of the knob last turned, again every lock */
+#include "ui_map.c"                                      /* (wave 11) hold LFO / ENV to map */
 /* ---- the values */
 static void syn_fmt_type(char *b, uint32_t ty) { str_cpy(b, ty < NVTYPE ? VTYPES[ty].name : "--", 8); }
 /* page pg's four knobs on the selected synth track: labels, values (a step held, first: its lock, inverted), dials */
@@ -593,11 +594,31 @@ static void syn_page_draw(void)
         if (stage_page(st, k) == ui.page)
             h = k;
     op_names_str(t, name);
+    if (map_lyr) {                                      /* (wave 11) HOLD TO MAP: the page as it is, its dials the amounts */
+        static uint32_t mhead, mtabs, mdials;
+        uint32_t s = map_src();
+        char bn[16];
+        map_chip(map_lyr);                              /* (MASTER's pair, as the wave 10 hold: its chip) */
+        op_header(map_lyr == LY_LFO ? "LFO" : "ENV", TE_COL[v], name, &mhead);
+        hdr_mchip = 0;
+        syn_body(t, pg, h, &body);
+        str_cpy(bn, "MAP ", sizeof bn);
+        str_cpy(bn + 4, map_src_name(s), 10);
+        nav_map_hint = map_other_name(s);
+        nav_tabs(TE_COL[v], bn, &mtabs);
+        nav_map_hint = 0;
+        map_dials(pg, s, TE_COL[v], &mdials);
+        op_trackbar(&bar);
+        head = tabs = dials = 0;
+        return;
+    }
     op_header(tag, TE_COL[v], mlu.on ? "LEARN" : name, &head);
     syn_body(t, pg, h, &body);
     nav_tabs(TE_COL[v], 0, &tabs);                    /* (wave 9: the group's categories, the page in it) */
     syn_vals(pg, -1, lab, vb, ratio, &locked, &dim);
+    dial_mark = (uint8_t)map_marks(pg);               /* (wave 11) a knob something is mapped onto: its mark */
     op_dials(lab, val, ratio, locked, dim, TE_COL[v], ui.page * 977u + song.sel * 31u, &dials);
+    dial_mark = 0;
     op_trackbar(&bar);
 }
 

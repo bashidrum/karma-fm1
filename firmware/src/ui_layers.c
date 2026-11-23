@@ -22,6 +22,12 @@ static void section_store(uint32_t s);                  /* project.c */
 static void perf_knob(uint32_t k, int32_t s);           /* ui_perf.c (wave 6: PERFORM) */
 static void section_load(uint32_t s);
 #include "ui_master.c"                                  /* (wave 10) MASTER with a button held: its pair */
+static void map_chip(uint32_t l)                        /* (wave 11) mapping: MASTER's pair of the held button, as a chip */
+{
+    mpair_t m;
+    if (master_pair(l, &m))
+        hdr_mchip = m.chip, hdr_mcol = m.col, hdr_mratio = (m.v - m.lo) * 1000 / (m.hi - m.lo);
+}
 /* (wave 8, Ben 22 Nov 2026: "keep them few and consistent") THE TIMES, all of them, in one place (GUIDE.md section 2):
  *   TAP_MS         a press shorter than this, nothing else touched: a tap (a button's pages)
  *   SHOW_MS        a layer shows after this, so a tap does not flash it
@@ -332,6 +338,11 @@ static void layer_knobs(uint32_t layer)
                 pattern_rotate(t, s);
             else
                 patt_turn(t, 0, k, s);
+            break;
+        case LY_LFO:
+        case LY_ENV:                                    /* (wave 11) mapping: the source's amount onto the knob (ui_map.c) */
+            if (map_lyr)
+                map_turn(k, s);
             break;
         case LY_GLO: {
             int16_t *lv = mix_pan ? &trk[k].p[P_PAN] : k == TRK_DRUM ? &song.g[G_DRLVL] : &trk[k].p[P_LEVEL];

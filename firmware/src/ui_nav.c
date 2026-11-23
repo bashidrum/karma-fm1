@@ -283,6 +283,7 @@ static void nav_tabs(uint16_t col, const char *banner, uint32_t *cache)
     pm_words(&pm, &pp);
     pm_shown_m = pm, pm_shown_p = pp;
     sig = studio_hash(studio_hash(studio_hash(sig, banner ? banner : ""), pm ? pm : "-"), pp ? pp : "+");
+    sig = studio_hash(sig * 3u + (ly_lock != LY_PLAY), nav_map_hint ? nav_map_hint : "");
     if (!ui.force && sig == *cache)
         return;
     *cache = sig;
@@ -291,6 +292,20 @@ static void nav_tabs(uint16_t col, const char *banner, uint32_t *cache)
     cv_rect(0, 0, 240, 1, TE_G1);
     if (pm || pp)
         xr = pm_draw(236, 5, pm, pp) - 6;
+    if (banner && nav_map_hint) {                       /* (wave 11) MAP: outlined in the voice's colour (a LOCK banner is
+                                                         * filled), then what SEL flips to, grey; LOCK while kept open */
+        int32_t x = 2 + text_w(&FONT_S, banner) + 6;
+        op_box(2, 4, x - 2, 17, col);
+        cv_text(5, 5, &FONT_S, banner, col);
+        x = cv_text(x + 6, 5, &FONT_S, "SEL", TE_G4);
+        x = cv_text(x + 4, 5, &FONT_S, nav_map_hint, TE_G3);
+        if (ly_lock != LY_PLAY && x + 8 + text_w(&FONT_S, "LOCK") <= xr) {
+            cv_rect(xr - text_w(&FONT_S, "LOCK") - 4, 4, text_w(&FONT_S, "LOCK") + 4, 17, C_WHITE);
+            cv_text(xr - text_w(&FONT_S, "LOCK") - 2, 5, &FONT_S, "LOCK", C_BLACK);
+        }
+        cv_blit(0, 131);
+        return;
+    }
     if (banner) {
         cv_rect(2, 4, text_w(&FONT_S, banner) + 4, 17, col);
         cv_text(4, 5, &FONT_S, banner, C_BLACK);

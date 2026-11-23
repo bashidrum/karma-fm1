@@ -664,7 +664,8 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
     if (ui.ask || ui.hold_kind)                           /* (wave 10: SAVE down with a question: the confirm's, not a layer) */
         ly_eat |= ly_bit[LY_SAVE] & fm1_in.buttons;
     if (ly_lock != LY_PLAY) {
-        uint32_t keep = 1u << panel.btn[B_PLAY] | 1u << panel.btn[B_REC] | 1u << panel.btn[B_OCTDN] | 1u << panel.btn[B_OCTUP];
+        uint32_t keep = 1u << panel.btn[B_PLAY] | 1u << panel.btn[B_REC] | 1u << panel.btn[B_OCTDN] | 1u << panel.btn[B_OCTUP] |
+                        (map_lyr ? 1u << panel.btn[B_SCL] : 0u);   /* (wave 11: kept open mapping, SEL flips the source) */
         eat = *pressed & ~keep;
         if (eat) {
             layer_unlock();
@@ -704,6 +705,15 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
     if (held == LY_PLAY && ly_lock != LY_PLAY) {
         held = ly_lock;
         used[held] = 1;
+    }
+    {   /* (wave 11) LFO or ENV held on a synth voice's sound page: HOLD TO MAP (ui_map.c); the page stays, no layer shows */
+        uint32_t mp = (held == LY_LFO || held == LY_ENV) && map_page_ok() ? held : 0u;
+        if (mp != map_lyr) {
+            if (map_lyr && !mp)
+                ly_quiet_t = fm1_ms | 1u;                 /* (as a layer let go: the knobs' last turns are not the page's) */
+            map_lyr = (uint8_t)mp;
+            ui.force = 1;
+        }
     }
     if (held != LY_PLAY && held != ui.layer && ui.layer != LY_PLAY)
         ui.layer = (uint8_t)held;                         /* (from one layer straight to another) */
@@ -747,16 +757,21 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         ui.layer_used = 1, mp_used = 0;
     if (ui.layer_used)
         used[held] = 1;
-    if (ui.layer == LY_PLAY && (used[held] || now - t0[held] >= SHOW_MS)) {
+    if (map_lyr)
+        shown |= (uint16_t)(1u << held);                  /* (mapping: seen, never a tap; the page stays) */
+    else if (ui.layer == LY_PLAY && (used[held] || now - t0[held] >= SHOW_MS)) {
         ui.layer = (uint8_t)held;                         /* show it (not for a quick tap) */
         shown |= (uint16_t)(1u << held);
     }
     {   /* (wave 10, Ben: "I don't mind the octave button working as + and -") OCT- and OCT+ with a layer held: its minus and
          * plus (layer_pm names them on its screen); PLAY with SEQ held: the FILL */
         uint32_t ob = 1u << panel.btn[B_OCTDN], pb = 1u << panel.btn[B_OCTUP], yb = 1u << panel.btn[B_PLAY];
+        uint32_t sb = 1u << panel.btn[B_SCL];
         static uint32_t prev;
-        uint32_t b = fm1_in.buttons & (ob | pb | yb), press = b & ~prev;
+        uint32_t b = fm1_in.buttons & (ob | pb | yb | sb), press = b & ~prev;
         prev = b;
+        if (press & sb)
+            used[held] = 1;
         if (press & (ob | pb))
             used[held] = 1;
         switch (held) {
@@ -822,6 +837,21 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
                 q[12] = (char)('1' + song.sel);
                 ask_set(ASK_CLEAR, song.sel, song.sel == TRK_DRUM ? "CLEAR DRUMS" : q);
             }
+            break;
+        case LY_LFO:
+        case LY_ENV:                                      /* (wave 11) mapping: SEL the other LFO / envelope, OCT- this source's
+                                                           * mappings on this page off */
+            if (!map_lyr)
+                break;
+            if (press & sb) {
+                if (held == LY_LFO)
+                    map_lfo2 = (uint8_t)!map_lfo2;
+                else
+                    map_fenv = (uint8_t)!map_fenv;
+                ui.force = 1;
+            }
+            if (press & ob)
+                map_remove();
             break;
         case LY_SAVE:                                     /* OCT- undo, OCT+ redo (it was EDIT's) */
             if (press & ob)
@@ -1050,6 +1080,10 @@ static void pm_words(const char **m, const char **p)
     int16_t *vp;
     const param_desc_t *d;
     *m = *p = 0;
+    if (map_lyr) {                                      /* (wave 11) mapping: OCT- removes this source's mappings here */
+        *m = "REMOVE";
+        return;
+    }
     if (ui.menu || ui.layer != LY_PLAY || rec_wait)
         return;
     if (on_drum_page()) {
@@ -1116,6 +1150,7 @@ static void ui_input(void)
     page_fix();                                         /* (a page the track does not have: its neighbour, 2.6) */
     drum_keys_fix();                                    /* (PHEBUS wave 3: MUTE / CHROMATIC end with the drum screen) */
     midi_entry();                                       /* (the MIDI notes' queue: read every frame, 2.6) */
+    map_seen();                                         /* (wave 11: the LFO / envelope last shown, for hold to map) */
     if (perf.full) {                                    /* (wave 6) a pad recorded found the STUTTER lane full */
         perf.full = 0;
         ui_message("LANE FULL: 31 PADS");

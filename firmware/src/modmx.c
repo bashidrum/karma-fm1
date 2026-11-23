@@ -125,6 +125,7 @@ static int mx_as_ok(uint32_t id)
  * RELEASE; FENV: the filter envelope's): "the amp envelope's own attack from itself is not useful". An LFO may move its own
  * RATE, PHASE and FADE (synths allow it: a rate that wobbles) */
 #define MX_FULL_MSG "MATRIX FULL: 19 CELLS"   /* (MX_NCELL: the one limit, said where it is met) */
+#define MX_NAS_MSG "MAP FULL: ALL COLUMNS USED"  /* (MX_NAS below MX_NCELL only: a device build's limit) */
 static int32_t mx_as_find(uint32_t ti, uint32_t id)    /* the assignable column of parameter id, -1 none */
 {
     uint32_t c;
