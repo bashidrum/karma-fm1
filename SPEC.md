@@ -276,3 +276,11 @@ Asked whether the fourth filter knob should match (DRIVE on synths with TYPE on 
 With two simulator screenshots (the GRID still showing after pressing EDIT, with only the OSC knobs under it): "Kind of annoying that the sequence stays on screen even when you go to the edit page? Means you're editing with none of the edit view controls"
 
 How this is applied (Claude's reading, for Ben to confirm): the steps show only on SEQ. Pressing EDIT, ENV, LFO or FX with nothing held always opens that button's real page, with its picture and the keys playing notes. Only while a step is held do those buttons bring their knobs under the steps, for a lock; letting go of the step returns to the SEQ screen.
+
+### 23 Nov 2026, 10:41: hold to map, in Ben's words
+
+"Would be great if anything that's a mappable thing... like the LFO usually wants things mapped to it. It would be cool if that happened by holding the LFO button and then it jumps back into the page you were just on, gives you the same controls and you simply wiggle what you want mapped to the lfo. same for the ENV button?
+
+So if you wanted to map cut off to the LFO, you'd navigate to the synth's filter page, then hold LFO it would probably flash up the LFO page until it realises you're doing a hold to map, jumps back to the synth's filter page and gives you the mappable controls back on the knobs etc to map to the LFO...
+
+Would be awesome if the same logic were applied to all the nice and obviously pleasantly mappable parameters"
