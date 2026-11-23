@@ -304,3 +304,28 @@ To be built with the hold-to-map wave: while a button (or a step) is held, every
 "I also see that the white key buttons can do all kind of mad dances. We should have settings for how much of a disco you can put on in the global settings. For example, it might be a dick move to have it flashing for 11hrs on a flight to Mexico. But I'd want it flashing if I was ever shooting some content with it"
 
 To be built with the lights work: one setting under GLO for how much the lights move, from none to a full show.
+
+### 23 Nov 2026, 11:02: changing one drum's sound, in Ben's words
+
+With a simulator screenshot (drum screen, RIM selected, kit HEX BOOM, the bar "HOLD SAVE: REPLACE 606*"): "Kind of confusing how to change the sound of individual drums. I could do sound design on a preset snare but couldn't see how to load in like an 808 snare with a 606 kit preset. Or just choose the snare engine and then do sound design. Bit confusing. Also it seemed like it wanted me to hold save to change away from loading a 606 snare or something?"
+
+His answers by picker, 23 Nov 2026, 11:10:
+
+- PRESETS knob on the drums: "Kits on HOME, sounds on the drum screen". PRESETS loads whole kits when you are on HOME, and single sounds when you are on a drum sound page.
+- Sound list: "Same kind first, then all". On the snare slot you get every kit's snares first, then everything else.
+- Engine: "Yes, an INIT per engine". The sound list includes a plain starting sound for each drum engine.
+
+Proposed by Claude and not objected to (for him to confirm when built): the kit is 16 slots in the project, each holding any sound from any kit; no separate edited copy and no star; loading a whole kit replaces all 16 and is the only thing that asks for a confirm. To be built as its own wave after wave 11, with the memory cost worked out first.
+
+### 23 Nov 2026, 11:33: the colour code, in Ben's words
+
+"I've actually been a bit silly... I use a colour code for my tracks. That teal is meant to be drums. The others are for synths. My normal colour code is:
+
+Blue for bass
+Surf green for drums
+Purple for synths
+Coral for vocals
+
+Happy to keep it with just swapping the surf green to drums"
+
+Applied as: the drum voice is teal (20,196,170) and voice 3 is coral (255,128,108). Voice 1 stays purple and voice 2 blue. This replaces the earlier colour rule wherever it named coral for the drums and teal for voice 3.
