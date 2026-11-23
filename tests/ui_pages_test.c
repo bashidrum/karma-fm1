@@ -5008,6 +5008,7 @@ int main(int argc, char **argv)
         nav_go(CT_STUT, 0); frames(2);
         press(B_FX); frames(12);
         check(ui.layer == LY_FX && layer_shown && stl_view, "w14: hold FX on STUT: PERFORM (the lane under it, kept)");
+        ui.force = 1; frame(); ppm("w14-stut-hold-fx");
         frames(40); release(B_FX); frames(2);
         check(ly_lock == LY_FX, "w14: hold FX 0.7 s untouched: PERFORM stays open, as before");
         tap(B_FX); frames(2);
@@ -5149,6 +5150,7 @@ int main(int argc, char **argv)
             go_home(); track_select(1); frames(2); nav_go(CT_STUT, 0); frames(2);
             stl.ev[0] = (pev_t){PF_S8 + 1u, 4, 2, 0};
             fm1_in.notes |= 1u << kw4; frame(); frame();
+            ui.force = 1; frame(); ppm("w14-stut-v2-step-held");
             tap(B_EDIT); frames(2);
             ok = stl_shown() && cur_cat() == CT_STUT;
             tap(B_OCTDN); frames(2);
