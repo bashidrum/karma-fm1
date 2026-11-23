@@ -197,3 +197,17 @@ He asked for an audit, not a build (review/LAYOUT-AUDIT-2026-11-22.md). His answ
 - SLICER on each voice: "Keep as it is".
 - Tap tempo: "Leave it out".
 - Reaching a voice's own effects in two presses: Ben asked "What is actually on the ENV button?" (open).
+
+### 23 Nov 2026, 08:25: how to move around, in Ben's words
+
+"I don't understand how you'd ever find something that was a combination of button presses like ENV then EDIT. That's a bad button logic. I'd rather the voice effect sends were just another page in FX."
+
+"As I see it. The FM1 has 3 ways we can navigate fairly effectively:
+
+1. Press a labelled button and obviously associated features pop up on screen with knobs 1-4 controlling parameters. Continuing to press the same labelled button walks the pages of that category. I like this one as it costs not very much in knobs or long presses.
+
+2. Press a labelled button and then use a rotary controller to walk through the pages of the category. Maybe the select knob. Maybe is faster but we lose the select knob. Plus I feel the select knob would be better acting as a knob 5 effectively changing parameters within the category that have a type - oscillator type or type of distortion engine for example.
+
+3. Long presses: good for a quick hidden shortcut only for the things that users want a lot for performance flow. But to be thought of as an additional quick short cut rather than a main way to move around or select things.
+
+4. Button combo presses are the least pleasant of all. Maybe ok if one of the buttons is always the same and then the shortcut you're triggering is an obvious linked feature to the button you're pressing. Like -oct and sequence could halve the sequence. Or +oct and sequence could double it as a clone"
