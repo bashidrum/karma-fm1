@@ -369,3 +369,7 @@ His answers by picker, 23 Nov 2026, 14:25:
 ### 23 Nov 2026, 14:19: the mixer screen, in Ben's words
 
 With two simulator screenshots of the mixer (hold GLO) with the drums selected, showing "KEYS: SOLO" and "KEYS: MUTE": "This global screen is kind of hard to figure out. It also doesn't seem to work - like it says keys solo. What voice is the keys? It didn't solo anything either way."
+
+### 23 Nov 2026, 14:22: the screensaver's lines, in Ben's words
+
+With four simulator screenshots of the FLOW visual crossed by horizontal glitch lines, one of them a full-width white line: "Also these horizontal lines that scroll vertically across the screen come over very harsh. They should be super infrequent. And I don't like the white one at all. Also, don't know where to find the other screensavers / graphics now? Would be cool if it loaded a different one at random every time behind the Phebus boot and for the screensaver on the home button"
