@@ -290,7 +290,7 @@ static inline __attribute__((always_inline)) uint16_t eyes_px(uint32_t k, int32_
                 j++;
             return ey[k].ic[j];
         }
-        return r2 < ey[k].ri2 + 30 ? C_BLACK : ey[k].sc;
+        return r2 < ey[k].ri2 + 30 && ey[k].k1 ? C_BLACK : ey[k].sc;   /* (the black ring round the iris; none without echoes: THIRD EYE) */
     }
     if (f <= ey[k].o2)
         return ey[k].lid;                           /* the lid's line */
@@ -512,9 +512,9 @@ static void third_prep(void)
     ey[0].gx = isin(T * 5u) * 14 >> 15;             /* (the gaze: as it was) */
     ey[0].gy = isin(T * 3u + 200u) * 5 >> 15;
     ey[0].sc = TE_SCLERA;
-    ey[0].ri2 += 30;                                /* (the iris to the white: no black ring between) */
     ey[0].o2 = ey[0].r2;                            /* no line round it, no echoes (Ben: "no white outline", "remove the 2 */
-    ey[0].k1 = ey[0].k1e = ey[0].k2 = ey[0].k2e = 0;   /* black outlines"): the eye a flat shape on the sky */
+    ey[0].k1 = ey[0].k1e = ey[0].k2 = ey[0].k2e = 0;   /* black outlines"): the eye a flat shape on the sky (and no black ring
+                                                     * round the iris: eyes_px) */
 }
 
 
