@@ -342,7 +342,7 @@ A voice can have one FLANGER; SELECT skips it when another slot has it.
 LFO's last category is a grid of 7 sources (rows) by the destinations (columns), six columns in view at a time; the view slides with the cursor.
 
 - **Sources**: LFO1, LFO2, AENV (amp envelope), FENV (the filter's envelope), PENV (a fast pitch fall at each note's start), VEL, KEY.
-- **Destinations**: PIT, M1 M2 M3 (the macros), CUT, RESO, LVL (only ever down), PAN, FX1 FX2 FX3 (each insert slot's AMOUNT), then one column for **each parameter mapped** (named by it: DRIVE, ATTACK, RATE ...) and a last **+** column to make another (KNOB 4 TARGET picks its parameter, any lockable sound value; one column a parameter).
+- **Destinations**: PIT, M1 M2 M3 (the macros), CUT, RES, LVL (only ever down), PAN, FX1 FX2 FX3 (each insert slot's AMOUNT), then one column for **each parameter mapped** (three letters: ATK, FAT for the filter envelope's attack, DRV, L1R and L2R the LFOs' rates, 1T for FX 1's first knob, E4 for the Type's fourth control ...) and a last **+** column to make another (KNOB 4 TARGET picks its parameter, any lockable sound value; one column a parameter).
 
 A filled square is a positive amount, an empty one negative, bigger for more. Six cells are the routings shown on other pages too: LFO1 > PIT, LFO1 > CUT, LFO1 > LVL, FENV > CUT (FILT's ENV), PENV > PIT, KEY > CUT (FILT 2's KEY). Besides them a voice holds **19 cells**, on any columns; one more says **MATRIX FULL: 19 CELLS** and nothing changes. A voice can map up to 19 different parameters (every cell on its own). PIT, M1 to M3, CUT and RESO move each note with its own envelopes; every other column moves the whole voice, with the envelopes and velocity of the note started last.
 
