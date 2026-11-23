@@ -146,7 +146,7 @@ static void draw_menu(void)
                     cv_text(xv + 8, y + 30, &FONT_S, "RESTART", C_AMB);   /* (usb.c: at the next start) */
             }
             cv_text(4, MI_Y0 + 3 * MI_DY + 6, &FONT_S, "SEL: SECTION  GLO: GLOBAL", C_DIM);
-            cv_text(4, MI_Y0 + 3 * MI_DY + 22, &FONT_S, "KNOBS SET  OCT+ OK  OCT- CLOSE", C_DIM);   /* (rows .. 218) */
+            cv_text(4, MI_Y0 + 3 * MI_DY + 22, &FONT_S, "K1-K3 SET  OCT+ OK  OCT- OUT", C_DIM);   /* (rows .. 218) */
         }
         cv_oy = 0;
         cv_blit(0, H_HEAD + 1 + pass * 124u);
