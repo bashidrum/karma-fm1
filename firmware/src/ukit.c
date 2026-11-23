@@ -181,11 +181,11 @@ static void snd_at(uint32_t L, uint32_t e, uint32_t *src, uint32_t *kind)
 }
 /* where slot L's sound stands in its list (its place, of the list's n), its group's name and its place in the group; -1:
  * not in it (edited, or a sound that has no entry) */
-static int32_t snd_pos(uint32_t L)
+static int32_t snd_pos_of(uint32_t L, int edited_too)
 {
     const dslot_t *d = &pkit.s[L & 15u];
     int32_t k;
-    if (d->mach & SL_EDT)
+    if ((d->mach & SL_EDT) && !edited_too)
         return -1;
     if (d->src == DSRC_INIT)
         return (int32_t)(d->mach & 1u);
@@ -193,6 +193,7 @@ static int32_t snd_pos(uint32_t L)
         return -1;
     return (int32_t)(SND_NINIT + snd_group_of(L, sl_lane(d)) * kit_src_n() + (uint32_t)k);
 }
+static int32_t snd_pos(uint32_t L) { return snd_pos_of(L, 0); }
 static void snd_group(uint32_t L, uint32_t e, char *grp, uint32_t gn, uint32_t *ipos, uint32_t *isize)
 {
     uint32_t s = kit_src_n();

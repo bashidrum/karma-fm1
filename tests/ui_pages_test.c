@@ -4578,6 +4578,81 @@ int main(int argc, char **argv)
         check(!lt_bad, "w11: the lights under every hold (25 holds x 40 controls): each lit control does something with it, each dark one nothing");
         go_home(); frames(4);
     }
+    {   /* ---- wave 12 (Ben, 23 Nov 2026, 11:02 and 11:10): sounds on the drum screen, kits on HOME, SAVE > KITS */
+        dslot_t s606;
+        uint32_t ok, px, k;
+        char nm[24];
+        song.sel = TRK_DRUM; kit_set(DRUM_DEFAULT_KIT); dpat_clear(&dpat); drum_lane = 2;
+        transport_req = 2; frames(2);
+        drum_screen_open(); dpg_go(1, 0); frames(4);
+        s606 = pkit.s[2];
+        encs[panel.enc[EN_PRESET]] = 1; frame();
+        slot_name(&pkit.s[2], nm, sizeof nm);
+        check(str_eq(nm, "80S SNARE") && str_eq(brw_l1, "SOUND 80S SNARE") && brw_t && !ui.ask,
+              "w12: drum screen, PRESETS +1: the SNARE slot takes the next snare at once (SOUND 80S SNARE), nothing asked");
+        check(str_eq(brw_l2, "SNARE 9/41"), "w12: the readout says the group and the place in it (SNARE 9/41)");
+        ui.force = 1; frame(); ppm("w12-drum-sound-browse");
+        px = px_count(0, SG_KNOB_Y + 4, 240, 34, TE_DRUM);
+        ok = px > 200u;
+        for (k = 0; k < 240u * 50u; k++) {               /* the readout: the drums' teal, grey, white, black only */
+            uint16_t c = swap16(screen[(SG_KNOB_Y + 2u + k / 240u) * 240u + k % 240u]);
+            ok &= c == TE_DRUM || c == TE_G4 || c == C_WHITE || c == C_BLACK || c == TE_G1;
+        }
+        check(ok, "w12: the readout in the dials' band in the drums' teal (the slot's sound), grey and white only");
+        check(str_len(brw_l1) * 8u + 4u <= 236u, "w12: the readout's name fits the screen (the longest: SOUND HEX GLITCH SNARE 2)");
+        encs[panel.enc[EN_PRESET]] = -1; frame();
+        check(!memcmp(&pkit.s[2], &s606, sizeof s606) && !kit_changed(), "w12: PRESETS back one: the 606 SNARE again, the kit unchanged");
+        encs[panel.enc[EN_PRESET]] = -9; frame();
+        check(str_eq(brw_l1, "SOUND INIT HEX") && sl_mach(2) == DM_HEX && kit_changed(),
+              "w12: back to the list's start: INIT HEX, the HEX machine in the 606's snare slot");
+        drum_on(LANE_NOTE[2], 100);
+        for (k = 0, ok = 0; k < NDRUM; k++) ok |= drums.v[k].active && drums.lane[k] == 2u && drums.synth[k] == 2u;
+        check(ok, "w12: the slot plays with its own machine (HEX) in a CLASSIC kit");
+        ui.force = 1; frame(); ppm("w12-drum-init-hex");
+        press(B_SAVE); tap(B_OCTDN); release(B_SAVE); frames(2);
+        check(!memcmp(&pkit.s[2], &s606, sizeof s606), "w12: SAVE + OCT- undoes the whole turn: the 606 SNARE back");
+        press(B_SAVE); tap(B_OCTUP); release(B_SAVE); frames(2);
+        check(sl_mach(2) == DM_HEX, "w12: SAVE + OCT+ redoes it");
+        press(B_SAVE); tap(B_OCTDN); release(B_SAVE); frames(2);
+        /* HOME: whole kits; unchanged: at once; changed: it asks */
+        go_home(); frames(4);
+        encs[panel.enc[EN_PRESET]] = 1; frame();
+        check(pkit.base == kit_src(8) && !ui.ask && str_eq(brw_l1, "KIT 80S") && str_eq(brw_l2, "CLASSIC KITS 4/32"),
+              "w12: HOME, PRESETS +1 over an unchanged kit: the 80S at once, all 16 slots (KIT 80S, CLASSIC KITS 4/32)");
+        ui.force = 1; frame(); ppm("w12-home-kit-browse");
+        drum_param_set(DSP_S0 + DS_DECAY, 20); frames(2);
+        home_kit_name(nm);
+        check(str_eq(nm, "CUSTOM"), "w12: a slot edited: HOME's DRUM zone says CUSTOM");
+        ui.force = 1; frames(100); ppm("w12-home-custom");
+        encs[panel.enc[EN_PRESET]] = 1; frame();
+        check(ui.ask == ASK_KIT && str_eq(ui.msg, "HOLD SAVE: LOAD VINTAGE") && pkit.base == kit_src(8) && kit_changed(),
+              "w12: PRESETS over a changed kit asks (HOLD SAVE: LOAD VINTAGE), nothing loaded yet");
+        ui.force = 1; frame(); ppm("w12-home-kit-ask");
+        press(B_SAVE); frames(100); release(B_SAVE); frames(2);
+        check(pkit.base == kit_src(9) && !kit_changed(), "w12: SAVE held until the ring fills: the VINTAGE kit loads");
+        encs[panel.enc[EN_PRESET]] = 1; frame();
+        check(pkit.base == kit_src(10) && !ui.ask, "w12: and on: unchanged, so no question");
+        press(B_SAVE); tap(B_OCTDN); release(B_SAVE); frames(2);
+        check(pkit.base == kit_src(8) && kit_changed() && pkit.s[2].snd[7] == 20u, "w12: SAVE + OCT-: the changed kit back, its edit in it");
+        /* SAVE > KITS */
+        frames(40);                                       /* (the knobs wait a moment after a layer: #39) */
+        tap(B_SAVE); tap(B_SAVE); tap(B_SAVE); frames(40);
+        check(cur_cat() == CT_KITS, "w12: SAVE three times: KITS (after PRESETS, USER)");
+        ui.force = 1; frame(); ppm("w12-save-kits");
+        encs[panel.enc[EN_K4]] = 1; frame();
+        check(ui.ask == ASK_UKIT && str_eq(ui.msg, "HOLD SAVE: SAVE OVER MY HEX 1"), "w12: SAVE over an old MY HEX kit asks");
+        ask_drop();
+        encs[panel.enc[EN_K1]] = 4; frame();
+        encs[panel.enc[EN_K4]] = 1; frame();
+        check(ukit_state(4) == UK_STORED && !ui.ask && !kit_changed() && pkit.base == DSRC_USER + 4u,
+              "w12: SAVE into an empty kit: stored at once (MY KIT 5), the kit now that one");
+        kit_set(DRUM_DEFAULT_KIT); frames(2);
+        encs[panel.enc[EN_K2]] = 1; frame();
+        check(pkit.base == DSRC_USER + 4u && pkit.s[2].snd[7] == 20u, "w12: LOAD over an unchanged kit: MY KIT 5 at once");
+        ui.force = 1; frame(); ppm("w12-save-kits-stored");
+        ukit_put(4, 0);
+        kit_set(DRUM_DEFAULT_KIT); song.sel = 0; ui.msg_t = 0; go_home(); frames(4);
+    }
     printf("ui: %s\n", fails ? "FAILED" : "pages, layers (punch, steps, erase, roll, key, mix), layer lock, song layer, REC hold, drums, REC, 20000-frame fuzz PASS");
     return fails;
 }

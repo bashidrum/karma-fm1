@@ -50,7 +50,9 @@ static void kit_undo_swap(void)                         /* (ui.c undo_swap) the 
 static struct {
     uint8_t kind;                                       /* 0 none, 1 a slot's sound, 2 the whole kit */
     uint8_t lane, in, asked;                            /* the slot; the start is in the list; the kit question was asked */
-    uint16_t pos, start, n;                             /* the place (n: the start, when it is not in the list) */
+    uint16_t pos, start, n;                             /* the place in the ring (the list, and the start when it is not in it,
+                                                         * just after anchor), where it started, the list's length */
+    int16_t anchor;                                     /* the start not in the list: the entry it sits after (-1: first) */
     uint32_t sess;
     uint8_t gen;
 } brw;
@@ -89,30 +91,46 @@ static uint32_t brw_step(int32_t s, uint32_t ring)      /* the place s detents o
     int32_t p = ((int32_t)brw.pos + s % (int32_t)ring + (int32_t)ring) % (int32_t)ring;
     return (uint32_t)p;
 }
+#define BRW_ORIGIN 0xFFFFu
+static uint32_t brw_entry(uint32_t v)                   /* the ring's place v: a list entry, or BRW_ORIGIN (where it started) */
+{
+    if (brw.in)
+        return v == brw.start ? BRW_ORIGIN : v;
+    if ((int32_t)v == brw.anchor + 1)
+        return BRW_ORIGIN;
+    return (int32_t)v <= brw.anchor ? v : v - 1u;
+}
+static void brw_begin(uint32_t kind, int32_t p, int32_t anchor, uint32_t n)
+{
+    kit_undo_mark();
+    brw.kind = (uint8_t)kind, brw.sess = undo.sess, brw.gen = pkit_gen;
+    brw.n = (uint16_t)n;
+    brw.in = (uint8_t)(p >= 0);
+    brw.anchor = (int16_t)(p >= 0 ? -1 : anchor);
+    brw.pos = brw.start = (uint16_t)(p >= 0 ? (uint32_t)p : (uint32_t)(anchor + 1));
+    brw.asked = 0;
+}
 
 /* PRESETS on the drum screen: the selected slot's sound, s detents on */
 static void snd_browse(int32_t s)
 {
-    uint32_t L = drum_lane & 15u, kept = 0, dropped = 0, n, ring;
+    uint32_t L = drum_lane & 15u, kept = 0, dropped = 0, n, ring, e;
     const pkit_t *o;
     dslot_t d;
     if (!s)
         return;
     if (!brw_live(1u)) {
-        int32_t p = snd_pos(L);
-        kit_undo_mark();
-        brw.kind = 1, brw.lane = (uint8_t)L, brw.sess = undo.sess;
-        brw.n = (uint16_t)snd_n();
-        brw.in = (uint8_t)(p >= 0);
-        brw.pos = brw.start = (uint16_t)(p >= 0 ? (uint32_t)p : brw.n);
+        brw_begin(1u, snd_pos(L), snd_pos_of(L, 1), snd_n());
+        brw.lane = (uint8_t)L;
     }
     o = kit_undo_kit();
     n = brw.n;
     ring = brw.in ? n : n + 1u;
     brw.pos = (uint16_t)brw_step(s, ring);
-    if (brw.pos == brw.start) {                         /* back where it started: the sound it had, exactly */
+    e = brw_entry(brw.pos);
+    if (e == BRW_ORIGIN) {                              /* back where it started: the sound it had, exactly */
         d = o->s[L];
-    } else if (!snd_make(L, brw.pos, &d)) {
+    } else if (!snd_make(L, e, &d)) {
         return;
     } else {
         d.mach |= SL_CHG;
@@ -121,12 +139,12 @@ static void snd_browse(int32_t s)
     brw.gen = pkit_gen;
     str_cpy(brw_l1, "SOUND ", sizeof brw_l1);
     slot_name(&pkit.s[L], brw_l1 + 6, sizeof brw_l1 - 6u);
-    if (brw.pos >= n) {
+    if (e == BRW_ORIGIN && !brw.in) {
         str_cpy(brw_l2, "AS IT WAS", sizeof brw_l2);
     } else {
         char g[12];
         uint32_t i, sz;
-        snd_group(L, brw.pos, g, sizeof g, &i, &sz);
+        snd_group(L, e == BRW_ORIGIN ? brw.start : e, g, sizeof g, &i, &sz);
         brw_place(g, i, sz);
     }
     brw_locks(kept, dropped);
@@ -142,7 +160,7 @@ static void kit_take(uint32_t e)
     const pkit_t *o = kit_undo_kit();
     pkit_t k;
     uint32_t l, kept = 0, dropped = 0;
-    if (e == brw.start && !brw.in)
+    if (e == BRW_ORIGIN)
         k = *o;
     else if (!kit_make(kit_src(e), &k))
         return;
@@ -166,7 +184,9 @@ static void kit_take(uint32_t e)
 static void kit_readout(uint32_t e)
 {
     str_cpy(brw_l1, "KIT ", sizeof brw_l1);
-    if (e >= brw.n) {
+    if (e == BRW_ORIGIN && brw.in)
+        e = brw.start;
+    if (e == BRW_ORIGIN) {
         str_cpy(brw_l1 + 4, "CUSTOM", sizeof brw_l1 - 4u);
         str_cpy(brw_l2, "AS IT WAS", sizeof brw_l2);
     } else {
@@ -186,38 +206,31 @@ static void kit_readout(uint32_t e)
 /* PRESETS where it loads whole kits: the kit s detents on; asks first when the kit has been changed (HOLD SAVE: LOAD 808) */
 static void kit_browse(int32_t s)
 {
-    uint32_t ring;
+    uint32_t ring, e;
     if (!s)
         return;
-    if (!brw_live(2u)) {
-        int32_t p = kit_changed() ? -1 : kit_pos(pkit.base);
-        kit_undo_mark();
-        brw.kind = 2, brw.sess = undo.sess, brw.gen = pkit_gen;
-        brw.n = (uint16_t)kit_src_n();
-        brw.in = (uint8_t)(p >= 0);
-        brw.pos = brw.start = (uint16_t)(p >= 0 ? (uint32_t)p : brw.n);
-        brw.asked = 0;
-    }
+    if (!brw_live(2u))
+        brw_begin(2u, kit_changed() ? -1 : kit_pos(pkit.base), kit_pos(pkit.base), kit_src_n());
     ring = brw.in ? brw.n : brw.n + 1u;
     brw.pos = (uint16_t)brw_step(s, ring);
+    e = brw_entry(brw.pos);
     brw_r2[0] = 0;
-    kit_readout(brw.pos);
-    if (!brw.in && !brw.asked && brw.pos != brw.start) {   /* a changed kit: nothing loads until the question is answered */
+    kit_readout(e);
+    if (!brw.in && !brw.asked && e != BRW_ORIGIN) {     /* a changed kit: nothing loads until the question is answered */
         char q[24] = "LOAD ";
-        kit_name_of(kit_src(brw.pos), q + 5, sizeof q - 5u);
-        ask_set(ASK_KIT, brw.pos, q);
+        kit_name_of(kit_src(e), q + 5, sizeof q - 5u);
+        ask_set(ASK_KIT, e, q);
         return;
     }
     if (ui.ask == ASK_KIT)
         ask_drop();
-    kit_take(brw.pos);
+    kit_take(e);
 }
 static void kit_ask_do(uint32_t e)                      /* (ui_input.c ask_do) the question answered: that kit loads */
 {
     if (!brw_live(2u))
         return;
     brw.asked = 1;
-    brw.pos = (uint16_t)e;
     kit_take(e);
     kit_readout(e);
 }
@@ -226,25 +239,16 @@ static int kit_pc(uint32_t n)
 {
     if (n >= kit_src_n())
         return 1;
-    brw.kind = 0;
-    if (!kit_changed()) {
-        kit_undo_mark();
-        brw.kind = 2, brw.sess = undo.sess, brw.gen = pkit_gen, brw.n = (uint16_t)kit_src_n(), brw.in = 1;
-        brw.start = brw.pos = (uint16_t)(kit_pos(pkit.base) >= 0 ? (uint32_t)kit_pos(pkit.base) : 0u);
-        brw.pos = (uint16_t)n;
-        kit_take(n);
-        kit_readout(n);
-        return 0;
-    }
-    kit_undo_mark();
-    brw.kind = 2, brw.sess = undo.sess, brw.gen = pkit_gen, brw.n = (uint16_t)kit_src_n(), brw.in = 0;
-    brw.start = brw.n, brw.pos = (uint16_t)n, brw.asked = 0;
+    brw_begin(2u, kit_changed() ? -1 : kit_pos(pkit.base), kit_pos(pkit.base), kit_src_n());
+    brw.pos = (uint16_t)(brw.in || (int32_t)n <= brw.anchor ? n : n + 1u);
     kit_readout(n);
-    {
+    if (!brw.in) {
         char q[24] = "LOAD ";
         kit_name_of(kit_src(n), q + 5, sizeof q - 5u);
         ask_set(ASK_KIT, n, q);
+        return 0;
     }
+    kit_take(n);
     return 0;
 }
 
@@ -302,9 +306,7 @@ static void ukit_do(uint32_t op, uint32_t n)            /* done (asked where it 
         brw.kind = 0;
         if ((e = kit_pos(src)) < 0)
             return;
-        kit_undo_mark();
-        brw.kind = 2, brw.sess = undo.sess, brw.gen = pkit_gen, brw.n = (uint16_t)kit_src_n(), brw.in = 1;
-        brw.start = brw.pos = (uint16_t)e;
+        brw_begin(2u, e, e, kit_src_n());
         kit_take((uint32_t)e);
         ui_say("LOADED ", nm);
     }
@@ -351,7 +353,7 @@ static void graph_ukit(void)                            /* the six user kits, wh
 {
     uint32_t n;
     for (n = 0; n < UKIT_N; n++) {
-        int32_t y = 4 + (int32_t)n * 19;
+        int32_t y = 4 + (int32_t)n * 17;
         char tag[3] = {(char)('1' + n), 0, 0}, nm[12];
         int sel = n == ukit_sel, used = ukit_has(n);
         ukit_label(n, nm, sizeof nm);
