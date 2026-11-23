@@ -179,9 +179,10 @@ static void mixer_screen(void)
     press(B_OCTUP); key(key_of_lane(0)); release(B_OCTUP);   /* KICK soloed */
     key(PUNCH_BLACK[2]);                              /* voice 3 muted */
     ui.force = 1; frame(); ppm("w13-mixer");
-    check(px_count(1 + 60, BK_Y + 34 + 20, 58, 18, TE_MUTE) > 400u, "mixer screen: OP HAT's tile yellow (muted), its M in a black tab");
-    check(px_count(1, BK_Y + 34, 58, 18, TE_SOLO) > 400u, "mixer screen: KICK's tile ice blue (soloed)");
-    check(px_count(1 + 120, BK_Y + 34, 58, 18, TE_COL[TRK_DRUM]) == 0u && px_count(1 + 120, BK_Y + 34, 58, 18, TE_G2) > 20u,
+    /* (the drum grid: OP HAT top row, second column; KICK bottom left; SNARE bottom right) */
+    check(px_count(1 + 60, BK_Y + 34, 58, 18, TE_MUTE) > 400u, "mixer screen: OP HAT's tile yellow (muted), its M in a black tab");
+    check(px_count(1, BK_Y + 34 + 60, 58, 18, TE_SOLO) > 400u, "mixer screen: KICK's tile ice blue (soloed)");
+    check(px_count(1 + 180, BK_Y + 34 + 60, 58, 18, TE_COL[TRK_DRUM]) == 0u && px_count(1 + 180, BK_Y + 34 + 60, 58, 18, TE_G2) > 20u,
           "mixer screen: SNARE silenced by the solo: dark grey, no teal");
     check(px_count(121, BK_Y, 58, 31, TE_MUTE) > 600u && px_count(1, BK_Y, 58, 31, TE_COL[0]) == 0u,
           "mixer screen: voice 3's cell yellow (muted); voice 1 dark (silenced by the kick's solo)");
