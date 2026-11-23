@@ -31,10 +31,13 @@ static uint8_t sg_trk;                                  /* the track the steps h
 static void stl_key(uint32_t k, uint32_t down);         /* (ui_stut.c) */
 /* (PHEBUS wave 4) the synth GRID's tabs, TRIG OSC FILT ENV FX MOD: the drawing and the knobs' values are ui_synth.c's */
 static const char *const SYN_TAB[6] = {"TRIG", "OSC", "FILT", "ENV", "FX", "MOD"};
+#define TH_PATT 2u                                      /* (wave 10) the TRIG tab's halves: 0, 1 TRIG; 2, 3 PATTERN; 4 A-D */
+#define TH_AD 4u
+#define TH_N 5u
 static uint8_t syn_tab = 0;                             /* the GRID's tab: 0 TRIG (or PATTERN), 1 .. 5 the stage of syn_pg's page
                                                          * (OSC FILT ENV FX MOD; the MIX pages: FX) */
 static uint8_t syn_pg;                                  /* (wave 9) a sound tab's page (PAGES index) */
-static uint8_t syn_half[6];                             /* syn_half[0]: TRIG's page, 0 TRIG 1/2, 1 TRIG 2/2, 2 PATTERN */
+static uint8_t syn_half[6];                             /* syn_half[0]: TRIG's page, 0 TRIG 1/2, 1 TRIG 2/2, 2 3 PATTERN, 4 A-D */
 static uint8_t syn_touch = 0xFF;                        /* a step held: the parameter last locked in this hold (OCT-) */
 static void edit_param_pg(const page_t *pg, uint32_t slot, int32_t steps);   /* (ui_input.c) */
 static void syn_trig_vals(int32_t first, uint32_t half, const char *lab[4], char v[4][12], int32_t ratio[4], uint32_t *dim);
@@ -46,12 +49,11 @@ static void op_names_str(const track_t *t, char *b);   /* (ui_op.c) */
 static void nav_tabs(uint16_t col, const char *banner, uint32_t *cache);
 static int sel_turn(int32_t s);                         /* (ui_sel.c) */   /* (ui_nav.c: the group's categories, the page) */
 
-#define SYN_PATT 2u                                     /* syn_half[0]: the pattern's settings */
 static uint32_t syn_halves(uint32_t tab)               /* TRIG: its two pages and PATTERN; a stage: its pages */
 {
     uint32_t n = 0;
     if (!tab)
-        return 3u;
+        return TH_N;
     while (n < 8u && stage_page(tab - 1u, n) < NPAGES)
         n++;
     return n ? n : 1u;
@@ -60,7 +62,7 @@ static uint32_t syn_hcur(void)                          /* TRIG's page; a sound 
 {
     uint32_t k;
     if (!syn_tab)
-        return syn_half[0] < 3u ? syn_half[0] : 0u;
+        return syn_half[0] < TH_N ? syn_half[0] : 0u;
     for (k = 0; k < 8u && stage_page(syn_tab - 1u, k) < NPAGES; k++)
         if (stage_page(syn_tab - 1u, k) == syn_pg)
             return k;
@@ -83,18 +85,39 @@ static void syn_go(uint32_t tab, uint32_t half)        /* tab 0: TRIG's page hal
         return;
     }
     syn_tab = 0;
-    syn_half[0] = (uint8_t)(half % 3u);
+    syn_half[0] = (uint8_t)(half % TH_N);
     syn_touch = 0xFF;
     ui.force = 1;
 }
 
 /* (wave 9, Ben 23 Nov 2026: "SEQ: the GRID, the pattern's settings") THE PATTERN'S SETTINGS as a page: SEQ's second category on
- * the synth GRID and the drum screen (hold SEQ, the STEPS layer, is the shortcut to the same four knobs): GATE (synth voices;
- * the drum hits are one-shot: --), DIV, SWING, STEPS of the selected voice's pattern */
-static void patt_vals(const track_t *t, const char *lab[4], char v[4][12], int32_t ratio[4], uint32_t *dim)
+ * the synth GRID and the drum screen: GATE (synth voices; the drum hits are one-shot: --), DIV, SWING, STEPS of the selected
+ * voice's pattern; (wave 10, Ben: "SEQ is rhythm") its second page SHIFT (the pattern a step later / earlier: it was EDIT held's
+ * KNOB 1), and SEQ's third category A-D (Ben: "The sequence button should be in charge of patterns"): KNOB 1 the pattern to
+ * play, -/+ the one before / after. The TRIG tab's halves: 0, 1 TRIG; 2, 3 PATTERN; 4 A-D */
+static void pattern_rotate(track_t *t, int32_t d);      /* (ui_layers.c) */
+static void patt_pick(int32_t w);                       /* (ui_layers.c: play pattern w, queued while playing) */
+static int32_t patt_shown(void);                        /* (ui_layers.c: the pattern playing or asked for, -1 none) */
+static void patt_vals(const track_t *t, uint32_t h, const char *lab[4], char v[4][12], int32_t ratio[4], uint32_t *dim)
 {
     static const char *const L[4] = {"GATE", "DIV", "SWING", "STEPS"};
     uint32_t k;
+    if (h == 1u || h == 2u) {                           /* PATTERN 2/2: SHIFT; A-D: the pattern */
+        for (k = 0; k < 4u; k++)
+            lab[k] = "", v[k][0] = 0, ratio[k] = -1;
+        if (h == 1u) {
+            lab[0] = "SHIFT";
+            str_cpy(v[0], "<  >", 8);
+        } else {
+            int32_t p = patt_shown();
+            lab[0] = "PATT";
+            str_cpy(v[0], p < 0 ? "--" : "A", 4);
+            if (p >= 0)
+                v[0][0] = (char)('A' + (p & 3));
+            ratio[0] = p < 0 ? 0 : p * 333;
+        }
+        return;
+    }
     for (k = 0; k < 4u; k++)
         lab[k] = L[k];
     if (is_drum(t))
@@ -108,8 +131,20 @@ static void patt_vals(const track_t *t, const char *lab[4], char v[4][12], int32
     ratio[2] = t->p[P_SSWING] * 10;
     ratio[3] = (t->p[P_SLEN] - 1) * 1000 / 63;
 }
-static void patt_turn(track_t *t, uint32_t k, int32_t s)
+static void patt_turn(track_t *t, uint32_t h, uint32_t k, int32_t s)
 {
+    if (h == 1u) {
+        if (k == 0u)
+            pattern_rotate(t, s);
+        return;
+    }
+    if (h == 2u) {
+        if (k == 0u) {
+            int32_t p = patt_shown();
+            patt_pick(clamp((p < 0 ? 0 : p) + (s > 0 ? 1 : -1), 0, 3));
+        }
+        return;
+    }
     if (k == 0u && !is_drum(t))
         t->p[P_SGATE] = (int16_t)clamp(t->p[P_SGATE] + accel(EN_K1, s, 126), 1, 127);
     else if (k == 1u)
@@ -120,7 +155,6 @@ static void patt_turn(track_t *t, uint32_t k, int32_t s)
         t->p[P_SLEN] = (int16_t)clamp(t->p[P_SLEN] + accel(EN_K4, s, 63), 1, NSTEP);
 }
 
-static int drum_grid_black(uint32_t k, uint32_t down);  /* (ui_drum.c) */
 static uint8_t drum_newvel;                             /* (ui_drum.c: a new drum trig's velocity) */
 static int32_t lk_val(uint32_t id, uint32_t v);         /* (ui_drum.c: a sound lock's value) */
 static uint32_t stl_keys_lit(uint32_t blink);
@@ -233,6 +267,28 @@ static void sg_clear(track_t *t, uint32_t idx)          /* a set step cleared (d
     fm1_irq_on();
     sync_reload = 1;
 }
+/* (wave 10, Ben: "Oct - should be" the erase) MINUS REMOVES: the steps held erased, their note or the selected sound's hit, with
+ * everything on them (OCT- with a step held: on TRIG at once; on a sound tab once its locks are gone). Returns how many */
+static uint32_t sg_held_erase(void)
+{
+    track_t *t = TSEL;
+    uint32_t w, len = trk_len(t), n = 0;
+    char b[8];
+    for (w = 0; w < 16u; w++) {
+        uint32_t idx = sg_page() * 16u + w;
+        if (!((sg_held >> w) & 1u) || idx >= len || !sg_on(t, idx))
+            continue;
+        sg_clear(t, idx);
+        n++;
+    }
+    sg_pend &= (uint16_t)~sg_held;                     /* (let go: nothing more) */
+    fmt_int(b, (int32_t)n);
+    if (n)
+        ui_say(n == 1u ? "STEP ERASED" : b, n == 1u ? "" : " STEPS ERASED");
+    else
+        ui_message("NOTHING ON THE STEP");
+    return n;
+}
 /* the steps held let go of without a change (the GRID left, or another track: a key let go later clears nothing) */
 static void sg_drop(void)
 {
@@ -302,7 +358,6 @@ static int grid_keys_on(void) { return on_drum_page() && (song.sel != TRK_DRUM |
  * black keys pick the page (steps 1-16, 17-32, 33-48, 49-64). The cursor follows */
 static void grid_key(uint32_t k, uint32_t down)
 {
-    static const int8_t PG[12] = {-1, 0, -1, 1, -1, 2, -1, -1, 3, -1, -1, -1};
     track_t *t = TSEL;
     uint32_t len = trk_len(t), idx;
     int32_t w = punch_key(k);
@@ -310,28 +365,16 @@ static void grid_key(uint32_t k, uint32_t down)
         stl_key(k, down);
         return;
     }
-    if (w < 0) {
-        if (drum_grid_black(k, down))                   /* (PHEBUS wave 3: the drum GRID's F#5, FILL) */
-            return;
-        if (!down || sg_held || k >= 12u || PG[k] < 0)
-            return;
-        if ((uint32_t)PG[k] * 16u < len) {
-            idx = (uint32_t)PG[k] * 16u + sg_cur() % 16u;
-            sg_cur_set(idx < len ? idx : len - 1u);
-            ui.force = 1;
-        } else if ((uint32_t)PG[k] == (len + 15u) / 16u) {
-            sg_page_add(t);                             /* the slot after the last: a page added */
-        } else {
-            char b[4] = {(char)('1' + (len + 15u) / 16u), 0};
-            ui_say("ADD PAGE ", b);                     /* (one at a time: the slot after the last first) */
-        }
+    if (w < 0)                                          /* (wave 10, Ben: black keys "Only live when drawn": the GRID draws
+                                                         * none; the pages of steps are -/+, the FILL is SEQ + PLAY) */
         return;
-    }
     if (!down) {
         uint32_t b = 1u << w;
         if (!(sg_held & b))
             return;
         sg_held &= (uint16_t)~b;
+        if (!sg_held && syn_tab && !is_drum(t))         /* (wave 10) the last step let go: the lock view ends, back to TRIG */
+            syn_go(0u, syn_half[0] < TH_PATT ? syn_half[0] : 0u);
         idx = sg_page() * 16u + (uint32_t)w;
         if ((sg_pend & b) && idx < len && sg_on(t, idx))
             sg_clear(t, idx);                           /* a tap on a set step: it goes */
@@ -715,7 +758,7 @@ static void sr_set(uint32_t on)
         sg_drop();
     }
     sr_on = (uint8_t)(on != 0u);
-    ly_off = on ? ly_bit[LY_STEP] | ly_bit[LY_ROLL] : 0u;
+    ly_off = on ? ly_bit[LY_SEQ] | ly_bit[LY_ARP] : 0u;
     ui.force = 1;
 }
 static void sr_next(const track_t *t)                   /* the cursor a step on, round at the end */
@@ -813,19 +856,16 @@ static void sr_input(uint32_t pressed)
     track_t *t = TSEL;
     uint32_t k, len = trk_len(t), total, cur;
     int32_t s;
-    if (pressed & (1u << panel.btn[B_OCTDN] | 1u << panel.btn[B_OCTUP])) {   /* the octave, as on HOME */
-        uint32_t both = (1u << panel.btn[B_OCTDN]) | (1u << panel.btn[B_OCTUP]);
-        if ((fm1_in.buttons & both) == both)
-            song.octave = 0;
-        else
-            song.octave += (pressed >> panel.btn[B_OCTDN]) & 1u ? (song.octave > -3 ? -1 : 0) : (song.octave < 3 ? 1 : 0);
+    if (pressed & (1u << panel.btn[B_OCTDN] | 1u << panel.btn[B_OCTUP])) {   /* (wave 10) -/+: the step before / after (the
+                                                         * octave: a double tap, ui_input.c pm_input) */
+        sg_cur_set((uint32_t)clamp((int32_t)sg_cur() + ((pressed >> panel.btn[B_OCTUP]) & 1u ? 1 : -1), 0, (int32_t)len - 1));
         ui.force = 1;
     }
-    if (pressed & ly_bit[LY_ROLL]) {                    /* ARP: a tie (keys held: their notes first) */
+    if (pressed & ly_bit[LY_ARP]) {                    /* ARP: a tie (keys held: their notes first) */
         if (sr_down && sr_n && !sr_done)
             sr_note(t);
         sr_tie(t);
-    } else if (pressed & ly_bit[LY_STEP]) {             /* SEQ: a rest (wave 9: keys held: their notes first, then the rest;
+    } else if (pressed & ly_bit[LY_SEQ]) {             /* SEQ: a rest (wave 9: keys held: their notes first, then the rest;
                                                          * the tie is ARP's alone, no second gesture for it) */
         if (sr_down && sr_n && !sr_done)
             sr_note(t);
@@ -864,8 +904,8 @@ static void syn_held_oct(uint32_t up)
     if (up)                                             /* (wave 9: OCT+ with a step held is no gesture: its condition is
                                                          * TRIG's KNOB 4 COND; a combo with no obvious link, removed) */
         return;
-    if (up || !syn_tab) {
-        sg_held_oct(up);
+    if (!syn_tab) {                                     /* (wave 10) TRIG: the step itself goes */
+        sg_held_erase();
         return;
     }
     sg_undo(t);
@@ -887,6 +927,10 @@ static void syn_held_oct(uint32_t up)
     }
     fm1_irq_on();
     sync_reload = 1;
+    if (!n && !one) {                                   /* (wave 10) no lock left: the step itself goes */
+        sg_held_erase();
+        return;
+    }
     if (one && n) {
         str_cpy(b, lock_desc(t, syn_touch)->label, 8);
         ui_say("LOCK OFF: ", b);
@@ -910,10 +954,15 @@ static void sg_synth_input(uint32_t pressed)
     }
     if (!sg_held)
         syn_touch = 0xFF;
+    if (!sg_held && syn_tab)                            /* (wave 10: the lock view only while a step is held) */
+        syn_go(0u, syn_half[0] < TH_PATT ? syn_half[0] : 0u);
     if (pressed & (1u << panel.btn[B_OCTDN] | 1u << panel.btn[B_OCTUP])) {
         uint32_t up = (pressed >> panel.btn[B_OCTUP]) & 1u, pages = (trk_len(TSEL) + 15u) / 16u, pg;
         if (sg_held) {
             syn_held_oct(up);
+        } else if (!syn_tab && syn_hcur() == TH_AD) {   /* (wave 10) SEQ > A-D: the pattern before / after */
+            int32_t p = patt_shown();
+            patt_pick(clamp((p < 0 ? 0 : p) + (up ? 1 : -1), 0, 3));
         } else if (up && sg_page() + 1u == pages && pages < 4u) {
             sg_page_add(TSEL);                          /* past the last page: one added, a copy of it */
         } else {                                        /* the page of steps before / after (64 steps: round) */
@@ -930,18 +979,19 @@ static void sg_synth_input(uint32_t pressed)
         (void)panel_enc(EN_ALGO);
     if ((s = panel_enc(EN_SELECT)) != 0)                /* (wave 9) the type of the tab's page (a step held: locked) */
         sel_turn(s);
-    sg_alt = (uint8_t)(syn_tab || syn_hcur() >= SYN_PATT ? 0u : syn_hcur());   /* (TRIG's pages: NOTE LEN VEL COND, FLAG
+    sg_alt = (uint8_t)(syn_tab || syn_hcur() >= TH_PATT ? 0u : syn_hcur());   /* (TRIG's pages: NOTE LEN VEL COND, FLAG
                                                          * RETRIG NUDGE) */
     for (k = 0; k < 4u; k++) {
         if ((s = panel_enc(EN_K1 + k)) == 0)
             continue;
         ui.hot_col = (uint8_t)k;
         ui.hot_t = 40;
-        if (!syn_tab && syn_hcur() == SYN_PATT) {       /* (wave 9) PATTERN: the pattern's settings, not a step's */
+        if (!syn_tab && syn_hcur() >= TH_PATT) {        /* (wave 9) PATTERN: the pattern's settings, not a step's (wave
+                                                         * 10: its SHIFT; A-D) */
             if (sg_held)
                 ui_message("NOT LOCKABLE");
             else
-                patt_turn(TSEL, k, s);
+                patt_turn(TSEL, syn_hcur() - TH_PATT, k, s);
         } else if (!syn_tab) {
             if (sg_held)
                 sg_held_knob(k, s);
@@ -1348,16 +1398,18 @@ static void sg_draw(void)
         for (i = 0; i < 4u; i++)
             lab[i] = LS[i];
         nav_tabs(TE_COL[vv], "STEP REC", &tabs);
-    } else if (!syn_tab && syn_hcur() == SYN_PATT) {    /* (wave 9) PATTERN: GATE DIV SWING STEPS */
-        patt_vals(TSEL, lab, v, ratio, &dim);
+    } else if (!syn_tab && syn_hcur() >= TH_PATT) {     /* (wave 9) PATTERN: GATE DIV SWING STEPS (wave 10: SHIFT; A-D) */
+        patt_vals(TSEL, syn_hcur() - TH_PATT, lab, v, ratio, &dim);
         nav_tabs(TE_COL[vv], 0, &tabs);
     } else if (!syn_tab) {
         syn_trig_vals(h0, syn_hcur(), lab, v, ratio, &dim);
         nav_tabs(TE_COL[vv], 0, &tabs);
     } else {
         uint32_t pi = syn_page();
+        char lk[16] = "LOCK: ";
         syn_vals(&PAGES[pi < NPAGES ? pi : 0u], h0, lab, v, ratio, &locked, &dim);
-        nav_tabs(TE_COL[vv], 0, &tabs);
+        str_cpy(lk + 6, PAGES[pi < NPAGES ? pi : 0u].title, 9);   /* (wave 10) a step held: the lock view, said so */
+        nav_tabs(TE_COL[vv], lk, &tabs);
         if (pi < NPAGES && PAGES[pi].scope == SC_GLOBAL) {   /* (the whole mix's: white-grey, never the voice's colour) */
             op_dials(lab, val, ratio, 0, dim, TE_G4, syn_pg * 977u + sr_on * 7u + sg_held, &footer);
             op_trackbar(&bar);

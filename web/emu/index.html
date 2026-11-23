@@ -82,7 +82,8 @@ footer small { font-size: 11px; opacity: .8; }
 <p class="keys">
   <span><kbd>Z</kbd>–<kbd>'</kbd> <kbd>Q</kbd>–<kbd>O</kbd> keys</span>
   <span><kbd>1</kbd>–<kbd>=</kbd> FX … REC</span>
-  <span><kbd>[</kbd> <kbd>]</kbd> OCT</span>
+  <span><kbd>[</kbd> <kbd>]</kbd> OCT- OCT+ (twice quickly: octave)</span>
+  <span><kbd>PgUp</kbd> <kbd>PgDn</kbd> or <kbd>\</kbd> <kbd>`</kbd> MASTER (hold a button: its pair)</span>
   <span><kbd>↑</kbd> <kbd>↓</kbd> SELECT</span>
   <span><kbd>←</kbd> <kbd>→</kbd> ALGORITHM</span>
   <span>Double-click (or <kbd>Shift</kbd>-click) a button or a key to hold it down, click it again to let go</span>
@@ -347,9 +348,12 @@ const KEYMAP = {};
   .forEach((c, i) => KEYMAP[c] = { btn: B[[...ROW1, ...ROW2][i]] });
 Object.assign(KEYMAP, { BracketLeft: { btn: B["OCT-"] }, BracketRight: { btn: B["OCT+"] } });
 const ARROWS = { ArrowUp: [EN.SELECT, 1], ArrowDown: [EN.SELECT, -1], ArrowRight: [EN.ALGORITHM, 1], ArrowLeft: [EN.ALGORITHM, -1] };
+// (wave 10) MASTER from the keyboard, so a button can be held while it turns: Page Up / Page Down, or \ and ` (a laptop)
+const MASTER_KEYS = { PageUp: 1, Backslash: 1, PageDown: -1, Backquote: -1 };
 addEventListener("keydown", (e) => {
   if (!node || e.metaKey || e.ctrlKey || e.altKey || e.target.closest?.(".hit.knob")) return;
   if (ARROWS[e.code]) { const [r, n] = ARROWS[e.code]; turn(knobs.find((k) => k.role === r), n); e.preventDefault(); return; }
+  if (MASTER_KEYS[e.code]) { turn(knobs.find((k) => k.role === "master"), MASTER_KEYS[e.code]); e.preventDefault(); return; }
   const m = KEYMAP[e.code];
   if (!m) return;
   e.preventDefault();

@@ -37,6 +37,80 @@ static uint8_t proj_unsaved;                           /* (PHEBUS) the work diff
 #define OP_BPM_R 154                                   /* the tempo's right edge */
 static uint8_t sel_t;                                   /* (wave 9) frames the SELECT chip stays filled after a turn */
 static int sel_chip(char *v, int32_t *ratio, uint16_t *col);   /* (ui_sel.c) */
+/* (wave 10, Ben 23 Nov 2026) THE -/+ LEGEND: what a single tap of OCT- and OCT+ does on the screen shown, in one small place (the
+ * right end of the tab row on page screens, of the line under the header on the layers): a boxed minus and its word, a boxed
+ * plus and its word; one word between them when both move the same thing (- PAGE +). White-grey: the octave buttons are
+ * everyone's. Not drawn where -/+ do nothing */
+static int32_t pm_glyph(int32_t x, int32_t y, int plus)   /* a 10 x 12 box, its sign in white */
+{
+    op_box(x, y + 3, 10, 12, TE_G3);
+    cv_rect(x + 2, y + 8, 6, 2, C_WHITE);
+    if (plus)
+        cv_rect(x + 4, y + 6, 2, 6, C_WHITE);
+    return x + 11;
+}
+static int32_t pm_width(const char *m, const char *p)
+{
+    if (m && p && str_eq(m, p))
+        return 11 + text_w(&FONT_S, m) + 1 + 10;
+    return (m ? 11 + text_w(&FONT_S, m) : 0) + (m && p ? 6 : 0) + (p ? 11 + text_w(&FONT_S, p) : 0);
+}
+static int32_t pm_draw(int32_t xr, int32_t y, const char *m, const char *p)   /* right-aligned at xr; returns its left */
+{
+    int32_t x0 = xr - pm_width(m, p), x = x0;
+    if (!m && !p)
+        return xr;
+    if (m && p && str_eq(m, p)) {
+        x = pm_glyph(x, y, 0);
+        x = cv_text(x, y, &FONT_S, m, TE_G4) + 1;
+        pm_glyph(x, y, 1);
+        return x0;
+    }
+    if (m) {
+        x = pm_glyph(x, y, 0);
+        x = cv_text(x, y, &FONT_S, m, TE_G4) + 6;
+    }
+    if (p) {
+        x = pm_glyph(x, y, 1);
+        cv_text(x, y, &FONT_S, p, TE_G4);
+    }
+    return x0;
+}
+/* (wave 10, Ben: black keys "Only live when drawn") THE BLACK-KEY STRIP, PERFORM's (ui_perf.c), in the same place on every
+ * screen that gives a black key a job: y 40, two rows, F#3 .. F#4 above, G#4 .. F#5 below, 37 x 12 a key. A key with a job
+ * has its word (lit: white, filled); a key with none here is an empty outline: it does nothing */
+#define BK_Y 40
+#define BK_H 26
+static void bk_strip(const char *const lab[11], uint32_t on, uint32_t *cache)
+{
+    uint32_t i, sig = on * 7u + 11u;
+    for (i = 0; i < 11u; i++)
+        sig = studio_hash(sig * 3u, lab[i] ? lab[i] : "\1");
+    if (!ui.force && sig == *cache)
+        return;
+    *cache = sig;
+    cv_begin(240, BK_H, C_BLACK);
+    for (i = 0; i < 11u; i++) {
+        int32_t r = i < 6u ? 0 : 1, c = i < 6u ? (int32_t)i : (int32_t)i - 6, x = 2 + c * 40, y = r * 13;
+        if (!lab[i]) {
+            op_box(x, y, 37, 12, TE_G1);
+        } else if ((on >> i) & 1u) {
+            cv_rect(x, y, 37, 12, C_WHITE);
+            te_text_c(x + 18, y - 2, lab[i], C_BLACK);
+        } else {
+            cv_rect(x, y, 37, 12, TE_G1);
+            te_text_c(x + 18, y - 2, lab[i], TE_G4);
+        }
+    }
+    cv_blit(0, BK_Y);
+}
+/* (wave 10) MASTER's chip: on a layer the header's title place says what MASTER turns while the button is held (a little
+ * dial, the pair's word, in what it acts on's colour; filled a moment after a turn), as SELECT's chip says what SELECT turns.
+ * Set by the layer's drawing for one op_header call */
+static const char *hdr_mchip;
+static uint8_t master_t;                                /* MASTER's chip filled a moment after a turn (frames: ui_timers) */
+static uint16_t hdr_mcol;
+static int32_t hdr_mratio;
 static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t *cache)
 {
     char b[12];
@@ -51,6 +125,8 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
     sig = studio_hash(sig * 31u + tc, tag);
     if (chip)
         sig = studio_hash(sig * 131u + (uint32_t)cr * 7u + cc + (sel_t != 0u) * 99991u, cv_);
+    if (hdr_mchip)
+        sig = studio_hash(sig * 137u + (uint32_t)hdr_mratio * 3u + hdr_mcol + (master_t != 0u) * 7717u, hdr_mchip);
     if (!ui.force && sig == *cache)
         return;
     *cache = sig;
@@ -86,6 +162,12 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
                 cv_rect(x, 2, text_w(&FONT_S, f) + 4, 16, C_WHITE);
                 cv_text(x + 2, 2, &FONT_S, f, C_BLACK);
             }
+        } else if (hdr_mchip) {                         /* (wave 10) what MASTER turns while this button is held */
+            int32_t cx = w + 5, cw = 18 + text_w(&FONT_S, hdr_mchip) + 3;
+            uint32_t hot = master_t != 0u;
+            cv_rect(cx, 1, cw, 18, hot ? hdr_mcol : te_dim_of(hdr_mcol));
+            te_dial(cx + 9, 10, 6, hdr_mratio, hot ? C_BLACK : hdr_mcol, hot ? hdr_mcol : C_BLACK);
+            cv_text(cx + 18, 2, &FONT_S, hdr_mchip, hot ? C_BLACK : hdr_mcol);
         } else if (chip) {                              /* (wave 9) WHAT SELECT TURNS: its little dial and the value, in the
                                                          * colour of what it acts on, where the title sits (the SELECT knob is
                                                          * at the screen's upper left); filled a moment after a turn */
@@ -1076,10 +1158,12 @@ static void op_sound(const track_t *t, const page_t *pg)
  * M mute 1..4, S solo 1..4, F a fill while held, B fill the next bar, P the knobs are the pans (wave 8: no tap tempo, the
  * tempo is GLO > GLOBAL's BPM only).
  * flags: 1 a fill now, 2 the next bar is one, 4 it is asked for, 8 the beat. */
+#define OPM_H (OP_BODY_Y + 96 - (BK_Y + BK_H + 1))       /* (wave 10) the podiums' band, between the strip and the keys */
 static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32_t flags)
 {
     static const char *const LAB[4] = {"1", "2", "3", "DR"};   /* (the tracks by number, as the strip: review 21) */
-    static const char KEYS[17] = "123D123DFBP     ";   /* (PHEBUS: P, key 11, the knobs are the pans) */
+    static const char KEYS[17] = "123D123D        ";   /* (wave 10: no FILL, BAR, PAN keys: fill is SEQ's, PAN a black key in
+                                                         * the strip) */
     static uint32_t head, scene, keys, knobs, bar;
     const uint8_t *mx = op_mx;
     uint32_t i, sig = 7u;
@@ -1091,14 +1175,14 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
     sig = sig * 31u + song.solo;
     if (ui.force || sig != scene) {
         scene = sig;
-        cv_begin(240, 96, C_BLACK);
-        cv_rect(0, 94, 240, 1, TE_G1);
+        cv_begin(240, OPM_H, C_BLACK);                  /* (wave 10: under the black-key strip, SOLO and PAN, y 40 .. 66) */
+        cv_rect(0, OPM_H - 2, 240, 1, TE_G1);
         for (i = 0; i < NTRK; i++) {
-            int32_t cx = 2 + 60 * (int32_t)i + 28, h = 6 + ratio[i] * 70 / 1000, top = 94 - h, y, n = (h - 3) / 4, lit;
+            int32_t cx = 2 + 60 * (int32_t)i + 28, h = 6 + ratio[i] * (OPM_H - 14) / 1000, top = OPM_H - 2 - h, y, n = (h - 3) / 4, lit;
             uint32_t mute = trk[i].p[P_MUTE] != 0;
             uint16_t c = mute ? TE_G3 : TE_COL[i];   /* (muted: grey, never darker, review 19) */
             if (mute) {                                 /* a muted podium: dashed */
-                for (y = top; y < 94; y += 4) {
+                for (y = top; y < OPM_H - 2; y += 4) {
                     cv_rect(cx - 17, y, 1, 2, c);
                     cv_rect(cx + 16, y, 1, 2, c);
                 }
@@ -1109,11 +1193,11 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
             }
             lit = n * mx[i] / 82;
             for (y = 0; y < n; y++)
-                cv_rect(cx - 13, 91 - y * 4, 26, y < lit ? 2 : 1, y < lit ? TE_COL[i] : TE_G1);
+                cv_rect(cx - 13, OPM_H - 5 - y * 4, 26, y < lit ? 2 : 1, y < lit ? TE_COL[i] : TE_G1);
             if (mute || (song.solo >> i) & 1u)          /* (wave 7: the strip's badge, one size everywhere) */
-                op_badge(cx + 16, 2, mute ? 'M' : 'S', mute ? TE_MUTE : TE_SOLO);
+                op_badge(cx + 19, OPM_H - 18, mute ? 'M' : 'S', mute ? TE_MUTE : TE_SOLO);
         }
-        cv_blit(0, OP_BODY_Y);
+        cv_blit(0, BK_Y + BK_H + 1);
     }
     sig = flags + song.solo * 64u;
     for (i = 0; i < NTRK; i++)
@@ -1123,53 +1207,38 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
     if (is_drum(TSEL) && (ui.force || sig != keys)) {  /* (wave 9) the drums selected: the 16 keys mute (or solo) the sounds,
                                                          * a tile a sound, its initial; muted: yellow, soloed: ice blue; the
                                                          * black keys under: SOLO FILL BAR PAN */
-        static const char *const BK[4] = {"SOLO", "FILL", "BAR", "PAN"};
-        uint32_t bon[4] = {(flags >> 5) & 1u, flags & 1u, ((flags >> 1) | (flags >> 2)) & 1u, (flags >> 4) & 1u};
-        int32_t x;
         keys = sig;
         cv_begin(240, 36, C_BLACK);
         for (i = 0; i < 16u; i++) {
             uint32_t m = (drum_mute >> i) & 1u, so = (drum_solo >> i) & 1u;
             char ch[2] = {LANE_SHORT[i][0], 0};
-            x = 4 + (int32_t)i * 14 + (int32_t)(i / 4u) * 2;
+            int32_t x = 4 + (int32_t)i * 14 + (int32_t)(i / 4u) * 2;
             if (m || so)
                 cv_rect(x, 2, 12, 18, m ? TE_MUTE : TE_SOLO);
             else
                 op_box(x, 2, 12, 18, i == drum_lane ? C_WHITE : TE_COL[TRK_DRUM]);
             cv_text(x + 2, 3, &FONT_S, ch, m || so ? C_BLACK : TE_COL[TRK_DRUM]);
         }
-        x = cv_text(4, 20, &FONT_S, (flags >> 5) & 1u ? "SOLO" : "MUTE", (flags >> 5) & 1u ? TE_SOLO : TE_MUTE);
-        for (i = 0, x += 10; i < 4u; i++) {             /* the black keys F#3 G#3 A#3 C#4, in order */
-            int32_t w = text_w(&FONT_S, BK[i]) + 4;
-            if (bon[i])
-                cv_rect(x - 2, 21, w, 14, C_WHITE);
-            else
-                op_box(x - 2, 21, w, 14, TE_G2);
-            cv_text(x, 20, &FONT_S, BK[i], bon[i] ? C_BLACK : TE_G4);
-            x += w + 4;
-        }
+        cv_text(4, 20, &FONT_S, (flags >> 5) & 1u ? "KEYS: SOLO" : "KEYS: MUTE", (flags >> 5) & 1u ? TE_SOLO : TE_MUTE);
         cv_blit(0, OP_BODY_Y + 96);
     } else if (!is_drum(TSEL) && (ui.force || sig != keys)) {                      /* the 16 white keys: the track's number on its mute and solo
                                                          * keys, what each group does under it (review 21) */
-        static const char *const GRP[3] = {"MUTE", "SOLO", "FILL"};
-        static const uint8_t GX[3] = {0, 4, 8};
+        static const char *const GRP[2] = {"MUTE", "SOLO"};
+        static const uint8_t GX[2] = {0, 4};
         keys = sig;
         cv_begin(240, 36, C_BLACK);
         for (i = 0; i < 16u; i++) {
             int32_t x = 4 + (int32_t)i * 14 + (int32_t)(i / 4u) * 2;
-            uint32_t on = i < 4u ? trk[i].p[P_MUTE] != 0 : i < 8u ? (song.solo >> (i - 4u)) & 1u : i == 8u ? flags & 1u :
-                          i == 9u ? (flags >> 1) & 1u : i == 10u ? (flags >> 4) & 1u : 0u;
+            uint32_t on = i < 4u ? trk[i].p[P_MUTE] != 0 : i < 8u ? (song.solo >> (i - 4u)) & 1u : 0u;
             uint16_t c = i < 4u ? TE_COL[i] : i < 8u ? TE_MID[i - 4u] : KEYS[i] == ' ' ? OP_PUR_D : TE_G4;
             char ch[2] = {KEYS[i], 0};
             if (on)
                 cv_rect(x, 2, 12, 20, i < 4u ? TE_MUTE : i < 8u ? TE_SOLO : C_WHITE);
             else
                 op_box(x, 2, 12, 20, c);
-            if (i == 9u && (flags & 4u))
-                cv_rect(x, 2, 12, 2, C_WHITE);
             cv_text(x + 2, 4, &FONT_S, ch, on ? C_BLACK : c);
         }
-        for (i = 0; i < 3u; i++) {
+        for (i = 0; i < 2u; i++) {
             int32_t x = 4 + (int32_t)GX[i] * 14 + (int32_t)(GX[i] / 4u) * 2;
             cv_text(x, 21, &FONT_S, GRP[i], TE_G3);
         }

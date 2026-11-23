@@ -77,8 +77,10 @@ static void reset(uint32_t bpm)
     rec_wait = 0;
     fm1_in.notes = fm1_in.buttons = 0;
     kb_prev = 0;
-    ly_bit[LY_ROLL] = 1u << 8;                       /* (the buttons: any bits) */
-    ly_bit[LY_ERASE] = 1u << 4;
+    ly_bit[LY_ARP] = 1u << 8;                       /* (the buttons: any bits) */
+    ly_bit[LY_EDIT] = 1u << 4;
+    ly_bit[LY_SEQ] = 1u << 9;                       /* (wave 10: ROLL / RETRIG are SEQ's) */
+    chord_mods_drawn = 1;                           /* (wave 10: the chord modifiers live where drawn: ARP > KEY, as shown) */
     dyn_bit[0] = 1u << 0;
     dyn_bit[1] = 1u << 1;
 }
@@ -243,7 +245,7 @@ static void t_roll(void)
     song.rec = 1u << TRK_DRUM;
     transport_req = 1;
     run_block();
-    fm1_in.buttons = ly_bit[LY_ROLL];                /* ARP held */
+    fm1_in.buttons = ly_bit[LY_SEQ];                /* (wave 10) SEQ held: the roll */
     fm1_in.notes = 1u << k;
     for (i = 0; i < div_samples(2) * 8u / CTL; i++)  /* 8 steps */
         run_block();
@@ -277,8 +279,9 @@ static void t_erase_undo(void)
     transport_req = 1;
     while (TDRUM->seq_idx != 4u)
         run_block();
-    fm1_in.buttons = ly_bit[LY_ERASE];               /* EDIT held + the hat key (C4 = key 7) */
-    fm1_in.notes = 1u << 7;
+    fm1_in.notes = 1u << 7;                         /* (wave 10) the hat key (C4 = key 7) held, then OCT-: erase */
+    run_block();
+    fm1_in.buttons = dyn_bit[0];
     while (TDRUM->seq_idx != 7u)
         run_block();
     for (i = 0; i < 20u; i++)                        /* (into step 7, not 8) */
@@ -293,7 +296,7 @@ static void t_erase_undo(void)
     if (left != 12u)
         printf("seq2:   erase: %u hats left, %u kicks; %d %d\n", left, kept, dt_has(5, 4), dt_has(9, 4));
     check(left == 12u && kept == 4u && !dt_has(5, 4) && dt_has(9, 4),
-          "EDIT + hat while playing steps 4..7: those hats gone, the rest and the kicks kept");
+          "the hat's key + OCT- while playing steps 4..7: those hats gone, the rest and the kicks kept");
     {   /* undo (ui.c undo_swap): the hats back (PHEBUS wave 2: the drum pattern, whole) */
         static dpat_t tmp;
         tmp = dpat;
@@ -306,15 +309,16 @@ static void t_erase_undo(void)
     check(left == 16u && undo.trk == TRK_DRUM, "undo: the erased hats are back");
     transport_req = 2;
     run_block();
-    fm1_in.buttons = ly_bit[LY_ERASE];               /* stopped: every hat of the pattern */
-    fm1_in.notes = 1u << 7;
+    fm1_in.notes = 1u << 7;                         /* stopped: every hat of the pattern */
+    run_block();
+    fm1_in.buttons = dyn_bit[0];
     run_block();
     fm1_in.notes = fm1_in.buttons = 0;
     run_block();
     left = 0;
     for (i = 0; i < 16u; i++)
         left += dt_has(i, 4);
-    check(left == 0u, "EDIT + hat while stopped: every hat gone");
+    check(left == 0u, "the hat's key + OCT- while stopped: every hat gone");
 }
 
 static void t_levels(void)

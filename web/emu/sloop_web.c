@@ -181,10 +181,10 @@ EXPORT void web_enc(uint32_t role, int32_t n)
     if (role < NE)
         encs[panel.enc[role] % 7u] += n * panel.dir[role];
 }
-EXPORT void web_master(uint32_t v)                    /* (main.c: the pot squared, 0 .. ~4096) */
+EXPORT void web_master(uint32_t v)                    /* (wave 10: as main.c, the pot through ui_master.c: the volume, or with a
+                                                       * button held its pair, relative) */
 {
-    uint32_t k10 = v > 1023u ? 1023u : v;
-    song.master_q12 = (k10 * k10) >> 8;
+    master_in((int32_t)(v > 1023u ? 1023u : v));
 }
 /* a channel message from Web MIDI, as a USB-MIDI packet arrives (usb.c): 0 = the ring was full */
 EXPORT uint32_t web_midi(uint32_t status, uint32_t d1, uint32_t d2)

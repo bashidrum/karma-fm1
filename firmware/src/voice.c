@@ -658,6 +658,27 @@ static void engine_block(track_t *t)
  * below a block) takes the tables' 0, as with SYNC OFF. OFF: the tables' values, as before (looked up once a block here
  * instead of once a voice in env_tick: the same numbers) */
 _Static_assert(CTL == 32, "esync_one: 4.6 CTL in Q16 is 9646899");
+/* (wave 10, Ben 23 Nov 2026: "hold a button and turn MASTER") the MASTER pairs that are macros, not stored values: they scale
+ * what is stored and change none of it, so turning them back is exact. Performance state (not in a project, as the mutes and
+ * PERFORM's knobs): 0 at power-on and NEW.
+ *   mac_env[v]  ENV + MASTER: the length of voice v's amp envelope, every stage at once (ATTACK, DECAY, RELEASE: the times;
+ *               SUSTAIN is a level, kept), x 2^(mac_env / 32): -64 a quarter as long, 0 as stored, +63 about 3.9 times
+ *   mac_dep[v]  LFO + MASTER: voice v's modulation depth: every matrix amount from a modulator (the two LFOs and the three
+ *               envelopes, the fixed cells and the free ones) x (64 + mac_dep) / 64: -64 none, 0 as stored, +63 about twice
+ *   fx_wet      FX + MASTER: the whole mix's effect return, 0 .. 100 %: the shared delay, reverb and chorus come back into the
+ *               mix at this share (the sends into them, PERFORM's throws too, are not touched, so tails run on); 100 as
+ *               before, 0 the dry mix exactly */
+static volatile int8_t mac_env[NPART], mac_dep[NPART];
+static volatile uint8_t fx_wet = 100;
+static const uint16_t EXP2_32[32] = {   /* 2^(r / 32), Q15 */
+    32768, 33486, 34219, 34968, 35734, 36516, 37316, 38133, 38968, 39821, 40693, 41584, 42495, 43425, 44376, 45348,
+    46341, 47356, 48393, 49452, 50535, 51642, 52773, 53928, 55109, 56316, 57549, 58809, 60097, 61413, 62757, 64132};
+static uint32_t mac_env_q12(int32_t v)  /* the coefficients' factor for mac_env v: 2^(-v / 32), Q12 */
+{
+    int32_t e = -v, q = e >> 5;
+    uint32_t t = EXP2_32[e & 31];
+    return q >= 0 ? (t << q) >> 3 : t >> (3 - q);
+}
 static uint32_t esync_k[NTRK][6];   /* ATK's step, DEC's and REL's coefficient (Q16): each track's, this block (env_tick);
                                      * (wave 4) then the filter's own envelope's three (fenv_tick).
                                      * (3.1.5) one set a track: one shared set, two tracks rendering at once on the two
@@ -701,6 +722,15 @@ static __attribute__((noinline)) void esync_coef(const track_t *t)   /* (not inl
         k[3] = ENV_LIN[p[P_FATK] & 127];
         k[4] = ENV_EXP[p[P_FDEC] & 127];
         k[5] = ENV_EXP[p[P_FREL] & 127];
+    }
+    if ((uint32_t)(t - trk) < NPART && mac_env[(uint32_t)(t - trk)]) {   /* (wave 10) ENV + MASTER: every amp stage longer or
+                                                         * shorter together (a coefficient is about 1 / its time) */
+        uint32_t m = mac_env_q12(mac_env[(uint32_t)(t - trk)]), i;
+        for (i = 0; i < 3u; i++) {
+            uint64_t x = ((uint64_t)k[i] * m) >> 12;
+            uint32_t hi = i ? 65535u : 1u << 24;
+            k[i] = x < 1u ? 1u : x > hi ? hi : (uint32_t)x;
+        }
     }
 }
 
@@ -795,6 +825,10 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
     const int16_t *p = t->p;
     uint32_t i;
     int32_t lfo = mulq15(t->lfo_val, t->lfo_fade);
+    /* (wave 10) LFO + MASTER: the fixed cells from a modulator (LFO1 > PIT, CUT, LVL; FENV > CUT; PENV > PIT) at its depth */
+    int32_t md = (uint32_t)(t - trk) < NPART ? 64 + mac_dep[(uint32_t)(t - trk)] : 64;
+    int32_t ld_pit = (p[P_LD_PIT] * md) >> 6, ld_flt = (p[P_LD_FLT] * md) >> 6, ed_pit = (p[P_ED_PIT] * md) >> 6;
+    int32_t ed_flt = (p[P_ED_FLT] * md) >> 6, ld_amp = clamp((p[P_LD_AMP] * md) >> 6, 0, 127);
     /* TUNE in cents: whole 1/16 semitones in the pitch, the rest as a fine factor (no dead zone) */
     int32_t tune = song.g[G_TUNE] >= 0 ? song.g[G_TUNE] * 16 / 100 : -((-song.g[G_TUNE] * 16 + 99) / 100);
     int32_t tune_fine = (song.g[G_TUNE] * 16 - tune * 100) * 2367 / 16000;   /* rest, in 1/4096 (1 ct = 2.367) */
@@ -832,7 +866,10 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
             if (at && at <= MS_N * MD_N && (at - 1u) % MD_N <= MD_LVL && mx->c[i].amt) {
                 mxs[mxn] = (uint8_t)((at - 1u) / MD_N);
                 mxd[mxn] = (uint8_t)((at - 1u) % MD_N);
-                mxa[mxn++] = mx->c[i].amt;
+                mxa[mxn] = mx->c[i].amt;
+                if (mac_dep[ti] && mxs[mxn] <= MS_PENV)  /* (wave 10) LFO + MASTER: the modulators' depth */
+                    mxa[mxn] = (int8_t)clamp((mx->c[i].amt * (64 + mac_dep[ti])) >> 6, -128, 127);
+                mxn++;
             }
         }
         l2 = mx->l2val;
@@ -872,8 +909,8 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
             m.envq15 = e->ownenv ? 0 : env;
             fe = p[P_FLINK] ? fenv_tick(t, v) : m.envq15;   /* (wave 4) the filter's: LINK the amp ENV's, OWN its own */
             m.amp1 = e->ownenv ? env : mulq15(env, v->vel * 258);
-            if (p[P_LD_AMP])
-                m.amp1 = mulq15(m.amp1, 32767 - mulq15(p[P_LPOL] ? lfo : (lfo + 32768) >> 1, p[P_LD_AMP] * 258));
+            if (ld_amp)
+                m.amp1 = mulq15(m.amp1, 32767 - mulq15(p[P_LPOL] ? lfo : (lfo + 32768) >> 1, ld_amp * 258));
             /* (wave 5) the matrix's sources for this voice (modmx.c), and its cells on PIT M1 M2 M3 CUT RES LVL */
             vsrc[MS_LFO1] = lfo;
             vsrc[MS_LFO2] = l2;
@@ -919,8 +956,8 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
         if (!env && !m.amp0 && v->stage == 2)
             continue;                                   /* held at a silent sustain (SUS 0): nothing to render */
         {   /* the pitch in 1/4096 semitone: glide, LFO, the pitch envelope; the fraction goes into the increment */
-            int32_t q = (v->pitch_cur << 8) + v->pitch_frac + ((lfo * p[P_LD_PIT] * 3) >> 7) +
-                        ((v->penv * p[P_ED_PIT] * 3) >> 7) + bendq + octq + mo[MD_PIT];
+            int32_t q = (v->pitch_cur << 8) + v->pitch_frac + ((lfo * ld_pit * 3) >> 7) +
+                        ((v->penv * ed_pit * 3) >> 7) + bendq + octq + mo[MD_PIT];
             pitch = (q >> 8) + tune;
             m.pitch16 = clamp(pitch, 0, 2047);
             m.inc = pitch_inc(m.pitch16);
@@ -932,7 +969,7 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
         /* (wave 4) the voice filter's modulation, 1/256 of a CUTOFF step: the LFO (FLT), the filter's envelope (ENV: +-64 a
          * full sweep, 127 steps, ten octaves), an accent (with the envelope), KEY tracking (100 %: the cutoff follows the
          * note, 127 / 120 of a step a semitone); every engine's filter adds it to CUTOFF (vfilt.c, ACID's, JUNO's) */
-        m.cutoff = ((lfo * p[P_LD_FLT]) >> 7) + ((fe * p[P_ED_FLT]) >> 6) +
+        m.cutoff = ((lfo * ld_flt) >> 7) + ((fe * ed_flt) >> 6) +
                    (((m.pitch16 - 60 * 16) * 17 * p[P_FKEY]) / 127);
         if (v->vel > 110)                               /* accent opens the filter with the env */
             m.cutoff += (fe * 24) >> 7;

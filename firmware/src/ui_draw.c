@@ -655,6 +655,7 @@ static void graph_menu(const track_t *t)
     }
 }
 
+static uint32_t key_strip_c;                            /* (wave 10: the KEY page's chord strip, drawn: draw_foot) */
 static void draw_graph(void)
 {
     const page_t *pg = cur_page();
@@ -750,16 +751,32 @@ static void draw_graph(void)
         cv_h = 131 - Y_GRAPH;                           /* (wave 9: the tab row under it, ui_nav.c) */
     cv_blit_from(0, Y_GRAPH, top || ui.graph_top || ui.force ? 0u : G_OY);
     ui.graph_top = (uint8_t)top;
+    key_strip_c = ~0u;                                  /* (wave 10: the chord strip over it, again) */
 }
 
 /* under the graph (wave 9): the tab row every screen has, the categories of the button's group and the page in it (ui_nav.c) */
 static void nav_tabs(uint16_t col, const char *banner, uint32_t *cache);
+/* (wave 10, Ben: black keys "Only live when drawn") the chord modifiers (seq.c CHORD+): drawn in the black-key strip on ARP's
+ * KEY pages while a chord mode is on, and live only there (seq.c chord_mods_drawn); held: lit */
+static int key_strip_on(void)
+{
+    const page_t *pg = cur_page();
+    return !ui.home && !ui.menu && ui.layer == LY_PLAY && !vis_shown() && !rec_wait && !on_drum_page() && pg->cat == CT_KEY &&
+           !is_drum(TSEL) && TSEL->p[P_CHORD];
+}
 static void draw_foot(void)
 {
     const page_t *pg = cur_page();
     if (ui.home)
         return;
     nav_tabs(pg->scope == SC_GLOBAL ? TE_G4 : TE_COL[(is_drum(TSEL) ? TRK_DRUM : song.sel) & 3u], 0, &ui.foot_sig);
+    if (key_strip_on()) {
+        static const char *const CM[11] = {"3RD", "7TH", "SUS4", "9TH", "INV", "3RD", "7TH", "SUS4", "9TH", "INV", "3RD"};
+        uint32_t i, on = 0;
+        for (i = 0; i < 11u; i++)
+            on |= ((fm1_in.notes >> PUNCH_BLACK[i]) & 1u) << i;
+        bk_strip(CM, on, &key_strip_c);
+    }
 }
 static void draw_columns_set(void);
 static void draw_columns(void)                         /* the four knobs of the page, then their band */
@@ -892,7 +909,7 @@ static void ui_timers(void)
 {
     if (ui.ask) {                                       /* (wave 8) a question stays up while its screen does; another
                                                          * screen or another message: it goes (ui_input.c ask_set) */
-        if (!ui.msg_t || memcmp(ui.msg, "HOLD REC: ", 10))
+        if (!ui.msg_t || memcmp(ui.msg, "HOLD SAVE: ", 11))
             ui.ask = 0;
         else
             ui.msg_t = 40;
@@ -907,6 +924,8 @@ static void ui_timers(void)
         ui.hot_t--;
     if (sel_t)
         sel_t--;
+    if (master_t)
+        master_t--;
 }
 
 static void vis_draw(void);                     /* ui_vis.c */
@@ -923,8 +942,10 @@ static void ui_draw(void)
                                                          * screen says otherwise (HOME, the layers and the lane no longer
                                                          * set them: a stale per-voice tint drew coral on voice 1's OSC) */
     {   /* a message belongs to the screen it showed on: another screen, it goes (review 21) */
-        uint16_t k = (uint16_t)((ui.menu * 1000003u + ui.layer * 7919u + rec_wait * 17u +   /* (wave 8: not the hold's ring:
-                                                         * the question it answers stays with its screen) */
+        uint16_t k = (uint16_t)((ui.menu * 1000003u + (ui.ask ? 0u : ui.layer) * 7919u + rec_wait * 17u +   /* (wave 8: not
+                                                         * the hold's ring: the question it answers stays with its screen;
+                                                         * wave 10: nor the layer that asked letting go, so SAVE can be held
+                                                         * after EDIT or SEQ) */
                                  ui.home * 3u + ui.page * 977u + drum_keys * 5u + vis_on * 11u) % 65521u);
         if (!ui.msg_t)
             ;
@@ -937,7 +958,7 @@ static void ui_draw(void)
         rec_go = 0;
         ui_message("RECORDING");
     }
-    if (er_flash) {                                     /* EDIT + key took something out */
+    if (er_flash) {                                     /* a key + OCT- took something out (wave 10) */
         er_flash = 0;
         if (!ui.msg_t)
             ui_message("ERASED");

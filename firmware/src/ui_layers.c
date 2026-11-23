@@ -1,35 +1,27 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* LAYERS, teenage-engineering style: hold a function button, touch a key (or turn a knob). While the
- * button is held the screen shows what the 16 white keys and KNOB 1..4 do now; tapped (pressed and
- * let go without touching anything) the button opens its pages as before.
- *   FX    PERFORM: the keys are pads       knobs: the last pad's (ui_perf.c, punch.c perf_*)
- *   EDIT  erase that sound / note (seq.c)  knobs: SHIFT  LENGTH x2 / half  TRANSPOSE   OCT- undo  OCT+ redo
- *   ARP   note repeat (seq.c roll)         knobs: RATE
- *   SEQ   the keys do nothing              knobs: -  DIV  SWING  STEPS (PHEBUS, Ben 21 Nov 2026: "Remove them": the
- *                                                 GRID is the one place steps are edited); the screen draws the
- *                                                 pattern's steps in time: their spacing, the swing, how many
- *   SEL   any key: the key of the song     knobs: CHORD  SCALE  KEYS  TRANSPOSE
- *   GLO   keys 1..4 mute, 5..8 solo,       knobs: the levels of tracks 1..4
- *         9 fill while held, 10 fill the next bar, the last white key: tap tempo
- *   SAVE  keys 1..4 play section A..D (playing: on the next bar), 5..8 store the loop into A..D
- * The keys' part runs in the audio ISR (seq.c layer_now: no lag, no lost press); the SEQ, SEL and
- * GLO keys come to the UI through seq.c lk_q. HOLD: REC held clears the track, SAVE held saves the
- * project (a ring fills; let go before and nothing happens). */
-static const uint8_t LAYER_BTN[LY_COUNT] = {NB, B_FX, B_EDIT, B_ARP, B_SEQ, B_SCL, B_GLO, B_SAVE};
-static const char *const LAYER_NAME[LY_COUNT] = {"", "perform", "erase", "roll", "steps", "key", "mix", "pattern"};   /* (wave 7: A to D are patterns, Ben's word) */
-static const char *layer_name(uint32_t l)               /* (PHEBUS wave 3: on the drum track SEL picks a sound, ARP retrigs) */
-{
-    if (is_drum(TSEL) && l == LY_SCALE)
-        return drum_keys == DK_MUTE ? "solo" : "sound";
-    if (is_drum(TSEL) && l == LY_ROLL)
-        return "retrig";
-    return LAYER_NAME[l % LY_COUNT];
-}
-static const char *const LAYER_BTN_NAME[LY_COUNT] = {"", "fx:", "edit:", "arp:", "seq:", "sel:", "glo:", "save:"};   /* the button
-                                                         * held, before the layer's name: "FX: PUNCH" (review 21) */
+/* LAYERS: hold a button, touch a key or a knob (or turn MASTER). While the button is held the screen shows what the keys,
+ * KNOB 1..4, OCT- / OCT+ and MASTER do now; tapped (pressed and let go without touching anything) the button opens its
+ * categories. (Wave 10, Ben 23 Nov 2026: "every control has ONE idea") each hold is its button's idea, a shortcut or a
+ * performance layer, never the only way:
+ *   FX    PERFORM: the keys are pads; knobs: the last pad's; OCT+ latch, OCT- latches off; MASTER: FX MIX (ui_perf.c)
+ *   SEQ   RHYTHM: the white keys ROLL (drums: RETRIG); black keys F#3..C#4 play pattern A..D, D#4 the fill bar (drawn
+ *         in the strip); PLAY: FILL while held, OCT+ with it latches; knobs: RATE SHIFT SWING STEPS; OCT- halve, OCT+
+ *         double; MASTER: SWING
+ *   ARP   NOTES: OCT- / OCT+ transpose the voice's pattern a semitone; MASTER: TRANSP (KEY 2's TRANS)
+ *   GLO   the MIXER: levels, pans, mutes, solos (drums: the 16 sounds'); MASTER: TEMPO
+ *   SAVE  keys 1..4 store the playing state into A..D; OCT- undo, OCT+ redo; with a question showing, the confirm's ring
+ *   EDIT  OCT- clears the voice (after the confirm); MASTER: LEVEL. ENV: MASTER ENV LENGTH. LFO: MASTER MOD DEPTH
+ *   SEL   no layer (the PAGE button); HOME, REC: none
+ * The keys' part runs in the audio ISR (seq.c layer_now); the GLO, SAVE and SEQ black keys come to the UI through seq.c
+ * lk_q */
+static const uint8_t LAYER_BTN[LY_COUNT] = {NB, B_FX, B_EDIT, B_ARP, B_SEQ, B_SCL, B_GLO, B_SAVE, B_ENV, B_LFO};
+static const char *const LAYER_NAME[LY_COUNT] = {"", "perform", "voice", "notes", "rhythm", "", "mix", "save", "envelope",
+                                                 "modulation"};
+static const char *layer_name(uint32_t l) { return LAYER_NAME[l % LY_COUNT]; }
 static void section_store(uint32_t s);                  /* project.c */
 static void perf_knob(uint32_t k, int32_t s);           /* ui_perf.c (wave 6: PERFORM) */
 static void section_load(uint32_t s);
+#include "ui_master.c"                                  /* (wave 10) MASTER with a button held: its pair */
 /* (wave 8, Ben 22 Nov 2026: "keep them few and consistent") THE TIMES, all of them, in one place (GUIDE.md section 2):
  *   TAP_MS         a press shorter than this, nothing else touched: a tap (a button's pages)
  *   SHOW_MS        a layer shows after this, so a tap does not flash it
@@ -40,18 +32,18 @@ static void section_load(uint32_t s);
 #define TAP_MS 450u                                     /* a press shorter than this, untouched: a tap */
 #define SHOW_MS 140u                                    /* the layer shows after this (a tap does not flash it) */
 #define LONG_MS 700u                                    /* the long press */
-static uint8_t mix_dsolo;                               /* (wave 9) the mixer, the drums selected: the white keys solo (F#3) */
-static uint8_t mix_pan;                                 /* (PHEBUS) GLO + key 11: the mixer's knobs are the pans, until it
-                                                         * closes (HOME's KNOB 4 was PAN; VOICE 2 has it too) */
+static uint8_t mix_dsolo;                               /* (wave 9) the mixer, the drums selected: the white keys solo (F#3,
+                                                         * drawn in the strip: wave 10) */
+static uint8_t mix_pan;                                 /* (PHEBUS) the mixer's knobs are the pans (G#3, drawn in the strip:
+                                                         * wave 10), until it closes */
 
 /* the ISR's view of the panel: the layers' buttons, OCT- / OCT+ */
 static void layers_init(void)
 {
     uint32_t l;
     for (l = LY_FX; l < LY_COUNT; l++)
-        ly_bit[l] = l == LY_SCALE ? 0u : 1u << panel.btn[LAYER_BTN[l]];   /* (wave 9, Ben 23 Nov 2026: SEL is the PAGE button;
-                                                         * held, nothing: "Leave it unused". The KEY layer's settings are
-                                                         * ARP's KEY category, the drum sound pick SELECT, the mutes the mixer) */
+        ly_bit[l] = l == LY_SEL ? 0u : 1u << panel.btn[LAYER_BTN[l]];   /* (wave 9, Ben 23 Nov 2026: SEL is the PAGE button;
+                                                         * held, nothing: "Leave it unused") */
     dyn_bit[0] = 1u << panel.btn[B_OCTDN];
     dyn_bit[1] = 1u << panel.btn[B_OCTUP];
 }
@@ -215,111 +207,99 @@ static void pattern_transpose(track_t *t, int32_t d)    /* every note a semitone
     fm1_irq_on();
 }
 
-/* ------------------------------------------------------------- GLO --- */
-/* a key of the layers the UI runs (seq.c lk_q): SEL key, GLO mix (SEQ's: taken, nothing done) */
+/* ------------------------------------------------------- patterns --- */
+/* (wave 10, Ben: "The sequence button should be in charge of patterns") play pattern w (0..3, A..D): playing, on the next bar
+ * (NEXT: A); stopped, loaded (LOADED A); empty: EMPTY A. SEQ's A-D category (KNOB 1, -/+) and hold SEQ's black keys 1 to 4 */
+static void patt_pick(int32_t w)
+{
+    char b[2] = {(char)('A' + (w & 3)), 0};
+    if (w < 0 || w > 3)
+        return;
+    if (!((arrangement_ready() >> w) & 1u)) {
+        ui_say("EMPTY ", b);
+    } else if (song.playing) {
+        fm1_irq_off();
+        live_req = (int8_t)w;
+        fm1_irq_on();
+        ui_say("NEXT: ", b);
+    } else {
+        section_load((uint32_t)w);
+        ui_say("LOADED ", b);
+    }
+    ui.force = 1;
+}
+static int32_t patt_shown(void) { return live_req >= 0 ? live_req : live_sec; }
+/* (wave 10) storing stays SAVE's (Ben's "save keeps"): hold SAVE + key 1..4 stores the playing state into A..D; over a used
+ * one it asks, and SAVE is held already, so the ring fills at once (let go before: nothing) */
+static void patt_store(uint32_t w)
+{
+    char b[2] = {(char)('A' + (w & 3u)), 0};
+    if ((arrangement_ready() >> (w & 3u)) & 1u) {
+        char q[8] = "STORE A";
+        q[6] = b[0];
+        ask_set(ASK_STORE, w & 3u, q);
+    } else {
+        section_store(w & 3u);
+        ui_say("SAVED ", b);
+    }
+}
+/* (wave 10, the black-key strip: Ben, "Only live when drawn") the 11 black keys, F#3 .. F#5, by their key numbers */
+static int32_t black_idx(uint32_t k)
+{
+    uint32_t i;
+    for (i = 0; i < 11u; i++)
+        if (PUNCH_BLACK[i] == k)
+            return (int32_t)i;
+    return -1;
+}
+
+/* ------------------------------------------------------------ keys --- */
+/* a key of the layers the UI runs (seq.c lk_q): GLO the mixer, SAVE the store, SEQ's black keys */
 static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
 {
-    int32_t w = punch_key(k);
+    int32_t w = punch_key(k), bi = black_idx(k);
     if (layer >= LY_COUNT) {                            /* KB_GRID: the GRID's (ui_grid.c); a layer held, only */
         if (!down)                                      /* its releases come: a step held let go */
             grid_key(k, 0);
         return;
     }
-    if (!down) {
-        if (layer == LY_MIX && (is_drum(TSEL) ? k == 3u : w == 8))
-            fill_held = 0;                                  /* GLO + key 9 (drums: G#3) let go: the fill ends */
+    if (!down)
         return;
-    }
-    switch (layer) {                                    /* (SEQ: its keys do nothing, PHEBUS) */
-    case LY_SCALE: {                                    /* the key of the song: every synth part */
-        uint32_t i, root = (53u + k) % 12u;
-        if (is_drum(TSEL)) {                            /* (PHEBUS wave 3) the drum track: SEL + a key picks its sound (the
-                                                         * Rytm's TRACK + pad); in MUTE mode it solos it (again: off) */
-            if (w < 0)
-                return;
-            if (drum_keys == DK_MUTE) {
-                drum_solo ^= (uint16_t)(1u << w);
-                drum_lane = (uint8_t)w;
-            } else {
-                drum_lane = (uint8_t)w;
-                audition_lane((uint32_t)w);
-                sg_drop();
-            }
-            ui.force = 1;
-            return;
-        }
-        for (i = 0; i < NPART; i++)
-            trk[i].p[P_ROOT] = (int16_t)root;
-        ui_say("KEY ", N_NOTE[root]);
-        return;
-    }
-    case LY_SONG: {                                     /* sections A..D: play (on the next bar), store */
-        char b[2] = {0, 0};
-        if (w < 0)
-            return;
-        b[0] = (char)('A' + (w & 3));
-        if (w < 4) {
-            if (!((arrangement_ready() >> w) & 1u)) {
-                ui_say("EMPTY ", b);
-            } else if (song.playing) {
-                fm1_irq_off();
-                live_req = (int8_t)w;
-                fm1_irq_on();
-                ui_say("NEXT: ", b);
-            } else {
-                section_load((uint32_t)w);
-                ui_say("LOADED ", b);
-            }
-        } else if (w < 8) {
-            uint32_t s = (uint32_t)w - 4u;
-            if ((arrangement_ready() >> s) & 1u) {      /* (wave 8) over a used one it asks: hold REC until the ring fills */
-                char q[8] = "STORE A";
-                q[6] = b[0];
-                ask_set(ASK_STORE, s, q);
-            } else {
-                section_store(s);
-                ui_say("SAVED ", b);
-            }
+    switch (layer) {
+    case LY_SEQ:                                        /* black keys 1 to 4: A to D; D#4: FILL on the next bar (again: off) */
+        if (bi >= 0 && bi < 4)
+            patt_pick(bi);
+        else if (bi == 4) {
+            fill_arm = (uint8_t)!fill_arm;
+            ui_message(fill_arm ? "FILL: NEXT BAR" : "FILL BAR OFF");
         }
         return;
-    }
-    case LY_MIX:
-        if (is_drum(TSEL)) {                                /* (wave 9, Ben 23 Nov 2026: "Hold GLO: with the drums selected, the
-                                                         * keys mute the 16 sounds") the white keys mute the sounds (F#3:
-                                                         * they solo them); G#3 FILL while held, A#3 the next bar, C#4 the
-                                                         * knobs the pans. Mutes and solos are performance state, not saved */
+    case LY_SAVE:                                       /* keys 1 to 4: store into A to D */
+        if (w >= 0 && w < 4)
+            patt_store((uint32_t)w);
+        return;
+    case LY_GLO:                                        /* the mixer: keys 1 to 4 mute the voices, 5 to 8 solo them; the drums
+                                                         * selected, the 16 keys mute the sounds and F#3 SOLO turns them into
+                                                         * solo keys. G#3 PAN: the knobs the pans. Both drawn in its strip.
+                                                         * Mutes and solos are performance state */
+        if (bi == 0 && is_drum(TSEL)) {
+            mix_dsolo = (uint8_t)!mix_dsolo;
+        } else if (bi == 1) {
+            mix_pan = (uint8_t)!mix_pan;
+        } else if (is_drum(TSEL)) {                     /* (wave 9: the drums selected, the 16 sounds) */
             if (w >= 0 && w < 16) {
                 if (mix_dsolo)
                     drum_solo ^= (uint16_t)(1u << w);
                 else
                     drum_mute ^= (uint16_t)(1u << w);
                 drum_lane = (uint8_t)w;
-            } else if (k == 1u) {
-                mix_dsolo = (uint8_t)!mix_dsolo;
-            } else if (k == 3u) {
-                fill_held = 1;
-            } else if (k == 5u) {
-                fill_arm = (uint8_t)!fill_arm;
-                ui_message(fill_arm ? "FILL: NEXT BAR" : "FILL BAR OFF");
-            } else if (k == 8u) {
-                mix_pan = (uint8_t)!mix_pan;
             }
-            ui.force = 1;
-            return;
-        }
-        if (w >= 0 && w < 4) {                              /* (wave 9: F#3's MIDI LEARN is GLO > MIDI 3 LEARN) */
+        } else if (w >= 0 && w < 4) {
             trk[w].p[P_MUTE] = (int16_t)!trk[w].p[P_MUTE];
         } else if (w >= 4 && w < 8) {
             song.solo ^= (uint8_t)(1u << (w - 4));
-        } else if (w == 8) {
-            fill_held = 1;                                  /* FILL while held */
-        } else if (w == 9) {
-            fill_arm = (uint8_t)!fill_arm;                  /* FILL NEXT BAR (again: cancelled) */
-            ui_message(fill_arm ? "FILL: NEXT BAR" : "FILL BAR OFF");
-        } else if (w == 10) {
-            mix_pan = (uint8_t)!mix_pan;                    /* (PHEBUS) key 11: the knobs are the pans (again: levels) */
-            ui.force = 1;
-        }                                               /* (wave 8: the tempo is GLO > GLOBAL's BPM only: no tap) */
+        }
+        ui.force = 1;
         return;
     default:
         return;
@@ -342,40 +322,18 @@ static void layer_knobs(uint32_t layer)
         case LY_FX:                                     /* (wave 6) PERFORM: the last pad's knobs */
             perf_knob(k, s);
             break;
-        case LY_ERASE:
-            if (k == 0u)
-                pattern_rotate(t, s);
-            else if (k == 2u)                           /* (wave 9: KNOB 2 DOUBLE gone: SEQ + OCT- / OCT+) */
-                pattern_transpose(t, s);
-            break;
-        case LY_ROLL:
-            if (k == 0u && is_drum(t))                  /* (PHEBUS wave 3) the drum track's live RETRIG rate, 1/1 .. 1/80 */
+        case LY_SEQ:                                    /* (wave 10) RATE (the roll's; drums the RETRIG's), SHIFT, SWING, STEPS:
+                                                         * the rhythm's quick ones (GATE and DIV: SEQ's PATTERN page) */
+            if (k == 0u && is_drum(t))
                 drt_live = (uint8_t)clamp((int32_t)drt_live + s, 1, (int32_t)NRTRG);
             else if (k == 0u)
                 song.g[G_ROLL] = (int16_t)clamp(song.g[G_ROLL] + s, 0, 4);
+            else if (k == 1u)
+                pattern_rotate(t, s);
+            else
+                patt_turn(t, 0, k, s);
             break;
-        case LY_STEP:                                   /* GATE  DIV  SWING  STEPS (wave 9: the SEQ group's PATTERN page too) */
-            patt_turn(t, k, s);
-            break;
-        case LY_SCALE:
-            if (is_drum(t))                             /* (wave 3: the sound pick; its knobs do nothing) */
-                break;
-            if (k == 0u) {
-                if (!is_drum(t))
-                    t->p[P_CHORD] = (int16_t)clamp(t->p[P_CHORD] + s, 0, 5);
-            } else if (k == 1u) {
-                uint32_t i;
-                int16_t v = (int16_t)clamp(trk[0].p[P_SCALE] + s, 0, NSCALES - 1);
-                for (i = 0; i < NPART; i++)
-                    trk[i].p[P_SCALE] = v;
-            } else if (k == 2u) {
-                if (!is_drum(t))
-                    t->p[P_QUANT] = (int16_t)clamp(t->p[P_QUANT] + s, 0, 2);
-            } else if (!is_drum(t)) {
-                t->p[P_TRANS] = (int16_t)clamp(t->p[P_TRANS] + s, -24, 24);
-            }
-            break;
-        case LY_MIX: {
+        case LY_GLO: {
             int16_t *lv = mix_pan ? &trk[k].p[P_PAN] : k == TRK_DRUM ? &song.g[G_DRLVL] : &trk[k].p[P_LEVEL];
             *lv = (int16_t)clamp(*lv + accel(EN_K1 + k, s, 127), mix_pan ? -64 : 0, mix_pan ? 63 : 127);
             break;
@@ -396,44 +354,92 @@ typedef struct {
 #define LY_SUB_Y 22                                     /* (wave 7) under the header: what the layer does now, or a message */
 #define LY_TILES_Y 40                                   /* the 16 tiles, 4 rows */
 #define LY_TILE_H 28
-static void tiles_draw(const tile_t *tl, uint32_t *cache)
+/* (wave 10) the tiles under the black-key strip (as PERFORM's pads): 4 rows of 22 from y 67 */
+#define LY_STILES_Y (BK_Y + BK_H + 1)
+#define LY_STILE_H 22
+static void tiles_draw(const tile_t *tl, int strip, uint32_t *cache)
 {
-    uint32_t r, c, sig = 7u;
+    uint32_t r, c, sig = 7u + (uint32_t)strip;
+    int32_t h = strip ? LY_STILE_H : LY_TILE_H, y0 = strip ? LY_STILES_Y : LY_TILES_Y;
     for (r = 0; r < 16u; r++)
         sig = studio_hash(sig * 31u + tl[r].bg * 3u + tl[r].fg * 5u + tl[r].top * 7u, tl[r].lab);
     if (!ui.force && sig == *cache)
         return;
     *cache = sig;
-    for (r = 0; r < 4u; r++) {                          /* (wave 7: 28 px rows between the sub line and the dials, so every
-                                                         * layer has the pages' dials and the strip) */
-        cv_begin(240, LY_TILE_H, C_BLACK);
+    for (r = 0; r < 4u; r++) {                          /* (wave 7: rows between the sub line and the dials, so every layer
+                                                         * has the pages' dials and the strip) */
+        cv_begin(240, h, C_BLACK);
         for (c = 0; c < 4u; c++) {
             const tile_t *t = &tl[r * 4u + c];
             int32_t x = 2 + (int32_t)c * 60;
             if (!t->lab[0] && t->bg == TE_G1)           /* a key that does nothing here: an outline (review 19) */
-                op_box(x, 1, 56, LY_TILE_H - 2, TE_G1);
+                op_box(x, 1, 56, h - 2, TE_G1);
             else
-                cv_rect(x, 1, 56, LY_TILE_H - 2, t->bg);
+                cv_rect(x, 1, 56, h - 2, t->bg);
             if (t->top)
                 cv_rect(x, 1, 56, 3, t->top);
-            te_text_c(x + 28, 6, t->lab, t->fg);
+            te_text_c(x + 28, strip ? 2 : 6, t->lab, t->fg);
         }
-        cv_blit(0, LY_TILES_Y + (int32_t)r * LY_TILE_H);
+        cv_blit(0, y0 + (int32_t)r * h);
     }
 }
 
-/* (wave 7) a layer's top: the header every screen has (the button's name as the tag, in the layer's colour; the layer's
- * name as the title; the tempo, the transport, the unsaved dot), then a line: what it does now in grey, a message in a
- * white bar, LOCK at the right while it stays open */
-static const char *const LAYER_TAG[LY_COUNT] = {"", "FX", "EDIT", "ARP", "SEQ", "SEL", "GLO", "SAVE"};
+/* (wave 7) a layer's top: the header every screen has (the button's name as the tag, in the layer's colour; wave 10: MASTER's
+ * chip in the title's place when the button has a pair, else the layer's name; the tempo, the transport, the unsaved dot), then
+ * a line: what it does now in grey, the -/+ legend at its right, LOCK at the far right while it stays open; a message in a
+ * white bar */
+static const char *const LAYER_TAG[LY_COUNT] = {"", "FX", "EDIT", "ARP", "SEQ", "SEL", "GLO", "SAVE", "ENV", "LFO"};
+static const char *pm_lm, *pm_lp;                       /* the layer's -/+ words (layer_pm) */
+/* the words of OCT- and OCT+ while layer l is held (0: nothing) */
+static void layer_pm(uint32_t l, const char **m, const char **p)
+{
+    *m = *p = 0;
+    switch (l) {
+    case LY_FX:
+        *m = "OFF", *p = "LATCH";
+        break;
+    case LY_SEQ:
+        if (fm1_in.buttons & (1u << panel.btn[B_PLAY]))
+            *m = "UNLATCH", *p = "LATCH";
+        else
+            *m = "HALVE", *p = "DOUBLE";
+        break;
+    case LY_ARP:
+        if (!is_drum(TSEL))
+            *m = *p = "SEMITONE";
+        break;
+    case LY_EDIT:
+        *m = "CLEAR";
+        break;
+    case LY_SAVE:
+        *m = "UNDO", *p = "REDO";
+        break;
+    default:
+        break;
+    }
+}
+/* the header with MASTER's chip (its pair on the selected voice), or the layer's name where the button has none */
+static void layer_header(uint32_t l, uint16_t col, const char *name, uint32_t *cache)
+{
+    mpair_t m;
+    char ti[12];
+    te_upper(ti, name, sizeof ti);
+    if (master_pair(l, &m)) {
+        hdr_mchip = m.chip;
+        hdr_mcol = m.col;
+        hdr_mratio = (m.v - m.lo) * 1000 / (m.hi - m.lo);
+    }
+    op_header(LAYER_TAG[l % LY_COUNT], col, ti, cache);
+    hdr_mchip = 0;
+}
 static void layer_title(const char *name, const char *sub, uint16_t col, uint32_t *cache)
 {
     static uint32_t hc;
     uint32_t locked = ly_lock != LY_PLAY;
     uint32_t sig = studio_hash(studio_hash(col, name), sub) + (ui.msg_t ? studio_hash(3u, ui.msg) : 0u) + locked * 7919u;
-    char ti[12];
-    te_upper(ti, name, sizeof ti);
-    op_header(LAYER_TAG[ui.layer % LY_COUNT], col, ti, &hc);
+    layer_header(ui.layer, col, name, &hc);
+    layer_pm(ui.layer, &pm_lm, &pm_lp);
+    sig = studio_hash(studio_hash(sig, pm_lm ? pm_lm : ""), pm_lp ? pm_lp : "");
     if (!ui.force && sig == *cache)
         return;
     *cache = sig;
@@ -442,74 +448,44 @@ static void layer_title(const char *name, const char *sub, uint16_t col, uint32_
         cv_rect(0, 0, 240, 17, C_WHITE);
         te_text_c(120, 0, ui.msg, C_BLACK);
     } else {
-        cv_text(4, 0, &FONT_S, sub, TE_G3);
-        if (locked) {                                   /* locked open (HOME): any button lets it go */
+        int32_t x = 236;
+        if (locked) {                                   /* locked open: any button lets it go */
             int32_t w = (int32_t)text_w(&FONT_S, "LOCK") + 6;
-            cv_rect(236 - w, 0, w, 16, C_WHITE);
-            cv_text(239 - w, 0, &FONT_S, "LOCK", C_BLACK);
+            cv_rect(x - w, 0, w, 16, C_WHITE);
+            cv_text(x - w + 3, 0, &FONT_S, "LOCK", C_BLACK);
+            x -= w + 6;
         }
+        x = pm_draw(x, 0, pm_lm, pm_lp) - 8;
+        if (4 + (int32_t)text_w(&FONT_S, sub) <= x)
+            cv_text(4, 0, &FONT_S, sub, TE_G3);
     }
     cv_blit(0, LY_SUB_Y);
 }
-
-/* the SEQ layer (PHEBUS): the pattern's steps in time, a bar a row (more bars a row when it is longer than four): each
- * step a bar where it starts and as long as it lasts (DIV), the odd ones late by the swing, as many as STEPS; a step
- * that plays filled in the voice's colour, an empty one outlined; the playing one white. What the three knobs do,
- * seen as they turn */
-#define BAR_U (4u * BEAT_U)
-/* (wave 7) r 231 / (BAR_U per) rounded down, r <= BAR_U per, in 32 bits: BAR_U is a multiple of 64, so r 231 / 64 first
- * (exact as an integer part and a remainder part), then / (BAR_U / 64 per): the same as the 64-bit form */
-static uint32_t row_px(uint32_t r, uint32_t per)
+/* (wave 10) a hold whose button has only MASTER's pair (EDIT, ENV, LFO; ARP's semitones): the body says it large, its value
+ * and a gauge, in what it acts on's colour */
+static void pair_body_draw(uint32_t l, uint32_t *cache)
 {
-    return ((r >> 6) * 231u + ((r & 63u) * 231u >> 6)) / (BAR_U / 64u * per);
-}
-static void seq_time_draw(const track_t *t, uint16_t col, uint32_t *cache)
-{
-    uint32_t len = trk_len(t), div = trk_div(t), u = div_units(div), i, k;
-    uint32_t sw = swings(div) ? swing_units(t->p[P_SSWING], u) : 0u;
-    uint32_t bars = (len * u + BAR_U - 1u) / BAR_U, per = 1, rows, sig = len * 977u + div * 31u + sw;
-    int32_t play = song.playing ? (int32_t)t->seq_idx : -1;
-    while (bars > per * 4u)                             /* bars a row: 1, 2, 4 .. so that four rows hold them */
-        per *= 2u;
-    rows = (bars + per - 1u) / per;
-    for (i = 0; i < len; i++)
-        sig = sig * 3u + (is_drum(t) ? dt_mask(i) != 0 : step_on(&t->step[i]) ? 1u : t->step[i].time == ST_TIE ? 2u : 0u);
-    sig += (uint32_t)(play + 1) * 7919u + col;
+    mpair_t m;
+    char vs[12];
+    int has = master_pair(l, &m);
+    uint32_t sig = has ? studio_hash((uint32_t)m.v * 7u + m.col, m.chip) : 1u;
     if (!ui.force && sig == *cache)
         return;
     *cache = sig;
-    cv_begin(240, LY_TILE_H * 4, C_BLACK);
-    {
-        int32_t pitch = rows <= 2u ? 46 : 28, top = (LY_TILE_H * 4 - (int32_t)rows * pitch + 3) / 2, h = pitch - 11;
-        for (k = 0; k < rows; k++) {                    /* the rows: a line at each beat, brighter at each bar */
-            int32_t y = top + (int32_t)k * pitch, b;
-            for (b = 0; b <= (int32_t)per * 4; b++)
-                cv_rect(4 + b * 231 / ((int32_t)per * 4), y, 1, h + 8, b % 4 ? TE_G1 : TE_G2);
-        }
-        for (i = 0; i < len; i++) {                     /* the steps: from where they start (the odd ones swung), three
-                                                         * fifths of a step long, so the swing shows as pairs */
-            uint32_t a = i * u + (i & 1u ? sw : 0u), e = a + (u * 3u + 4u) / 5u;   /* (wave 7: 32 bits, the device has no
-                                                         * 64-bit divide; 64 steps of 2BAR: 1.4e9 units) */
-            uint32_t on = is_drum(t) ? dt_mask(i) != 0
-                        : step_on(&t->step[i]) ? 1u : t->step[i].time == ST_TIE ? 2u : 0u;
-            uint16_t c = (int32_t)i == play ? C_WHITE : on == 1u ? col : on ? TE_DIM[song.sel & 3u] : TE_G2;
-            if (t->step[i].time == ST_TIE && !is_drum(t))
-                e = a + u;                              /* (a tie runs on to the next step) */
-            while (a < e) {                             /* (a step longer than a row: on into the next) */
-                uint32_t row = a / (BAR_U * per), re = (row + 1u) * BAR_U * per, b2 = e < re ? e : re;
-                int32_t x0 = 4 + (int32_t)row_px(a - row * BAR_U * per, per) + 1;
-                int32_t x1 = 4 + (int32_t)row_px(b2 - row * BAR_U * per, per) - 1, y = top + 4 + (int32_t)row * pitch;
-                if (row >= 4u)
-                    break;
-                if (x1 < x0)
-                    x1 = x0;
-                if (on || (int32_t)i == play)
-                    cv_rect(x0, y, x1 - x0 + 1, h, c);
-                else
-                    op_box(x0, y, x1 - x0 + 1, h, c);
-                a = b2;
-            }
-        }
+    cv_begin(240, 114, C_BLACK);
+    if (has) {
+        int32_t r = (m.v - m.lo) * 200 / (m.hi - m.lo), w;
+        master_val_str(l, &m, vs);
+        te_text_c(120, 8, "TURN MASTER", TE_G3);
+        w = (int32_t)text_w(&FONT_L, m.chip);
+        cv_text(120 - w / 2, 30, &FONT_L, m.chip, m.col);
+        w = (int32_t)text_w(&FONT_L, vs);
+        cv_text(120 - w / 2, 64, &FONT_L, vs, m.col);
+        op_box(20, 102, 200, 6, te_dim_of(m.col));
+        cv_rect(20, 102, r, 6, m.col);
+    } else {
+        te_text_c(120, 40, "NOTHING ON MASTER", TE_G3);
+        te_text_c(120, 60, "FOR THE DRUMS HERE", TE_G3);
     }
     cv_blit(0, LY_TILES_Y);
 }
@@ -517,9 +493,11 @@ static void seq_time_draw(const track_t *t, uint16_t col, uint32_t *cache)
 #include "ui_perf.c"                                    /* (wave 6) PERFORM, the FX layer */
 static uint8_t layer_shown;                              /* the screen holds a layer (or a hold) */
 static const char *layer_sub_shown = "";                 /* the sub line last drawn (the host tests read it) */
+static const char *const SEQ_BK[11] = {"A", "B", "C", "D", "BAR", 0, 0, 0, 0, 0, 0};   /* hold SEQ's black keys */
+static uint32_t bk_shown;                               /* (the host tests: the strip's keys with a job, a bit each) */
 static void layer_screen_draw(void)
 {
-    static uint32_t head, tiles, foot, bar;
+    static uint32_t head, tiles, foot, bar, strip;
     static tile_t tl[16];
     static char v[4][10], sub[24], lu[4][8];
     const char *lab[4] = {"", "", "", ""}, *val[4] = {v[0], v[1], v[2], v[3]};
@@ -532,6 +510,7 @@ static void layer_screen_draw(void)
         ui.force = 1;
         layer_shown = 1;
     }
+    bk_shown = 0;
     if (layer == LY_FX) {                               /* (wave 6) PERFORM: its own screen (ui_perf.c) */
         perf_screen_draw();
         layer_sub_shown = "";
@@ -544,21 +523,11 @@ static void layer_screen_draw(void)
         tl[i].bg = TE_G1;
         tl[i].fg = TE_G3;
     }
-    str_cpy(sub, "track ", sizeof sub);                 /* (in words: TRACK 1, the DRUM TRACK, review 21) */
-    sub[6] = (char)('1' + sel);
-    sub[7] = 0;
-    if (sel == TRK_DRUM)
-        str_cpy(sub, "drum track", sizeof sub);
+    sub[0] = 0;
     switch (layer) {
-    case LY_ERASE:
-    case LY_ROLL: {                                     /* the keys' sounds: lit = held */
+    case LY_SEQ: {                                      /* (wave 10) the rhythm: the keys ROLL (drums RETRIG), lit = held */
         uint32_t held = fm1_in.notes;
-        int mute = layer == LY_ERASE && is_drum(t) && er_mute;   /* (2.6) EDIT + a black key: the mutes */
-        col = layer == LY_ERASE ? TE_RED : col;
-        str_cpy(sub, mute ? "keys mute" : layer == LY_ERASE ? (song.playing ? "as it plays" : "every step") : "hold + key", sizeof sub);
-        if (layer == LY_ROLL && is_drum(t)) {           /* (PHEBUS wave 3) RETRIG: its rate, the black keys pick one */
-            str_cpy(sub, "black keys: rate", sizeof sub);
-        }
+        str_cpy(sub, fill_now ? "fill on" : "play: fill", sizeof sub);
         for (i = 0; i < 16u; i++) {
             uint32_t k = key_of_white(i), down = (held >> k) & 1u, present = 0, j;
             if (is_drum(t)) {
@@ -579,143 +548,64 @@ static void layer_screen_draw(void)
                         }
                 }
             }
-            tl[i].bg = down ? (layer == LY_ERASE ? TE_RED : C_WHITE) : TE_G1;
+            tl[i].bg = down ? C_WHITE : TE_G1;
             tl[i].fg = down ? C_BLACK : present ? C_WHITE : TE_G3;
-            tl[i].top = present && !down ? (layer == LY_ERASE ? TE_RED : col) : 0;
-            if (mute) {                                 /* MUTE: a muted sound dark, with the yellow of M (the colour rule:
-                                                         * yellow is mute, red only records and erases) */
-                uint32_t off = (drum_mute >> i) & 1u;
-                tl[i].bg = TE_G1;
-                tl[i].fg = off ? TE_G3 : present ? C_WHITE : TE_G3;
-                tl[i].top = off ? TE_MUTE : 0;
-            }
+            tl[i].top = present && !down ? col : 0;
         }
-        if (layer == LY_ERASE && is_drum(t) && !mute && !undo.valid)
-            str_cpy(sub, "black = mute", sizeof sub);
-        if (layer == LY_ERASE) {
-            lab[0] = "shift", lab[1] = "", lab[2] = is_drum(t) ? "" : "transp";   /* (wave 9: no DOUBLE, SEQ + OCT) */   /* (wave 8: DOUBLE, the pattern again
-                                                         * after itself or halved; STEPS is hold SEQ's, the one length knob) */
-            str_cpy(v[0], "<  >", 8);
-            str_cpy(v[2], is_drum(t) ? "" : "-  +", 8);
-            if (!mute)                                  /* what OCT- / OCT+ do now (one step: undo, then redo) */
-                str_cpy(sub, undo.valid ? (undo.undone ? "oct+ redo" : "oct- undo") : is_drum(t) ? sub : "no undo yet",
-                        sizeof sub);
-        } else if (is_drum(t)) {
-            lab[0] = "rate";
+        lab[0] = "rate", lab[1] = "shift", lab[2] = "swing", lab[3] = "steps";
+        if (is_drum(t)) {
             str_cpy(v[0], SG_RATE[drt_live % 18u], 8);
             ratio[0] = ((int32_t)drt_live - 1) * 1000 / ((int32_t)NRTRG - 1);
         } else {
-            lab[0] = "rate";
             str_cpy(v[0], N_ROLL[clamp(song.g[G_ROLL], 0, 4)], 8);
             ratio[0] = song.g[G_ROLL] * 250;
         }
+        str_cpy(v[1], "<  >", 8);
+        swing_str(v[2], t->p[P_SSWING]);
+        ratio[2] = t->p[P_SSWING] * 10;
+        fmt_int(v[3], t->p[P_SLEN]);
+        ratio[3] = (t->p[P_SLEN] - 1) * 1000 / 63;
         break;
     }
-    case LY_STEP: {                                     /* DIV  SWING  STEPS, the pattern drawn in time below */
-        uint32_t len = trk_len(t), bars = (len * div_units(trk_div(t)) + BAR_U - 1u) / BAR_U;
-        fmt_int(sub, (int32_t)len);                     /* "16 steps = 1 bar" */
-        str_cpy(sub + str_len(sub), len == 1u ? " step = " : " steps = ", 10);
-        fmt_int(sub + str_len(sub), (int32_t)bars);
-        str_cpy(sub + str_len(sub), bars == 1u ? " bar" : " bars", 6);
-        {
-            static char pv[4][12];
-            uint32_t pd = 0, q;
-            patt_vals(t, lab, pv, ratio, &pd);
-            for (q = 0; q < 4u; q++)
-                str_cpy(v[q], pv[q], sizeof v[q]);
-        }
-        break;
-    }
-    case LY_SCALE: {                                    /* the white keys' notes / chords; the root lit */
-        uint32_t root = (uint32_t)trk[0].p[P_ROOT] % 12u, mask = SCALE_MASK[clamp(trk[0].p[P_SCALE], 0, NSCALES - 1)];
-        if (is_drum(t)) {                               /* (PHEBUS wave 3) the drum track: the 16 sounds, the key picks one
-                                                         * (MUTE mode: solos it); the selected one filled, a muted one with
-                                                         * the yellow of M, a soloed one ice blue */
-            int solo = drum_keys == DK_MUTE;
-            col = TE_DRUM;
-            str_cpy(sub, solo ? "key: solo" : "key: pick a sound", sizeof sub);
-            for (i = 0; i < 16u; i++) {
-                uint32_t j, present = 0, m = (drum_mute >> i) & 1u, so = (drum_solo >> i) & 1u;
-                for (j = 0; j < trk_len(t); j++)
-                    present |= (uint32_t)dt_has(j, i);
-                str_cpy(tl[i].lab, LANE_SHORT[i], 8);
-                tl[i].bg = i == drum_lane ? TE_DRUM : TE_G1;
-                tl[i].fg = i == drum_lane ? C_BLACK : m ? TE_G3 : present ? TE_DRUM : TE_G3;
-                tl[i].top = so ? TE_SOLO : m ? TE_MUTE : 0;
-            }
-            break;
-        }
-        col = TE_G4;
-        str_cpy(sub, "key: ", sizeof sub);
-        str_cpy(sub + 5, N_NOTE[root], 4);
-        str_cpy(sub + str_len(sub), " ", 2);
-        te_lower(sub + str_len(sub), N_SCALE[clamp(trk[0].p[P_SCALE], 0, NSCALES - 1)], 8);
-        for (i = 0; i < 16u; i++) {
-            uint32_t k = key_of_white(i), pc = (53u + k) % 12u, in = (mask >> ((pc + 12u - root) % 12u)) & 1u;
-            if (!is_drum(t) && t->p[P_CHORD]) {       /* chord mode: the chord this key plays (the i chord lit) */
-                uint8_t c[4];
-                uint32_t n = kb_map(t, k), m;
-                if (n != KB_SILENT && (m = chord_notes(t, n, c)) != 0u) {
-                    uint32_t third = m > 1u ? (uint32_t)(c[1] - c[0]) : 4u;
-                    str_cpy(tl[i].lab, N_NOTE[c[0] % 12u], 8);
-                    if (t->p[P_CHORD] == 5)
-                        str_cpy(tl[i].lab + str_len(tl[i].lab), "5", 2);
-                    else if (third == 3u)
-                        str_cpy(tl[i].lab + str_len(tl[i].lab), "m", 2);
-                    pc = c[0] % 12u;
-                    in = 1;
-                }
-            } else {
-                str_cpy(tl[i].lab, N_NOTE[pc], 8);
-            }
-            tl[i].bg = pc == root ? col : TE_G1;
-            tl[i].fg = pc == root ? C_BLACK : in ? C_WHITE : TE_G2;
-        }
-        lab[0] = "chord", lab[1] = "scale", lab[2] = "keys", lab[3] = "transp";
-        te_lower(v[0], N_CHORD[clamp(t->p[P_CHORD], 0, 5)], 8);
-        te_lower(v[1], N_SCALE[clamp(trk[0].p[P_SCALE], 0, NSCALES - 1)], 8);
-        te_lower(v[2], N_QUANT[clamp(t->p[P_QUANT], 0, 2)], 8);
-        fmt_int(v[3], t->p[P_TRANS]);
-        if (is_drum(t))
-            v[0][0] = v[2][0] = v[3][0] = 0;
-        ratio[0] = t->p[P_CHORD] * 200;
-        ratio[1] = trk[0].p[P_SCALE] * 1000 / (NSCALES - 1);
-        ratio[2] = t->p[P_QUANT] * 500;
-        ratio[3] = (t->p[P_TRANS] + 24) * 1000 / 48;
-        break;
-    }
-    case LY_MIX: {                                      /* mute 1..4, solo 1..4, fill / fill bar, tap */
+    case LY_SAVE: {                                     /* (wave 10) store into A..D; the undo, the redo */
+        uint32_t ready = arrangement_ready();
         col = C_WHITE;
-        str_cpy(sub, "mute  solo  fill  pan", sizeof sub);
+        str_cpy(sub, "keys: store", sizeof sub);
         for (i = 0; i < 4u; i++) {
-            int m = trk[i].p[P_MUTE] != 0, so = (song.solo >> i) & 1u;
-            str_cpy(tl[i].lab, "mute 1", 8);
-            tl[i].lab[5] = (char)('1' + i);
-            tl[i].bg = m ? TE_G2 : TE_COL[i];
-            tl[i].fg = m ? TE_G3 : C_BLACK;
-            str_cpy(tl[4 + i].lab, "solo 1", 8);
-            tl[4 + i].lab[5] = (char)('1' + i);
-            tl[4 + i].bg = so ? C_WHITE : TE_G1;
-            tl[4 + i].fg = so ? C_BLACK : TE_G3;
-            tl[4 + i].top = TE_DIM[i];
+            int asked = ui.ask == ASK_STORE && ui.ask_arg == i;
+            str_cpy(tl[i].lab, "save A", 8);           /* (six letters: the tile's width with room) */
+            tl[i].lab[5] = (char)('A' + i);
+            tl[i].bg = asked ? TE_RED : (ready >> i) & 1u ? TE_G2 : TE_G1;
+            tl[i].fg = asked ? C_BLACK : (ready >> i) & 1u ? C_WHITE : TE_G4;
+            tl[i].top = live_sec == (int8_t)i ? C_WHITE : 0;
         }
-        str_cpy(tl[8].lab, "fill", 8);                  /* key 9: held = a fill; key 10: the next bar is one */
-        tl[8].bg = fill_now ? C_WHITE : TE_G1;
-        tl[8].fg = fill_now ? C_BLACK : TE_G4;
-        str_cpy(tl[9].lab, "bar", 8);
-        tl[9].bg = fill_bar_on ? C_WHITE : TE_G1;
-        tl[9].fg = fill_bar_on ? C_BLACK : TE_G4;
-        tl[9].top = fill_arm ? C_WHITE : 0;
-        str_cpy(tl[10].lab, "pan", 8);                  /* (wave 8: no tap tempo; key 11 the pans) */
-        tl[10].bg = mix_pan ? C_WHITE : TE_G1;
-        tl[10].fg = mix_pan ? C_BLACK : TE_G4;
+        for (i = 4; i < 16u; i++) {                     /* (keys 5..16 do nothing here: their rows left out) */
+            tl[i].lab[0] = 0;
+            tl[i].bg = tl[i].fg = C_BLACK;
+        }
+        break;
+    }
+    case LY_ARP:
+        str_cpy(sub, is_drum(t) ? "" : "pattern", sizeof sub);
+        break;
+    case LY_EDIT:
+        str_cpy(sub, "the voice", sizeof sub);
+        break;
+    case LY_ENV:
+    case LY_LFO:
+        str_cpy(sub, is_drum(t) ? "the sound" : "the voice", sizeof sub);
+        break;
+    case LY_GLO: {                                      /* the mixer: levels or pans; the strip SOLO (drums) and PAN */
+        static const char *BK[11];
+        BK[0] = is_drum(t) ? "SOLO" : 0;
+        BK[1] = "PAN";
         for (i = 0; i < 4u; i++) {
             uint32_t lv = trk_level(i);
             static const char *const L[4] = {"1", "2", "3", "dr"};   /* (the strip's numbers) */
             lab[i] = L[i];
             fmt_int(v[i], (int32_t)lv * 100 / 127);
             ratio[i] = (int32_t)lv * 1000 / 127;
-            if (mix_pan) {                              /* (key 11: the pans, L 64 .. C .. R 63) */
+            if (mix_pan) {                              /* (G#3: the pans, L 64 .. C .. R 63) */
                 int32_t pn = trk[i].p[P_PAN];
                 v[i][0] = pn < 0 ? 'L' : pn > 0 ? 'R' : 'C';
                 if (pn)
@@ -725,48 +615,35 @@ static void layer_screen_draw(void)
                 ratio[i] = (pn + 64) * 1000 / 127;
             }
         }
-        break;
-    }
-    case LY_SONG: {                                     /* A..D (playing lit, next one framed), store */
-        uint32_t ready = arrangement_ready();
-        static const char *const SL[4] = {"A", "B", "C", "D"};
-        col = C_WHITE;
-        str_cpy(sub, song.playing ? "next bar" : "", sizeof sub);   /* (a pick while playing: on the next bar) */
-        for (i = 0; i < 4u; i++) {
-            int used = (ready >> i) & 1u, playing = live_sec == (int8_t)i;
-            int next = live_req == (int8_t)i;
-            str_cpy(tl[i].lab, SL[i], 8);
-            tl[i].bg = used ? (playing ? TE_G4 : TE_G2) : TE_G1;   /* sections are everyone's: neutral */
-            tl[i].fg = used ? (playing ? C_BLACK : C_WHITE) : TE_G3;
-            tl[i].top = next ? C_WHITE : 0;
-            str_cpy(tl[4 + i].lab, "save A", 8);
-            tl[4 + i].lab[5] = (char)('A' + i);
-            tl[4 + i].bg = ui.ask == ASK_STORE && ui.ask_arg == i ? TE_RED : TE_G1;
-            tl[4 + i].fg = ui.ask == ASK_STORE && ui.ask_arg == i ? C_BLACK : TE_G4;
-            tl[4 + i].top = 0;
+        {
+            mpair_t m;
+            if (!ui.msg_t && master_pair(LY_GLO, &m))   /* (a message shows in the title instead) */
+                hdr_mchip = m.chip, hdr_mcol = m.col, hdr_mratio = (m.v - m.lo) * 1000 / (m.hi - m.lo);
         }
-        for (i = 8; i < 16u; i++) {                     /* (PHEBUS wave 2) keys 9..16 do nothing here since the song cut:
-                                                         * their two rows left out, not eight empty outlines */
-            tl[i].lab[0] = 0;
-            tl[i].bg = tl[i].fg = C_BLACK;
-            tl[i].top = 0;
-        }
-        break;
+        op_mix_draw(val, ratio, (uint32_t)(song.playing && clk_pos < BEAT_U / 4u) << 3 | (uint32_t)mix_pan << 4 |
+                    (uint32_t)mix_dsolo << 5);
+        hdr_mchip = 0;
+        bk_strip(BK, (uint32_t)(mix_dsolo && is_drum(t)) | (uint32_t)mix_pan << 1, &strip);
+        bk_shown = (is_drum(t) ? 1u : 0u) | 2u;
+        layer_sub_shown = "";
+        return;
     }
     default:
         break;
     }
     layer_sub_shown = sub;
-    if (layer == LY_MIX) {                              /* the mixer: the band on stage (ui_op.c) */
-        op_mix_draw(val, ratio, (uint32_t)(fill_now != 0) | (uint32_t)(fill_bar_on != 0) << 1 | (uint32_t)(fill_arm != 0) << 2 |
-                    (uint32_t)(song.playing && clk_pos < BEAT_U / 4u) << 3 | (uint32_t)mix_pan << 4 | (uint32_t)mix_dsolo << 5);
-        return;
-    }
     layer_title(layer_name(layer), sub, col, &head);
-    if (layer == LY_STEP)
-        seq_time_draw(t, col, &tiles);
-    else
-        tiles_draw(tl, &tiles);
+    if (layer == LY_SEQ) {
+        int32_t p = patt_shown();
+        uint32_t on = (p >= 0 ? 1u << p : 0u) | (uint32_t)(fill_arm || fill_bar_on) << 4;
+        bk_strip(SEQ_BK, on, &strip);
+        bk_shown = 0x1Fu;
+        tiles_draw(tl, 1, &tiles);
+    } else if (layer == LY_SAVE) {
+        tiles_draw(tl, 0, &tiles);
+    } else {
+        pair_body_draw(layer, &tiles);
+    }
     {   /* (a message shows in the title: the dials stay) */
         uint8_t m = ui.msg_t;
         ui.msg_t = 0;
@@ -776,27 +653,25 @@ static void layer_screen_draw(void)
             te_upper(lu[i], lab[i], sizeof lu[i]);
             lab[i] = lu[i];
         }
-        op_dials(lab, val, ratio, 0, 0, layer == LY_SCALE && !is_drum(t) ? TE_G4 : layer == LY_SONG ? TE_G4 :
-                 layer == LY_ERASE ? TE_COL[sel & 3u] : col, layer * 7919u + sel, &foot);   /* (the key, the patterns:
-                                                         * everyone's, white-grey; ERASE's knobs edit the voice: its colour) */
+        op_dials(lab, val, ratio, 0, 0, layer == LY_SAVE ? TE_G4 : TE_COL[sel & 3u], layer * 7919u + sel, &foot);
         ui.msg_t = m;
     }
     op_trackbar(&bar);
 }
 
-/* HOLD to confirm: a ring fills while REC is held: clear the track (1), or (wave 8) yes to the question showing (3) */
-#define HOLD_CLEAR_MS 1300u                             /* after the 0.7 s that make REC a hold */
-#define HOLD_SAVE_MS 1000u
+/* (wave 10, Ben 23 Nov 2026: "wouldn't save be the logical confirm button") THE CONFIRM: a ring fills while SAVE is held with a
+ * question showing (HOLD SAVE: ...); full, it is done. Red when it takes something away (every question but one), white when
+ * it only keeps (SAVE into an empty user preset slot) */
+#define HOLD_CLEAR_MS 1300u                             /* the ring */
+static uint8_t ask_keeps;                               /* the question showing only keeps: a white ring */
 static void hold_screen_draw(void)
 {
     static uint32_t cache;
-    uint32_t span = ui.hold_kind == 2u ? HOLD_SAVE_MS : HOLD_CLEAR_MS, el = fm1_ms - ui.hold_t0;
-    const char *what = ui.hold_kind == 1u ? "clear" : ui.hold_kind == 3u ? ui.msg + 10 : "save";   /* (3: the question's
-                                                         * action, after "HOLD REC: ") */
-    uint16_t rc = ui.hold_kind == 2u ? C_WHITE : TE_RED;
+    uint32_t span = HOLD_CLEAR_MS, el = fm1_ms - ui.hold_t0;
+    const char *what = ui.msg + 11;                     /* (the question's action, after "HOLD SAVE: ") */
+    uint16_t rc = ask_keeps ? C_WHITE : TE_RED;
     int32_t ratio = el >= span ? 1000 : (int32_t)(el * 1000u / span);
-    uint32_t sig = studio_hash(ui.hold_kind * 7u + (uint32_t)ratio / 20u + ui.hold_trk * 131u, what);
-    char b[24];
+    uint32_t sig = studio_hash(ui.hold_kind * 7u + (uint32_t)ratio / 20u + rc, what);
     if (!layer_shown) {
         lcd_fill(0, 0, 240, 240, C_BLACK);
         layer_shown = 1;
@@ -821,18 +696,7 @@ static void hold_screen_draw(void)
     }
     cv_blit(0, 20);
     cv_begin(240, 60, C_BLACK);
-    if (ui.hold_kind == 3u) {
-        str_cpy(b, "let go: no", sizeof b);
-    } else if (ui.hold_kind == 1u) {
-        str_cpy(b, "track 1", sizeof b);
-        b[6] = (char)('1' + ui.hold_trk);
-        if (ui.hold_trk == TRK_DRUM)
-            str_cpy(b, "drum track", sizeof b);
-    } else {
-        str_cpy(b, "into pattern A", sizeof b);
-        b[13] = (char)('A' - 1 + clamp(song.g[G_SLOT], 1, 4));
-    }
-    te_text_c(120, 4, b, TE_G4);
-    te_text_c(120, 30, "keep holding rec", TE_G3);
+    te_text_c(120, 4, "let go: no", TE_G4);
+    te_text_c(120, 30, "keep holding save", TE_G3);
     cv_blit(0, 160);
 }
