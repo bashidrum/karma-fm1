@@ -218,7 +218,9 @@ static void nav_go(uint32_t c, uint32_t k)
         ui_message("NOT ON THIS VOICE");
         return;
     }
-    if (grid && !drum && nav_voice_cat(c))              /* on the GRID: the view (the keys stay steps) */
+    if (grid && !drum && nav_voice_cat(c) && sg_held)   /* (wave 10, Ben 10:33: "the sequence stays on screen even when you go
+                                                         * to the edit page") on the GRID only with a step held: that page's
+                                                         * knobs under the steps, a lock view; nothing held: its real page */
         syn_view(idx[k % n]);
     else
         page_go(idx[k % n]);

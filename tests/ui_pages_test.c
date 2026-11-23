@@ -3501,6 +3501,34 @@ int main(int argc, char **argv)
             check(live_sec == 0, "w10: A-D: KNOB 1 back to A");
         }
         go_home(); frames(2);
+        /* -- 12. (Ben 10:33) the steps show only on SEQ: from the GRID with nothing held a page button opens its real page;
+         *    with a step held its knobs come under the steps (the lock view) and the GRID comes back when it is let go -- */
+        {
+            static const uint8_t PB[4] = {B_EDIT, B_ENV, B_LFO, B_FX};
+            static const uint8_t PC[4] = {CT_OSC, CT_AMP, CT_LFO1, CT_INS};
+            uint32_t j, ok = 1;
+            int l;
+            for (j = 0; j < 4u; j++) {
+                go_home(); tap(B_SEQ); frames(2);
+                tap(PB[j]); frames(2);
+                ok &= !on_drum_page() && !kb_grid && cur_page()->cat == PC[j];
+            }
+            check(ok, "w10: GRID, nothing held: EDIT, ENV, LFO, FX each open their real page (the keys play notes)");
+            ui.force = 1; frame(); ppm("w10-grid-to-page");
+            go_home(); tap(B_SEQ); frames(2);
+            t->step[4].n = 1; t->step[4].note[0] = 60; t->step[4].time = ST_NOTE; t->step[4].vel = 100;
+            fm1_in.notes |= 1u << key_of_white(4); frame();
+            tap(B_ENV); frames(2);
+            check(on_drum_page() && syn_tab == 3u && sg_held, "w10: GRID, a step held + ENV: the lock view (ENV's knobs under the steps)");
+            encs[panel.enc[EN_K1]] = 2; frame();
+            l = lock_find(t, 4, P_ATK, 0);
+            ui.force = 1; frame(); ppm("w10-grid-lock-view");
+            check(l >= 0, "w10: ... a turn locks (ATTACK on step 5)");
+            fm1_in.notes &= ~(1u << key_of_white(4)); frames(3);
+            check(on_drum_page() && syn_tab == 0u && cur_cat() == CT_TRIG, "w10: the step let go: back to the plain SEQ screen (TRIG)");
+            lock_del(t, 4, P_COUNT); step_clear(&t->step[4]);
+            go_home(); frames(2);
+        }
         /* -- 2. MINUS REMOVES -- */
         {   /* a GRID step held + OCT- (TRIG): the step itself goes */
             tap(B_SEQ); frames(2);

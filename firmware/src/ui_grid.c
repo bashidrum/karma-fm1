@@ -373,6 +373,8 @@ static void grid_key(uint32_t k, uint32_t down)
         if (!(sg_held & b))
             return;
         sg_held &= (uint16_t)~b;
+        if (!sg_held && syn_tab && !is_drum(t))         /* (wave 10) the last step let go: the lock view ends, back to TRIG */
+            syn_go(0u, syn_half[0] < TH_PATT ? syn_half[0] : 0u);
         idx = sg_page() * 16u + (uint32_t)w;
         if ((sg_pend & b) && idx < len && sg_on(t, idx))
             sg_clear(t, idx);                           /* a tap on a set step: it goes */
@@ -952,6 +954,8 @@ static void sg_synth_input(uint32_t pressed)
     }
     if (!sg_held)
         syn_touch = 0xFF;
+    if (!sg_held && syn_tab)                            /* (wave 10: the lock view only while a step is held) */
+        syn_go(0u, syn_half[0] < TH_PATT ? syn_half[0] : 0u);
     if (pressed & (1u << panel.btn[B_OCTDN] | 1u << panel.btn[B_OCTUP])) {
         uint32_t up = (pressed >> panel.btn[B_OCTUP]) & 1u, pages = (trk_len(TSEL) + 15u) / 16u, pg;
         if (sg_held) {
@@ -1402,8 +1406,10 @@ static void sg_draw(void)
         nav_tabs(TE_COL[vv], 0, &tabs);
     } else {
         uint32_t pi = syn_page();
+        char lk[16] = "LOCK: ";
         syn_vals(&PAGES[pi < NPAGES ? pi : 0u], h0, lab, v, ratio, &locked, &dim);
-        nav_tabs(TE_COL[vv], 0, &tabs);
+        str_cpy(lk + 6, PAGES[pi < NPAGES ? pi : 0u].title, 9);   /* (wave 10) a step held: the lock view, said so */
+        nav_tabs(TE_COL[vv], lk, &tabs);
         if (pi < NPAGES && PAGES[pi].scope == SC_GLOBAL) {   /* (the whole mix's: white-grey, never the voice's colour) */
             op_dials(lab, val, ratio, 0, dim, TE_G4, syn_pg * 977u + sr_on * 7u + sg_held, &footer);
             op_trackbar(&bar);
