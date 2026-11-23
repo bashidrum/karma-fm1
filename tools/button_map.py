@@ -6,6 +6,8 @@
 # Wave 12: SAVE > KITS; PRESETS on the drums (the slot's sound / the whole kit); hold LFO maps on the drums; QUIET dims the screen
 # Wave 13: the PERFORM set (effects on the white keys, mutes and four extras on the black); the mixer as one map (OCT+ + key
 # solos, OCT- clears, SEL the pans); the STUTTER lane's black keys repeat
+# Wave 14: the STUTTER lane is FX's last category, STUT, after MIX (Ben, 23 Nov 2026, 15:55: "Both on FX"); PERFORM hold FX only;
+# ALGORITHM the four voices only
 from PIL import Image, ImageDraw, ImageFont
 import sys
 
@@ -23,6 +25,7 @@ f_txt = font("r", 28); f_txtb = font("s", 28); f_pill = font("s", 26); f_key = f
 
 # each button: name, idea, synth categories [(name, pages)], drum categories or None, hold, -/+ held, MASTER pair, select
 MIX = "MIX"
+STUT = "STUT"                                   # (wave 14) the STUTTER lane, the whole mix's too: after MIX, no divider
 B = [
     ("EDIT", "sound", [("OSC", "1 to 4"), ("FILT", "1 to 2")], [("SRC", "1 to 3"), ("FLTR", "1 to 2")],
      "MASTER's pair only", "- CLEAR the voice (then hold SAVE)", "LEVEL", "synth: OSC the oscillator Type, FILT the filter TYPE"),
@@ -32,9 +35,9 @@ B = [
     ("LFO", "modulation", [("LFO 1", "+ sync"), ("LFO 2", ""), ("MATRIX", "")], [("LFO", "1 to 2")],
      "on a synth sound page: MAP the LFO last shown (SEL the other); on a drum sound page: MAP its LFO (one DEST a sound); wiggle a knob. Elsewhere MASTER's pair only",
      "- REMOVE this LFO's mappings here", "MOD DEPTH (drums: LFO DEPTH)", "synth: the LFO's WAVE"),
-    ("FX", "effects", [("INS", "FX 1 2 3"), ("SENDS", ""), ("SLICER", ""), (MIX, "3 pages")],
-     [("FILTER", ""), ("INS", "1 to 2"), ("SENDS", ""), ("SLICER", ""), (MIX, "3 pages")],
-     "PERFORM: white keys the effects (1/1 1/2 1/4 1/8 / 1/16 HALF ECHO VERB / ISO LO MID HI, MOTION / CRUSH PHASER JET VOWEL); black: mute V1 V2 V3, KICKS TOPS SH+CL HT+SN, REVERSE STOP SWP DN SWP UP",
+    ("FX", "effects", [("INS", "FX 1 2 3"), ("SENDS", ""), ("SLICER", ""), (MIX, "3 pages"), (STUT, "the lane")],
+     [("FILTER", ""), ("INS", "1 to 2"), ("SENDS", ""), ("SLICER", ""), (MIX, "3 pages"), (STUT, "the lane")],
+     "PERFORM (hold only, never a tap): white keys the effects (1/1 1/2 1/4 1/8 / 1/16 HALF ECHO VERB / ISO LO MID HI, MOTION / CRUSH PHASER JET VOWEL); black: mute V1 V2 V3, KICKS TOPS SH+CL HT+SN, REVERSE STOP SWP DN SWP UP",
      "- latches off, + LATCH", "FX MIX (0: dry)",
      "synth: the insert TYPE, the SLICER's mode"),
     ("SEQ", "rhythm", [("TRIG", "1 to 2"), ("PATTERN", "1 to 2"), ("A-D", "")], [("TRIG", "1 to 2"), ("PATTERN", "1 to 2"), ("A-D", "")],
@@ -62,9 +65,9 @@ def wrap(d, s, f, w):
     if line: out.append(line)
     return out
 
-def pill(d, x, y, name, sub, col, dark, mix=False, first=False):
+def pill(d, x, y, name, sub, col, dark, mix=False, first=False, pad=32):
     """a category: name in a rounded box; its pages (SEL's) small under it. Returns the x after it"""
-    w = max(tw(d, name, f_pill) + 32, (tw(d, sub, f_small) + 16) if sub else 0)
+    w = max(tw(d, name, f_pill) + pad, (tw(d, sub, f_small) + 8) if sub else 0)
     h = 46
     if mix:
         d.rounded_rectangle((x, y, x + w, y + h), 10, fill=(40, 40, 46), outline=MIXC, width=2)
@@ -83,16 +86,17 @@ def pill(d, x, y, name, sub, col, dark, mix=False, first=False):
 def chain(d, x, y, cats, col, dark, maxx):
     """the categories in press order, an arrow between, a return arrow at the end; MIX after a divider"""
     x0 = x
+    tight = len(cats) >= 6                       # (wave 14: the drums' FX, six categories, in the card's width)
     for i, (n, sub) in enumerate(cats):
-        mix = n == MIX
+        mix = n in (MIX, STUT)
         if i:
-            if mix:
-                d.line((x + 14, y - 6, x + 14, y + 52), fill=GREY, width=3)
-                x += 28
+            if n == MIX:
+                d.line((x + (10 if tight else 14), y - 6, x + (10 if tight else 14), y + 52), fill=GREY, width=3)
+                x += 20 if tight else 28
             else:
-                d.text((x + 16, y + 23), ">", font=f_txtb, fill=GREY, anchor="mm")
-                x += 32
-        x = pill(d, x, y, n, sub, col, dark, mix, first=(i == 0))
+                d.text((x + (11 if tight else 16), y + 23), ">", font=f_txtb, fill=GREY, anchor="mm")
+                x += 22 if tight else 32
+        x = pill(d, x, y, n, sub, col, dark, mix, first=(i == 0), pad=18 if tight else 32)
     # back round
     if x + 12 + tw(d, "back to " + cats[0][0], f_small) <= maxx:
         d.text((x + 12, y + 23), "back to", font=f_small, fill=DIM, anchor="lm")
@@ -184,6 +188,7 @@ def draw(out):
         ("HOLD TO MAP", "On a synth voice's sound page hold LFO (or ENV): the page stays, the dials become that source's amounts, boxed. Turn right +, left -, back to 0: gone. The header says MAP LFO 1; SEL flips to the other LFO (envelope); OCT- removes them on this page. Each one is a cell of the MATRIX. Outside the hold a small wave under a dial: something moves that knob. On a drum sound page hold LFO the same way: the knob you wiggle becomes the sound's one LFO destination (LFO > CUT (WAS DECAY)); hold ENV there is MASTER's pair.", WHITE),
         ("THE LIGHTS", "Hold any button, a step, a key or a pad: what works with it lights, the rest goes dark. A question waiting: SAVE alone. GLO > DEVICE > LIGHTS > DISCO: QUIET (dim, nothing moves, the screen dimmed: for a night flight), NORMAL, SHOW (the keys dance: for filming).", WHITE),
         ("PRESETS ON THE DRUMS", "On the drum screen: the selected slot's SOUND (SOUND 808 SNARE): INIT HEX, INIT CLASSIC, then its kind from every kit, then all; heard as you turn; turn back: what you had; SAVE + OCT-: undo. On HOME: the whole KIT (16 slots); asks HOLD SAVE only over a kit you changed (CUSTOM). Your kits: SAVE > KITS. Ghost and hard hits: TRIG's velocity (KNOB 1, nothing held).", COR),
+        ("THE STUTTER LANE (FX, STUT)", "Tap FX until STUT lights: after INS, SENDS, SLICER (drums FILTER first) and MIX. The whole mix's stutter sequence, white: tag MIX, title STUTTER, whichever voice is selected (it stays selected; ALGORITHM picks 1, 2, 3, DRUM only and the lane stays). White keys its steps, black keys hand-played stutters, K1 LEN K2 ON K3 PADS K4 STEPS, -/+ its pages. REC here records the lane alone (no voice armed; stopped: PLAY starts it). HOME says FX>STUT; HOME's K3 STUT turns it on and off.", WHITE),
         ("A LOCK ON ANY PAGE", "The steps show only on SEQ. Hold the step, press the page's button (and SEL): its knobs come under the steps, LOCK: in the tab row; turn a knob. Let go: the plain steps again. Nothing held, the button opens its real page.", WHITE)):
         lines = wrap(d, body, f_txt, W - 160)
         hh = 70 + 38 * len(lines) + 10
@@ -191,7 +196,7 @@ def draw(out):
         d.text((LX + 4, y + 20), title, font=f_h, fill=c)
         for j, l in enumerate(lines): d.text((LX + 4, y + 70 + j * 38), l, font=f_txt, fill=GREY)
         y += hh + 18
-    d.text((W / 2, y + 30), "PHEBUS wave 13  ·  23 Nov 2026  ·  the guide: GUIDE.md section 2", font=f_small, fill=DIM, anchor="mm")
+    d.text((W / 2, y + 30), "PHEBUS wave 14  ·  23 Nov 2026  ·  the guide: GUIDE.md section 2", font=f_small, fill=DIM, anchor="mm")
     im = im.crop((0, 0, W, int(y + 70)))
     im.save(out)
     print(out, im.size)
