@@ -353,6 +353,19 @@ static void su_grid(void) { lt_pattern(); song.sel = 0; go_home(); frames(2); ta
 static void su_dscreen(void) { lt_pattern(); song.sel = TRK_DRUM; go_home(); frames(2); drum_screen_open(); frames(3); }
 static void su_perf_lat(void) { lt_pattern(); song.sel = 0; go_home(); frames(2); perf.lat = 1u; }
 static uint32_t lt_bad;
+static void lights_dump(const char *name)          /* (wave 11) a scenario's 41 levels into DIR/lights.txt (tools/lights_sheet.py) */
+{
+    char path[512];
+    uint32_t c;
+    FILE *f;
+    snprintf(path, sizeof path, "%s/lights.txt", outdir);
+    f = fopen(path, "a");
+    if (!f) return;
+    fprintf(f, "%s:", name);
+    for (c = 0; c <= 40u; c++) fprintf(f, "%u", led_lv[c]);
+    fprintf(f, ":%u\n", (unsigned)disco);
+    fclose(f);
+}
 /* every control under the hold of setup su, held control hc: lit <=> it does something with it (not what it does alone) */
 static uint32_t lt_check(const char *name, void (*su)(void), uint32_t hc, uint32_t *litset)
 {
@@ -4353,6 +4366,35 @@ int main(int argc, char **argv)
     check(TE_COL[0] == RGB(140, 118, 240) && TE_COL[1] == RGB(40, 160, 245) && TE_COL[2] == RGB(255, 128, 108) &&
           TE_DRUM == RGB(20, 196, 170) && TE_DRUM == TE_COL[TRK_DRUM],
           "w11: the colour code (Ben, 11:33): voice 1 purple, 2 blue, 3 coral, the drums teal (one place: TE_COL)");
+    {   /* ---- wave 11: the lights sheet (review/wave11/lights.png): the panel under each hold, QUIET NORMAL SHOW */
+        char path[512];
+        static const struct { const char *n; uint32_t b; } H[] = {{"hold FX (PERFORM)", B_FX}, {"hold SEQ", B_SEQ}, {"hold ARP", B_ARP},
+            {"hold EDIT", B_EDIT}, {"hold GLO (mixer)", B_GLO}, {"hold SAVE", B_SAVE}, {"hold ENV (map)", B_ENV}, {"hold LFO (map)", B_LFO},
+            {"hold OCT-", B_OCTDN}};
+        uint32_t i;
+        snprintf(path, sizeof path, "%s/lights.txt", outdir); remove(path);
+        lt_pattern(); song.sel = 0; go_home(); frames(3); lights_dump("NORMAL, HOME, nothing held");
+        chain_goto(FAM_FLT, "FILT"); frames(3);
+        for (i = 0; i < NELEM(H); i++) {
+            char n[64];
+            press(H[i].b); frames(12);
+            snprintf(n, sizeof n, "%s, FILT page", H[i].n); lights_dump(n);
+            release(H[i].b); frames(4);
+        }
+        song.sel = TRK_DRUM; go_home(); frames(2);
+        press(B_GLO); frames(12); lights_dump("hold GLO, drums (mixer)"); release(B_GLO); frames(3);
+        press(B_OCTDN); frames(12); lights_dump("hold OCT-, drums (ghost keys)"); release(B_OCTDN); frames(3);
+        song.sel = 0; go_home(); frames(2); tap(B_SEQ); frames(3);
+        fm1_in.notes |= 1u << key_of_white(2); frames(4); lights_dump("a step held (GRID)"); fm1_in.notes = 0; frames(3);
+        go_home(); frames(2); press(B_EDIT); frames(2); tap(B_OCTDN); release(B_EDIT); frames(3); lights_dump("a question waiting");
+        tap(B_HOME); ui.ask = 0; ui.msg_t = 0; frames(3);
+        tap(B_SEQ); frames(3); transport_req = 1; frames(10);
+        lights_dump("NORMAL, GRID playing"); frame(); frame(); frame(); lights_dump("NORMAL, GRID playing (a moment later)");
+        disco = DISCO_QUIET; frames(3); lights_dump("QUIET, GRID playing");
+        press(B_SEQ); frames(12); lights_dump("QUIET, hold SEQ"); release(B_SEQ); frames(3);
+        go_home(); disco = DISCO_SHOW; frames(30); lights_dump("SHOW, HOME playing"); frames(7); lights_dump("SHOW, HOME playing (a moment later)");
+        disco = DISCO_NORMAL; transport_req = 2; frames(4); go_home(); frames(2);
+    }
     {   /* ---- wave 11 (D1): storing a pattern has a home under SAVE: SAVE > PATTERN (the hold stays its shortcut) */
         uint32_t s0, j;
         song.sel = 0; go_home(); frames(4);

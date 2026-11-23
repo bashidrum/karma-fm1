@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-# PHEBUS wave 9 and 10: the one-page button map, drawn for a phone: python3 tools/button_map.py review/wave10/button-map.png (needs
-# Pillow and the Inter font). Wave 10: per button its one idea, categories, SEL pages, hold, -/+ while held, MASTER's pair, SELECT
+# PHEBUS waves 9 to 11: the one-page button map, drawn for a phone: python3 tools/button_map.py review/wave11/button-map.png (needs
+# Pillow and the Inter font). Wave 10: per button its one idea, categories, SEL pages, hold, -/+ while held, MASTER's pair, SELECT.
+# Wave 11: hold LFO / ENV to map; what lights under a hold; DISCO; SAVE > PATTERNS; the drums teal (Ben's colour code, 11:33)
 from PIL import Image, ImageDraw, ImageFont
 import sys
 
@@ -11,7 +12,7 @@ def font(w, s): return ImageFont.truetype(F + {"b": "Inter-Bold.otf", "s": "Inte
 
 BG = (11, 11, 14); CARD = (22, 22, 28); LINE = (44, 44, 54)
 WHITE = (240, 240, 244); GREY = (150, 150, 162); DIM = (95, 95, 108)
-PUR = (140, 118, 240); PUR_D = (48, 40, 82); COR = (255, 128, 108); COR_D = (87, 44, 37)
+PUR = (140, 118, 240); PUR_D = (48, 40, 82); COR = (20, 196, 170); COR_D = (7, 67, 58)   # (COR: the drum voice's, teal since wave 11)
 MIXC = (235, 235, 240)
 
 f_title = font("b", 64); f_sub = font("m", 30); f_h = font("b", 34); f_lab = font("s", 22)
@@ -22,10 +23,12 @@ MIX = "MIX"
 B = [
     ("EDIT", "sound", [("OSC", "1 to 4"), ("FILT", "1 to 2")], [("SRC", "1 to 3"), ("FLTR", "1 to 2")],
      "MASTER's pair only", "- CLEAR the voice (then hold SAVE)", "LEVEL", "synth: OSC the oscillator Type, FILT the filter TYPE"),
-    ("ENV", "envelopes", [("AMP", ""), ("FILT", "")], [("AMP", "1 to 2")], "MASTER's pair only", "", "ENV LENGTH (drums: the decay)",
-     "synth: nothing (no type)"),
-    ("LFO", "modulation", [("LFO 1", "+ sync"), ("LFO 2", ""), ("MATRIX", "")], [("LFO", "1 to 2")], "MASTER's pair only", "",
-     "MOD DEPTH (drums: LFO DEPTH)", "synth: the LFO's WAVE"),
+    ("ENV", "envelopes", [("AMP", ""), ("FILT", "")], [("AMP", "1 to 2")],
+     "on a synth sound page: MAP the envelope last shown (SEL the other): wiggle a knob; elsewhere MASTER's pair only",
+     "- REMOVE this envelope's mappings here", "ENV LENGTH (drums: the decay)", "synth: nothing (no type)"),
+    ("LFO", "modulation", [("LFO 1", "+ sync"), ("LFO 2", ""), ("MATRIX", "")], [("LFO", "1 to 2")],
+     "on a synth sound page: MAP the LFO last shown (SEL the other): wiggle a knob; elsewhere MASTER's pair only",
+     "- REMOVE this LFO's mappings here", "MOD DEPTH (drums: LFO DEPTH)", "synth: the LFO's WAVE"),
     ("FX", "effects", [("INS", "FX 1 2 3"), ("SENDS", ""), ("SLICER", ""), (MIX, "3 pages")],
      [("FILTER", ""), ("INS", "1 to 2"), ("SENDS", ""), ("SLICER", ""), (MIX, "3 pages")],
      "PERFORM: the keys are effect pads on the whole mix", "- latches off, + LATCH", "FX MIX (0: dry)",
@@ -37,7 +40,7 @@ B = [
      "-/+ and MASTER only", "- / + the pattern a SEMITONE", "TRANSP", "nothing"),
     ("GLO", "global", [("GLOBAL", ""), ("SYSTEM", ""), ("MIDI", "1 to 3"), ("DEVICE", "menu")], None,
      "the MIXER: levels, pans (G#3), mutes, solos; drums: the 16 sounds (F#3 SOLO)", "", "TEMPO", "nothing"),
-    ("SAVE", "keep, confirm", [("PRESETS", ""), ("USER", ""), ("TOOLS", "")], None,
+    ("SAVE", "keep, confirm", [("PRESETS", ""), ("USER", ""), ("PATT", "A-D"), ("TOOLS", "")], None,
      "keys 1-4 store A-D; a question showing: the confirm's ring", "- UNDO, + REDO", "", "nothing"),
     ("HOME", "home", [("HOME", ""), ("SAVER", "4 kinds")], None, "", "", "", "nothing"),
 ]
@@ -171,7 +174,9 @@ def draw(out):
         ("OCT-  OCT+  (MINUS, PLUS)", "A tap is the screen's minus and plus, said by the legend at the tab row's right: the page of steps, the pattern, the step, the sound, the preset, or the knob last touched one fine step. Twice within 0.3 s: the octave (the one double press). With something held, minus removes it: a step, a key's note or sound from the pattern, the locks.", WHITE),
         ("SAVE  (KEEP, CONFIRM)", "A white bar says HOLD SAVE: ...? Hold SAVE until the ring fills (red: something goes; white: it only keeps). Hold SAVE + OCT- undo, + OCT+ redo. REC only records.", WHITE),
         ("MASTER WITH A BUTTON HELD", "Turn MASTER while holding FX (FX MIX), SEQ (SWING), ARP (TRANSP), EDIT (LEVEL), ENV (ENV LENGTH), LFO (MOD DEPTH), GLO (TEMPO). Relative: nothing jumps; the volume stays and follows again, without a jump, once MASTER is turned with nothing held.", WHITE),
-        ("BLACK KEYS", "A black key does something only where the screen draws it, in the strip under the header: PERFORM's pads, hold SEQ's A B C D BAR, the mixer's SOLO and PAN, the KEY pages' chord changes. Elsewhere: a note, or nothing.", WHITE),
+        ("BLACK KEYS", "A black key does something only where the screen draws it, in the strip under the header: PERFORM's pads, hold SEQ's A B C D BAR, the mixer's SOLO and PAN, the KEY pages' chord changes. Elsewhere: a note, or nothing, and then its light stays dark.", WHITE),
+        ("HOLD TO MAP", "On a synth voice's sound page hold LFO (or ENV): the page stays, the dials become that source's amounts, boxed. Turn right +, left -, back to 0: gone. The header says MAP LFO 1; SEL flips to the other LFO (envelope); OCT- removes them on this page. Each one is a cell of the MATRIX. Outside the hold a small wave under a dial: something moves that knob.", WHITE),
+        ("THE LIGHTS", "Hold any button, a step, a key or a pad: what works with it lights, the rest goes dark. A question waiting: SAVE alone. GLO > DEVICE > LIGHTS > DISCO: QUIET (dim, nothing moves: for a night flight), NORMAL, SHOW (the keys dance: for filming).", WHITE),
         ("A LOCK ON ANY PAGE", "The steps show only on SEQ. Hold the step, press the page's button (and SEL): its knobs come under the steps, LOCK: in the tab row; turn a knob. Let go: the plain steps again. Nothing held, the button opens its real page.", WHITE)):
         lines = wrap(d, body, f_txt, W - 160)
         hh = 70 + 38 * len(lines) + 10
@@ -179,7 +184,7 @@ def draw(out):
         d.text((LX + 4, y + 20), title, font=f_h, fill=c)
         for j, l in enumerate(lines): d.text((LX + 4, y + 70 + j * 38), l, font=f_txt, fill=GREY)
         y += hh + 18
-    d.text((W / 2, y + 30), "PHEBUS wave 10  ·  23 Nov 2026  ·  the guide: GUIDE.md section 2", font=f_small, fill=DIM, anchor="mm")
+    d.text((W / 2, y + 30), "PHEBUS wave 11  ·  23 Nov 2026  ·  the guide: GUIDE.md section 2", font=f_small, fill=DIM, anchor="mm")
     im = im.crop((0, 0, W, int(y + 70)))
     im.save(out)
     print(out, im.size)
