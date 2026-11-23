@@ -4,20 +4,31 @@
  * and the pads: punch.c perf_*.
  *   header    (wave 7: every screen's) FX, PERFORM (PERF and how many while pads are latched), the tempo, the transport
  *   caption   under it: the last pad pressed, in words, and its state; LOCK while it stays open; a message
- *   strip     (wave 13) the 11 black keys in key order, in the strip's place: the seven MUTES on the top row (V1 V2 V3 in their
- *             voices' colours, the four drum mutes teal: each acts on that voice only), the four extras under them (REV STOP
- *             SW DN SW UP, white and grey: the whole mix), each over a column of the pads
- *   pads      the 16 white keys as 4 x 4 (keys 1..4 the top row): 1/1 1/2 1/4 1/8 / 1/16 HALF ECHO VERB / ISO LO ISO MID
- *             ISO HI MOTION / CRUSH PHASER JET VOWEL. Held: white. Latched: grey with a white dot. Played by the lane
- *             (recorded): grey with a white bar under it. The knobs' pad: outlined
+ *   black row (PERFORM in columns) the 11 black keys in key order on one line, over the pads as the black keys sit over
+ *             the white: 1 2 3 (the voices' mutes, in their colours), KIK TOP S+C H+S (the drum mutes, teal: each acts on
+ *             that voice only), REV STP DN UP (the extras, white and grey: the whole mix); a wider gap between the three
+ *             groups. Unpressed they are black (black keys), a line under each; pressed, filled as the pads
+ *   pads      the 16 white keys in four columns of four, one type each, keys running top to bottom in a column as on the
+ *             drum grid: REPEAT 1/1 1/2 1/4 1/8 (keys 1..4) / TIME 1/16 HALF ECHO VERB (5..8) / FILTER ISO LO ISO MID ISO
+ *             HI MOTION (9..12) / COLOUR CRUSH PHASER JET VOWEL (13..16), a quiet heading over each column. Held: white.
+ *             Latched: grey with a white dot. Played by the lane (recorded): grey with a white bar under it. The knobs'
+ *             pad: outlined
  *   dials     its four knobs, the drum and synth pages' dials (ui_drum.c op_dials; KNOB 4 is AMOUNT wherever a pad has
  *             one), white-grey
  * The effects act on the whole mix: white and grey (the colour rule); a mute acts on one voice: its colour. */
 #define PF_Y 40                                         /* (wave 7: the frame every screen has) the chips and pads, 114 rows */
 #define PF_CAP_Y 22                                     /* the caption, under the header */
-/* (wave 13) the 16 pads: 58 x 18 under the strip's two rows of 15 (in PF_Y's band) */
-#define PF_PAD_X(i) (1 + (int32_t)((i) % 4u) * 60)
-#define PF_PAD_Y(i) (34 + (int32_t)((i) / 4u) * 20)
+/* (PERFORM in columns) the band under the caption (PF_Y, 114 rows): the black keys' row, the column headings, the pads */
+#define PF_BK_Y 1                                       /* the black keys' row: chips 14 high */
+#define PF_BK_H 14
+#define PF_HEAD_Y 18                                    /* the column headings (the text's top; its letters 20..29) */
+#define PF_PAD_W 57                                     /* the pads: 57 x 18, four columns 4 px apart, rows 1 px apart */
+#define PF_PAD_H 18
+#define PF_COL_X(c) ((int32_t)(c) * 61)
+#define PF_PAD_X(i) PF_COL_X((i) / 4u)                  /* white key i+1: column i / 4, row i % 4 (top to bottom) */
+#define PF_PAD_Y(i) (33 + (int32_t)((i) % 4u) * 19)
+static const char *const PF_HEAD[4] = {"REPEAT", "TIME", "FILTER", "COLOUR"};
+static const char *const PF_BK_LAB[11] = {"1", "2", "3", "KIK", "TOP", "S+C", "H+S", "REV", "STP", "DN", "UP"};
 static const char *const VOW_NAME[5] = {"U", "O", "A", "E", "I"};
 static const char *pf_label(uint32_t p)                 /* a pad's short name (the lane's repeat: its length) */
 {
@@ -116,48 +127,55 @@ static uint32_t perf_shown_sig(void)
 {
     return perf.held * 3u + perf.lat * 7u + perf.lane * 13u + perf.last * 104729u;
 }
+static void pf_text(int32_t x, int32_t w, int32_t y, const char *n, uint16_t c)   /* its letters centred in x..x+w */
+{
+    cv_text(x + (w - text_w(&FONT_S, n) + 1) / 2, y, &FONT_S, n, c);
+}
 /* a pad or a chip: its state's fill, its label, a dot when latched, a bar when the lane plays it. col: its family (white: an
- * effect on the whole mix; a voice's colour: a mute of that voice) */
-static void pf_pad(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t p, int chip, int bright)
+ * effect on the whole mix; a voice's colour: a mute of that voice). A chip (a black key): black till pressed, a line under it;
+ * its line as wide as its letters, its dot at the foot (its letters fill it), its frame round it */
+static void pf_pad(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t p, int chip)
 {
     uint32_t b = PFB(p), held = (perf.held & b) != 0u, lat = (perf.lat & b) != 0u, lane = (perf.lane & b) != 0u;
-    uint16_t col = pf_col(p), mid = col == C_WHITE ? TE_G4 : TE_MID[p >= PF_MKICK ? TRK_DRUM : p - PF_MV1];
-    const char *n = PFD[p].pad;
-    int32_t ty = chip ? y - 1 : y + 1;
+    uint32_t v = p >= PF_MKICK ? TRK_DRUM : p - PF_MV1;
+    uint16_t col = pf_col(p), mid = col == C_WHITE ? TE_G4 : TE_MID[v];
+    const char *n = chip ? PF_BK_LAB[(p - PF_MV1) % 11u] : PFD[p].pad;
+    int32_t ty = chip ? y - 1 : y + 2;
     if (held) {
         cv_rect(x, y, w, h, col);
-        te_text_c(x + w / 2, ty, n, C_BLACK);
+        pf_text(x, w, ty, n, C_BLACK);
         return;
     }
     if (lat || lane) {
         cv_rect(x, y, w, h, mid);
-        cv_rect(x + 1, y + 1, w - 2, h - 2, col == C_WHITE ? TE_G2 : TE_DIM[p >= PF_MKICK ? TRK_DRUM : p - PF_MV1]);
-        te_text_c(x + w / 2, ty, n, C_WHITE);
+        cv_rect(x + 1, y + 1, w - 2, h - 2, col == C_WHITE ? TE_G2 : TE_DIM[v]);
+        pf_text(x, w, ty, n, C_WHITE);
         if (lat)
-            cv_rect(x + w - 4, y + 1, 3, 3, C_WHITE);
+            cv_rect(x + w - 4, chip ? y + h - 3 : y + 1, 3, chip ? 2 : 3, C_WHITE);
         if (lane && !lat)
             cv_rect(x + 3, y + h - 3, w - 6, 2, C_WHITE);
         return;
     }
-    cv_rect(x, y, w, h, TE_G1);
+    if (!chip)
+        cv_rect(x, y, w, h, TE_G1);
     if (col != C_WHITE) {                               /* (a mute: its name in its voice's colour, a line of it under) */
-        cv_rect(x, y + h - 2, w, 2, TE_MID[p >= PF_MKICK ? TRK_DRUM : p - PF_MV1]);
-        te_text_c(x + w / 2, ty, n, col);
+        cv_rect(x + chip, y + h - 2, w - 2 * chip, 2, TE_MID[v]);
+        pf_text(x, w, ty, n, col);
         return;
     }
+    if (chip)
+        cv_rect(x + 1, y + h - 2, w - 2, 2, TE_G3);
     if (p == perf.last)                                 /* the knobs' pad */
-        op_box(x, y, w, h, TE_G3);
-    te_text_c(x + w / 2, ty, n, bright ? TE_G4 : TE_G3);   /* (wave 13: every pad bright, the black keys' extras too) */
+        op_box(chip ? x - 1 : x, chip ? y - 1 : y, chip ? w + 2 : w, chip ? h + 2 : h, TE_G3);
+    pf_text(x, w, ty, n, TE_G4);                        /* (wave 13: every pad bright, the black keys' extras too) */
 }
-/* (wave 13) the black keys' chips: the seven mutes on the top row (V1 V2 V3 narrow, the drum mutes wide), the four extras on
- * the second, over the pads' columns; key order left to right, top then bottom (F#3 .. G#4, A#4 .. F#5) */
+/* (PERFORM in columns) the black keys' chips: one row, key order (F#3 .. F#5), the letters' width and a pixel each side; 2 px
+ * apart (their lines 4; the voices' 3, their figures narrow), 5 between the voices, the drums and the extras; x 0..238 (a frame
+ * round one: to 239) */
 static void pf_chip_box(uint32_t i, int32_t *x, int32_t *y, int32_t *w)
 {
-    static const uint8_t X[7] = {1, 23, 45, 70, 112, 154, 196}, W[7] = {20, 20, 20, 41, 41, 41, 43};
-    if (i < 7u)
-        *x = X[i], *y = 0, *w = W[i];
-    else
-        *x = 1 + (int32_t)(i - 7u) * 60, *y = 17, *w = 58;
+    static const uint8_t X[11] = {0, 12, 24, 38, 65, 92, 119, 149, 176, 203, 222}, W[11] = {9, 9, 9, 25, 25, 25, 25, 25, 25, 17, 17};
+    *x = X[i % 11u], *y = PF_BK_Y, *w = W[i % 11u];
 }
 static void perf_screen_draw(void)
 {
@@ -182,10 +200,12 @@ static void perf_screen_draw(void)
         for (i = 0; i < 11u; i++) {
             int32_t x, y, w;
             pf_chip_box(i, &x, &y, &w);
-            pf_pad(x, y, w, 15, PF_MV1 + i, 1, 1);
+            pf_pad(x, y, w, PF_BK_H, PF_MV1 + i, 1);
         }
+        for (i = 0; i < 4u; i++)                        /* the columns' headings */
+            pf_text(PF_COL_X(i), PF_PAD_W, PF_HEAD_Y, PF_HEAD[i], TE_G3);
         for (i = 0; i < 16u; i++)
-            pf_pad(PF_PAD_X(i), PF_PAD_Y(i), 58, 18, i, 0, 1);
+            pf_pad(PF_PAD_X(i), PF_PAD_Y(i), PF_PAD_W, PF_PAD_H, i, 0);
         cv_blit(0, PF_Y);
     }
     /* the caption: the knobs' pad and what it is doing; LOCK while it stays open; a message in a white bar */
