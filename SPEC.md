@@ -519,3 +519,9 @@ By picker, 09:05:
 - The storage driver (hal, fm1_flash.h): "Yes, make that change". Ben's permission for this ONE change to the hal: the erase and page-write waits long enough for the newer, slower flash chip (UC25HQ80, JEDEC 0xB36014; ChoralRoot 0.32 uses 2 s and 50 ms) and a clean restart instead of carrying on if the chip is still busy. Nothing else in the hal.
 - His chip: "Idk. Not opening it. But it does have the M-VAVE logo beneath the screen which I think means it has the newer chip". Treat it as the newer chip.
 - The first install: "Walk me through it live".
+
+### 26 Nov 2026, 09:40: the loader and the watchdog, by picker
+
+- "Yes, waits only": the loader's erase and page-write waits become 2 s and 50 ms. Waits only; no reset behaviour added to the loader; nothing else in the loader changes. (Permission for this one change to the loader, which is otherwise on the do-not-modify list.)
+- "Yes": PHEBUS feeds the watchdog before each erase when it stages an update of itself (felucca.c ota_erase), as ChoralRoot does. One line in the update path.
+- Live install: "As soon as those are done".
