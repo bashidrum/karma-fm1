@@ -286,6 +286,7 @@ static void kit_type_on_select(void)
         TDRUM->p[P_IMIX] = m0;
     }
     fm1_in.notes |= 1u << key_of_white(0); frames(2);
+    ui.msg_t = 0; ui.force = 1; frame(); ppm("u2-kit-insert-held");
     encs[panel.enc[EN_SELECT]] = 1; frames(2);
     check(sg_held && TDRUM->p[P_ITYPE] == 1 && str_eq(ui.msg, "TYPE: NOT LOCKABLE") && !step_locked(TDRUM, 0),
           "U2: a step held: the INSERT's TYPE is not lockable (as a synth slot's)");

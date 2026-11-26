@@ -5512,6 +5512,7 @@ int main(int argc, char **argv)
                     track_select(0); frames(2); okb &= ui.page == pu;                        /* (from USER above) */
                     track_select(TRK_DRUM); frames(2); okb &= cur_cat() == CT_KITS;
                     track_select(1); frames(2); okb &= ui.page == pu;                        /* (any synth voice) */
+                    ui.force = 1; frame(); ppm("u6-synth-back-user");
                     nav_go(CT_PRESETS, 0); frames(2);
                     track_select(TRK_DRUM); frames(2); okb &= cur_cat() == CT_KITS;
                     encs[panel.enc[EN_ALGO]] = -1; frame();                                 /* (by ALGORITHM: the same frame) */
