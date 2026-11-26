@@ -4371,6 +4371,27 @@ int main(int argc, char **argv)
             check(sec_loads == l0 + 1u && live_sec == 1, "w10: A-D, stopped: OCT+ loads B");
             encs[panel.enc[EN_K1]] = -1; frame(); frames(4);
             check(live_sec == 0, "w10: A-D: KNOB 1 back to A");
+            {   /* (review 26 Nov, U4, Ben's picker "Four pattern tiles") A-D's body: PATTERN A to D as tiles, STORED, PLAYING,
+                 * QUEUED, EMPTY (as hold SAVE and HOME draw them), white and grey; on a synth voice and on the drums */
+                uint32_t v2, ok4 = 1;
+                for (v2 = 0; v2 < 2u; v2++) {
+                    uint32_t ty = v2 ? 94u : SG_BODY_Y + 22u, o;   /* (the tiles' top: the drum screen's band, the GRID's body) */
+                    if (v2) { track_select(TRK_DRUM); frames(2); nav_go(CT_PATTS, 0); frames(2); }
+                    live_sec = 0; live_req = 1; ui.force = 1; frame();
+                    ppm(v2 ? "u4-drum-ad" : "u4-synth-ad");
+                    ok4 &= px_count(1, ty, 58, 3, C_WHITE) > 150u;                    /* A: PLAYING, a white bar */
+                    ok4 &= px_count(61, ty, 58, 1, C_WHITE) > 50u && px_count(61, ty + 33u, 58, 1, C_WHITE) > 50u;   /* B: QUEUED */
+                    ok4 &= px_count(121, ty + 4u, 58, 28, TE_G1) > 900u && px_count(181, ty + 4u, 58, 28, TE_G1) > 900u;   /* C D EMPTY */
+                    ok4 &= px_count(1, ty + 4u, 58, 28, TE_G2) > 900u;                /* A: STORED's grey */
+                    for (o = 0; o < NTRK; o++) ok4 &= px_count(0, ty, 240, 34, TE_COL[o]) == 0u;
+                    live_req = -1; ui.force = 1; frame();
+                    ok4 &= px_count(61, ty + 4u, 58, 28, TE_G2) > 900u && px_count(61, ty + 33u, 58, 1, C_WHITE) == 0u;   /* B: STORED */
+                    if (!v2) ok4 &= px_count(0, SG_BODY_Y, 240, 109, TE_COL[0]) == 0u && px_count(0, SG_BODY_Y, 240, 109, TE_DIM[0]) == 0u;   /* (no steps) */
+                }
+                track_select(0); frames(2);
+                check(ok4, "U4: SEQ > A-D: four tiles, PATTERN A to D: PLAYING (a white bar), QUEUED (framed), STORED, EMPTY; "
+                           "white and grey; on a synth voice (no steps) and on the drums");
+            }
         }
         go_home(); frames(2);
         /* -- 12. (Ben 10:33) the steps show only on SEQ: from the GRID with nothing held a page button opens its real page;

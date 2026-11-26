@@ -660,7 +660,8 @@ static void drum_main_draw(void)
     }
     sig = studio_hash(chrom ? fm1_in.notes * 7u + 3u : snd_pic_sig(&pkit.s[l]) + drum_pg * 7u + bank * 131u + len * 977u +
                       (first >= 0 ? drum_trig_sig(l, bank) : 0u), info) + (uint32_t)chrom * 99991u + pkit_gen * 3u + l +
-          dpg_half() * 7919u + pkit.s[l].send * 131u + pkit.s[l].rsv * 337u + kfx_count() * 17u + dpic_sig(l);
+          dpg_half() * 7919u + pkit.s[l].send * 131u + pkit.s[l].rsv * 337u + kfx_count() * 17u + dpic_sig(l) +
+          (!drum_pg ? patt_tiles_sig() * 40503u : 0u);
     if (ui.force || sig != sb) {
         sb = sig;
         cv_begin(240, 55, C_BLACK);
@@ -699,6 +700,8 @@ static void drum_main_draw(void)
             }
             cv_text(4, 0, &FONT_S, a, first >= 0 ? TE_DRUM : TE_G4);
             dpic_kit(dpg_half());
+        } else if (!drum_pg && dpg_half() == TH_AD && first < 0) {   /* (review 26 Nov, U4) SEQ > A-D: the four patterns */
+            patt_tiles(0);
         } else if (!drum_pg) {                          /* TRIG, PATTERN, A-D: the step held (its values), the keys' page */
             char a[32], b2[32];
             int xi = first >= 0 ? dt_x((uint32_t)first, l) : -1;
