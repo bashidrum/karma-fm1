@@ -69,6 +69,7 @@ b, strong { font-weight: 600; }
 .note { font-size: 13px; color: var(--dim); margin: 0; }
 p { margin: 0; }
 table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+table.mini { font-size: 10.5px; margin: 4px 0; } table.mini td { padding: 1px 2px; text-align: center; }
 td { border-top: 1px solid var(--line); padding: 5px 6px 5px 0; vertical-align: top; }
 td:first-child { font-family: var(--f-mono); font-size: 12px; white-space: nowrap; color: var(--fg); width: 1%; padding-right: 12px; }
 .wide { grid-column: 1 / -1; }
@@ -175,7 +176,7 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
     <tr><td>ARP</td><td><b>notes</b> · ARP (SEL: ARP 2) · KEY: ROOT SCALE QNT CHORD (SEL: KEY 2). Drums: CHROMATIC (again: off) · hold: OCT- / OCT+ the pattern a semitone · MASTER: TRANSP</td></tr>
     <tr><td>SEL</td><td>PAGE: the next page of the category shown (round). Held: nothing</td></tr>
     <tr><td>GLO</td><td><b>global</b> · GLOBAL (K1 BPM) · SYSTEM · MIDI (SEL: MIDI 2, MIDI 3 with LEARN) · DEVICE, the menu · hold: the mixer · MASTER: TEMPO</td></tr>
-    <tr><td>SAVE</td><td><b>keep, confirm</b> · PRESETS · USER · KITS (your drum kits) · PATTERNS (store A-D) · TOOLS · hold: keys 1-4 store A-D, OCT- undo, OCT+ redo; a question showing: the ring</td></tr>
+    <tr><td>SAVE</td><td><b>keep, confirm</b> · PROJECT (live and bank: KEEP, SWAP, NEW) · PRESETS · USER · KITS (your drum kits) · PATTERNS (store A-D) · TOOLS · hold: keys 1-4 store A-D, OCT- undo, OCT+ redo; a question showing: the ring</td></tr>
     <tr><td>HOME</td><td>HOME · the screensaver (SEL: the next one) · hold: nothing</td></tr>
     <tr><td>REC</td><td><b>record</b> only: tap to record or arm (a synth's steps, stopped: STEP REC). Held: nothing more</td></tr>
     <tr><td>OCT- / OCT+</td><td><b>minus, plus</b> of the screen (the legend at the tab row's right says what). Twice quickly: the octave. With something held: minus removes it</td></tr>
@@ -217,7 +218,7 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
     <tr><td>SEQ</td><td><b>RHYTHM</b>: white keys ROLL (drums RETRIG). Black keys F#3 G#3 A#3 C#4: play A B C D; D#4: fill next bar. PLAY: fill (OCT+ latches). K1 RATE, K2 SHIFT, K3 SWING, K4 STEPS. OCT- halve (asks), OCT+ double. MASTER: SWING</td></tr>
     <tr><td>ARP</td><td><b>NOTES</b>: OCT- / OCT+ the voice's pattern a semitone. MASTER: TRANSP</td></tr>
     <tr><td>GLO</td><td><b>MIXER</b> (below). MASTER: TEMPO</td></tr>
-    <tr><td>SAVE</td><td>Keys 1-4: store into A-D. OCT- undo, OCT+ redo. A question showing: the confirm's ring</td></tr>
+    <tr><td>SAVE</td><td>PRESS KEY 1-4: STORE PATTERN (A-D, stored / playing / empty). OCT- undo, OCT+ redo. It says PROJECT: SAVED or NOT SAVED YET. A question showing: the confirm's ring</td></tr>
     <tr><td>EDIT</td><td>OCT-: clear the voice (asks; hold SAVE). MASTER: LEVEL</td></tr>
     <tr><td>ENV, LFO</td><td>On a synth sound page: MAP. The page stays; turn a knob: the LFO (envelope) last shown moves it, right +, left -, 0 removes (boxed on the dial; a small wave under it afterwards). SEL: the other LFO (envelope). OCT-: remove them on this page. A cell of the MATRIX. Elsewhere, and always: MASTER is ENV LENGTH, MOD DEPTH</td></tr>
     <tr><td>any hold</td><td>What works with it lights, the rest goes dark (and does nothing). A question waiting: SAVE alone. GLO &gt; DEVICE &gt; LIGHTS &gt; DISCO: QUIET (dim, still), NORMAL, SHOW (the keys dance)</td></tr>
@@ -245,14 +246,19 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
   <div class="how">tap SEQ (or EDIT) with DRUM selected: the drum screen. The 16 keys are the selected sound's steps</div>
   <div class="knobs"><div class="c4">PAGE<span>KNOB 1</span></div><div class="c4">PAGE<span>KNOB 2</span></div><div class="c4">PAGE<span>KNOB 3</span></div><div class="c4">PAGE<span>KNOB 4</span></div></div>
   <ul>
-    <li>SELECT: the sound (1 of 16, heard while stopped; the header's chip names it), in key order down the grid's columns: HAT, PEDAL, KICK 2, KICK, OP HAT ... SNARE, round. A new project starts on KICK. EDIT = SRC, again FLTR, again KIT FLT (the kit's filter). ENV = AMP. LFO = LFO. FX = INS, SENDS, SLICER, then MIX, STUT (a synth voice's order). SEQ = TRIG, again PATTERN. SEL: the page inside (SRC 1/3 .., AMP 2/2, TRIG 2/2).</li>
+    <li>SELECT: the sound (1 of 16, heard while stopped; the header's chip names it), in the Rytm order: KICK, RIM, SNARE 2, SNARE, KICK 2 ... CRASH, round. A new project starts on KICK. EDIT = SRC, again FLTR, again KIT FLT (the kit's filter). ENV = AMP. LFO = LFO. FX = INS, SENDS, SLICER, then MIX, STUT (a synth voice's order). SEQ = TRIG, again PATTERN. SEL: the page inside (SRC 1/3 .., AMP 2/2, TRIG 2/2).</li>
     <li>The kit is 16 slots, the project's own; each holds any sound from any kit, HEX or CLASSIC. Nothing held: a knob edits the selected slot's sound at once.</li>
     <li>PRESETS on the drum screen: the selected slot's sound (SOUND 808 SNARE): INIT HEX, INIT CLASSIC, then its kind from every kit, then every other kind. Turn back: the sound you had. SAVE + OCT-: undo.</li>
     <li>Hold a step + turn: a lock on that sound's hit (shown inverted). OCT-: that lock off; again: every lock; again (or on TRIG): the hit. On TRIG: VEL RETRIG NUDGE COND / CHANCE LENGTH CURVE NOTE.</li>
     <li>Mutes and solos: hold GLO (the white keys mute the 16 sounds; OCT+ held with a key: solo; OCT-: all off). ARP tapped: CHROMATIC (keys play the sound at pitches; -/+ the sound, twice quickly the octave). SEQ held + key: RETRIG (K1 the rate).</li>
     <li>FILL: hold SEQ and PLAY (OCT+ latches). A sound's key held + OCT- (where the keys play sounds): its hits erased. PRESETS on HOME loads a whole kit (power-on: 606). FLTR: CUTOFF RESO ENV TYPE (2/2 DRIVE). No sends on AMP: they are FX &gt; SENDS. A whole kit over a changed one: HOLD SAVE. Your kits: SAVE > KITS (MY KIT 1-6: KIT, LOAD, ERASE, SAVE).</li>
     <li>FX &gt; SENDS is the selected sound's: DELAY, REVERB, KIT FX (ON: through the kit's FILTER, INSERT, SLICER; OFF: straight to the mix. Stutter the tops, leave the kick alone: KICK's KIT FX OFF, then the SLICER on). The kit's pages (INS, SLICER, KIT FLT) say KIT, SELECT does nothing there, and count the sounds through them (13 OF 16 SOUNDS). No kit-wide sends.</li>
-    <li>The drum grid (as the Rytm's pads): HAT OP HAT RIDE CRASH / PEDAL CONGA C-BELL SHAKER / KICK 2 LO TOM HI TOM CLAP / KICK RIM SNARE 2 SNARE. The white keys run down its columns: keys 1-4 HAT, PEDAL, KICK 2, KICK; 5-8 OP HAT, CONGA, LO TOM, RIM; 9-12 RIDE, C-BELL, HI TOM, SNARE 2; 13-16 CRASH, SHAKER, CLAP, SNARE. Wherever a key plays or picks a drum sound (HOME, recording, RETRIG, the mixer), it is that sound. On the drum screen the keys are still the steps.</li>
+    <li>The drum grid (as the Rytm's pads): HAT OP HAT RIDE CRASH / PEDAL CONGA C-BELL SHAKER / KICK 2 LO TOM HI TOM CLAP / KICK RIM SNARE 2 SNARE. Two key orders over it (Ben, 22:45 to 22:48):<br>
+      <table class="mini"><tr><td>Key</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td><td>9</td><td>10</td><td>11</td><td>12</td><td>13</td><td>14</td><td>15</td><td>16</td></tr>
+      <tr><td>Played, RETRIG, SELECT (Rytm: bottom row first)</td><td>KICK</td><td>RIM</td><td>SNR2</td><td>SNARE</td><td>KICK2</td><td>LOTOM</td><td>HITOM</td><td>CLAP</td><td>PEDAL</td><td>CONGA</td><td>CBELL</td><td>SHAKR</td><td>HAT</td><td>OPHAT</td><td>RIDE</td><td>CRASH</td></tr>
+      <tr><td>Mixer (down the columns)</td><td>HAT</td><td>PEDAL</td><td>KICK2</td><td>KICK</td><td>OPHAT</td><td>CONGA</td><td>LOTOM</td><td>RIM</td><td>RIDE</td><td>CBELL</td><td>HITOM</td><td>SNR2</td><td>CRASH</td><td>SHAKR</td><td>CLAP</td><td>SNARE</td></tr>
+      <tr><td>Simulator key</td><td>Z</td><td>X</td><td>C</td><td>V</td><td>B</td><td>N</td><td>M</td><td>,</td><td>.</td><td>/</td><td>Q</td><td>W</td><td>R</td><td>Y</td><td>U</td><td>O</td></tr></table>
+      On the drum screen the keys are still the steps.</li>
   </ul>
 </section>
 
@@ -320,7 +326,7 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
 <section class="sl">
   <h2>Mixer <small>hold GLO, whichever voice is selected</small></h2>
   <table>
-    <tr><td>White keys</td><td>The 16 drum sounds, drawn as the drum grid; each key runs down a column, top to bottom (simulator keys in brackets):<br>
+    <tr><td>White keys</td><td>The 16 drum sounds, drawn as the drum grid; on the mixer each key runs down a column, top to bottom, Ben's 21:10 order (playing by hand counts the Rytm's way instead: the drum section) (simulator keys in brackets):<br>
       1-4: HAT (<kbd>Z</kbd>), PEDAL (<kbd>X</kbd>), KICK 2 (<kbd>C</kbd>), KICK (<kbd>V</kbd>)<br>
       5-8: OP HAT (<kbd>B</kbd>), CONGA (<kbd>N</kbd>), LO TOM (<kbd>M</kbd>), RIM (<kbd>,</kbd>)<br>
       9-12: RIDE (<kbd>.</kbd>), C-BELL (<kbd>/</kbd>), HI TOM (<kbd>Q</kbd>), SNARE 2 (<kbd>W</kbd>)<br>
@@ -342,6 +348,7 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
     <tr><td>SEQ, SEQ, SEQ</td><td>A-D: K1 the pattern to play; -/+ the one before / after</td></tr>
     <tr><td>hold SEQ</td><td>F#3 G#3 A#3 C#4: play A to D (playing: on the next bar). Stopped: load</td></tr>
     <tr><td>SAVE &gt; PATTERNS</td><td>KNOB 1 the pattern, KNOB 2 STORE (a stored one asks: hold SAVE)</td></tr>
+    <tr><td>SAVE &gt; PROJECT</td><td>LIVE and BANK side by side (patterns, tempo, kit). K1 KEEP: the live project into the bank (a kept one: asks). K2 SWAP: live and bank change places (asks, white ring: nothing lost). K4 NEW: a fresh live project, the bank untouched (asks). Stopped only</td></tr>
     <tr><td>hold SAVE</td><td>Keys 1-4: store into A to D (a used one asks: keep SAVE held, the ring fills)</td></tr>
   </table>
   <p class="note">A pattern holds all four voices' sounds and steps, the kit and the STUTTER lane.</p>
@@ -374,8 +381,9 @@ footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-
   <h2>Saving</h2>
   <ul>
     <li>White dot in the header: unsaved changes.</li>
-    <li>The working project saves itself after you stop, and comes back at power-on.</li>
-    <li>Patterns A to D: saved when you store them (hold SAVE + key 1-4).</li>
+    <li>The working project saves itself after you stop (0.3 s, once silent) or 2.5 s after a change made while stopped, and comes back at power-on. Nothing is written while playing: <b>stop, wait a second, then switch off</b>. Switched off while playing: back to the last save.</li>
+    <li>Patterns A to D: stored at once in memory, written once stopped and untouched 1.5 s.</li>
+    <li>One more project in the bank: SAVE &gt; PROJECT, KEEP; SWAP brings it back.</li>
     <li>User presets: SAVE > USER.</li>
   </ul>
 </section>

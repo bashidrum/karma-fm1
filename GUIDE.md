@@ -40,7 +40,7 @@ PHEBUS has four **voices**: three melodic voices and one drum voice. Each voice 
 | **3** | snake | coral | PLAITS VA: a plain saw, mono, about 6 dB quieter. A lead |
 | **DR** | crocodile | teal | the 606's 16 sounds in the kit's 16 slots |
 
-Every voice starts with no effects on and an empty mod matrix. **SAVE > TOOLS > NEW** puts a project back to this start.
+Every voice starts with no effects on and an empty mod matrix. **SAVE > PROJECT > NEW** puts the live project back to this start (the project kept in the bank stays as it is).
 
 ### The colour rule
 
@@ -109,7 +109,7 @@ The tab row above the dials always shows **the categories of the button you pres
 | **ARP** | notes | synth: **ARP**, KEY (key, scale, chord). Drums: **CHROMATIC** (again: off) | ARP: ARP 2. KEY: KEY 2 | -/+ and MASTER only | - / + the pattern a semitone (twice quickly: two) | TRANSP | nothing |
 | **SEL** | page | **PAGE**: the next page of the category shown | | nothing | | | |
 | **GLO** | global | **GLOBAL**, SYSTEM, MIDI, DEVICE (the menu) | MIDI: MIDI 2, MIDI 3. DEVICE: its sections; held: the mixer's pans | the mixer: white keys the 16 drum sounds, F#3 to C#4 the voices; a key mutes | - CLEAR every mute and solo, + with a key: SOLO | TEMPO | nothing |
-| **SAVE** | keep, confirm | **PRESETS**, USER, KITS (your drum kits), PATTERNS (store A to D), TOOLS | | keys 1 to 4 store A to D; with a question showing: the ring | - UNDO, + REDO | | nothing |
+| **SAVE** | keep, confirm | **PROJECT** (the live project and the bank: KEEP, SWAP, NEW), PRESETS, USER, KITS (your drum kits), PATTERNS (store A to D), TOOLS | | keys 1 to 4 store A to D; with a question showing: the ring | - UNDO, + REDO | | nothing |
 | **HOME** | home | **HOME**, the screensaver | screensaver: the next one | nothing | | | nothing |
 | **REC** | record | record / arm (synth steps, stopped: STEP REC); again: stop | | nothing more | | | |
 | **PLAY** | play | start / stop (with SEQ held: the FILL) | | | | | |
@@ -120,7 +120,7 @@ The tab row above the dials always shows **the categories of the button you pres
 | Control | Name in this manual | Main job |
 | --- | --- | --- |
 | Buttons | **PLAY**, **REC** | transport and recording (REC only records) |
-| Buttons | **HOME**, **SAVE** | the HOME screen (again: the screensaver); the SAVE pages (presets, user presets, tools); hold SAVE: the one confirm, store, undo, redo |
+| Buttons | **HOME**, **SAVE** | the HOME screen (again: the screensaver); the SAVE pages (the project and the bank, presets, user presets, kits, patterns, tools); hold SAVE: the one confirm, store, undo, redo |
 | Buttons | **ENV**, **LFO**, **FX**, **EDIT**, **ARP**, **SEQ**, **GLO** | tap: the button's categories, one a press. Hold: a layer (below) |
 | Button | **SEL (PAGE)** | the next page of the category shown. Held: nothing |
 | Buttons | **OCT-**, **OCT+** | minus and plus of the screen; twice quickly: the octave; OCT+ is the latch, OCT- removes |
@@ -144,7 +144,7 @@ SEL is the button between FX and ENV (printed SEL; in this manual **SEL (PAGE)**
 
 | Gesture | The one way | Where |
 | --- | --- | --- |
-| **Confirm** | anything that erases or replaces asks first in a white bar, **HOLD SAVE: ...** (HOLD SAVE: NEW, HOLD SAVE: LOAD U07, HOLD SAVE: LOAD 808, HOLD SAVE: CLEAR PADS, HOLD SAVE: STORE B, HOLD SAVE: HALVE TO 8, HOLD SAVE: CLEAR VOICE 1). **Hold SAVE**: a ring fills (about 1.3 seconds); full, it is done. The ring is **red** when something is taken away or replaced, **white** when the action only keeps (SAVE into an empty user preset slot). Let go early: nothing, the question stays. Tap SAVE, press another button or leave the screen: the question goes. If SAVE is already held when the question comes (storing a pattern), the ring starts at once | SAVE > USER (LOAD, ERASE, SAVE), SAVE > TOOLS (CLRSQ, INIT, NEW), storing over a used pattern, halving a pattern that has steps in its second half, clearing a voice (EDIT + OCT-), loading a whole kit over one you changed, SAVE > KITS (ERASE, SAVE over a kit), clearing the lane's pads. The question stays when the button that asked is let go, so SAVE can be held after it |
+| **Confirm** | anything that erases or replaces asks first in a white bar, **HOLD SAVE: ...** (HOLD SAVE: NEW, BANK KEPT, HOLD SAVE: REPLACE THE BANK, HOLD SAVE: LOAD U07, HOLD SAVE: LOAD 808, HOLD SAVE: CLEAR PADS, HOLD SAVE: STORE B, HOLD SAVE: HALVE TO 8, HOLD SAVE: CLEAR VOICE 1). **Hold SAVE**: a ring fills (about 1.3 seconds); full, it is done. The ring is **red** when something is taken away or replaced, **white** when nothing is lost (SAVE into an empty user preset slot; SWAP WITH THE BANK). Let go early: nothing, the question stays. Tap SAVE, press another button or leave the screen: the question goes. If SAVE is already held when the question comes (storing a pattern), the ring starts at once | SAVE > PROJECT (KEEP over a kept project, SWAP, NEW), SAVE > USER (LOAD, ERASE, SAVE), SAVE > TOOLS (CLRSQ, INIT), storing over a used pattern, halving a pattern that has steps in its second half, clearing a voice (EDIT + OCT-), loading a whole kit over one you changed, SAVE > KITS (ERASE, SAVE over a kit), clearing the lane's pads. The question stays when the button that asked is let go, so SAVE can be held after it |
 | **Minus and plus** | a **tap** of OCT- or OCT+ is the screen's minus or plus, at once; the legend at the right of the tab row says what (**[-] STEPS [+]**, **[-] RESO [+]**). No legend: a tap does nothing there | every screen (table in [section 12](#12-every-gesture)) |
 | **Octave** | **OCT- or OCT+ twice within 0.3 seconds**: the octave down or up (both at once: 0). The second tap takes back what the first did. The one double press, Ben's choice | everywhere nothing is held; on the drums' CHROMATIC its keys' octave |
 | **Remove** | **OCT- with the thing held**: a step (its note or hit), a lock, a key's note or drum sound from the whole pattern, a pad's latch; with EDIT held the whole voice (asks) | the steps, the sound pages, PERFORM, EDIT |
@@ -242,7 +242,7 @@ All four values are in the same tall face as on every page. On HOME, **PRESETS**
 
 ## 3. A first session, ten minutes
 
-This takes you from a new project to a saved groove. Start with **SAVE > TOOLS > NEW** (tap SAVE three times, turn KNOB 4 one click: HOLD SAVE: NEW shows; hold SAVE until the ring fills) if the FM-1 has something on it already.
+This takes you from a new project to a saved groove. Start with **SAVE > PROJECT > NEW** (tap SAVE once, turn KNOB 4 one click: HOLD SAVE: NEW, BANK KEPT shows; hold SAVE until the ring fills) if the FM-1 has something on it already. If that something is worth keeping, turn **KNOB 1 (KEEP)** on the same page first: it goes into the bank, and SWAP brings it back later.
 
 **1. A drum pattern (two minutes).**
 
@@ -390,7 +390,7 @@ On any of a synth voice's sound pages (OSC, FILT, ENV, FX, SENDS, SLICER, LFO, M
 
 ### Presets
 
-**PRESETS** browses the voice's sounds, grouped by kind (BASS, KEYS, ORGN, PAD, LEAD, PLCK, STAB, FX, INIT), then your user presets. Each engine has an INIT sound. **Tap SAVE** for its categories, one a press: **PRESETS** (KNOB 1 the sound, KNOB 2 the engine; -/+ the sound before / after), **USER** (KNOB 1 SLOT 1 to 32, KNOB 2 LOAD, KNOB 3 ERASE, KNOB 4 SAVE; -/+ the slot), **TOOLS** (KNOB 1 CLRSQ clears the pattern, KNOB 2 INIT resets the sound, KNOB 4 NEW). Each asks: turn it, then hold SAVE until the ring fills.
+**PRESETS** browses the voice's sounds, grouped by kind (BASS, KEYS, ORGN, PAD, LEAD, PLCK, STAB, FX, INIT), then your user presets. Each engine has an INIT sound. **Tap SAVE** for its categories, one a press: **PROJECT** (the live project and the bank: KNOB 1 KEEP, KNOB 2 SWAP, KNOB 4 NEW; [section 8](#8-patterns-a-to-d-recording-and-saving)), **PRESETS** (KNOB 1 the sound, KNOB 2 the engine; -/+ the sound before / after), **USER** (KNOB 1 SLOT 1 to 32, KNOB 2 LOAD, KNOB 3 ERASE, KNOB 4 SAVE; -/+ the slot), **TOOLS** (KNOB 1 CLRSQ clears the pattern, KNOB 2 INIT resets the sound; NEW moved to PROJECT). Each asks: turn it, then hold SAVE until the ring fills.
 
 ### Key, scale and chords (ARP, then KEY)
 
@@ -418,15 +418,17 @@ The drums work the Rytm's way. The drum voice has 16 sounds, laid out as **the d
 | **row 3** | KICK 2 | LO TOM | HI TOM | CLAP |
 | **bottom row** | KICK | RIM | SNARE 2 | SNARE |
 
-**The white keys run down the columns, top to bottom**: keys 1 to 4 are the left column, 5 to 8 the second, 9 to 12 the third, 13 to 16 the right. So wherever a white key plays or picks a drum sound, it is the same sound:
+**Two key orders over the one grid** (Ben, 23 Nov 2026, 22:45 to 22:48). The picture above never changes; which white key is which sound depends on what the keys are doing:
 
-| Key | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Sound | HAT | PEDAL | KICK 2 | **KICK** | OP HAT | CONGA | LO TOM | RIM |
-| **Key** | **9** | **10** | **11** | **12** | **13** | **14** | **15** | **16** |
-| Sound | RIDE | C-BELL | HI TOM | SNARE 2 | CRASH | SHAKER | CLAP | **SNARE** |
+| Key | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **Playing, RETRIG, SELECT** (the Rytm's order: the bottom row first, left to right, then up a row) | **KICK** | RIM | SNARE 2 | SNARE | KICK 2 | LO TOM | HI TOM | CLAP | PEDAL | CONGA | C-BELL | SHAKER | HAT | OP HAT | RIDE | CRASH |
+| **The mixer's mutes and solos** (Ben's 21:10 order: down each column, top to bottom) | HAT | PEDAL | KICK 2 | **KICK** | OP HAT | CONGA | LO TOM | RIM | RIDE | C-BELL | HI TOM | SNARE 2 | CRASH | SHAKER | CLAP | SNARE |
 
-The grid is used everywhere the 16 are drawn (the mixer, the drum screen's slot map, hold SEQ's tiles) and wherever the keys play or choose one (playing them on HOME and recording live, RETRIG, the mixer's mutes and solos, the order SELECT steps in). It is only where each sound sits: the slots, your projects, the kits, the MIDI notes, the trigs and locks and PERFORM's drum mutes are the same as before, so a project saved before plays the same. On the drum screen's steps the 16 keys are still the selected sound's 16 steps, in order.
+- **The Rytm order** (Ben: "Rytm order: bottom row first"; of SELECT, "It should follow the Rytm order"): the keys that play the sounds by hand (HOME, live recording, a sound's key held + OCT- to erase its hits), hold SEQ's RETRIG keys and their tiles, the key lights for hits, and SELECT's walk through the sounds on the drum screen (KICK, RIM, SNARE 2, SNARE, KICK 2 ... CRASH, then round to KICK). CHROMATIC's OCT- / OCT+ follow SELECT's order. A new project starts on KICK, key 1.
+- **The mixer keeps the columns** (Ben, 22:46: "Are you undoing the very specific order that I've specified for the mixer for muting the drums?"): hold GLO, and key 4 mutes the KICK, key 16 the SNARE, key 1 the HAT. PERFORM's pads also count down columns (22:07), so the mixer and PERFORM agree with each other, and the hand-played keys count along the rows. That difference is Ben's choice.
+
+It is only where each sound sits and which key reaches it: the slots, your projects, the kits, the MIDI notes, the trigs and locks and PERFORM's drum mutes are the same as before, so a project saved before plays the same. On the drum screen's steps the 16 keys are still the selected sound's 16 steps, in order.
 
 The closed hat cuts the open hat. **Ghost and hard hits come from velocity** (Ben: "Move ghost hits elsewhere"): the keys play and record at the velocity TRIG's KNOB 1 sets with no step held (100 to start; turn it to about 40 for ghosts, 127 for hard hits), and a hit already on a step gets its own with the step held and TRIG's VEL. OCT- with a key is only ever erase: **a drum key held, then OCT-**: that sound's hits are erased from the pattern (playing: from each step the playhead passes while you hold the key; stopped: all at once). The black keys play no drum sound.
 
@@ -444,7 +446,7 @@ Then the tab row (the categories of the button pressed: SRC FLTR for EDIT, AMP f
 
 | You do | Result |
 | --- | --- |
-| **SELECT** | the selected sound, one of the 16 a detent (heard while stopped), on every tab, in key order: down the map's columns, HAT, PEDAL, KICK 2, KICK, OP HAT ... CLAP, SNARE, then round to HAT (left: the other way). A new project starts on KICK |
+| **SELECT** | the selected sound, one of the 16 a detent (heard while stopped), on every tab, in the Rytm order: KICK, RIM, SNARE 2, SNARE, KICK 2 ... RIDE, CRASH, then round to KICK (left: the other way). A new project starts on KICK |
 | **tap an empty step** | a hit of the selected sound (velocity 100, or TRIG's KNOB 1 with nothing held) |
 | **tap a hit** | it goes when the key comes up, unless a knob was turned |
 | **hold a step and turn a knob** | lock that value on that sound's hit only (drawn inverted) |
@@ -495,9 +497,9 @@ The LFO's DEST knob (LFO 1/2) lists the same: PITCH, CUT, RESO, LEVEL, then ever
 
 ### Modes and live play
 
-- **Mutes and solos**: on the mixer. **Hold GLO** (whichever voice is selected): the 16 white keys mute and unmute the 16 sounds in the drum grid's key order (key 4 the KICK, key 16 the SNARE; yellow); hold **OCT+** and tap a key to solo it (ice blue); OCT- clears them all. Mutes and solos are not saved. For quick drops, PERFORM has four drum mutes of its own (KICKS, TOPS, SH+CL, HT+SN, held or latched).
+- **Mutes and solos**: on the mixer. **Hold GLO** (whichever voice is selected): the 16 white keys mute and unmute the 16 sounds in the mixer's order, down the grid's columns (key 4 the KICK, key 16 the SNARE; yellow; playing by hand counts the other way, the Rytm's: see the drum grid above); hold **OCT+** and tap a key to solo it (ice blue); OCT- clears them all. Mutes and solos are not saved. For quick drops, PERFORM has four drum mutes of its own (KICKS, TOPS, SH+CL, HT+SN, held or latched).
 - **CHROMATIC mode**: tap **ARP** (the drum voice's ARP group has this one category). The 27 keys play the selected sound (SELECT changes it) at pitches, C4 (key 5) its own; OCT- and OCT+ tapped step the sound (in key order, stopping at HAT and SNARE), twice quickly move the keys an octave (-2 to +2). Recorded live, each hit keeps its pitch as a NOTE lock. ARP again, or any other page button, leaves it.
-- **RETRIG**: hold **SEQ** and press a key: that key's sound (the drum grid's order: key 4 the KICK) repeats while held, at the rate KNOB 1 sets (all 17, 1/1 to 1/80). (Until wave 10 this was ARP's, with the rates on the black keys.)
+- **RETRIG**: hold **SEQ** and press a key: that key's sound (the Rytm order: key 1 the KICK, key 4 the SNARE) repeats while held, at the rate KNOB 1 sets (all 17, 1/1 to 1/80). (Until wave 10 this was ARP's, with the rates on the black keys.)
 - **FILL**: hold **SEQ** and **PLAY**: a fill while PLAY is held (the transport is not touched); **OCT+** with them latches it, SEQ + PLAY again (or STOP) ends it. **SEQ + D#4** (BAR) fills the next bar. FILL shows in every header.
 - **Effects, as on a synth voice** (Ben, 23 Nov 2026: "ENV should be for dry sound design / modulation. Edit should be for the same. FX should be for FX"; "FILTER should live under Edit. Filter envelope should live under ENV. Sends should live under FX"; "Just mirror the synths as closely as possible"). EDIT and ENV are the sound only: SRC, FLTR, AMP, LFO, no sends. **Tap FX**: **INS** (the kit's **INSERT**, TYPE and three values; SEL: **INSERT 2**, its MIX), **SENDS** (the selected sound's own: **DELAY**, **REVERB**, **KIT FX**; SELECT picks the sound, the header names it), **SLICER** (the kit's), then **MIX** (the whole mix's pages, white) and **STUT**. The kit's FILTER (LP / HP, HOME's KNOB 1 on the drums) is EDIT's third category, **KIT FLT**, after the sound's own SRC and FLTR and a divider.
 - **The kit's pages** (INS, INSERT 2, SLICER, KIT FLT) act on all 16 sounds at once: the header says **KIT**, the big name says KIT and the kit's name, no sound is framed in the map, SELECT does nothing (it would pick a sound the page does not act on), and the line says how many sounds go through them: **THE KIT: 13 OF 16 SOUNDS**.
@@ -536,7 +538,7 @@ The kinds are the 16 slots every kit shares: KICK, KICK 2, SNARE, CLAP, HAT, OPE
 
 **Walkthrough: an 808 snare in the 606 kit.**
 
-1. Start a new project (SAVE > TOOLS > NEW): the kit is the 606.
+1. Start a new project (SAVE > PROJECT > NEW): the kit is the 606.
 2. Turn **ALGORITHM** to **DRUM** and tap **EDIT**: the drum screen, SRC. The line under the big name says **606 SNARE** when SNARE is selected; turn **SELECT** until the header's chip says **SNARE**.
 3. Turn **PRESETS** two clicks to the **left**. The band at the bottom says **SOUND 909 SNARE**, then **SOUND 808 SNARE** (SNARE 6/41): stop there. You heard each one. (The snares go HEX BOOM .. HEX ROOM, 808, 909, 606, 80S ...: right from the 606 are the 80S, VINTAGE and the rest.)
 4. That's it: the snare slot is the 808's snare, the other 15 are still the 606's. HOME's DRUM zone now says **CUSTOM**. Tap **EDIT** to shape it: its pages are the CLASSIC machine's.
@@ -550,7 +552,7 @@ The kinds are the 16 slots every kit shares: KICK, KICK 2, SNARE, CLAP, HAT, OPE
 
 **Loading a whole kit.** On HOME (drums selected) PRESETS steps through the kits: five HEX kits (HEX BOOM, HEX ACID, HEX METAL, HEX GLITCH, HEX ROOM), 32 CLASSIC kits (808, 909, **606**, 80S, VINTAGE, TRAP, DRILL, BOOMBAP, LO-FI, PHONK, HOUSE, D.HOUSE, TECHNO, MINIMAL, ELECTRO, DISCO, GARAGE, JUNGLE, DUBSTEP, DEMBOW, AMAPIANO, AFRO, LATIN, TRIBAL, SYNTHWV, CHIP, ARCADE, GLITCH, INDUSTR, HYPER, AMBIENT, JAZZ), then your kits. A kit replaces all 16 slots. If the kit is still exactly the kit you loaded, it loads at once (nothing to lose). If you changed any slot (HOME says CUSTOM), the first click asks **HOLD SAVE: LOAD 808**: keep turning to choose another, hold SAVE until the ring fills to load it; the kits after that load at once. This is the only drum question. SAVE + OCT- brings your changed kit back.
 
-**Your kits: SAVE > KITS** (tap SAVE three times). Six places, **MY KIT 1 to 6**, each a whole kit of 16 slots of any machines. KNOB 1 picks one; turn **KNOB 2 LOAD**, **KNOB 3 ERASE** or **KNOB 4 SAVE** to the right. SAVE into an empty place stores at once; over a kit, and ERASE, ask first (hold SAVE). LOAD asks only over a changed kit, as PRESETS does. Your kits are in the PRESETS lists too (whole on HOME, sound by sound on the drum screen). Until you save over them, places 1 to 4 hold your old **MY HEX 1 to 4** (marked OLD), which load as they always played.
+**Your kits: SAVE > KITS** (tap SAVE four times). Six places, **MY KIT 1 to 6**, each a whole kit of 16 slots of any machines. KNOB 1 picks one; turn **KNOB 2 LOAD**, **KNOB 3 ERASE** or **KNOB 4 SAVE** to the right. SAVE into an empty place stores at once; over a kit, and ERASE, ask first (hold SAVE). LOAD asks only over a changed kit, as PRESETS does. Your kits are in the PRESETS lists too (whole on HOME, sound by sound on the drum screen). Until you save over them, places 1 to 4 hold your old **MY HEX 1 to 4** (marked OLD), which load as they always played.
 
 **Patterns A to D share the project's one kit** (since wave 12). A project of waves 3 to 11 whose patterns played different kits now plays every pattern on the kit of the project as it was saved (the kit playing then, with its edits): switching to a pattern that had another kit keeps these 16 slots, so that pattern's hits play on them (its trigs, locks of the sounds and velocities as they were; a lock of the kit number does nothing). Load that other kit by hand (PRESETS on HOME) or keep it as MY KIT n to switch to it.
 
@@ -713,7 +715,7 @@ A **pattern** holds all four voices' sounds and steps, the kit and the STUTTER l
 | --- | --- |
 | **SEQ, SEQ, SEQ** (the A-D category) | KNOB 1 the pattern to play; **OCT- / OCT+** the one before / after. Playing: on the next bar (NEXT: A). Stopped: loaded (LOADED A). Empty: EMPTY A |
 | **hold SEQ + F#3, G#3, A#3, C#4** | play A, B, C, D (drawn A B C D in the strip; the one playing lit), the quick way |
-| **SAVE, SAVE, SAVE** (the PATTERNS category) | the four patterns, STORED or EMPTY, the one playing marked. KNOB 1 picks one (OCT- / OCT+ too), **KNOB 2 STORE** turned right stores into it; over a stored one it asks (HOLD SAVE: STORE A): hold SAVE until the ring fills |
+| **SAVE five times** (the PATTERNS category) | the four patterns, STORED or EMPTY, the one playing marked. KNOB 1 picks one (OCT- / OCT+ too), **KNOB 2 STORE** turned right stores into it; over a stored one it asks (HOLD SAVE: STORE A): hold SAVE until the ring fills |
 | **hold SAVE + key 1 to 4** | the shortcut: store into A to D. Over a used pattern it asks (HOLD SAVE: STORE A): SAVE is already held, so the ring fills at once; let go before and nothing is stored |
 
 While a pattern plays, what you change in it is kept in it. **Tap SAVE** on its own for the SAVE pages.
@@ -735,12 +737,53 @@ The REC screen: KNOB 3 **START** (NOTE or COUNT); the length is SEQ's PATTERN pa
 
 **Hold ARP** (NOTES): OCT- / OCT+ transpose the selected voice's pattern a semitone (it was hold EDIT's KNOB 3 TRANSP); MASTER its TRANS. Tap ARP for the arpeggiator pages (ARP: MODE, RATE, OCT, GATE; ARP 2: SWG, PROB, HOLD, ORD).
 
-### Saving
+### Saving, switching off, and the bank
 
-- **The unsaved dot**: a small white dot in the header when the project in memory differs from flash (checked twice a second).
-- **Autosave**: 0.3 seconds after you stop with no input, once the output is silent (under -60 dB), at most every 5 seconds; as a fallback after 2.5 seconds with no input, at most every 20 seconds. Flash is written only while stopped.
-- **At power-on** the working project comes back.
-- **Saved only when you ask**: patterns A to D (hold SAVE + key 1 to 4) and user presets (SAVE > USER).
+Ben (22:45): "Just enough so that I can keep one in the bank. So one live one and one dead one. Or even just the option of turning the device off and on again without having lost what I was working on".
+
+**What the FM-1 keeps by itself.** The **live project** (all four voices, the kit, the STUTTER lane, and patterns A to D) saves itself to flash, but **only while stopped**: a flash write stalls the sound for about 50 ms, so nothing is written while the sequencer plays.
+
+| What | Written to flash | Switched off before that |
+| --- | --- | --- |
+| the working project (sounds, steps, kit, tempo, lane) | 0.3 s after you stop (once the sound has died away under -60 dB and the panel is untouched); a change made while stopped: 2.5 s after your last touch. At most one save every 5 s | lost back to the last save |
+| patterns A to D (hold SAVE + key 1 to 4, or SAVE > PATTERNS) | stored at once in memory (SAVED A), written once stopped, quiet and untouched for 1.5 s | a pattern stored while playing and not yet written is lost |
+| the bank (SAVE > PROJECT > KEEP) | at once, while stopped (it refuses while playing) | nothing to lose: KEEP writes before it says KEPT |
+| your kits (SAVE > KITS), user presets (SAVE > USER) | at once, when you store them | nothing to lose |
+| settings (lights, MIDI, SYNC, the MY HEX kits) | with the patterns: once stopped, quiet and untouched for 1.5 s | the last change |
+
+So the safe habit is the one PHEBUS asks for anyway: **stop, wait a second, then switch off**. Switching off **while playing** loses everything since the last stop (edits, takes, a pattern stored while playing, a tempo change). The FM-1's power switch is not seen by the firmware (it cuts the power in hardware), so there is no last-moment save. An update or UBOOT writes everything first.
+
+**How to tell.** The **white dot** in the header (bigger since the bank) means the project in memory is not yet in flash. **Hold SAVE** and the screen says it in words: PROJECT: SAVED, or PROJECT: NOT SAVED YET (in white), or STOP TO SAVE while playing. SAVE > PROJECT says the same next to LIVE.
+
+**Hold SAVE** (the patterns' layer), in plain words since 22:45:
+
+```
+ PRESS KEY 1-4: STORE PATTERN                   [-] UNDO [+] REDO
+ [ A STORED ] [ B PLAYING ] [ C EMPTY ] [ D EMPTY ]
+ PROJECT: SAVED
+ IT SAVES ITSELF WHEN YOU STOP
+ KEEP A COPY: SAVE > PROJECT
+```
+
+**The bank: SAVE > PROJECT** (tap SAVE once: it is SAVE's first category). One more project, kept in flash beside the live one: "one live one and one dead one". The page shows both, so you can tell them apart:
+
+```
+ LIVE                    SAVED
+ 4 PATTERNS  92 BPM
+ KIT: CUSTOM
+ BANK
+ 2 PATTERNS  120 BPM            (or EMPTY: NOTHING KEPT YET)
+ KIT: 808
+```
+
+| Knob, turned right | Does |
+| --- | --- |
+| **KNOB 1 KEEP** | copies the whole live project (its four patterns, kit, sounds, lane) into the bank. Into an empty bank: at once (KEPT IN THE BANK). Over a kept project it asks **HOLD SAVE: REPLACE THE BANK** (red ring) |
+| **KNOB 2 SWAP** | the live project and the bank change places, so you can go back and forth between two sketches; nothing is ever lost (SWAP again is where you started). It asks **HOLD SAVE: SWAP WITH THE BANK** with a white ring. With an empty bank: THE BANK IS EMPTY: KEEP FIRST |
+| **KNOB 4 NEW** | a fresh live project (the 606, 90 BPM, patterns A to D emptied); **the bank is untouched**. It asks **HOLD SAVE: NEW, BANK KEPT** (red ring) |
+
+There is no LOAD: SWAP does it without losing the live one (to load the bank over the live one, SWAP, then KEEP). All three work only while stopped (STOP PLAYING FIRST). A power cut during KEEP or SWAP never loses either project: SWAP is one small write that turns a pointer, and KEEP writes the new copy beside the old one and switches over only at the end (tested with a cut after every single write).
+
 - **Not in a project**: SYNC, the MIDI settings, the lights and the menu settings belong to the FM-1.
 
 Projects saved by PHEBUS use a new format: PHEBUS reads older KARMA projects, stock KARMA cannot read PHEBUS's.
@@ -798,6 +841,8 @@ The 16 tiles are the drum grid (Ben, 21:10: "make notes 1-4 mute the drum voices
               9-12     RIDE  C-BELL  HI TOM  SNARE 2       (column 3)
               13-16    CRASH  SHAKER  CLAP  SNARE          (the right column)
 ```
+
+**Not the order you play in.** On the mixer the keys count down the columns (Ben's 21:10 order, kept at 22:46), as PERFORM's pads do; when you play the drums by hand, RETRIG or turn SELECT, they count the Rytm's way, along the bottom row first (key 1 KICK, key 4 SNARE, key 13 HAT, key 16 CRASH). The tiles are the same picture either way. In the simulator, playing by hand: **Z** KICK, **X** RIM, **C** SNARE 2, **V** SNARE, **B** KICK 2, **N** LO TOM, **M** HI TOM, **,** CLAP, **.** PEDAL, **/** CONGA, **Q** C-BELL, **W** SHAKER, **R** HAT, **Y** OP HAT, **U** RIDE, **O** CRASH.
 
 | Control (GLO held) | Does |
 | --- | --- |
@@ -902,7 +947,7 @@ The FM-1 is a class-compliant USB audio input. MENU > AUDIO > USB AUDIO: **MASTE
 
 ## 11. Backup and install
 
-**Back up first.** The backup page (`web/editor.html`, Chrome or Edge, FM-1 on USB) has three buttons: **Connect**, **Save backup** and **Restore**. A backup holds the working project with its kit, the four patterns, the 32 user presets, the MY HEX kits, your drum kits MY KIT 1 to 6 (since wave 13) and the settings. A backup made before wave 13 (without your kits) still restores; it leaves the kits on the FM-1 as they are. Save one before you flash anything. A format 8 backup is refused by firmware older than its protocol.
+**Back up first.** The backup page (`web/editor.html`, Chrome or Edge, FM-1 on USB) has three buttons: **Connect**, **Save backup** and **Restore**. A backup holds the working project with its kit, the four patterns, the 32 user presets, the MY HEX kits, your drum kits MY KIT 1 to 6 (since wave 13), the project kept in the bank (since the bank: while it holds one) and the settings. A backup made before wave 13 (without your kits) still restores; it leaves the kits on the FM-1 as they are; one made before the bank leaves the bank as it is. Save one before you flash anything. A format 8 backup is refused by firmware older than its protocol.
 
 **Build.** See [BUILDING.md](BUILDING.md): `./build.sh` with JieLi's toolchain and the AC79 SDK (on GitHub Actions or in Docker). The package is `build/felucca.fwsc`, with the identity **FM-1_926**.
 
@@ -959,7 +1004,7 @@ The four ways ([section 2](#2-the-controls-and-the-screen)): a labelled button (
 | SAVE > KITS | the kit place before / after | KIT |
 | SAVE > USER | the slot before / after | SLOT |
 | every other page (the sound pages, ARP, KEY, GLO, FX's MIX) | the knob last turned there (or SELECT) one fine step down / up; nothing turned yet: nothing | the knob's name (RESO, BPM, TYPE ...) |
-| SAVE > TOOLS (its knobs are GO knobs) | nothing | none |
+| SAVE > TOOLS and SAVE > PROJECT (their knobs are GO knobs) | nothing | none |
 | HOME, the screensaver, the REC screen | nothing | none |
 | the menu | OCT- closes, OCT+ steps or opens a row (as written at its foot) | the menu's own line |
 | a layer | the layer's own (the table in section 2) | at the right of the line under the header |
@@ -1008,7 +1053,7 @@ The four ways ([section 2](#2-the-controls-and-the-screen)): a labelled button (
 
 | Gesture | Does |
 | --- | --- |
-| SELECT | the selected sound (the header's chip names it), in key order: HAT, PEDAL, KICK 2, KICK, OP HAT ... SNARE, round |
+| SELECT | the selected sound (the header's chip names it), in the Rytm order: KICK, RIM, SNARE 2, SNARE, KICK 2 ... CRASH, round |
 | EDIT / ENV / LFO / FX / SEQ | SRC, FLTR, KIT FLT / AMP / LFO / INS, SENDS (the sound's), SLICER, MIX, STUT / TRIG, PATTERN, A-D (also with a step held) |
 | SEL | the page inside (SRC 1/3 .., AMP 2/2, INSERT 2, TRIG 2/2, PATTERN 2/2, the MIX pages) |
 | tap an empty step / a hit | a hit / clear on release |
@@ -1116,7 +1161,7 @@ Do these in order, before and after the first flash:
 5. **Listen**: each Type on each track (on tracks 1 and 2, the six Types above should say NOT ON THIS TRACK), the filter against a 303 and an SH-101, the 606 kit.
 6. **Load**: the default mix with a six-note chord on voice 2, three heavy Types at once, five PERFORM pads stacked. Watch GLO > SYSTEM, KNOB 4 (CPU) and listen for dropouts.
 7. **Timing**: drum nudges and retrigs, the MIDI clock to and from the MPC Sample, the STUTTER lane's 1/2 and 1/1 replays.
-8. **Saving**: that an autosave never stalls the screen or the sound, that the -60 dB silence threshold suits the real noise floor, patterns A to D across a power cycle, the backup page against the new firmware.
+8. **Saving**: that an autosave never stalls the screen or the sound, that the -60 dB silence threshold suits the real noise floor, patterns A to D across a power cycle, KEEP and SWAP and a power cycle after each, the backup page against the new firmware. **The flash chip:** if the unit has the newer UC25HQ80 flash (JEDEC 0xB36014), the flash driver's waits (500 ms an erase, 10 ms a page) may be too short for it (ChoralRoot 0.32 found so); until the driver is changed, a save may fail or the FM-1 may restart during one. The two copies of every project mean a failed save loses only that save, never the copy before it.
 9. **The screen**: every screen at real size and speed, the screensavers and the boot's random pick.
 
 ---
@@ -1149,7 +1194,7 @@ The screen font is Terminus. The PHEBUS wordmark is drawn from TeX Gyre Adventor
 | **category** | what a labelled button opens, one a press: EDIT's OSC and FILT, FX's INS SENDS SLICER MIX ... The tab row names them |
 | **page** (of a category) | one screen of it: "2/4" at the right of the tabs; **SEL** walks them. (A page of steps: 16 steps, OCT- / OCT+) |
 | **SEL (PAGE)** | the button that walks the pages of the category shown. Held: nothing |
-| **SAVE** | keep and confirm: the SAVE pages (PRESETS, USER, KITS, PATTERNS, TOOLS); held, store a pattern, undo, redo, the confirm's ring |
+| **SAVE** | keep and confirm: the SAVE pages (PROJECT, PRESETS, USER, KITS, PATTERNS, TOOLS); held, store a pattern, undo, redo, the confirm's ring |
 | **SELECT** | the knob: knob 5, the type of a synth page (named in the header's chip); on the drum screen the sound |
 | **type** | what SELECT turns: the oscillator Type, the filter's TYPE, an insert's TYPE, the LFO's WAVE, the SLICER's mode |
 | **tab** | the row naming the categories of the last button pressed, the one shown filled |
@@ -1171,7 +1216,8 @@ The screen font is Terminus. The PHEBUS wordmark is drawn from TeX Gyre Adventor
 | **FX MIX** | the whole mix's effect return, 0 to 100 % (FX + MASTER) |
 | **black-key strip** | the two rows under the header that name the black keys' jobs; a black key does something only where it is drawn |
 | **mixer** | hold GLO: the 16 drum sounds on the white keys (the drum grid, keys down its columns), the voices on F#3 to C#4; a tap mutes, OCT+ with a key solos, OCT- clears, SEL the pans |
-| **drum grid** | where the 16 drum sounds sit, as on an Analog Rytm: HAT OP HAT RIDE CRASH / PEDAL CONGA C-BELL SHAKER / KICK 2 LO TOM HI TOM CLAP / KICK RIM SNARE 2 SNARE; the white keys run down its columns (key 1 HAT, key 4 KICK, key 16 SNARE) |
+| **drum grid** | where the 16 drum sounds sit, as on an Analog Rytm: HAT OP HAT RIDE CRASH / PEDAL CONGA C-BELL SHAKER / KICK 2 LO TOM HI TOM CLAP / KICK RIM SNARE 2 SNARE; played by hand, by RETRIG and by SELECT the keys count the Rytm's way, the bottom row first (key 1 KICK, key 4 SNARE, key 16 CRASH); on the mixer they run down its columns (key 1 HAT, key 4 KICK, key 16 SNARE) |
+| **bank** | SAVE > PROJECT: one more project kept in flash beside the live one; KEEP copies the live one into it, SWAP exchanges them, NEW starts the live one afresh |
 | **KIT** | on the drums, the kit's own pages (INS, SLICER, EDIT's KIT FLT), acting on all 16 sounds: the header says KIT and SELECT does nothing there |
 | **KIT FX** | each drum sound's switch on its SENDS page: ON through the kit's FILTER, INSERT and SLICER, OFF straight to the mix |
 | **lock view** | a synth voice's steps with a step held and a page button pressed: that page's knobs under the steps (LOCK: in the tab row) |
