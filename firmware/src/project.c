@@ -1897,10 +1897,12 @@ static int bank_op(uint32_t op)
         return 0;
     }
     g = bank_gen_next();                               /* KEEP: the five objects under a new generation, then commit it */
-    for (i = 0; i < 4u; i++)
-        rc |= st_save_big_gen(OBJ_BPRJ0 + i, g, PSLOT(i), proj_ok(PSLOT(i)) ? sizeof *PSLOT(i) : 0u, 0, 0, 0);
-    rc |= st_save_big_gen(OBJ_BWORK, g, &autosave_buf, sizeof autosave_buf, &pkit, sizeof pkit, sizeof(proj_ext_t) - sizeof pkit);
-    if (rc)
+    for (i = 0; i < 4u && !rc; i++)                    /* (stops at the first failure: a write that timed out may still be
+                                                        * running in the chip, and a read meanwhile is not to be trusted to
+                                                        * pick the next object's copy) */
+        rc = st_save_big_gen(OBJ_BPRJ0 + i, g, PSLOT(i), proj_ok(PSLOT(i)) ? sizeof *PSLOT(i) : 0u, 0, 0, 0);
+    if (rc || st_save_big_gen(OBJ_BWORK, g, &autosave_buf, sizeof autosave_buf, &pkit, sizeof pkit,
+                              sizeof(proj_ext_t) - sizeof pkit))
         return -2;
     if (bank_ptr_write(st_flip, ba == 0u ? g : st_gen[0], ba == 1u ? g : st_gen[1]))
         return -2;
