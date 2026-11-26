@@ -1935,9 +1935,13 @@ int main(int argc, char **argv)
             check(drum_pg == DPG_FX && cur_cat() == CT_DINS && sg_held,
                   "DRUM GRID: a step held + FX: the FX tab, INS (the kit's INSERT; the Rytm's page keys)");
             check(drum_pg == DPG_FX && dpg_half() == 0u && !strcmp(PAGES[dbus_page(0)].title, "INSERT"), "DRUM GRID: FX: INS (INSERT)");
-            encs[panel.enc[EN_K2]] = 1; frame();
+            encs[panel.enc[EN_K1]] = 1; frame();        /* (U2: the INSERT empty, its knobs do nothing, lock nothing) */
+            check(!step_locked(TDRUM, 1) && lock_find(TDRUM, 1, P_IA, 0) < 0,
+                  "DRUM GRID: the kit INSERT empty (OFF): a knob with a step held locks nothing (as a synth's empty slot; U2)");
+            TDRUM->p[P_ITYPE] = 1;                      /* (SOFT) */
+            encs[panel.enc[EN_K1]] = 1; frame();
             check(step_locked(TDRUM, 1) && lock_find(TDRUM, 1, P_IA, 0) >= 0,
-                  "DRUM GRID: on the FX tab, a knob locks the drum voice's own parameter on that step (as any tab)");
+                  "DRUM GRID: on the FX tab, a knob locks the drum voice's own parameter on that step (as any tab; KNOB 1 INSERT's A)");
             ui.force = 1; frame(); ppm("grid-drum-lock");
             press(B_OCTDN); release(B_OCTDN);
             check(!step_locked(TDRUM, 1), "DRUM GRID: OCT- on the FX tab: that page's locks go");
@@ -1949,6 +1953,7 @@ int main(int argc, char **argv)
             check(str_eq(ui.msg, "NOT LOCKABLE") && !sl_kfx_off(0), "DRUM GRID: KIT FX with a step held: not lockable (the slot's)");
             dt_lk_del(1, 0, DSP_ALL);
             lock_del(TDRUM, 1, P_COUNT); dpg_go(0, 0);
+            TDRUM->p[P_ITYPE] = 0;
         }
         fm1_in.notes &= ~(1u << key_of_white(1)); frame();
         check(dt_has(1, 0), "DRUM GRID: let go after an edit: kept");
@@ -3810,12 +3815,14 @@ int main(int argc, char **argv)
             {   /* the drum screen's FX tab: the drum voice's own pages, teal (and no melodic voice's colour) */
                 uint32_t h;
                 song.sel = TRK_DRUM; studio_open(SC_DRUM); frames(2);
+                TDRUM->p[P_ITYPE] = 1;                  /* (an INSERT in: its values shown; empty, U2: none) */
                 for (h = 0; h < NDBUS; h++) {
                     dpg_go(DPG_FX, h); ui.force = 1; frame();
                     for (o2 = 0; o2 < NPART; o2++) bad += px_count(0, 0, 240, OP_BAR_Y, TE_COL[o2]);
                     bad += px_count(0, SG_KNOB_Y, 240, 58, TE_DRUM) < 20u;   /* (the kit's pages and the sound's SENDS:
                                                          * teal; MIX is the PAGES' white one now, U1) */
                 }
+                TDRUM->p[P_ITYPE] = 0;
                 dpg_go(1, 0); go_home(); track_select(0); frames(2);
                 check(bad == 0u, "colour rule: the drum FX tab's own pages (kit INS, SENDS, SLICER, KIT FLT) in teal only");
             }
@@ -4083,7 +4090,8 @@ int main(int argc, char **argv)
             }
             snprintf(what, sizeof what, "SELECT, on every page of every group (%u typed, %u without): no page, tab, half or tempo change", ntype, nnone);
             check(okn, what);
-            check(okt && ntype == 13u, "SELECT: turns the type where the page has one (OSC TYPE, FILT TYPE, FX 1-3 TYPE, LFO WAVE, SLICER), nothing elsewhere");
+            check(okt && ntype == 16u, "SELECT: turns the type where the page has one (OSC TYPE, FILT TYPE, FX 1-3 TYPE, LFO WAVE, SLICER; "
+                  "the drum kit's INSERT TYPE and SLICER mode, review 26 Nov U2, the SLICER again under ARP's CHROMATIC), nothing elsewhere");
             check(okd, "SELECT on the drum screen (every tab): the next of the 16 sounds");
             go_home(); track_select(0); host_preset(&trk[0], ENGI_ACID, 0); frames(2);
         }

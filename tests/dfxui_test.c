@@ -97,7 +97,8 @@ static void pages(void)
     tap(B_FX); frames(2); ok &= cur_cat() == CT_STUT;
     tap(B_FX); frames(2); ok &= cur_cat() == CT_DINS;
     check(ok, "D2: FX on the drums: INS (SEL: INSERT 2), SENDS, SLICER, MIX, STUT, round: a synth voice's order; no FILTER");
-    /* KIT on the kit's pages: no chip, SELECT inert; the sound's chip on SENDS */
+    /* the kit's pages: no sound chip; (review 26 Nov, U2 "Type on SELECT, as synths") SELECT turns the INSERT's TYPE and the
+     * SLICER's mode, a chip in teal; INSERT 2 and KIT FLT: KIT, SELECT does nothing; the sound's chip on SENDS */
     {
         static const uint8_t KH[4] = {0, 1, 3, DBH_FILTER};
         uint32_t i, okk = 1, ln;
@@ -106,14 +107,21 @@ static void pages(void)
         uint16_t cc;
         drum_lane = 2;
         for (i = 0; i < 4u; i++) {
+            int16_t it = TDRUM->p[P_ITYPE], sm = TDRUM->p[P_SLCR];
+            int typed = i == 0u || i == 2u;
             dpg_go(DPG_FX, KH[i]); ui.force = 1; frame();
             ln = drum_lane;
             encs[panel.enc[EN_SELECT]] = 1; frames(2);
-            okk &= dpg_kit() && !sel_chip(cv, &cr, &cc) && drum_lane == ln;
+            okk &= dpg_kit() && drum_lane == ln;
+            okk &= typed ? sel_chip(cv, &cr, &cc) && cc == TE_DRUM && !str_eq(cv, LANE_SHORT[ln]) : !sel_chip(cv, &cr, &cc);
+            okk &= i == 0u ? TDRUM->p[P_ITYPE] == it + 1 && TDRUM->p[P_SLCR] == sm
+                 : i == 2u ? TDRUM->p[P_SLCR] == sm + 1 && TDRUM->p[P_ITYPE] == it
+                 : TDRUM->p[P_ITYPE] == it && TDRUM->p[P_SLCR] == sm;
             okk &= px_count(0, 0, 240, OP_BAR_Y, TE_COL[0]) + px_count(0, 0, 240, OP_BAR_Y, TE_COL[1]) +
                    px_count(0, 0, 240, OP_BAR_Y, TE_COL[2]) + px_count(0, 0, 240, OP_BAR_Y, TE_RED) == 0u;
+            TDRUM->p[P_ITYPE] = it, TDRUM->p[P_SLCR] = sm;
         }
-        check(okk, "D2: INSERT, INSERT 2, SLICER, KIT FLT: header KIT (no sound chip), SELECT does nothing; teal, no other voice's colour");
+        check(okk, "D2: INSERT: SELECT turns its TYPE, SLICER: its mode (a teal chip); INSERT 2, KIT FLT: header KIT, SELECT does nothing; teal, no other voice's colour");
         dpg_go(DPG_FX, DBH_SENDS); ui.force = 1; frame(); ppm("dfx-sends");
         ln = drum_lane;
         check(sel_chip(cv, &cr, &cc) && str_eq(cv, LANE_SHORT[drum_lane]) && cc == TE_DRUM,
@@ -229,6 +237,57 @@ static void kitfx_ui(void)
     go_home(); frames(2);
 }
 
+/* (review 26 Nov, U2: Ben's picker "Type on SELECT, as synths") the kit's INSERT and SLICER as a synth voice's FX slot and
+ * SLICER: the type on SELECT, the values on KNOB 1 to 3; empty, "EMPTY: SELECT PICKS A TYPE", no values, nothing lockable */
+static void kit_type_on_select(void)
+{
+    const page_t *ins, *slc;
+    uint32_t k, ok = 1;
+    int16_t a0;
+    song.sel = TRK_DRUM; go_home(); frames(2);
+    TDRUM->p[P_ITYPE] = 0; TDRUM->p[P_SLCR] = SL_OFF;
+    drum_screen_open(); dpg_go(DPG_FX, 0); frames(2);
+    ins = &PAGES[dbus_page(0)], slc = &PAGES[dbus_page(DBH_SLICER)];
+    check(ins->sel == P_ITYPE && ins->id[0] == P_IA && ins->id[1] == P_IB && ins->id[2] == P_IC && ins->id[3] == 0xFFu,
+          "U2: the kit INSERT: TYPE on SELECT, its three values on KNOB 1 to 3 (a synth FX slot's places)");
+    check(slc->sel == P_SLCR && slc->id[0] == P_SLPAT && slc->id[1] == P_SLRATE && slc->id[2] == P_SLDEPTH && slc->id[3] == 0xFFu,
+          "U2: the kit SLICER: the mode on SELECT, PAT RATE DEPTH on KNOB 1 to 3 (the synth SLICER's)");
+    ui.force = 1; frame(); ppm("u2-kit-insert-empty");
+    check(px_count(0, SG_KNOB_Y + 2, 240, 56, TE_DRUM) == 0u, "U2: the INSERT empty: no values on the dials (none live-looking)");
+    a0 = TDRUM->p[P_IA];
+    for (k = 0; k < 3u; k++) { encs[panel.enc[EN_K1 + k]] = 5; frames(2); }
+    ok = TDRUM->p[P_IA] == a0 && TDRUM->p[P_ITYPE] == 0;
+    fm1_in.notes |= 1u << key_of_white(0); frames(2);  /* (a step held: its first) */
+    ok &= sg_held != 0u;
+    for (k = 0; k < 3u; k++) { encs[panel.enc[EN_K1 + k]] = 5; frames(2); }
+    ok &= !step_locked(TDRUM, 0) && TDRUM->p[P_IA] == a0;
+    fm1_in.notes &= ~(1u << key_of_white(0)); frames(2);
+    check(ok, "U2: the INSERT empty: its knobs change nothing and lock nothing (as a synth's empty slot)");
+    encs[panel.enc[EN_SELECT]] = 1; frames(2);
+    check(TDRUM->p[P_ITYPE] == 1 && drum_pg == DPG_FX && dpg_half() == 0u, "U2: SELECT on the kit INSERT: its TYPE (OFF -> SOFT), the page stays");
+    ui.msg_t = 0; ui.force = 1; frame(); ppm("u2-kit-insert-soft");
+    check(px_count(0, SG_KNOB_Y + 2, 240, 56, TE_DRUM) > 40u, "U2: a type picked: its values on the dials, teal");
+    encs[panel.enc[EN_K1]] = 3; frames(2);
+    check(TDRUM->p[P_IA] > a0, "U2: KNOB 1 turns the INSERT's first value (DRIVE)");
+    fm1_in.notes |= 1u << key_of_white(0); frames(2);
+    encs[panel.enc[EN_SELECT]] = 1; frames(2);
+    check(sg_held && TDRUM->p[P_ITYPE] == 1 && str_eq(ui.msg, "TYPE: NOT LOCKABLE") && !step_locked(TDRUM, 0),
+          "U2: a step held: the INSERT's TYPE is not lockable (as a synth slot's)");
+    fm1_in.notes &= ~(1u << key_of_white(0)); frames(2);
+    ui.msg_t = 0;
+    encs[panel.enc[EN_SELECT]] = -1; frames(2);
+    check(TDRUM->p[P_ITYPE] == 0, "U2: SELECT back: OFF");
+    dpg_go(DPG_FX, DBH_SLICER); frames(2);
+    encs[panel.enc[EN_SELECT]] = 1; frames(2);
+    check(TDRUM->p[P_SLCR] == SL_OFF + 1 && drum_pg == DPG_FX && dpg_half() == DBH_SLICER, "U2: SELECT on the kit SLICER: its mode, the page stays");
+    a0 = TDRUM->p[P_SLPAT];
+    encs[panel.enc[EN_K1]] = 1; frames(2);
+    check(TDRUM->p[P_SLPAT] != a0, "U2: KNOB 1 on the kit SLICER: PAT");
+    ui.msg_t = 0; ui.force = 1; frame(); ppm("u2-kit-slicer");
+    TDRUM->p[P_SLCR] = SL_OFF; TDRUM->p[P_SLPAT] = a0;
+    dpg_go(1, 0); go_home(); frames(2);
+}
+
 int main(int argc, char **argv)
 {
     uint32_t i;
@@ -250,6 +309,7 @@ int main(int argc, char **argv)
     sends_audio();
     kitfx_audio();
     kitfx_ui();
+    kit_type_on_select();
     printf("dfx ui: %s (%d failed)\n", fails ? "FAILED" : "all ok", fails);
     return fails;
 }

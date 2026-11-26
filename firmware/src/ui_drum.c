@@ -632,7 +632,7 @@ static void drum_main_draw(void)
     }
     sig = studio_hash(chrom ? fm1_in.notes * 7u + 3u : snd_pic_sig(&pkit.s[l]) + drum_pg * 7u + bank * 131u + len * 977u +
                       (first >= 0 ? drum_trig_sig(l, bank) : 0u), info) + (uint32_t)chrom * 99991u + pkit_gen * 3u + l +
-          dpg_half() * 7919u + pkit.s[l].send * 131u + kfx_count() * 17u;
+          dpg_half() * 7919u + pkit.s[l].send * 131u + kfx_count() * 17u + (uint32_t)TDRUM->p[P_ITYPE] * 104729u;
     if (ui.force || sig != sb) {
         sb = sig;
         cv_begin(240, 55, C_BLACK);
@@ -667,14 +667,14 @@ static void drum_main_draw(void)
                 cv_text(236 - text_w(&FONT_S, "LOCK ON THE STEP"), 0, &FONT_S, "LOCK ON THE STEP", TE_DRUM);
         } else if (drum_pg == DPG_FX) {                 /* the FX tab: the kit's own pages (the whole mix's: below) */
             char a[28];
-            if (dpg_kit()) {                            /* (how many sounds go through: KIT FX ON) */
+            if (dpg_half() < 2u && !TDRUM->p[P_ITYPE]) {   /* (review 26 Nov) the empty INSERT: as a synth's empty slot */
+                str_cpy(a, "EMPTY: SELECT PICKS A TYPE", sizeof a);
+            } else {                                    /* (how many sounds go through: KIT FX ON) */
                 str_cpy(a, "THE KIT: ", sizeof a);
                 fmt_int(a + str_len(a), (int32_t)kfx_count());
                 str_cpy(a + str_len(a), " OF 16 SOUNDS", 14);
-            } else {
-                str_cpy(a, "THE WHOLE MIX", sizeof a);
             }
-            cv_text(4, 0, &FONT_S, a, dpg_kit() ? TE_G4 : TE_G4);
+            cv_text(4, 0, &FONT_S, a, TE_G4);
             cv_text_tall(4, 20, PAGES[dbus_page(dpg_half())].title, dpg_kit() ? TE_DRUM : C_WHITE);
             if (first >= 0)
                 cv_text(236 - text_w(&FONT_S, "LOCK ON THE STEP"), 0, &FONT_S, "LOCK ON THE STEP", TE_DRUM);
@@ -786,8 +786,8 @@ static void drum_main_draw(void)
                 int16_t *hv;
                 const param_desc_t *d = page_desc(pg, k, &hv);
                 int32_t x = -1, vv;
-                if (!d || !hv || id == 0xFFu)
-                    continue;
+                if (!d || !hv || id == 0xFFu || !d->label || d->label[0] == '-')
+                    continue;                           /* (an empty INSERT's values: not shown, as a synth's empty slot) */
                 lab[k] = d->label;
                 if (pg->scope == SC_TRACK && first >= 0)
                     x = lock_find(TDRUM, (uint32_t)first, id, 0);
@@ -972,7 +972,10 @@ static void drum_grid_input(uint32_t pressed)
         ui.hot_t = 40;
         if (dpg_bus()) {                                /* (wave 8) the FX tab: the drum voice's own pages */
             const page_t *pg = &PAGES[dbus_page(dpg_half())];
-            if (pg->id[k] == 0xFFu)
+            int16_t *hv;
+            const param_desc_t *d = pg->id[k] != 0xFFu ? page_desc(pg, k, &hv) : 0;
+            if (!d || !d->label || d->label[0] == '-')  /* (an empty INSERT: its values do nothing, are not lockable: as a
+                                                         * synth voice's empty slot) */
                 continue;
             if (sg_held && pg->scope != SC_TRACK)
                 ui_message("NOT LOCKABLE");
