@@ -386,6 +386,30 @@ static int32_t cv_text_tall_n(int32_t x, int32_t y, const char *s, uint16_t c, i
     }
     return x;
 }
+/* the 27 keys as a piano (CHROMATIC's; review V8: ARP > KEY's too): white 15 px, black over them; the keys in on lit in col,
+ * the unlit white ones grey; a dot on the keys in dot (CHROMATIC: the sound's own pitch; KEY: the root) */
+static void piano_draw(int32_t y0, int32_t wh, int32_t bh, uint32_t on, uint32_t dot, uint16_t col, uint16_t off)
+{
+    static const int8_t W[12] = {0, -1, 1, -1, 2, -1, 3, 4, -1, 5, -1, 6};
+    uint32_t k;
+    for (k = 0; k < 27u; k++)
+        if (W[k % 12u] >= 0) {
+            int32_t x = ((int32_t)(k / 12u) * 7 + W[k % 12u]) * 15;
+            uint32_t o = (on >> k) & 1u;
+            cv_rect(x + 1, y0, 13, wh, o ? col : off);
+            if ((dot >> k) & 1u)
+                te_disc(x + 7, y0 + wh - 6, 2, o ? C_BLACK : col);
+        }
+    for (k = 0; k < 27u; k++)
+        if (W[k % 12u] < 0) {
+            int32_t x = ((int32_t)(k / 12u) * 7 + W[(k - 1u) % 12u]) * 15 + 10;
+            uint32_t o = (on >> k) & 1u;
+            cv_rect(x, y0, 10, bh, o ? col : C_BLACK);
+            op_box(x, y0, 10, bh, off);
+            if ((dot >> k) & 1u)
+                te_disc(x + 5, y0 + bh - 5, 2, o ? C_BLACK : col);
+        }
+}
 static void op_dials(const char *const lab[4], const char *const val[4], const int32_t ratio[4], uint32_t locked,
                      uint32_t dim, uint16_t col, uint32_t sig, uint32_t *cache)
 {
@@ -635,23 +659,7 @@ static void drum_main_draw(void)
         cv_begin(240, 55, C_BLACK);
         if (chrom) {                                    /* the 27 keys: white 15 px, black over them; the sound's own pitch
                                                          * dotted; a key down lit */
-            static const int8_t W[12] = {0, -1, 1, -1, 2, -1, 3, 4, -1, 5, -1, 6};
-            uint32_t k;
-            for (k = 0; k < 27u; k++)
-                if (W[k % 12u] >= 0) {
-                    int32_t x = ((int32_t)(k / 12u) * 7 + W[k % 12u]) * 15;
-                    uint32_t on = (fm1_in.notes >> k) & 1u;
-                    cv_rect(x + 1, 0, 13, 28, on ? TE_DRUM : TE_G3);
-                    if (k == CHR_KEY0)
-                        te_disc(x + 7, 22, 2, on ? C_BLACK : TE_DRUM);
-                }
-            for (k = 0; k < 27u; k++)
-                if (W[k % 12u] < 0) {
-                    int32_t x = ((int32_t)(k / 12u) * 7 + W[(k - 1u) % 12u]) * 15 + 10;
-                    uint32_t on = (fm1_in.notes >> k) & 1u;
-                    cv_rect(x, 0, 10, 17, on ? TE_DRUM : C_BLACK);
-                    op_box(x, 0, 10, 17, TE_G3);
-                }
+            piano_draw(0, 28, 17, fm1_in.notes, 1u << CHR_KEY0, TE_DRUM, TE_G3);
             cv_text(4, 36, &FONT_S, info, TE_G3);
         } else if (dpg_sends()) {                       /* (the drum effects under FX) the selected sound's own sends */
             char a[28] = "SOUND ";

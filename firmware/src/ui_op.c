@@ -599,7 +599,8 @@ static void op_prism_panel(const track_t *t, int32_t x0, int32_t y0, int32_t k) 
     uint32_t model = prism_model(t), kk = (uint32_t)t->p[P_E0] | (uint32_t)t->p[P_E1] << 4 | (uint32_t)t->p[P_E2] << 12 |
                                           (uint32_t)t->p[P_E3] << 20, i;
     int32_t h = t->p[P_E1] * 258, tb = t->p[P_E2] * 258, mo = t->p[P_E3] * 258, x;
-#define PK(v) ((v) * k)
+#define PK(v) ((v) * (k ? k : 1))
+#define PX(v) (k ? (v) * k : (v) * 57 / 20)                /* (review V8: k 0, the waves across the width, 228 px) */
     if (model == PRM_FOLD || model == PRM_WAVE || model == PRM_HARM) {
         if (kk != key) {                                /* a control moved: the picture again */
             int16_t b[32];
@@ -636,12 +637,12 @@ static void op_prism_panel(const track_t *t, int32_t x0, int32_t y0, int32_t k) 
         }
         if (model == PRM_HARM) {
             for (i = 0; i < PR_HARM_N; i++)
-                cv_rect(x0 + PK(4 + (int32_t)i * 3), y0 + PK(38 - pts[i]), PK(2), PK(pts[i] + 1), tint_col(0u, 0));
+                cv_rect(x0 + PX(4 + (int32_t)i * 3), y0 + PK(38 - pts[i]), k ? PK(2) : 4, PK(pts[i] + 1), tint_col(0u, 0));
         } else {
             for (x = 0; x < 80; x += 4)
-                cv_pset(x0 + PK(x), y0 + PK(20), OP_PUR_D);
+                cv_pset(x0 + PX(x), y0 + PK(20), OP_PUR_D);
             for (i = 1; i < 80u; i++) {
-                cv_line(x0 + PK((int32_t)i - 1), y0 + PK(20 - pts[i - 1]), x0 + PK((int32_t)i), y0 + PK(20 - pts[i]), tint_col(0u, 0));
+                cv_line(x0 + PX((int32_t)i - 1), y0 + PK(20 - pts[i - 1]), x0 + PX((int32_t)i), y0 + PK(20 - pts[i]), tint_col(0u, 0));
                 if (k > 1)
                     cv_line(x0 + PK((int32_t)i - 1), y0 + PK(20 - pts[i - 1]) - 1, x0 + PK((int32_t)i), y0 + PK(20 - pts[i]) - 1,
                             tint_col(0u, 0));
@@ -676,6 +677,7 @@ static void op_prism_panel(const track_t *t, int32_t x0, int32_t y0, int32_t k) 
                     (int32_t)i <= t->p[P_E2] * 20 / 128 ? tint_col(2u, 0) : OP_PUR_D);
     }
 #undef PK
+#undef PX
 }
 
 static void op_synth_scene(track_t *t, const int32_t ratio[4], int analog_wave)

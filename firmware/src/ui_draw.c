@@ -240,17 +240,17 @@ static void graph_steps(const track_t *t, uint16_t c)
             cv_rect(x - 1, y + 16, 3, 3, C_WHITE);
     }
 }
+static void piano_draw(int32_t y0, int32_t wh, int32_t bh, uint32_t on, uint32_t dot, uint16_t col, uint16_t off);
+/* ARP > KEY: (review V8) CHROMATIC's piano, the keys of the scale lit in the voice's colour, the root dotted */
 static void graph_scale(const track_t *t, uint16_t c)
 {
-    static const uint8_t BLACK[12] = {0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0};
-    uint32_t i, mask = scale_mask(t);
-    for (i = 0; i < 12u; i++) {
-        uint32_t deg = (i + 12u - (uint32_t)t->p[P_ROOT]) % 12u;
-        int32_t x = 6 + (int32_t)i * 19;
-        uint16_t col = (mask >> deg) & 1u ? (deg == 0u ? C_WHITE : c) : C_DIM;
-        cv_rect(x, BLACK[i] ? 10 : 40, 16, 1, col);
-        cv_rect(x + 7, BLACK[i] ? 10 : 40, 1, 40, col);
+    uint32_t i, mask = scale_mask(t), on = 0, root = 0;
+    for (i = 0; i < 27u; i++) {
+        uint32_t deg = (i % 12u + 12u - (uint32_t)t->p[P_ROOT] % 12u) % 12u;
+        on |= ((mask >> deg) & 1u) << i;
+        root |= (uint32_t)(deg == 0u) << i;
     }
+    piano_draw(18, 62, 38, on, root, c, TE_G3);
 }
 
 static void graph_fx(const track_t *t, uint16_t c)
