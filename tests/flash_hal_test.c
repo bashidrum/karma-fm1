@@ -10,13 +10,13 @@
  * page, or for ever; while busy it answers only RDSR and 66h / 99h.
  *
  * Built twice by tests/run_tests.sh: as the app (the new waits: 2 s / 50 ms, late counted, a restart if still busy)
- * and with -DFELUCCA_LOADER (the update loader's build, unchanged: 500 ms / 10 ms and -4).
+ * and with -DFELUCCA_LOADER (the update loader's build: the same 2 s / 50 ms waits since 26 Nov 2026, still -4, no restart).
  *
  * Checks, the app: a fast chip (the P25Q80's 45 ms / 0.7 ms) and the slow chip (an erase of 1.2 s, a page of 30 ms)
  * both succeed, the data is right, the slow operations are counted late with the longest time; an erase or a page
  * never done ends in 66h, 99h, 20 ms, then the core reset, with XIP never switched back on while the chip was busy;
- * TIMER4 wrapping during the wait. The loader build: the slow erase still gets -4 at 500 ms and XIP comes back on
- * while the chip is busy (the old behaviour, kept: see DECISIONS.md, "The flash driver and the slower chip").
+ * TIMER4 wrapping during the wait. The loader build: the slow chip's erase and page now succeed (2 s / 50 ms); past
+ * those it still gets -4 and never restarts (DECISIONS.md, "The flash driver and the slower chip").
  *
  * Linux x86-64 only (signals, the trap flag, low fixed mappings); elsewhere it says so and passes. */
 #define _GNU_SOURCE
@@ -351,16 +351,21 @@ int main(void)
         }
     }
 #else
-    /* the update loader's build: unchanged, 500 ms / 10 ms and -4 */
+    /* the update loader's build (Ben, 26 Nov 2026: its waits only): 2 s / 50 ms, still -4 and never a restart */
     chip(1200, 30);
     rc = fl_erase4k_ram(0x98000u, &te);
-    check("loader build, the slow chip's 1.2 s erase: -4 at 500 ms (its old limit, kept)", rc == -4 && te > 500000u && te <= 502000u);
-    check("  and XIP back on while the chip is still erasing (the old hazard, in RAM-only code)", xip_while_busy == 1);
+    check("loader build, the slow chip's 1.2 s erase now succeeds", rc == 0 && te >= 1199000u && te <= 1202000u);
+    check("  and XIP is not back on while the chip is still erasing", xip_while_busy == 0);
+    rc = fl_prog_ram(0x98000u, src, 256u, &tp);
+    check("loader build, a 30 ms page now succeeds", rc == 0 && tp >= 29000u && tp <= 31000u);
+    chip(2500, 30);                        /* a chip slower than even the new limit */
+    rc = fl_erase4k_ram(0x99000u, &te);
+    check("loader build, an erase past 2 s: -4 at 2 s (the install can be pressed again)", rc == -4 && te > 2000000u && te <= 2002000u);
     sim_now += 2000u * TICKS_MS;           /* let it finish */
-    chip(45, 30);
-    rc = fl_erase4k_ram(0x98000u, &te);
-    rc = rc ? rc : fl_prog_ram(0x98000u, src, 256u, &tp);
-    check("loader build, a 30 ms page: -4 at 10 ms", rc == -4 && tp > 10000u && tp <= 12000u);
+    chip(45, 80);
+    rc = fl_erase4k_ram(0x9A000u, &te);
+    rc = rc ? rc : fl_prog_ram(0x9A000u, src, 256u, &tp);
+    check("loader build, an 80 ms page: -4 at 50 ms", rc == -4 && tp > 50000u && tp <= 52000u);
     check("  never a restart in the loader's build", core_reset.seen == 0);
 #endif
     printf("flash_hal_test%s: %s\n",

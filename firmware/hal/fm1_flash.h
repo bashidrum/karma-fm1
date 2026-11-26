@@ -160,7 +160,9 @@ RAMINL int fl_wait_ready(uint32_t max_us, uint32_t *took_us)
  *   - still busy at 2 s / 50 ms: fl_reset_unit, from RAM, never back to XIP, never returns.
  * After ChoralRoot 0.32's finding (Quixotic7/ChoralRootFM1, docs/releases/0.32.md; the fix there is felucca-bsp
  * #12 by Julius Vitkauskas, as RemoteFM1 0.3.4 took it). This code is PHEBUS's own, written to that design.
- * The update loader (firmware/loader, FELUCCA_LOADER) keeps 500 ms / 10 ms and -4: its build is unchanged. */
+ * The update loader (firmware/loader, FELUCCA_LOADER) waits as long (2 s / 50 ms: Ben allowed its waits only, 26 Nov
+ * 2026) but keeps its -4 on a timeout and no restart: it runs from RAM, and a failed sector leaves the update record
+ * in place so the install can be pressed again. */
 #define FL_ERASE_MAX_US 2000000u                  /* was 500000 (generic NOR max 400 ms) */
 #define FL_PROG_MAX_US  50000u                    /* was 10000 (generic NOR max 3 ms) */
 #define FL_ERASE_OLD_US 500000u                   /* past these an operation counts as late */
@@ -252,7 +254,7 @@ static RAMFN int fl_erase4k_ram(uint32_t off, uint32_t *took_us)
         fl_cs(0); fl_tx(0x20); fl_addr(off); fl_cs(1);
         fl_inval(off, 4096u);
 #ifdef FELUCCA_LOADER
-        rc = fl_wait_ready(500000u, took_us);     /* generic NOR max 400 ms */
+        rc = fl_wait_ready(2000000u, took_us);          /* (Ben, 26 Nov 2026: the loader's waits only, 2 s: the slower UC25HQ80) */
 #else
         rc = fl_wait_done(FL_ERASE_OLD_US, FL_ERASE_MAX_US, took_us, &s);   /* 0, or a restart */
 #endif
@@ -275,7 +277,7 @@ static RAMFN int fl_prog_ram(uint32_t off, const uint8_t *src, uint32_t n, uint3
         fl_cs(1);
         fl_inval(off, n);
 #ifdef FELUCCA_LOADER
-        rc = fl_wait_ready(10000u, took_us);      /* generic NOR max 3 ms */
+        rc = fl_wait_ready(50000u, took_us);            /* (Ben, 26 Nov 2026: the loader's waits only, 50 ms) */
 #else
         rc = fl_wait_done(FL_PROG_OLD_US, FL_PROG_MAX_US, took_us, &s);     /* 0, or a restart */
 #endif
