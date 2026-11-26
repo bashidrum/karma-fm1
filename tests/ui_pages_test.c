@@ -1503,7 +1503,7 @@ int main(int argc, char **argv)
         key(key_of_white(12)); key(key_of_white(13)); key(key_of_white(15));
         check(sec_stores == st0 && sec_loads == ld0 && live_req == 1 && ui.page == pg0 && ui.layer == LY_SAVE,
               "SAVE held + keys 13, 14, 16: nothing (song mode, SONG REC and the song page are gone)");
-        check(str_eq(LAYER_NAME[LY_SAVE], "save") && str_eq(sub_line(), ""), "the layer reads \"save\"; the line under the header only the -/+ legend");
+        check(str_eq(LAYER_NAME[LY_SAVE], "patterns") && str_eq(sub_line(), ""), "V4: the layer reads \"patterns\" (not SAVE SAVE); the line under the header only the -/+ legend");
     }
     release(B_SAVE); frames(2);
     check(live_req == 1 && saves == 0, "SAVE let go: B still asked for, nothing saved");
@@ -4590,6 +4590,7 @@ int main(int argc, char **argv)
             master_in(1000); frames(2);
             check(mac_env[0] > 0 && song.master_q12 == mq, "w10: ENV + MASTER: the amp envelope longer (a scale, nothing stored changed)");
             ui.force = 1; frame(); ppm("w10-hold-env");
+            check(px_count(0, 22, 240, 17, C_WHITE) < 60u, "V4: ENV + MASTER: no white bar over the big MASTER readout (said once)");
             check(pm_lm == 0 && pm_lp == 0, "w10: ENV held: no -/+ (the MASTER pair only)");
             release(B_ENV); frames(4);
             press(B_LFO); frames(2);

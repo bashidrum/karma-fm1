@@ -510,12 +510,6 @@ static void snd_picture(const dslot_t *sl, int32_t x0, int32_t y0, int32_t h)
         }
     }
 }
-static int snd_pic_fits(uint32_t l, const char *pos)   /* SOUND <name> and its place side by side on one line */
-{
-    char a[28] = "SOUND ";
-    slot_name(&pkit.s[l & 15u], a + 6, sizeof a - 6u);
-    return 4 + text_w(&FONT_S, a) + 8 + text_w(&FONT_S, pos) <= 236;
-}
 static uint32_t snd_pic_sig(const dslot_t *sl)
 {
     uint32_t h = 2166136261u, i;
@@ -739,25 +733,27 @@ static void drum_main_draw(void)
                 cv_text(4, 20, &FONT_S, a, TE_G4);
                 cv_text(4, 38, &FONT_S, "HOLD A STEP FOR ITS VALUES", TE_G3);
             }
-        } else {                                        /* a sound page: SOUND 606 SNARE, its place, its picture */
+        } else {                                        /* a sound page: (review V4, "say each once": the title names the
+                                                         * sound) where it comes from and its place, "606 \xB7 8/41", its picture */
             char a[28], g[12];
             int32_t p = snd_pos_of(l, 1);
             if (first >= 0) {                           /* (a step held: its locks; the line above says which step) */
                 cv_text(4, 0, &FONT_S, info, TE_DRUM);
             } else {
-                str_cpy(a, "SOUND ", sizeof a);
-                slot_name(&pkit.s[l], a + 6, sizeof a - 6u);
-                cv_text(4, 0, &FONT_S, a, TE_DRUM);
+                const dslot_t *sd = &pkit.s[l];
+                if (sd->src == DSRC_INIT)
+                    str_cpy(a, "INIT", sizeof a);
+                else
+                    kit_name_of(sd->src, a, 13);
                 if (p >= 0) {
                     uint32_t i2, sz;
                     snd_group(l, (uint32_t)p, g, sizeof g, &i2, &sz);
-                    fmt_int(a, (int32_t)i2);
+                    str_cpy(a + str_len(a), " \xB7 ", 4);
+                    fmt_int(a + str_len(a), (int32_t)i2);
                     str_cpy(a + str_len(a), "/", 2);
                     fmt_int(a + str_len(a), (int32_t)sz);
-                    if (4 + text_w(&FONT_S, "SOUND ") + 8 * 18 + 6 + text_w(&FONT_S, a) <= 236 ||
-                        snd_pic_fits(l, a))                 /* (a long name: its place only where both fit) */
-                        cv_text(236 - text_w(&FONT_S, a), 0, &FONT_S, a, TE_G3);
                 }
+                cv_text(4, 0, &FONT_S, a, TE_DRUM);
             }
             snd_picture(&pkit.s[l], 4, 20, 32);
         }

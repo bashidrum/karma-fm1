@@ -486,18 +486,7 @@ static void syn_body(track_t *t, const page_t *pg, uint32_t half, uint32_t *cach
         str_cpy(big, filt ? "FILTER" : "AMP", 16);
         str_cpy(sub, filt ? (link ? "LINKED TO THE AMP ENV" : "ITS OWN ADSR") : (link ? "THE FILTER FOLLOWS IT" : "THE VOICE'S LEVEL"),
                 40);
-        x = 236 - text_w(&FONT_S, "FILT") - 6;          /* AMP | FILT, the one shown filled */
-        if (filt) {
-            op_box(x - text_w(&FONT_S, "AMP") - 12, 4, text_w(&FONT_S, "AMP") + 8, 18, TE_G3);
-            cv_text(x - text_w(&FONT_S, "AMP") - 8, 5, &FONT_S, "AMP", TE_G3);
-            cv_rect(x, 4, text_w(&FONT_S, "FILT") + 6, 18, c);
-            cv_text(x + 3, 5, &FONT_S, "FILT", C_BLACK);
-        } else {
-            cv_rect(x - text_w(&FONT_S, "AMP") - 12, 4, text_w(&FONT_S, "AMP") + 8, 18, c);
-            cv_text(x - text_w(&FONT_S, "AMP") - 8, 5, &FONT_S, "AMP", C_BLACK);
-            op_box(x, 4, text_w(&FONT_S, "FILT") + 6, 18, TE_G3);
-            cv_text(x + 3, 5, &FONT_S, "FILT", TE_G3);
-        }
+        (void)x;                                        /* (review V4: no AMP | FILT chips: the tab row says it) */
         cv_rect(0, SP_B + 1, 240, 1, TE_G1);
         if (filt && !link)                              /* the other envelope faint behind (both shapes) */
             syn_adsr(t, P_ATK, SP_L, SP_R, SP_T, SP_B, TE_DIM[v], 0);

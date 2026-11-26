@@ -16,7 +16,7 @@
  * The keys' part runs in the audio ISR (seq.c layer_now); the GLO, SAVE and SEQ black keys come to the UI through seq.c
  * lk_q */
 static const uint8_t LAYER_BTN[LY_COUNT] = {NB, B_FX, B_EDIT, B_ARP, B_SEQ, B_SCL, B_GLO, B_SAVE, B_ENV, B_LFO};
-static const char *const LAYER_NAME[LY_COUNT] = {"", "perform", "voice", "notes", "rhythm", "", "mix", "save", "envelope",
+static const char *const LAYER_NAME[LY_COUNT] = {"", "perform", "voice", "notes", "rhythm", "", "mix", "patterns", "envelope",
                                                  "modulation"};
 static const char *layer_name(uint32_t l) { return LAYER_NAME[l % LY_COUNT]; }
 static void section_store(uint32_t s);                  /* project.c */
@@ -450,7 +450,8 @@ static void layer_title(const char *name, const char *sub, uint16_t col, uint32_
 {
     static uint32_t hc;
     uint32_t locked = ly_lock != LY_PLAY;
-    uint32_t sig = studio_hash(studio_hash(col, name), sub) + (ui.msg_t ? studio_hash(3u, ui.msg) : 0u) + locked * 7919u;
+    uint32_t sig = studio_hash(studio_hash(col, name), sub) + (ui.msg_t ? studio_hash(3u, ui.msg) : 0u) + locked * 7919u +
+                   (master_t != 0) * 104729u;
     layer_header(ui.layer, col, name, &hc);
     layer_pm(ui.layer, &pm_lm, &pm_lp);
     sig = studio_hash(studio_hash(sig, pm_lm ? pm_lm : ""), pm_lp ? pm_lp : "");
@@ -458,7 +459,8 @@ static void layer_title(const char *name, const char *sub, uint16_t col, uint32_
         return;
     *cache = sig;
     cv_begin(240, LY_TILES_Y - LY_SUB_Y, C_BLACK);
-    if (ui.msg_t) {
+    if (ui.msg_t && !(master_t && ui.layer != LY_SEQ && ui.layer != LY_SAVE)) {   /* (review V4: no bar while the big
+                                                         * MASTER readout says the same) */
         cv_rect(0, 0, 240, 17, C_WHITE);
         te_text_c(120, 0, ui.msg, C_BLACK);
     } else {
