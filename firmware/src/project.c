@@ -1796,25 +1796,42 @@ static struct {
     int16_t bpm;
     char kit[9];
 } bank_s;
-static void bank_scan(void)
+static void bank_scan(void)                            /* (Ben, 26 Nov 2026: read in small pieces straight from flash, never
+                                                        * into proj_tmp, which may hold a backup's snapshot of the live one) */
 {
-    const proj_core_t *q = (const proj_core_t *)(const void *)proj_tmp.raw;
-    const pkit_t *k = (const pkit_t *)(const void *)(proj_tmp.raw + sizeof(proj_core_t));
+    uint8_t b[64];
     st_hdr_t h;
-    uint32_t i, chg = 0;
+    uint32_t i, n, off, at, sum = 0x811C9DC5u, chg = 0, w[2];
+    int16_t bpm;
+    uint8_t m;
+    int cur;
     memset(&bank_s, 0, sizeof bank_s);
     bank_s.known = 1;
-    if (!flash_ok || st_load(OBJ_BWORK, &proj_tmp, sizeof proj_tmp) != (int)sizeof(project_t) || !proj_ok(q))
+    if (!flash_ok || (cur = st_current(OBJ_BWORK, &h)) < 0 || h.len < sizeof(project_t))
+        return;
+    at = st_sector(st_phys(OBJ_BWORK), (uint32_t)cur) + ST_PAYLOAD_OFF;   /* (its CRC checked by st_current) */
+    for (off = 0; off < sizeof(proj_core_t) - 4u; off += n) {   /* proj_ok, 64 bytes at a time */
+        n = sizeof(proj_core_t) - 4u - off > sizeof b ? sizeof b : sizeof(proj_core_t) - 4u - off;
+        if (st_read(at + off, b, n))
+            return;
+        for (i = 0; i < n; i++)
+            sum = (sum ^ b[i]) * 16777619u;
+    }
+    if (st_read(at, w, 8u) || w[0] != PROJ_MAGIC || w[1] != sizeof(proj_core_t) ||
+        st_read(at + __builtin_offsetof(proj_core_t, sum), w, 4u) || w[0] != sum ||
+        st_read(at + __builtin_offsetof(proj_core_t, g) + 2u * G_BPM, &bpm, 2u))
         return;
     bank_s.full = 1;
-    bank_s.bpm = q->g[G_BPM];
-    if (k->magic == PK_MAGIC) {
+    bank_s.bpm = bpm;
+    at += __builtin_offsetof(project_t, x);                /* its kit (drum_snd.c pkit_t) */
+    if (!st_read(at, w, 4u) && w[0] == PK_MAGIC) {
         for (i = 0; i < DRUM_LANES; i++)
-            chg |= k->s[i].mach & SL_CHG;
+            if (!st_read(at + __builtin_offsetof(pkit_t, s) + i * sizeof(dslot_t) + __builtin_offsetof(dslot_t, mach), &m, 1u))
+                chg |= m & SL_CHG;
         if (chg)
             str_cpy(bank_s.kit, "CUSTOM", sizeof bank_s.kit);
-        else
-            kit_name_of(k->base, bank_s.kit, sizeof bank_s.kit);
+        else if (!st_read(at + __builtin_offsetof(pkit_t, base), &m, 1u))
+            kit_name_of(m, bank_s.kit, sizeof bank_s.kit);
     }
     for (i = 0; i < 4u; i++)
         if (st_current(OBJ_BPRJ0 + i, &h) >= 0 && h.len >= sizeof(proj_core_t))
