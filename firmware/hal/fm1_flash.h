@@ -150,6 +150,71 @@ RAMINL int fl_wait_ready(uint32_t max_us, uint32_t *took_us)
     }
 }
 
+#ifndef FELUCCA_LOADER
+/* ---- the slower flash chip (PHEBUS, 26 Nov 2026, Ben's permission: SPEC.md) ----
+ * FM-1s sold from late 2026 carry the UC25HQ80 (JEDEC 0xB36014), which can take longer than the Puya P25Q80 to
+ * erase a sector or program a page. Until now an erase still busy at 500 ms or a page at 10 ms got -4 and fl_exit
+ * switched XIP back on with the chip still busy: the next instruction fetch could read garbage. Now (the app only):
+ *   - the erase waits up to 2 s, the page program up to 50 ms; done within that is success;
+ *   - done after the old limits (500 ms / 10 ms) counts as late: fl_late_n, and the longest in fl_late_max_us;
+ *   - still busy at 2 s / 50 ms: fl_reset_unit, from RAM, never back to XIP, never returns.
+ * After ChoralRoot 0.32's finding (Quixotic7/ChoralRootFM1, docs/releases/0.32.md; the fix there is felucca-bsp
+ * #12 by Julius Vitkauskas, as RemoteFM1 0.3.4 took it). This code is PHEBUS's own, written to that design.
+ * The update loader (firmware/loader, FELUCCA_LOADER) keeps 500 ms / 10 ms and -4: its build is unchanged. */
+#define FL_ERASE_MAX_US 2000000u                  /* was 500000 (generic NOR max 400 ms) */
+#define FL_PROG_MAX_US  50000u                    /* was 10000 (generic NOR max 3 ms) */
+#define FL_ERASE_OLD_US 500000u                   /* past these an operation counts as late */
+#define FL_PROG_OLD_US  10000u
+#define FL_TRST_US      20000u                    /* after 0x99: reset recovery (tRST, up to 12 ms after an erase on
+                                                   * common NOR parts; 20 ms as ChoralRoot) */
+#define FL_PWR_CON      REG32(0x10000u)           /* as fm1_sys.h FM1_PWR_CON: bit 4 core reset (fm1_core_reset) */
+#define FL_C1_CON       REG32(0x1EEE004u)         /* as fm1_sys.h fm1_core1_stop: bit 1 holds CPU1, bit 3 releases */
+static uint32_t fl_late_n, fl_late_max_us;       /* (.bss: the RAM driver writes them with XIP off) */
+static uint32_t fl_id_seen;                       /* the JEDEC id fl_jedec_ram read last (0: none yet) */
+
+/* Still busy at the new limit: the chip is in an unknown state, so do not carry on.
+ *   1. CPU1 held (KARMA_DUAL_CORE), as fm1_core_reset does before its reset;
+ *   2. CS low, 0x66 (Enable Reset), CS high; CS low, 0x99 (Reset), CS high: the chip abandons the erase or program
+ *      and returns to its power-on state (both the P25Q80 and the UC25HQ80 class have 66h / 99h);
+ *   3. 20 ms for the chip to recover (TIMER4);
+ *   4. SPI0 back to its saved setting and the pins back to the SFC (as fl_exit, but SFC_CON stays 0: XIP stays off);
+ *   5. PWR_CON bit 4: the core reset fm1_core_reset (fm1_sys.h) uses, the one the OTA commit and the update loader
+ *      restart with; the mask ROM and the SPL then boot the app again from a chip that is idle.
+ * Runs from RAM only: SFRs, the stack, no calls. Interrupts are already off (the fl_*_ram contract). */
+static RAMFN __attribute__((noreturn)) void fl_reset_unit(uint32_t spi_con)
+{
+    uint32_t t0;
+#if KARMA_DUAL_CORE
+    FL_C1_CON |= 2u;
+    FL_C1_CON &= ~8u;
+    fl_csync();
+#endif
+    fl_cs(1);
+    fl_cs(0); fl_tx(0x66); fl_cs(1);
+    fl_cs(0); fl_tx(0x99); fl_cs(1);
+    t0 = T4_CNT;
+    while ((uint32_t)(T4_CNT - t0) < FL_TRST_US * 24u) ;
+    SPI0_CON = spi_con;
+    IOMAP_CON0 |= 0x20u;
+    fl_csync();
+    FL_PWR_CON |= 0x10u;
+    for (;;) ;
+}
+
+/* the erase / program wait of the app: 0 (done, late ones counted), or it never returns (fl_reset_unit) */
+RAMINL int fl_wait_done(uint32_t old_us, uint32_t max_us, uint32_t *took_us, const fl_saved_t *s)
+{
+    if (fl_wait_ready(max_us, took_us))
+        fl_reset_unit(s->spi_con);
+    if (*took_us > old_us) {
+        fl_late_n++;
+        if (*took_us > fl_late_max_us)
+            fl_late_max_us = *took_us;
+    }
+    return 0;
+}
+#endif
+
 /* ---- entry points: IRQs OFF, args/buffers in RAM ---- */
 
 static RAMFN uint32_t fl_jedec_ram(void)                 /* FL_JEDEC_OK (fm1_flash_id.h) */
@@ -160,6 +225,9 @@ static RAMFN uint32_t fl_jedec_ram(void)                 /* FL_JEDEC_OK (fm1_fla
     id = (uint32_t)fl_rx() << 16; id |= (uint32_t)fl_rx() << 8; id |= fl_rx();
     fl_cs(1);
     fl_exit(&s);
+#ifndef FELUCCA_LOADER
+    fl_id_seen = id;                              /* (for fl_chip_name) */
+#endif
     return id;
 }
 
@@ -183,7 +251,11 @@ static RAMFN int fl_erase4k_ram(uint32_t off, uint32_t *took_us)
     else {
         fl_cs(0); fl_tx(0x20); fl_addr(off); fl_cs(1);
         fl_inval(off, 4096u);
+#ifdef FELUCCA_LOADER
         rc = fl_wait_ready(500000u, took_us);     /* generic NOR max 400 ms */
+#else
+        rc = fl_wait_done(FL_ERASE_OLD_US, FL_ERASE_MAX_US, took_us, &s);   /* 0, or a restart */
+#endif
     }
     fl_exit(&s);
     return rc;
@@ -202,7 +274,11 @@ static RAMFN int fl_prog_ram(uint32_t off, const uint8_t *src, uint32_t n, uint3
         for (i = 0; i < n; i++) fl_tx(src[i]);
         fl_cs(1);
         fl_inval(off, n);
+#ifdef FELUCCA_LOADER
         rc = fl_wait_ready(10000u, took_us);      /* generic NOR max 3 ms */
+#else
+        rc = fl_wait_done(FL_PROG_OLD_US, FL_PROG_MAX_US, took_us, &s);     /* 0, or a restart */
+#endif
     }
     fl_exit(&s);
     return rc;
@@ -278,3 +354,14 @@ static int fl_verify_xip(uint32_t off, const uint8_t *ref, uint32_t n)
     for (i = 0; i < n; i++) if (p[i] != ref[i]) return -(int)(i + 1);
     return 0;
 }
+
+#ifndef FELUCCA_LOADER
+/* read-only, for a diagnostic (the USB serial console's status): the chip, and the erases / page programs since
+ * power-on that finished after the old limits (500 ms / 10 ms) but within the new ones, and the longest of them */
+static const char *fl_chip_name(void)
+{
+    return fl_id_seen == 0x856014u ? "P25Q80" : fl_id_seen == 0xB36014u ? "UC25HQ80" : "UNKNOWN";
+}
+static uint32_t fl_late_count(void) { return fl_late_n; }
+static uint32_t fl_late_max_ms(void) { return (fl_late_max_us + 999u) / 1000u; }
+#endif
