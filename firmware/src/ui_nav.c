@@ -86,11 +86,6 @@ static uint32_t nav_cat(uint32_t *k, uint32_t *n)
     uint8_t idx[8];
     *k = 0;
     *n = 1;
-    if (ui.menu) {
-        *k = mi_sec(ui.menu_sel % MI_COUNT);
-        *n = MS_COUNT;
-        return CT_DEVICE;
-    }
     if (vis_shown()) {
         *k = vis_style % VIS_N;
         *n = VIS_N;
@@ -158,8 +153,7 @@ static void nav_go(uint32_t c, uint32_t k)
 {
     uint8_t idx[8];
     uint32_t n, drum = is_drum(TSEL), grid;
-    if (ui.menu && c != CT_DEVICE)
-        menu_close();
+    ui.menu = 0;                                        /* (review U5: ABOUT goes with any move) */
     if (c != CT_STUT)
         stl_leave();                                    /* (wave 14: another category: the lane's screen goes, as any page) */
     grid = nav_grid();
@@ -193,16 +187,6 @@ static void nav_go(uint32_t c, uint32_t k)
         drum_keys = DK_CHROM;
         if (!drum_pg)
             dpg_go(drum_pg_last, drum_half[drum_pg_last % DPG_TABS]);
-        ui.force = 1;
-        return;
-    case CT_DEVICE:
-        if (!ui.menu) {
-            layer_unlock();
-            ui.menu = 1;
-            ui.confirm = 0;
-            song.seq_mode = 0;
-        }
-        ui.menu_sel = MS_FIRST[k % MS_COUNT];
         ui.force = 1;
         return;
     case CT_SAVER:

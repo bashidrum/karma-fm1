@@ -1110,32 +1110,34 @@ int main(int argc, char **argv)
     }
     open_family(FAM_GLO); ui.force = 1; frame(); ppm("page-master");
     open_family(FAM_SCL); ui.force = 1; frame(); ppm("page-scale");
-    {   /* (2.4) GLO > SYSTEM: KNOB 1 is MIDI OUT (KEYS / SEQ), shown as such; the USB status in the third column */
+    {   /* (2.4) MIDI OUT (KEYS / SEQ) and IN; (review U6: "One home each") on GLO > MIDI 2 only, SYSTEM has SYNC and USB */
         uint32_t i, m0 = (uint32_t)song.g[G_MIDI];
         for (i = 0; i < NPAGES; i++) if (!strcmp(PAGES[i].title, "SYSTEM")) break;
+        check(i < NPAGES && PAGES[i].id[0] == G_SYNC && PAGES[i].id[1] == G_INFO && PAGES[i].id[2] == 0xFF, "U6: GLO > SYSTEM: SYNC, USB; no OUT, no IN");
+        open_family(FAM_GLO); ui.page = (uint8_t)i; ui.fam_last[FAM_GLO] = (uint8_t)i; page_entered(); ui.force = 1; frame(); ppm("page-system");
+        for (i = 0; i < NPAGES; i++) if (!strcmp(PAGES[i].title, "MIDI 2")) break;
         open_family(FAM_GLO); ui.page = (uint8_t)i; ui.fam_last[FAM_GLO] = (uint8_t)i; page_entered(); ui.force = 1; frame();
         song.g[G_MIDI] = 0; ui.force = 1; frame();
-        encs[panel.enc[EN_K1]] = 1; frame();
-        check(i < NPAGES && song.g[G_MIDI] == 1, "GLO > SYSTEM: KNOB 1 sets MIDI = SEQ");
+        encs[panel.enc[EN_K3]] = 1; frame();
+        check(i < NPAGES && song.g[G_MIDI] == 1, "GLO > MIDI 2: KNOB 3 sets OUT = SEQ");
         {
             char val[12]; const char *unit = "";
-            int16_t *vp; const param_desc_t *d = page_desc(cur_page(), 0, &vp);
-            param_format(d, *vp, val, &unit);
-            check(d && !strcmp(d->label, "OUT") && !strcmp(val, "SEQ"), "GLO > SYSTEM: the first column reads OUT SEQ (MIDI OUT)");
-        }
-        ui.force = 1; frame(); ppm("page-system");
-        {   /* (2.4) KNOB 3: IN = CLOCK (notes ignored), kept in the settings word; back to NOTES */
-            int16_t r0 = song.g[G_ROUTE];
             int16_t *vp; const param_desc_t *d = page_desc(cur_page(), 2, &vp);
-            char val[12]; const char *unit = "";
-            encs[panel.enc[EN_K3]] = 1; frame();
             param_format(d, *vp, val, &unit);
-            check(song.g[G_ROUTE] == 1 && !strcmp(d->label, "IN") && !strcmp(val, "CLOCK"), "GLO > SYSTEM: KNOB 3 sets IN = CLOCK");
+            check(d && !strcmp(d->label, "OUT") && !strcmp(val, "SEQ"), "GLO > MIDI 2: the third column reads OUT SEQ (MIDI OUT)");
+        }
+        {   /* (2.4) KNOB 1 (MIDI 2): IN = CLOCK (notes ignored), kept in the settings word; back to NOTES */
+            int16_t r0 = song.g[G_ROUTE];
+            int16_t *vp; const param_desc_t *d = page_desc(cur_page(), 0, &vp);
+            char val[12]; const char *unit = "";
+            encs[panel.enc[EN_K1]] = 1; frame();
+            param_format(d, *vp, val, &unit);
+            check(song.g[G_ROUTE] == 1 && !strcmp(d->label, "IN") && !strcmp(val, "CLOCK"), "GLO > MIDI 2: KNOB 1 sets IN = CLOCK");
             lights_min = 1;
             check((lights_word() >> 15 & 1u) == 1u, "IN = CLOCK kept in the settings word (bit 15)");
             lights_from_word(lights_word() & ~(1u << 15));
             check(lights_min == 0u, "IN read back from the settings word");
-            encs[panel.enc[EN_K3]] = 12; frame();             /* (2.6) on to CH 12 */
+            encs[panel.enc[EN_K1]] = 12; frame();             /* (2.6) on to CH 12 */
             param_format(d, *vp, val, &unit);
             lights_min = (uint8_t)song.g[G_ROUTE];
             {
@@ -1147,7 +1149,7 @@ int main(int argc, char **argv)
                 lights_from_word(w & ~(31u << 21));
                 check(lights_min == 0u, "2.6: a settings word from 2.5 (no channel bits): IN = NOTES");
             }
-            encs[panel.enc[EN_K3]] = -13; frame();
+            encs[panel.enc[EN_K1]] = -13; frame();
             song.g[G_ROUTE] = r0;
         }
         song.g[G_MIDI] = (int16_t)m0; go_home(); frame();
@@ -1272,16 +1274,17 @@ int main(int argc, char **argv)
     }
     ppm("layer-steps");
     release(B_SEQ);
-    {   /* (wave 10) hold SEQ on a synth voice: KNOB 3 the pattern's SWING (GATE: its PATTERN page) */
-        int16_t g0;
+    {   /* (wave 10) hold SEQ on a synth voice: (review U6, Ben: "One home each") KNOB 3 the pattern's GATE; the swing is
+         * MASTER's on this screen */
+        int16_t g0, w0;
         song.sel = 0; go_home(); frame();
-        g0 = trk[0].p[P_SSWING];
+        g0 = trk[0].p[P_SGATE]; w0 = trk[0].p[P_SSWING];
         press(B_SEQ); frames(10);
         encs[panel.enc[EN_K3]] = 10; frames(2);
-        check(trk[0].p[P_SSWING] > g0, "SEQ held + KNOB 3 (a synth voice): SWING up");
+        check(trk[0].p[P_SGATE] > g0 && trk[0].p[P_SSWING] == w0, "U6: SEQ held + KNOB 3 (a synth voice): GATE up, no second swing");
         ui.force = 1; frame(); ppm("layer-steps-gate");
         release(B_SEQ); frames(2);
-        trk[0].p[P_SSWING] = g0;
+        trk[0].p[P_SGATE] = g0;
         song.sel = TRK_DRUM; go_home(); frame();
     } check(ui.layer == LY_PLAY && !on_drum_page(), "SEQ used then let go: no page change");
     studio_open(SC_DRUM); frames(16); drum_lane = 2;   /* (the knobs quiet ~250 ms after a layer: #39) */
@@ -1415,9 +1418,11 @@ int main(int argc, char **argv)
         encs[panel.enc[EN_K2]] = 1; frame();
         check(!step_on(&trk[0].step[0]) && step_on(&trk[0].step[1]), "SEQ held + KNOB 2: SHIFT, the pattern a step later");
         ui.force = 1; frame(); ppm("layer-steps-div8");
-        encs[panel.enc[EN_K3]] = 50; frame();
-        check(trk[0].p[P_SSWING] > s0, "SEQ held + KNOB 3: SWING");
-        ui.force = 1; frame(); ppm("layer-steps-swing");
+        {   int16_t g0 = trk[0].p[P_SGATE];
+            encs[panel.enc[EN_K3]] = 20; frame();
+            check(trk[0].p[P_SGATE] > g0 && trk[0].p[P_SSWING] == s0, "SEQ held + KNOB 3: GATE (U6: the swing is MASTER's only here)");
+            ui.force = 1; frame(); ppm("layer-steps-swing");
+            trk[0].p[P_SGATE] = g0; }
         encs[panel.enc[EN_K4]] = 16; frame();
         check(trk[0].p[P_SLEN] > l0, "SEQ held + KNOB 4: STEPS");
         ui.force = 1; frame(); ppm("layer-steps-len");
@@ -1879,7 +1884,7 @@ int main(int argc, char **argv)
         tap(B_SEQ); frames(2);                          /* (wave 9: SEQ's categories, TRIG then PATTERN) */
         check(on_drum_page() && syn_tab == 0u && cur_cat() == CT_PATT, "GRID, SEQ on TRIG: its next category, PATTERN");
         {   int16_t sw = t->p[P_SSWING]; encs[panel.enc[EN_K3]] = 5; frame();
-            check(t->p[P_SSWING] == sw + 5, "GRID, PATTERN: KNOB 3 SWING (as SEQ held)"); t->p[P_SSWING] = sw; }
+            check(t->p[P_SSWING] == sw + 5, "GRID, PATTERN: KNOB 3 SWING"); t->p[P_SSWING] = sw; }
         tap(B_SEQ); frames(2); tap(B_SEQ); frames(2);
         check(on_drum_page() && syn_tab == 0u && syn_hcur() == 0u, "GRID, SEQ again (A-D), and again: TRIG 1/2");
         open_family(FAM_ENV); frames(2);
@@ -2257,11 +2262,11 @@ int main(int argc, char **argv)
         trk[0].v[0].active = 1; trk[0].v[0].gate = 1; trk[0].v[0].stage = 1; trk[0].v[0].note = 60;
         frame();
         check((keys_lit() & (1u << 7)) == 0, "NOTES off: a sounding synth voice lights no key");
-        ui.menu = 1; ui.menu_sel = MI_NOTES; ui.force = 1; frame();
-        encs[panel.enc[EN_K1 + mi_row(ui.menu_sel)]] = 1; frame();
-        check(lights_notes == 1u, "menu NOTES: its knob (KNOB 3) right: ON");
+        chain_goto(FAM_GLO, "LIGHTS"); frame();
+        encs[panel.enc[EN_K4]] = 1; frame();
+        check(lights_notes == 1u, "GLO > DEVICE > LIGHTS: NOTES (KNOB 4) right: ON");
         ui.force = 1; frame(); ppm("page-menu-notes");
-        ui.menu = 0; ui.force = 1; go_home(); frame();
+        go_home(); frame();
         check((keys_lit() & (1u << 7)) != 0, "NOTES on: a sounding synth voice lights key 7 (C4)");
         {   /* a short note (a sequencer 1/16) that starts and ends between two frames still lights its key */
             int32_t o[CTL * 2];
@@ -2313,61 +2318,59 @@ int main(int argc, char **argv)
         check((keys_lit() & (1u << 7)) == 0, "NOTES on: the release turns the key off");
         trk[0].v[0].active = 0;
         check((lights_word() >> 8 & 1u) == 1u, "NOTES: saved with the light settings");
-        ui.menu = 1; ui.menu_sel = MI_USB; ui.force = 1; frame(); ppm("menu-usb");
+        chain_goto(FAM_GLO, "AUDIO"); ui.force = 1; frame(); ppm("menu-usb");
         usb_full = 0;
-        encs[panel.enc[EN_K1 + mi_row(ui.menu_sel)]] = 1; frame();
-        check(usb_full == 1u && (lights_word() >> 11 & 1u) == 1u, "menu USB AUDIO: its knob (KNOB 2) -> FULL, saved with the settings");
-        tap(B_OCTUP);
-        check(usb_full == 0u && ui.menu == 1, "menu USB AUDIO: OCT+ toggles back to MASTER");
-        ui.menu_sel = MI_SERIAL; ui.force = 1; frame();
-        check(usb_serial == 0u && !(lights_word() >> 16 & 1u), "menu USB SERIAL: OFF by default (2.3 settings read so)");
-        encs[panel.enc[EN_K1 + mi_row(ui.menu_sel)]] = 1; frame();
-        check(usb_serial == 1u && (lights_word() >> 16 & 1u), "menu USB SERIAL: its knob (KNOB 3) -> ON, saved with the settings");
+        encs[panel.enc[EN_K2]] = 1; frame();
+        check(usb_full == 1u && (lights_word() >> 11 & 1u) == 1u, "DEVICE > AUDIO: USB (KNOB 2) -> FULL, saved with the settings");
+        tap(B_OCTDN); frames(20);
+        check(usb_full == 0u && !ui.home && cur_cat() == CT_DEVICE, "DEVICE > AUDIO: OCT- steps USB back to MASTER, the page stays (U5: never HOME)");
+        check(usb_serial == 0u && !(lights_word() >> 16 & 1u), "DEVICE > AUDIO: SERIAL OFF by default (2.3 settings read so)");
+        encs[panel.enc[EN_K3]] = 1; frame();
+        check(usb_serial == 1u && (lights_word() >> 16 & 1u), "DEVICE > AUDIO: SERIAL (KNOB 3) -> ON, saved with the settings");
         ui.force = 1; frame(); ppm("menu-serial");
         lights_from_word(lights_word());
-        check(usb_serial == 1u, "menu USB SERIAL: read back");
-        tap(B_OCTUP);
-        check(usb_serial == 0u && ui.menu == 1, "menu USB SERIAL: OCT+ toggles back to OFF");
-        ui.menu = 0; ui.force = 1; go_home(); frame();
-        ui.menu = 1; ui.menu_sel = MI_NOTES; ui.force = 1; frame();
-        tap(B_OCTUP);
-        check(lights_notes == 0u && ui.menu == 1, "menu NOTES: OCT+ toggles it off");
-        ui.menu = 0; ui.force = 1; go_home(); frame();
+        check(usb_serial == 1u, "DEVICE > AUDIO: SERIAL read back");
+        tap(B_OCTDN); frames(20);
+        check(usb_serial == 0u && cur_cat() == CT_DEVICE, "DEVICE > AUDIO: OCT- steps SERIAL back to OFF");
+        go_home(); frame();
+        chain_goto(FAM_GLO, "LIGHTS"); frame();
+        encs[panel.enc[EN_K4]] = -1; frame();
+        check(lights_notes == 0u, "DEVICE > LIGHTS: NOTES left: off");
+        go_home(); frame();
     }
 
     {   /* menu LIGHTS / KEYS: the backlight for playing in the dark */
         uint32_t m, nbits;
         go_home(); ui.force = 1; frame();
         check(lights_lvl == LIGHTS_OFF && fm1_led_bg_ns == 0u && lights_keys_mask() == 0u, "LIGHTS: off by default");
-        ui.menu = 1; ui.menu_sel = MI_LIGHTS; ui.force = 1; frame();
-        encs[panel.enc[EN_K1 + mi_row(ui.menu_sel)]] = 1; frame();
-        check(lights_lvl == LIGHTS_LOW && fm1_led_bg_ns == 500u, "LIGHTS: KNOB 1 right: LOW (a 0.5 us pulse a frame)");
-        encs[panel.enc[EN_K1 + mi_row(ui.menu_sel)]] = 1; frame();
+        chain_goto(FAM_GLO, "LIGHTS"); ui.force = 1; frame();
+        encs[panel.enc[EN_K2]] = 1; frame();
+        check(lights_lvl == LIGHTS_LOW && fm1_led_bg_ns == 500u, "LIGHTS: KNOB 2 right: LOW (a 0.5 us pulse a frame)");
+        encs[panel.enc[EN_K2]] = 1; frame();
         check(lights_lvl == LIGHTS_MID && fm1_led_bg_ns == 1000u, "LIGHTS: MID (1 us)");
-        encs[panel.enc[EN_K1 + mi_row(ui.menu_sel)]] = 1; frame(); encs[panel.enc[EN_K1 + mi_row(ui.menu_sel)]] = 1; frame();
+        encs[panel.enc[EN_K2]] = 1; frame(); encs[panel.enc[EN_K2]] = 1; frame();
         check(lights_lvl == LIGHTS_HIGH && fm1_led_bg_ns == 2000u, "LIGHTS: HIGH (2 us, under the 4 us glow), and it stops there");
         ui.force = 1; frame(); ppm("page-menu-lights");
-        encs[panel.enc[EN_K1 + mi_row(ui.menu_sel)]] = -1; frame();
-        check(lights_lvl == LIGHTS_MID, "LIGHTS: KNOB 1 left: dimmer");
-        tap(B_OCTUP);
-        check(lights_lvl == LIGHTS_HIGH && ui.menu == 1, "LIGHTS: OCT+ steps round, the menu stays");
-        tap(B_OCTUP);
-        check(lights_lvl == LIGHTS_OFF && fm1_led_bg_ns == 0u, "LIGHTS: ... back to OFF");
-        ui.menu_sel = MI_KEYS; ui.force = 1; frame();
-        encs[panel.enc[EN_K1 + mi_row(ui.menu_sel)]] = 1; frame();
+        encs[panel.enc[EN_K2]] = -1; frame();
+        check(lights_lvl == LIGHTS_MID, "LIGHTS: KNOB 2 left: dimmer");
+        tap(B_OCTUP); frames(20);
+        check(lights_lvl == LIGHTS_HIGH && cur_cat() == CT_DEVICE, "LIGHTS: OCT+ one step up, the page stays");
+        encs[panel.enc[EN_K2]] = -9; frame();
+        check(lights_lvl == LIGHTS_OFF && fm1_led_bg_ns == 0u, "LIGHTS: ... down to OFF");
+        encs[panel.enc[EN_K3]] = 1; frame();
         m = lights_keys_mask();
         check(lights_keys == KEYS_C && lights_lvl == LIGHTS_LOW && m == (1u << 7 | 1u << 19),
-              "KEYS (KNOB 2): C KEYS (C4, C5), LIGHTS raised to LOW");
-        encs[panel.enc[EN_K1 + mi_row(ui.menu_sel)]] = 1; frame();
+              "KEYS (KNOB 3): C KEYS (C4, C5), LIGHTS raised to LOW");
+        encs[panel.enc[EN_K3]] = 1; frame();
         for (m = lights_keys_mask(), nbits = 0; m; m &= m - 1u)
             nbits++;
         check(lights_keys == KEYS_WHITE && nbits == 16u && !(lights_keys_mask() & (1u << 1)),
               "KEYS: WHITE KEYS (16 of 27, F#3 dark)");
-        encs[panel.enc[EN_K1 + mi_row(ui.menu_sel)]] = 1; frame(); encs[panel.enc[EN_K1 + mi_row(ui.menu_sel)]] = 1; frame();
+        encs[panel.enc[EN_K3]] = 1; frame(); encs[panel.enc[EN_K3]] = 1; frame();
         check(lights_keys == KEYS_ALL && lights_keys_mask() == 0x7FFFFFFu, "KEYS: ALL KEYS (every one of the 27 keys), and it stops there");
         ui.force = 1; frame(); ppm("page-menu-keys-all");
-        tap(B_OCTUP);
-        check(lights_keys == KEYS_OFF, "KEYS: OCT+ from ALL KEYS steps round to OFF");
+        encs[panel.enc[EN_K3]] = -9; frame();
+        check(lights_keys == KEYS_OFF, "KEYS: KNOB 3 left: back to OFF");
         lights_keys = KEYS_ALL;
         check(lights_word() >> 4 & 15u, "KEYS: ALL KEYS kept in the settings word");
         lights_from_word(lights_word());
@@ -2375,52 +2378,63 @@ int main(int argc, char **argv)
         lights_lvl = LIGHTS_OFF; frame();
         check(lights_keys_mask() == 0u && fm1_led_bg_ns == 0u, "KEYS: nothing lit while LIGHTS is OFF");
         lights_keys = KEYS_OFF;
-        ui.menu = 0; ui.force = 1; go_home(); frame();
+        go_home(); frame();
     }
 
-    {   /* the menu in sections (2.4): SELECT the section, KNOB 1..3 its rows, PRESETS the cursor, OCT+ opens */
-        uint32_t sec;
-        ui.menu = 1; ui.menu_sel = 0; ui.force = 1; frame(); ppm("menu-screen");
-        check(mi_sec(ui.menu_sel) == MS_SCREEN, "menu: opens on SCREEN (COLOR, ZOOM)");
-        encs[panel.enc[EN_SELECT]] = 1; frame();
-        check(mi_sec(ui.menu_sel) == MS_SCREEN, "menu: SELECT does nothing (wave 9: the sections are SEL's)");
-        tap(B_SCL);
-        check(mi_sec(ui.menu_sel) == MS_LIGHTS && ui.menu_sel == MI_DISCO, "menu: SEL (PAGE): LIGHTS, the cursor on its first row (wave 11: DISCO)");
-        encs[panel.enc[EN_K1]] = -1; frame();
-        check(disco == DISCO_QUIET && ui.menu_sel == MI_DISCO, "menu LIGHTS: KNOB 1 sets DISCO (wave 11): left, QUIET");
-        encs[panel.enc[EN_K1]] = 1; frame();
-        check(disco == DISCO_NORMAL, "menu LIGHTS: ... right, NORMAL");
-        encs[panel.enc[EN_K3]] = 1; frame(); encs[panel.enc[EN_K3]] = 1; frame();
-        check(lights_keys == KEYS_WHITE && ui.menu_sel == MI_KEYS, "menu LIGHTS: KNOB 3 sets KEYS (row 3), the cursor follows");
-        encs[panel.enc[EN_K4]] = 1; frame();
-        check(lights_notes == 1u && ui.menu_sel == MI_NOTES, "menu LIGHTS: KNOB 4 sets NOTES (row 4)");
-        ui.force = 1; frame(); ppm("menu-lights");
-        encs[panel.enc[EN_PRESET]] = 1; frame();
-        check(ui.menu_sel == MI_DISCO, "menu: PRESETS moves the cursor round the section's rows");
-        tap(B_SCL); ui.force = 1; frame(); ppm("menu-audio");
-        check(mi_sec(ui.menu_sel) == MS_AUDIO, "menu: SEL: AUDIO (LOWCUT, USB AUDIO, USB SERIAL)");
-        tap(B_SCL);
-        sec = mi_sec(ui.menu_sel);
-        check(sec == MS_SYSTEM, "menu: SEL: SYSTEM, the last section");
-        encs[panel.enc[EN_K2]] = 1; frame();
-        check(ui.menu == 1 && ui.menu_sel == MI_LCLEAR, "menu SYSTEM: KNOB 2 is MIDI LEARN CLEAR (2.6), nothing cleared by a turn");
-        ui.force = 1; frame(); ppm("menu-system");
-        encs[panel.enc[EN_K3]] = 1; frame();
-        check(ui.menu == 1 && ui.menu_sel == MI_ABOUT, "menu SYSTEM: a knob does not open ABOUT, it moves the cursor");
-        tap(B_OCTUP);
-        check(ui.menu == 2, "menu SYSTEM: OCT+ on ABOUT opens it");
-        tap(B_OCTDN);
-        check(ui.menu == 1 && ui.menu_sel == MI_ABOUT, "menu: OCT- from ABOUT: back to SYSTEM");
-        tap(B_OCTDN);
-        check(ui.menu == 0, "menu: OCT- closes");
-        go_home(); frame();                             /* (wave 9) the menu is GLO's last category, DEVICE: a normal home */
+    {   /* (review U5, Ben 26 Nov 2026: "Redraw in the GLO frame") GLO > DEVICE: four normal GLO pages, SCREEN LIGHTS AUDIO
+         * TOOLS, header GLO, the tab row, the dials; SEL the next page, OCT- steps a knob (never HOME) */
+        uint32_t i2, ndev = 0, ok;
+        static const char *const DT[4] = {"SCREEN", "LIGHTS", "AUDIO", "TOOLS"};
+        go_home(); frame();
         tap(B_GLO); check(cur_cat() == CT_GLOBAL, "GLO: GLOBAL");
         tap(B_GLO); check(cur_cat() == CT_SYSTEM, "GLO again: SYSTEM");
         tap(B_GLO); check(cur_cat() == CT_MIDI && !strcmp(PAGES[ui.page].title, "MIDI"), "GLO again: MIDI");
         tap(B_SCL); tap(B_SCL); check(!strcmp(PAGES[ui.page].title, "MIDI 3"), "MIDI, SEL, SEL: MIDI 3");
-        tap(B_GLO); check(ui.menu == 1 && mi_sec(ui.menu_sel) == MS_SCREEN, "GLO again: DEVICE, the menu (hold HOME its shortcut)");
-        tap(B_SCL); tap(B_SCL); tap(B_SCL); tap(B_SCL); check(ui.menu == 1 && mi_sec(ui.menu_sel) == MS_SCREEN, "DEVICE: SEL x4: round to SCREEN");
-        tap(B_GLO); frames(2); check(!ui.menu && cur_cat() == CT_GLOBAL && ui.layer == LY_PLAY, "GLO on DEVICE: round to GLOBAL (the menu closed)");
+        check(PAGES[ui.page].id[1] == V_LEARN && PAGES[ui.page].id[2] == V_LCLEAR, "U5: MIDI 3: LEARN, then CLEAR beside it");
+        tap(B_GLO); frames(2); ui.force = 1; frame(); ppm("menu-screen");
+        check(!ui.menu && cur_cat() == CT_DEVICE && !strcmp(PAGES[ui.page].title, "SCREEN"), "GLO again: DEVICE, a GLO page: SCREEN");
+        check(nav_tabs_shown == (CT_GLOBAL | CT_SYSTEM << 8 | CT_MIDI << 16 | CT_DEVICE << 24), "U5: DEVICE has GLO's tab row");
+        check(px_count(2, 1, 46, 18, TE_G4) > 40u, "U5: DEVICE's header: the tag GLO, white-grey");
+        for (i2 = 0; i2 < 4u; i2++) {
+            ok = !strcmp(PAGES[ui.page].title, DT[i2]) && PAGES[ui.page].fam == FAM_GLO && cur_cat() == CT_DEVICE;
+            ndev += ok;
+            if (i2 == 1u) { ui.force = 1; frame(); ppm("menu-lights"); }
+            if (i2 == 2u) { ui.force = 1; frame(); ppm("menu-audio"); }
+            if (i2 == 3u) { ui.force = 1; frame(); ppm("menu-system"); }
+            tap(B_SCL);
+        }
+        check(ndev == 4u && !strcmp(PAGES[ui.page].title, "SCREEN"), "U5: DEVICE: SEL walks SCREEN LIGHTS AUDIO TOOLS, round");
+        for (i2 = 0, ok = 1; i2 < 4u; i2++) {
+            const param_desc_t *dd;
+            int16_t *vp;
+            uint32_t c2;
+            for (c2 = 0; c2 < 4u; c2++)
+                if ((dd = page_desc(&PAGES[ui.page], c2, &vp)) != 0)
+                    ok &= strlen(dd->label) <= 6u;
+            tap(B_SCL);
+        }
+        check(ok, "U5: DEVICE's knob names six characters at most (V2)");
+        chain_goto(FAM_GLO, "LIGHTS"); frame();
+        encs[panel.enc[EN_SELECT]] = 1; frame();
+        check(!strcmp(PAGES[ui.page].title, "LIGHTS"), "DEVICE: SELECT does nothing (no type here)");
+        encs[panel.enc[EN_K1]] = -1; frame();
+        check(disco == DISCO_QUIET, "DEVICE > LIGHTS: KNOB 1 sets DISCO: left, QUIET");
+        encs[panel.enc[EN_K1]] = 1; frame();
+        check(disco == DISCO_NORMAL, "DEVICE > LIGHTS: ... right, NORMAL");
+        encs[panel.enc[EN_K3]] = 1; frame(); encs[panel.enc[EN_K3]] = 1; frame();
+        check(lights_keys == KEYS_WHITE, "DEVICE > LIGHTS: KNOB 3 sets KEYS");
+        encs[panel.enc[EN_K4]] = 1; frame();
+        check(lights_notes == 1u, "DEVICE > LIGHTS: KNOB 4 sets NOTES");
+        tap(B_OCTDN); frames(20); tap(B_OCTDN); frames(20);
+        check(!ui.home && cur_cat() == CT_DEVICE, "U5: OCT- on DEVICE never goes HOME (it steps the knob turned)");
+        chain_goto(FAM_GLO, "TOOLS"); frame();
+        encs[panel.enc[EN_K2]] = -1; frame();
+        check(ui.menu == 0, "DEVICE > TOOLS: ABOUT left: nothing");
+        encs[panel.enc[EN_K2]] = 1; frame(); ui.force = 1; frame(); ppm("page-about");
+        check(ui.menu == 2, "DEVICE > TOOLS: ABOUT (KNOB 2) right: ABOUT opens");
+        tap(B_OCTDN); frames(2);
+        check(ui.menu == 0 && cur_cat() == CT_DEVICE && !strcmp(PAGES[ui.page].title, "TOOLS"), "U5: OCT- from ABOUT: back to TOOLS, in GLO");
+        tap(B_GLO); frames(2); check(cur_cat() == CT_GLOBAL && ui.layer == LY_PLAY, "GLO on DEVICE: round to GLOBAL");
         tap(B_GLO); check(cur_cat() == CT_SYSTEM, "... and GLO again: SYSTEM (no extra press counted)");
         lights_keys = KEYS_OFF; lights_notes = 0; lights_lvl = LIGHTS_OFF;
         go_home(); ui.force = 1; frame();
@@ -3016,12 +3030,13 @@ int main(int argc, char **argv)
         midi_cc(&trk[1], 74, 127);
         check(trk[0].p[P_X1TYPE] == TP[P_X1TYPE].max, "CC 74 (any channel): track 1's FX 1 TYPE to its top");
         xs_defaults(trk[0].p, 0, XT_OFF);
-        ui.menu = 1; ui.menu_sel = 0; ui.force = 1; frame();
-        for (j = 0; j < 3u; j++) tap(B_SCL);
-        encs[panel.enc[EN_K2]] = 1; frame();
-        tap(B_OCTUP);
-        check(ui.menu_sel == MI_LCLEAR && ml_count() == 0u, "menu SYSTEM > MIDI LEARN CLEAR, OCT+: nothing learned any more");
-        ui.menu = 0; ui.force = 1; go_home(); frames(16);
+        chain_goto(FAM_GLO, "MIDI 3"); frames(4);
+        j = ml_count();
+        encs[panel.enc[EN_K3]] = 1; frames(4);
+        check(j && ml_count() == j, "U5: MIDI 3 > CLEAR right: it asks first (nothing cleared yet)");
+        press(B_SAVE); frames(90); release(B_SAVE); frames(2);
+        check(ml_count() == 0u, "U5: MIDI 3 > CLEAR, SAVE held: nothing learned any more");
+        go_home(); frames(16);
         {   /* GLO > MIDI: CH1 CH2 CH3 OTHER (2.6) */
             uint32_t hit = 0;
             WALK(FAM_GLO, "MIDI", hit);

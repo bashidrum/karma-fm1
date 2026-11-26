@@ -276,6 +276,10 @@ static void edit_param_pg(const page_t *pg, uint32_t slot, int32_t steps)   /* (
     int32_t v;
     if (is_drum(TSEL) && !page_for_drum(pg))
         return;                                           /* "DRUM TRACK": nothing to edit here */
+    if (id >= V_DEV0 && id <= V_DEVN) {                   /* (review U5) GLO > DEVICE's settings, MIDI 3's CLEAR */
+        dev_edit(id, steps);
+        return;
+    }
     if (id == V_LEARN) {                                  /* (wave 9) GLO > MIDI 3 LEARN: on right, off left (was GLO + F#3) */
         if ((steps > 0) != (mlu.on != 0))
             ml_toggle();
@@ -443,6 +447,9 @@ static void go_do(uint32_t id)
         break;
     case 0xE8u:
         project_erase((uint32_t)song.g[G_SLOT] - 1u);
+        break;
+    case V_LCLEAR:                                              /* (review U5) GLO > MIDI 3 > CLEAR */
+        ui_message(ml_clear_all() ? "LEARN CLEARED" : "NOTHING LEARNED");
         break;
     default:
         break;
@@ -998,7 +1005,11 @@ static void pm_edit(uint32_t k, int32_t d)               /* KNOB k one fine step
     ui.enc_t[EN_K1 + (k & 3u)] = fm1_ticks() - 0x7FFFFFFFu;
     edit_param(k, d);
 }
-static int pm_go_id(uint32_t id) { return id == G_LOAD || id == G_SAVE || id == G_CLRSEQ || id == G_INITSND || id == G_NEWPRJ || id == V_MK4; }
+static int pm_go_id(uint32_t id)
+{
+    return id == G_LOAD || id == G_SAVE || id == G_CLRSEQ || id == G_INITSND || id == G_NEWPRJ || id == V_MK4 || id == V_CALIB ||
+           id == V_ABOUT || id == V_LCLEAR;
+}
 static void dt_save(void)
 {
     uint32_t total;
@@ -1241,26 +1252,18 @@ static void ui_input(void)
                                                          * steps; STEP REC and a live take on a synth GRID: notes) */
     if (sg_held && (!kb_grid || song.sel != sg_trk))
         sg_drop();                                      /* (the GRID left with steps held: their keys clear nothing) */
-    if (ui.menu) {                                      /* (wave 9) the menu is GLO's DEVICE category: SEL its next section,
-                                                         * GLO the next category (GLOBAL), HOME tapped HOME; another page
-                                                         * button closes it and opens its own group */
-        uint32_t other = pressed & (BTN_BIT(B_FX) | BTN_BIT(B_ENV) | BTN_BIT(B_LFO) | BTN_BIT(B_EDIT) | BTN_BIT(B_ARP) |
-                                    BTN_BIT(B_SEQ) | BTN_BIT(B_SAVE));
-        if (home == BT_TAP) {
-            menu_close();
+    if (ui.menu) {                                      /* (review U5) ABOUT, over GLO > DEVICE > TOOLS: OCT- back to TOOLS;
+                                                         * another button closes it and does what it does; knobs nothing */
+        if (!pressed && home != BT_TAP) {
+            enc_drop();
             return;
         }
-        if (!other) {
-            if (pressed & BTN_BIT(B_SCL))
-                nav_page();
-            else if (pressed & BTN_BIT(B_GLO)) {
-                ly_eat |= BTN_BIT(B_GLO);               /* (its tap, after the menu, is not one more press) */
-                nav_button(B_GLO);
-            } else if (!ui.home_t0)
-                menu_input(pressed);
+        ui.menu = 0;
+        ui.force = 1;
+        if (pressed & BTN_BIT(B_OCTDN)) {
+            enc_drop();
             return;
         }
-        menu_close();
     }
     if (ui.ask && (pressed & ~(1u << panel.btn[B_SAVE])))   /* (wave 8) another button: the question goes (wave 10: SAVE is
                                                          * the confirm) */

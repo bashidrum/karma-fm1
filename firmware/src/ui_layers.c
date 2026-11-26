@@ -5,7 +5,7 @@
  * performance layer, never the only way:
  *   FX    PERFORM: the keys are pads; knobs: the last pad's; OCT+ latch, OCT- latches off; MASTER: FX MIX (ui_perf.c)
  *   SEQ   RHYTHM: the white keys ROLL (drums: RETRIG); black keys F#3..C#4 play pattern A..D, D#4 the fill bar (drawn
- *         in the strip); PLAY: FILL while held, OCT+ with it latches; knobs: RATE SHIFT SWING STEPS; OCT- halve, OCT+
+ *         in the strip); PLAY: FILL while held, OCT+ with it latches; knobs: RATE SHIFT GATE STEPS (review U6); OCT- halve, OCT+
  *         double; MASTER: SWING
  *   ARP   NOTES: OCT- / OCT+ transpose the voice's pattern a semitone; MASTER: TRANSP (KEY 2's TRANS)
  *   GLO   the MIXER (wave 13: one map): the white keys the 16 drum sounds, F#3 .. C#4 the voices; a tap mutes, OCT+ held with
@@ -326,7 +326,7 @@ static void layer_knobs(uint32_t layer)
         case LY_FX:                                     /* (wave 6) PERFORM: the last pad's knobs */
             perf_knob(k, s);
             break;
-        case LY_SEQ:                                    /* (wave 10) RATE (the roll's; drums the RETRIG's), SHIFT, SWING, STEPS:
+        case LY_SEQ:                                    /* (wave 10) RATE (the roll's; drums the RETRIG's), SHIFT, GATE (U6), STEPS:
                                                          * the rhythm's quick ones (GATE and DIV: SEQ's PATTERN page) */
             if (k == 0u && is_drum(t))
                 drt_live = (uint8_t)clamp((int32_t)drt_live + s, 1, (int32_t)NRTRG);
@@ -335,7 +335,8 @@ static void layer_knobs(uint32_t layer)
             else if (k == 1u)
                 pattern_rotate(t, s);
             else
-                patt_turn(t, 0, k, s);
+                patt_turn(t, 0, k == 2u ? 0u : k, s);   /* (review U6, Ben: "One home each": KNOB 3 the GATE, the swing
+                                                         * is MASTER's on this screen; the drums have no gate: nothing) */
             break;
         case LY_LFO:
         case LY_ENV:                                    /* (wave 11) mapping: the source's amount onto the knob (ui_map.c) */
@@ -605,7 +606,7 @@ static void layer_screen_draw(void)
             tl[i].fg = down ? C_BLACK : present ? C_WHITE : TE_G3;
             tl[i].top = present && !down ? col : 0;
         }
-        lab[0] = "rate", lab[1] = "shift", lab[2] = "swing", lab[3] = "steps";
+        lab[0] = "rate", lab[1] = "shift", lab[2] = is_drum(t) ? "" : "gate", lab[3] = "steps";
         if (is_drum(t)) {
             str_cpy(v[0], SG_RATE[drt_live % 18u], 8);
             ratio[0] = ((int32_t)drt_live - 1) * 1000 / ((int32_t)NRTRG - 1);
@@ -614,8 +615,15 @@ static void layer_screen_draw(void)
             ratio[0] = song.g[G_ROLL] * 250;
         }
         str_cpy(v[1], "<  >", 8);
-        swing_str(v[2], t->p[P_SSWING]);
-        ratio[2] = t->p[P_SSWING] * 10;
+        if (!is_drum(t)) {                              /* (review U6) the GATE, as SEQ's PATTERN page */
+            const char *u;
+            param_format(&TP[P_SGATE], t->p[P_SGATE], v[2], &u);
+            str_cpy(v[2] + str_len(v[2]), u, 8 - str_len(v[2]));
+            ratio[2] = (t->p[P_SGATE] - 1) * 1000 / 126;
+        } else {
+            v[2][0] = 0;
+            ratio[2] = -1;
+        }
         fmt_int(v[3], t->p[P_SLEN]);
         ratio[3] = (t->p[P_SLEN] - 1) * 1000 / 63;
         break;

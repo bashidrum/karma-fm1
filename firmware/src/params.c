@@ -567,6 +567,12 @@ enum { V_TYPE = 0xF0, V_M1, V_M2, V_M3, V_M4, V_M5,
        V_XA, V_XB, V_XC, V_L2SYNC, V_L2TRIG, V_MSRC, V_MDST, V_MAMT, V_MK4 };
 #define V_LEARN 0xEEu          /* (wave 9) GLO > MIDI 3: MIDI LEARN on / off (it was GLO + F#3); 0xFF is an empty knob */
 _Static_assert(P_COUNT < V_LEARN && G_COUNT < V_LEARN, "V_LEARN above every parameter");
+/* (review U5, Ben 26 Nov 2026: "Redraw in the GLO frame") GLO > DEVICE's settings as knobs of normal GLO pages: the FM-1's own
+ * settings (kept with the settings, not a project: ui_menu.c dev_desc, dev_edit); and (MIDI 3) LEARN's CLEAR beside LEARN */
+enum { V_COLOR = 0xD0, V_ZOOM, V_DISCO, V_LIGHTS, V_KEYS, V_NOTES, V_LOWCUT, V_USB, V_SERIAL, V_CALIB, V_ABOUT, V_LCLEAR };
+#define V_DEV0 V_COLOR
+#define V_DEVN V_LCLEAR
+_Static_assert(P_COUNT < V_DEV0 && G_COUNT < V_DEV0 && V_DEVN < 0xE8u, "the DEVICE ids above every parameter, below 0xE8");
 _Static_assert(P_COUNT <= V_TYPE, "the virtual knob ids above every parameter");
 
 static const page_t PAGES[] = {
@@ -616,12 +622,13 @@ static const page_t PAGES[] = {
     /* (wave 8) GLO is the settings (and, held, the mixer): the tempo lives here and only here (Ben: "tempo in one place");
      * the swing is the pattern's (hold SEQ), the effects the FX button's, the drums' level the mixer's */
     {"GLOBAL", FAM_GLO, SC_GLOBAL, GR_NONE, {G_BPM, G_CLOCK, G_TUNE, 0xFF}, SEL_NONE, CT_GLOBAL},
-    {"SYSTEM", FAM_GLO, SC_GLOBAL, GR_NONE, {G_MIDI, G_SYNC, G_ROUTE, G_INFO}, SEL_NONE, CT_SYSTEM},
+    {"SYSTEM", FAM_GLO, SC_GLOBAL, GR_NONE, {G_SYNC, G_INFO, 0xFF, 0xFF}, SEL_NONE, CT_SYSTEM},   /* (review U6, Ben: "One home
+                                                         * each": OUT and IN are MIDI 2's only) */
     {"MIDI", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CH1, G_CH2, G_CH3, G_DRCH}, SEL_NONE, CT_MIDI},   /* 2.6: each track's channel, the drums' too */
     {"MIDI 2", FAM_GLO, SC_GLOBAL, GR_NONE, {G_ROUTE, G_CHOTH, G_MIDI, G_BEND}, SEL_NONE, CT_MIDI},   /* 2.6: IN, OTHER, OUT, BEND: every MIDI
-                                                                           * setting in these two pages (IN and OUT on
-                                                                           * SYSTEM too) */
-    {"MIDI 3", FAM_GLO, SC_GLOBAL, GR_NONE, {G_KNOBS, V_LEARN, 0xFF, 0xFF}, SEL_NONE, CT_MIDI},   /* a controller's knobs (2026-10-20) */
+                                                                           * setting in these pages */
+    {"MIDI 3", FAM_GLO, SC_GLOBAL, GR_NONE, {G_KNOBS, V_LEARN, V_LCLEAR, 0xFF}, SEL_NONE, CT_MIDI},   /* a controller's knobs (2026-10-20);
+                                                         * (review U5) LEARN's CLEAR beside it */
     /* (wave 8) the FX button: the whole mix's effects, white and grey. The delay, the reverb and chorus every voice sends to
      * (each voice's SENDS page; PERFORM's ECHO and VERB throw into them), the master bus (DUST, DUCK) */
     {"DELAY", FAM_MFX, SC_GLOBAL, GR_NONE, {G_DTIME, G_DFDBK, G_DCOLOR, G_DMIX}, SEL_NONE, CT_MIX},
@@ -645,6 +652,12 @@ static const page_t PAGES[] = {
      * bank, KEEP (KNOB 1), SWAP (KNOB 2), NEW (KNOB 4): ui_draw.c graph_proj, project.c bank_op. (Last in the list so no page
      * moves its index; SAVE's order is ui_nav.c's) */
     {"PROJECT", FAM_SAVE, SC_GLOBAL, GR_PROJ, {0xFF, 0xFF, 0xFF, 0xFF}, SEL_NONE, CT_PROJ},
+    /* (review U5) GLO > DEVICE: the FM-1's settings, four GLO pages (they were the old menu's sections; last, so no
+     * page before moves its index) */
+    {"SCREEN", FAM_GLO, SC_GLOBAL, GR_NONE, {V_COLOR, V_ZOOM, 0xFF, 0xFF}, SEL_NONE, CT_DEVICE},
+    {"LIGHTS", FAM_GLO, SC_GLOBAL, GR_NONE, {V_DISCO, V_LIGHTS, V_KEYS, V_NOTES}, SEL_NONE, CT_DEVICE},
+    {"AUDIO", FAM_GLO, SC_GLOBAL, GR_NONE, {V_LOWCUT, V_USB, V_SERIAL, 0xFF}, SEL_NONE, CT_DEVICE},
+    {"TOOLS", FAM_GLO, SC_GLOBAL, GR_NONE, {V_CALIB, V_ABOUT, 0xFF, 0xFF}, SEL_NONE, CT_DEVICE},
 };
 #define NPAGES (sizeof(PAGES) / sizeof(PAGES[0]))
 
@@ -761,9 +774,12 @@ static uint32_t pg_id(const page_t *pg, uint32_t k)
 static uint8_t learn_shown;                             /* (wave 9: MIDI LEARN on, for GLO > MIDI 3: ui.c ml_toggle sets it) */
 static const param_desc_t VTYPE_DESC = {"TYPE", F_INT, 0, NVTYPE - 1u, 0, 0, 0};   /* (formatted by vtype_fmt) */
 static int16_t vtype_shown;                            /* (TYPE's value, as page_desc hands it out: vtype_of) */
+static const param_desc_t *dev_desc(uint32_t id, int16_t **valp);   /* (review U5: ui_menu.c) */
 static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **valp)
 {
     uint32_t id = pg_id(pg, slot);
+    if (id >= V_DEV0 && id <= V_DEVN)
+        return dev_desc(id, valp);
     if (id == V_TYPE && !is_drum(TSEL)) {
         vtype_shown = (int16_t)vtype_of(TSEL);
         *valp = &vtype_shown;

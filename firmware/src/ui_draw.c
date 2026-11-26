@@ -2,7 +2,8 @@
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* Felucca UI drawing: status bar (top), columns + gauges, graphs, focus readout,
  * footer (steps + engine / preset / page). */
-static void draw_menu(void);
+static void draw_about(void);
+static int dev_dim(uint32_t id);                       /* (review U5: ui_menu.c) */
 static uint32_t str_hash(uint32_t h, const char *s);
 static uint32_t projpg_sig(void);                       /* (the bank: SAVE > PROJECT, below) */
 /* (the knob band shows no icon: the look-ups by label, icons.c, are not built in) */
@@ -1062,13 +1063,23 @@ static void draw_columns_set(void)
             draw_column(c, "USB", val, unit, C_HI, -1, ICON_AUTO);
             continue;
         }
+        if (cur_page()->id[c] == V_LCLEAR) {            /* (review U5) GLO > MIDI 3 > CLEAR: the CCs learned, a turn right
+                                                       * clears them (it asks) */
+            uint32_t nl = ml_count();
+            if (nl) {
+                fmt_int(val, (int32_t)nl);
+                str_cpy(val + str_len(val), " CC", 4);
+            }
+            draw_column(c, d->label, nl ? val : "NONE", "", nl ? VAL(c) : C_DIM, -1, ICON_AUTO);
+            continue;
+        }
         if (cur_page()->id[c] == G_INFO && cur_page()->scope == SC_GLOBAL) {
             fmt_int(val, (int32_t)(song.cpu_q8 * 100u / 256u));
             unit = "%";
         } else {
             param_format(d, *vp, val, &unit);
         }
-        draw_column(c, d->label, val, unit, VAL(c), d->fmt == F_ENUM && d->max < 2 ? -1 : RATIO(d, *vp),
+        draw_column(c, d->label, val, unit, dev_dim(cur_page()->id[c]) ? C_DIM : VAL(c), d->fmt == F_ENUM && d->max < 2 ? -1 : RATIO(d, *vp),
                     param_icon(d, *vp));
     }
 }
@@ -1160,7 +1171,7 @@ static void ui_draw(void)
         ui.force = 1;
     }
     if (ui.menu) {
-        draw_menu();
+        draw_about();
         ui_timers();
         ui.force = 0;
         return;
