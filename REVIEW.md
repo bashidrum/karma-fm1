@@ -8,6 +8,8 @@ The previous review (the 22 Nov direction review) is in `review/REVIEW-2026-11-2
 
 ## Before the first install (engine)
 
+Done 26 Nov (368d95f, CI run 109, RAM unchanged at 97,076 B): E1, E2, E3 (warning THIS WILL STOP THE AUDIO, ERASE included), E4, E5.
+
 E1. **A long save can trip the watchdog on the slower chip.** `felucca.c` `st_erase` never feeds the ~8 s watchdog; `ota_erase` was given a feed on 26 Nov but saves were not. KEEP makes about 22 erases in one pass, NEW about 10, a stop with four changed patterns 9 or more. On a chip averaging over ~360 ms per erase, KEEP restarts the FM-1 every time (no work lost, KEEP just never finishes) and the reset lands mid-erase. Fix: one line, `fm1_wdt_feed()` at the top of `st_erase`. Small.
 
 E2. **A backup can hold the bank's project instead of the live one.** `editor.c:263` captures the live project into `proj_tmp`; listing the bank's objects then calls `bank_scan`, which loads the bank's project into the same `proj_tmp` (`project.c:1807`) before the checksum is taken. Reproduced: after a power cycle with something in the bank, the backup's object 0 is byte-identical to the bank. Restoring that backup replaces the live sketch with the bank's. Fix: `bank_scan` reads only the header, tempo and kit name into small locals, never `proj_tmp`. Small.
