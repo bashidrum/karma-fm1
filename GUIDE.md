@@ -1100,6 +1100,7 @@ The four ways ([section 2](#2-the-controls-and-the-screen)): a labelled button (
 - **The PERFORM time effects and the STUTTER lane are mono** (16-bit, 12 dB of headroom kept); the buffer is 0.74 seconds, and below about 84 BPM a quarter-note loop is cut to 0.72 seconds.
 - **Limits per pattern or voice**: 24 locks a synth voice, 128 drum sound locks and 64 hits with extras a pattern, 19 matrix cells a voice, 31 recorded pads in the lane, one kit of 16 slots a project, six kits of your own (SAVE > KITS).
 - **Mutes, solos and PERFORM's knob settings** are not saved.
+- **The newer, slower flash chip** (UC25HQ80, in FM-1s sold from late 2026): PHEBUS waits up to 2 seconds for it to erase and 50 ms to write a page, and the sound stops for as long as that takes. If the chip is still busy after that, the FM-1 restarts by itself rather than carry on (what was not yet saved is lost; your saved work is safe). The installer's own update loader still uses the old, shorter waits: on a very slow chip an install could stop half-way, and installing again carries on from where it stopped. After ChoralRoot 0.32's finding (by Quixotic7; the fix is felucca-bsp's, by Julius Vitkauskas).
 - **Old projects** are converted when loaded; some conversions are approximate (listed in DECISIONS.md under "For Ben to confirm").
 - The ABOUT page and the USB name still say KARMA (the version PHEBUS was forked from).
 
@@ -1116,7 +1117,7 @@ Do these in order, before and after the first flash:
 5. **Listen**: each Type on each track (on tracks 1 and 2, the six Types above should say NOT ON THIS TRACK), the filter against a 303 and an SH-101, the 606 kit.
 6. **Load**: the default mix with a six-note chord on voice 2, three heavy Types at once, five PERFORM pads stacked. Watch GLO > SYSTEM, KNOB 4 (CPU) and listen for dropouts.
 7. **Timing**: drum nudges and retrigs, the MIDI clock to and from the MPC Sample, the STUTTER lane's 1/2 and 1/1 replays.
-8. **Saving**: that an autosave never stalls the screen or the sound, that the -60 dB silence threshold suits the real noise floor, patterns A to D across a power cycle, the backup page against the new firmware.
+8. **Saving**: with MENU > AUDIO > USB SERIAL on (it takes effect at the next start), the serial console's `status` names the flash chip and counts its slow writes (`FLASH: UC25HQ80 LATE 0 (max 0 ms)`); save a few times and check again: LATE above 0 means the slower chip at work, so note the time it shows. Then check that an autosave never stalls the screen or the sound, that the -60 dB silence threshold suits the real noise floor, patterns A to D across a power cycle, the backup page against the new firmware.
 9. **The screen**: every screen at real size and speed, the screensavers and the boot's random pick.
 
 ---

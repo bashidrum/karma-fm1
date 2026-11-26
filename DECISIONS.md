@@ -784,6 +784,44 @@ Ben: "Group them by type into columns as much as possible. With the exception of
 - GUIDE's mixer chapter says its tiles run "as PERFORM's pads" (keys 1 to 4 the top row); the mixer still runs in rows, PERFORM now in columns. Left for the mixer's own pass.
 - RAM: none added (the names and positions are constants). Not measured on a stand-in build.
 
+## The flash driver and the slower chip (26 Nov 2026)
+Ben, by picker: "Yes, make that change" (SPEC.md, 26 Nov 2026, 08:53): the storage driver's waits long enough for the newer, slower flash chip, and a clean restart instead of carrying on if the chip is still busy. It is the only change to the hal he has allowed; everything below is in `firmware/hal/fm1_flash.h`, nothing else in the hal changed.
+
+Where it comes from
+- ChoralRoot 0.32 (Quixotic7/ChoralRootFM1, docs/releases/0.32.md) found that the second flash part of FM-1s sold from late 2026, the UC25HQ80 (JEDEC 0xB36014), can take longer than the Puya P25Q80 to erase a sector or write a page. Their fix is felucca-bsp #12 by Julius Vitkauskas (merged by Charles Vestal), as RemoteFM1 0.3.4 took it. PHEBUS's code is its own, written to the same design; none of their files is copied, so no new licence comes in. Thank you to all three.
+- Nobody has published measured times for the slow part: ChoralRoot checked its fix on a model of the chip and in an emulator, and asks owners to report late operations.
+
+What changed (the app only)
+- A 4 KiB erase waits up to 2 s (was 500 ms), a page write up to 50 ms (was 10 ms). Done within that is a success. There is no chip erase, block erase or status-register write in the driver, so nothing else needed scaling.
+- Done after the old limits (500 ms / 10 ms): counted. Two words of RAM, the number since power-on and the longest, plus one for the chip's id (12 bytes in all).
+- Still busy at 2 s / 50 ms: the driver never returns and never switches XIP back on. From RAM, interrupts already off: CPU1 held (as `fm1_core_reset` does first); CS low, 0x66 (Enable Reset), CS high; CS low, 0x99 (Reset), CS high; 20 ms for the chip to recover; SPI0 back to its saved setting and the pins back to the flash controller, with XIP left off; then PWR_CON bit 4, the core reset that the update commit and the update loader already restart with. The FM-1 starts again with an idle chip.
+- Before: a part still busy at 500 ms / 10 ms got -4 and the driver switched XIP back on while it was still busy, so the next instructions could be fetched as garbage (a crash), and the save reported a failure.
+- Where to see it: the USB serial console's `status` (MENU > AUDIO > USB SERIAL on, from the next start) prints `FLASH: UC25HQ80 LATE 0 (max 0 ms)` after `flash`. The ABOUT page has no free row (its credits fill it), so it was not added there.
+
+Calls made that Ben did not specify
+- The restart is the PWR_CON core reset (as the update commit, the update loader and ChoralRoot), not the P33 chip reset of the crash screen: one register write, safe to do from RAM. Option: the P33 chip reset (resets more of the chip, but needs the P33 serial sequence copied into RAM code).
+- No extra wait before the chip reset: 2 s is already five times the generic NOR maximum for an erase (400 ms). The 20 ms after 0x99 is ChoralRoot's figure (common parts need up to 12 ms after an interrupted erase).
+- A late operation is a success, not an error (as ChoralRoot 3y265): the data is checked by every save's read-back anyway.
+- A restart within 30 s of switching on counts as a failed start (the existing boot guard): two in a row bring up PHEBUS USB RESCUE, as any crash would.
+
+What -4 meant to each caller, and now
+- Saves (storage.c's st_save / st_save3 / st_save_big2, the user kits in ukit_flash.c): any non-zero result stops the save and returns it; the old copy stays (A/B, the commit record last). The screens say SAVE ERROR, ERASE ERROR, NOT SAVED: FLASH, or the backup page gets error 4; the live sections stay dirty and are tried again later; autosave tries again later. Now a timeout never returns: the FM-1 restarts, the last good copy loads, and what was only in RAM (unsaved edits, a section not yet written) is lost. Nothing retries on -4 specifically, so no code depended on seeing it.
+- The update's first step (ota.c, in the app): an erase or page failure stopped the staging and erased the staging area again. Now a timeout restarts the FM-1 in the middle of the staging; no update record has been written yet (that comes last), so the old firmware starts again and the install can be repeated.
+- fl_read_ram, fl_jedec_ram, fl_status_ram: no wait, unchanged.
+- Nothing outside the hal was changed for this, except the one console line.
+
+The update loader (firmware/loader)
+- It includes the same header, and it is on Ben's do-not-modify list. The new waits and the restart are inside `#ifndef FELUCCA_LOADER`, which loader.c defines, so the loader keeps 500 ms / 10 ms and -4.
+- Proof: the loader's source after the preprocessor (host clang -E -P, the build's include paths) is byte-identical before and after (sha256 a0936ae2...199b both). The JieLi toolchain is not on this machine, so the binary itself was not built; identical preprocessed source with no `__LINE__` and no debug info gives the same object.
+- It matters: every install writes the package's own loader into the staging area and the SPL runs it, so it is this loader that erases and writes the app area (up to 143 sectors and their pages), with the old limits. On a slow chip whose erase goes past 500 ms, the loader stops with error -9 (-10 for a page), the update record stays, the FM-1 waits in update mode, and installing again resumes; a chip that is always that slow could never finish an install (UBOOT stays available). The loader runs wholly from RAM, so going back to XIP early cannot crash it the way it crashed the app. Whether the loader should get the same change is for Ben to decide separately; ChoralRoot changed its loader too.
+
+Tests
+- tests/flash_hal_test.c runs the driver's own code (fm1_flash.h as the firmware includes it) on a model of the chip: its registers mapped at their addresses, every access trapped. The app build: a fast chip and the slow chip (1.2 s erase, 30 ms pages) both save and read back, 17 late operations counted with the longest; 1.99 s / 49 ms still succeed; TIMER4 wrapping; an erase or page never done ends in 66h, 99h, 20 ms and the core reset, with XIP never on while the chip was busy. The loader build: the 1.2 s erase still gets -4 at 500 ms (and XIP back on while busy), a 30 ms page -4 at 10 ms, never a restart. Linux x86-64 only; elsewhere it says skipped.
+
+Not checked
+- No device build (no JieLi toolchain here), so the .ram_text size of the new code (one small RAM function and a few instructions in each wait) is not measured; build.py's check that RAM code makes no calls into XIP still has to pass on the real build.
+- Not run on an FM-1; the slow chip's real times are unknown. If `status` ever shows LATE above 0, that is the slow chip at work.
+
 ## For Ben to confirm
 Every call waves 2 to 7 made that the spec did not cover, and every device-only limit or lossy conversion, one line each. The detail is in each wave's section above.
 
@@ -794,6 +832,7 @@ Device-only limits
 - The STUTTER lane and PERFORM's time effects are mono, 0.74 s, 16-bit with 12 dB of headroom; below about 84 BPM a quarter loop is cut to 0.72 s.
 - The voice filter's cost on the FM-1 is estimated from the host (about 0.45 of a JUNO voice a voice).
 - Section D lives in main RAM and C too (not .noinit): after a crash, a pattern stored while playing and not yet written is lost.
+- The flash driver (26 Nov): a chip still busy after 2 s (an erase) or 50 ms (a page) restarts the FM-1 (what was only in RAM is lost); the update loader keeps its old 500 ms / 10 ms, so a very slow chip can stop an install half-way (install again resumes). Whether to change the loader too is Ben's call. Option: the P33 chip reset instead of the core reset.
 Lossy conversions of older projects and presets
 - Format 7 drum levels become velocities 42 / 72 / 100 / 127; ratchets become one-step retrigs at the nearest rate (on 1/32 steps x3 and x4 become 1/80).
 - Past 64 trigs with extras when converting, the rest play with no condition or nudge.
