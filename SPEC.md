@@ -533,3 +533,9 @@ Box 1 (11:40):
 - Saving a user kit while playing: "Make it say "This will stop the audio" - like Ableton does" (a warning that must be confirmed before the save goes ahead while playing).
 - Double tap of OCT on load pages: "Wait 0.3 s on load pages".
 - Docs: "Update and prune".
+
+Box 2:
+- Drum voice, FX MIX pages: "One white MIX screen" (the same MIX pages whichever voice is selected, as STUT already is).
+- Kit INSERT and SLICER: "Type on SELECT, as synths" (SELECT turns the kit insert's type and the slicer's mode; values in the synth positions; "EMPTY: SELECT PICKS A TYPE" when off).
+- Drum sound page pictures: "Each page its own picture" (filter curve on FLTR, LFO wave on LFO, insert tiles on INS, send thumbnails on SENDS, in teal; decay on SRC and AMP, scaled to the sound).
+- SEQ A-D page: "Four pattern tiles" (PATTERN A to D, each STORED, PLAYING, QUEUED or EMPTY, as hold SAVE and HOME draw them).
