@@ -60,7 +60,10 @@ static struct {
     uint8_t force;               /* full redraw pending */
     uint8_t msg_t;               /* transient message frames */
     uint8_t bpm_t;               /* frames the BPM stays highlighted after a SELECT turn */
-    uint8_t arm, arm_t;          /* (unused since wave 8: the timed second turn is gone, see ask) */
+    uint8_t kits_from, spare;    /* (Ben, 26 Nov 2026, "Back to PRESETS on the synth") the synth voice's SAVE > PRESETS or USER
+                                  * (its page + 1) the drums were taken from to KITS: a synth voice selected again on that KITS
+                                  * returns there (page_fix); any other page change forgets it. (These two bytes were the
+                                  * unused arm, arm_t of wave 7's timed second turn: no RAM added) */
     uint8_t ask, ask_arg;        /* (wave 8, Ben 22 Nov 2026: "One rule everywhere") a destructive or GO action asked for and
                                   * waiting: ASK_* and its argument. The one confirm: hold SAVE until the ring fills (ui_input.c, wave 10) */
     uint32_t rec_t0;             /* REC press time (btn_hold) */
@@ -181,7 +184,7 @@ static void midi_chan_fix(void)
             char b[8];
             str_cpy(b, "CH ", sizeof b);
             fmt_int(b + 3, song.g[ID[k]]);
-            ui_say(b, owner == 3 ? " = DRUM TRACK" : owner == 0 ? " = TRACK 1" : owner == 1 ? " = TRACK 2" : " = TRACK 3");
+            ui_say(b, owner == 3 ? " = DRUM VOICE" : owner == 0 ? " = VOICE 1" : owner == 1 ? " = VOICE 2" : " = VOICE 3");
             song.g[ID[k]] = (int16_t)v;
         }
         was[k] = (int16_t)v;
@@ -362,6 +365,7 @@ static void page_go(uint32_t i)
     ui.page = (uint8_t)i;
     ui.fam_last[PAGES[i].fam] = ui.page;
     ui.home = 0;
+    ui.kits_from = 0;
     page_entered();
 }
 static void dpg_go(uint32_t pg, uint32_t half);           /* (ui_drum.c) */
@@ -387,8 +391,27 @@ static void page_fix(void)
 {
     uint32_t i = ui.page, fam = PAGES[i].fam, k;
     int32_t st = fam_stage(fam), d;
-    if (ui.home || page_shown(&PAGES[i]))
+    if (ui.home)
         return;
+    if (ui.kits_from && !is_drum(TSEL) && PAGES[i].cat == CT_KITS) {   /* (Ben, 26 Nov 2026, "Back to PRESETS on the
+                                                         * synth") a synth voice again on the KITS the drums were taken to:
+                                                         * the PRESETS or USER it was on */
+        page_go(ui.kits_from - 1u);
+        return;
+    }
+    if (page_shown(&PAGES[i]))
+        return;
+    if (is_drum(TSEL) && (PAGES[i].graph == GR_BROWSE || PAGES[i].graph == GR_USER)) {   /* (review 26 Nov) the drum voice
+                                                         * selected on SAVE > PRESETS or USER (a synth voice's): KITS, the
+                                                         * drums' place for whole kits under SAVE */
+        for (k = 0; k < NPAGES && PAGES[k].cat != CT_KITS; k++)
+            ;
+        if (k < NPAGES) {
+            page_go(k);
+            ui.kits_from = (uint8_t)(i + 1u);           /* (after page_go, which forgets it) */
+        }
+        return;
+    }
     if (st >= 0 && is_drum(TSEL)) {                   /* (wave 8) the drum voice on a voice's sound page: its drum screen,
                                                          * the same kind of page (ENV: AMP, MOD: LFO, FX: its FX tab) */
         drum_screen_open();
@@ -732,7 +755,7 @@ static void pc_poll(void)
         } else if (preset_go_to(&trk[i], n)) {
             continue;
         }
-        str_cpy(b, "TRACK 1 PROG ", sizeof b);         /* (tracks in words: TRACK 1, review 21) */
+        str_cpy(b, "VOICE 1 PROG ", sizeof b);         /* (voices in words: VOICE 1, review 21, V2) */
         b[6] = (char)('1' + i);
         fmt_int(b + 13, (int32_t)n);
         ui_message(b);
@@ -882,7 +905,7 @@ static void ml_poll(void)
     }
     str_cpy(a, "CC", 4);
     fmt_int(a + 2, (int32_t)cc);
-    str_cpy(a + str_len(a), " = TRACK ", 10);
+    str_cpy(a + str_len(a), " = VOICE ", 10);
     b[0] = (char)('1' + mlu.trk);
     b[1] = ' ';
     str_cpy(b + 2, track_desc(&trk[mlu.trk % NTRK], mlu.id)->label, 9);

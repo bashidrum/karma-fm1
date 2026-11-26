@@ -5,7 +5,7 @@
  * performance layer, never the only way:
  *   FX    PERFORM: the keys are pads; knobs: the last pad's; OCT+ latch, OCT- latches off; MASTER: FX MIX (ui_perf.c)
  *   SEQ   RHYTHM: the white keys ROLL (drums: RETRIG); black keys F#3..C#4 play pattern A..D, D#4 the fill bar (drawn
- *         in the strip); PLAY: FILL while held, OCT+ with it latches; knobs: RATE SHIFT SWING STEPS; OCT- halve, OCT+
+ *         in the strip); PLAY: FILL while held, OCT+ with it latches; knobs: RATE SHIFT GATE STEPS (review U6); OCT- halve, OCT+
  *         double; MASTER: SWING
  *   ARP   NOTES: OCT- / OCT+ transpose the voice's pattern a semitone; MASTER: TRANSP (KEY 2's TRANS)
  *   GLO   the MIXER (wave 13: one map): the white keys the 16 drum sounds, F#3 .. C#4 the voices; a tap mutes, OCT+ held with
@@ -16,7 +16,7 @@
  * The keys' part runs in the audio ISR (seq.c layer_now); the GLO, SAVE and SEQ black keys come to the UI through seq.c
  * lk_q */
 static const uint8_t LAYER_BTN[LY_COUNT] = {NB, B_FX, B_EDIT, B_ARP, B_SEQ, B_SCL, B_GLO, B_SAVE, B_ENV, B_LFO};
-static const char *const LAYER_NAME[LY_COUNT] = {"", "perform", "voice", "notes", "rhythm", "", "mix", "save", "envelope",
+static const char *const LAYER_NAME[LY_COUNT] = {"", "perform", "voice", "notes", "rhythm", "", "mix", "patterns", "envelope",
                                                  "modulation"};
 static const char *layer_name(uint32_t l) { return LAYER_NAME[l % LY_COUNT]; }
 static void section_store(uint32_t s);                  /* project.c */
@@ -326,7 +326,7 @@ static void layer_knobs(uint32_t layer)
         case LY_FX:                                     /* (wave 6) PERFORM: the last pad's knobs */
             perf_knob(k, s);
             break;
-        case LY_SEQ:                                    /* (wave 10) RATE (the roll's; drums the RETRIG's), SHIFT, SWING, STEPS:
+        case LY_SEQ:                                    /* (wave 10) RATE (the roll's; drums the RETRIG's), SHIFT, GATE (U6), STEPS:
                                                          * the rhythm's quick ones (GATE and DIV: SEQ's PATTERN page) */
             if (k == 0u && is_drum(t))
                 drt_live = (uint8_t)clamp((int32_t)drt_live + s, 1, (int32_t)NRTRG);
@@ -335,7 +335,8 @@ static void layer_knobs(uint32_t layer)
             else if (k == 1u)
                 pattern_rotate(t, s);
             else
-                patt_turn(t, 0, k, s);
+                patt_turn(t, 0, k == 2u ? 0u : k, s);   /* (review U6, Ben: "One home each": KNOB 3 the GATE, the swing
+                                                         * is MASTER's on this screen; the drums have no gate: nothing) */
             break;
         case LY_LFO:
         case LY_ENV:                                    /* (wave 11) mapping: the source's amount onto the knob (ui_map.c) */
@@ -449,7 +450,8 @@ static void layer_title(const char *name, const char *sub, uint16_t col, uint32_
 {
     static uint32_t hc;
     uint32_t locked = ly_lock != LY_PLAY;
-    uint32_t sig = studio_hash(studio_hash(col, name), sub) + (ui.msg_t ? studio_hash(3u, ui.msg) : 0u) + locked * 7919u;
+    uint32_t sig = studio_hash(studio_hash(col, name), sub) + (ui.msg_t ? studio_hash(3u, ui.msg) : 0u) + locked * 7919u +
+                   (master_t != 0) * 104729u;
     layer_header(ui.layer, col, name, &hc);
     layer_pm(ui.layer, &pm_lm, &pm_lp);
     sig = studio_hash(studio_hash(sig, pm_lm ? pm_lm : ""), pm_lp ? pm_lp : "");
@@ -457,7 +459,8 @@ static void layer_title(const char *name, const char *sub, uint16_t col, uint32_
         return;
     *cache = sig;
     cv_begin(240, LY_TILES_Y - LY_SUB_Y, C_BLACK);
-    if (ui.msg_t) {
+    if (ui.msg_t && !(master_t && ui.layer != LY_SEQ && ui.layer != LY_SAVE)) {   /* (review V4: no bar while the big
+                                                         * MASTER readout says the same) */
         cv_rect(0, 0, 240, 17, C_WHITE);
         te_text_c(120, 0, ui.msg, C_BLACK);
     } else {
@@ -581,8 +584,10 @@ static void layer_screen_draw(void)
     case LY_SEQ: {                                      /* (wave 10) the rhythm: the keys ROLL (drums RETRIG), lit = held */
         uint32_t held = fm1_in.notes;
         str_cpy(sub, fill_now ? "fill on" : "play: fill", sizeof sub);
-        for (i = 0; i < 16u; i++) {                     /* (the drums: tile i is the grid's place i, and its sound's key) */
-            uint32_t l = DRUM_GRID[i], k = is_drum(t) ? key_of_lane(l) : key_of_white(i), down = (held >> k) & 1u, present = 0, j;
+        for (i = 0; i < 16u; i++) {                     /* (the drums: tile i is the grid's place i, and its sound's key; review
+                                                         * R2, Ben: "Rows from the bottom": a synth voice's white keys read as hand
+                                                         * play, RETRIG and SELECT, the bottom row first) */
+            uint32_t l = DRUM_GRID[i], k = is_drum(t) ? key_of_lane(l) : key_of_white(dgrid_of_white_o(i, DG_ROWS)), down = (held >> k) & 1u, present = 0, j;
             if (is_drum(t)) {
                 str_cpy(tl[i].lab, LANE_SHORT[l], 8);
                 for (j = 0; j < trk_len(t); j++)
@@ -605,7 +610,7 @@ static void layer_screen_draw(void)
             tl[i].fg = down ? C_BLACK : present ? C_WHITE : TE_G3;
             tl[i].top = present && !down ? col : 0;
         }
-        lab[0] = "rate", lab[1] = "shift", lab[2] = "swing", lab[3] = "steps";
+        lab[0] = "rate", lab[1] = "shift", lab[2] = is_drum(t) ? "" : "gate", lab[3] = "steps";
         if (is_drum(t)) {
             str_cpy(v[0], SG_RATE[drt_live % 18u], 8);
             ratio[0] = ((int32_t)drt_live - 1) * 1000 / ((int32_t)NRTRG - 1);
@@ -613,9 +618,16 @@ static void layer_screen_draw(void)
             str_cpy(v[0], N_ROLL[clamp(song.g[G_ROLL], 0, 4)], 8);
             ratio[0] = song.g[G_ROLL] * 250;
         }
-        str_cpy(v[1], "<  >", 8);
-        swing_str(v[2], t->p[P_SSWING]);
-        ratio[2] = t->p[P_SSWING] * 10;
+        str_cpy(v[1], "--", 8);                         /* (review V5: an action, as every GO knob: not a lone "< >") */
+        if (!is_drum(t)) {                              /* (review U6) the GATE, as SEQ's PATTERN page */
+            const char *u;
+            param_format(&TP[P_SGATE], t->p[P_SGATE], v[2], &u);
+            str_cpy(v[2] + str_len(v[2]), u, 8 - str_len(v[2]));
+            ratio[2] = (t->p[P_SGATE] - 1) * 1000 / 126;
+        } else {
+            v[2][0] = 0;
+            ratio[2] = -1;
+        }
         fmt_int(v[3], t->p[P_SLEN]);
         ratio[3] = (t->p[P_SLEN] - 1) * 1000 / 63;
         break;
@@ -736,8 +748,9 @@ static void hold_screen_draw(void)
         }
     }
     cv_blit(0, 20);
-    cv_begin(240, 60, C_BLACK);
-    te_text_c(120, 4, "let go: no", TE_G4);
-    te_text_c(120, 30, "keep holding save", TE_G3);
-    cv_blit(0, 160);
+    cv_begin(240, 76, C_BLACK);                         /* (review V5: from the ring's band down, so nothing of the screen
+                                                         * under stays half drawn) */
+    te_text_c(120, 20, "keep holding save", TE_G4);
+    te_text_c(120, 46, "let go to cancel", TE_G3);
+    cv_blit(0, 144);
 }

@@ -6,6 +6,7 @@
  * pattern and the pattern parameters of its track_t). The parts share one budget of
  * NVOICE sounding voices (voice.c). */
 #include <stdint.h>
+#include "words.h"             /* (review V2) the one dictionary of on-screen words */
 #define NVOICE 8                 /* voices per part, and the budget shared by all parts */
 #define NPOLY 8
 #define NPART 3                  /* synth parts: tracks 1..3 */

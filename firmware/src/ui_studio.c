@@ -108,6 +108,38 @@ static void te_upper(char *d, const char *s, uint32_t n)   /* (d may be s) */
         d[i] = s[i] >= 'a' && s[i] <= 'z' ? (char)(s[i] - 32) : s[i];
     d[i] = 0;
 }
+/* (review V2) a name with a space (LFO 1, FX 1) set tight: the space 3 px, so a grid's column of 32 px keeps it whole and apart;
+ * draw 0: only its width */
+static int32_t cv_text_tight(int32_t x, int32_t y, const char *s, uint16_t c, int draw)
+{
+    int32_t x0 = x;
+    char b[2] = {0, 0};
+    for (; *s; s++) {
+        if (*s == ' ') {
+            x += 3;
+            continue;
+        }
+        b[0] = *s;
+        if (draw)
+            cv_text(x, y, &FONT_S, b, c);
+        x += text_w(&FONT_S, b);
+    }
+    return x - x0;
+}
+/* (review V5) a name set narrow, 7 px a letter and 3 a space, where a tile's room is short (the mixer's tiles with an M or S
+ * tab); draw 0: its width only */
+static int32_t cv_text_narrow(int32_t x, int32_t y, const char *s, uint16_t c, int draw)
+{
+    int32_t x0 = x;
+    char b[2] = {0, 0};
+    for (; *s; s++) {
+        b[0] = *s;
+        if (*s != ' ' && draw)
+            cv_text(x, y, &FONT_S, b, c);
+        x += *s == ' ' ? 3 : 7;
+    }
+    return x - x0 - (x > x0 ? 1 : 0);
+}
 static void te_text_c(int32_t cx, int32_t y, const char *s, uint16_t c)   /* centred on cx */
 {
     cv_text(cx - text_w(&FONT_S, s) / 2, y, &FONT_S, s, c);
@@ -510,7 +542,8 @@ static void rec_screen_draw(void)
     if (ui.force || sig != body) {
         static const char *const L1[3] = {"play a note", "press play", "press play"};
         static const char *const L2[3] = {"it starts the loop", "4 clicks, then rec", "pads go into the lane"};
-        static const char *const L3[3] = {"play starts, rec cancels", "rec cancels", "play starts, rec cancels"};
+        static const char *const L3[3] = {"play: go, rec: cancel", "rec: cancel", "play: go, rec: cancel"};   /* (review V5: clear
+                                                         * of the screen's edge, as the count-in's "rec: cancel") */
         uint32_t m = rec_count ? 1u : rec_lane ? 2u : 0u;   /* (wave 14: the lane's take, NOTE: no note starts it) */
         body = sig;
         cv_begin(240, 56, C_BLACK);

@@ -7,10 +7,10 @@ static const char *const N_DSNOISE[] = {"OFF", "WHITE", "METAL", "CYM", "CHIP", 
 static const char *const N_DSFT[] = {"OFF", "LP", "BP", "HP", "LP+", "BP+", "HP+"};   /* + : the tone through it too */
 static const char *const N_DLDST[] = {"PITCH", "CUT", "RESO", "LEVEL"};   /* (wave 8: RESO, one spelling) */
 /* (wave 12) DEST on each machine: the four, then every knob that can be wiggled (drum_snd.c DLD_HEX, DLD_SYN, in order) */
-static const char *const N_DLDST_HEX[] = {"PITCH", "CUT", "RESO", "LEVEL", "FINE", "ATK", "DEC", "SLOPE", "P.AMT", "P.DEC",
-                                          "M.PIT", "FM", "T.LVL", "T.PIT", "DRIVE", "DIST", "CRUSH", "REV", "DEL"};
+static const char *const N_DLDST_HEX[] = {"PITCH", "CUT", "RESO", "LEVEL", "FINE", "ATK", "DEC", "SLOPE", W_PAMT, W_PDEC,
+                                          "M PIT", "FM", "T LVL", "T PIT", "DRIVE", "DIST", "CRUSH", "REV", "DEL"};
 static const char *const N_DLDST_SYN[] = {"PITCH", "CUT", "RESO", "LEVEL", "FINE", "SWEEP", "SWTIM", "HOLD", "DECAY", "TONE",
-                                          "PART2", "P2LVL", "CLICK", "N.LVL", "N.HLD", "N.DEC", "ENV", "HPF", "CHIP", "DRIVE",
+                                          "PART2", "P2LVL", "CLICK", W_NSLVL, W_NSHLD, W_NSDEC, "ENV", "HPF", "CHIP", "DRIVE",
                                           "REV", "DEL"};
 _Static_assert(sizeof N_DLDST_HEX / sizeof N_DLDST_HEX[0] == DL_N + NDLD_HEX &&
                sizeof N_DLDST_SYN / sizeof N_DLDST_SYN[0] == DL_N + NDLD_SYN, "a DEST name a knob");
@@ -24,8 +24,8 @@ static const param_desc_t DS_DESC[DS_N] = {
     [DS_HOLD] = DD("HOLD", F_INT, 0, 127, 0), [DS_DECAY] = DD("DECAY", F_INT, 0, 127, 60),
     [DS_TONE] = DD("TONE", F_INT, 0, 127, 100), [DS_PART2] = DD("PART2", F_INT, 0, 127, 0),
     [DS_P2LVL] = DD("P2 LVL", F_INT, 0, 127, 0), [DS_CLICK] = DD("CLICK", F_INT, 0, 127, 0),
-    [DS_NLVL] = DD("N.LVL", F_INT, 0, 127, 0), [DS_NHOLD] = DD("N.HOLD", F_INT, 0, 127, 0),
-    [DS_NDEC] = DD("N.DEC", F_INT, 0, 127, 40), [DS_FTYPE] = DE("TYPE", N_DSFT, 0),
+    [DS_NLVL] = DD(W_NSLVL, F_INT, 0, 127, 0), [DS_NHOLD] = DD(W_NSHLD, F_INT, 0, 127, 0),
+    [DS_NDEC] = DD(W_NSDEC, F_INT, 0, 127, 40), [DS_FTYPE] = DE("TYPE", N_DSFT, 0),
     [DS_RES] = DD("RESO", F_INT, 0, 31, 0), [DS_FREQ] = DD("CUTOFF", F_INT, 0, 127, 127),   /* (wave 8: the synth FILT's words) */
     [DS_FENV] = DD("ENV", F_INT, -64, 63, 0), [DS_HPF] = DD("HPF", F_INT, 0, 127, 0),
     [DS_CHIP] = DD("CHIP", F_INT, 0, 127, 0), [DS_DRIVE] = DD("DRIVE", F_INT, 0, 127, 0),
@@ -45,8 +45,8 @@ static const param_desc_t DNOTE_DESC = DD("NOTE", F_SEMI, -48, 48, 0);   /* (chr
 /* a HEX byte's descriptor as the sound's model reads it (the DRUM model's are params.c GP's, G_HXMODEL ..) */
 static const param_desc_t *hex_desc_m(uint32_t m, uint32_t id)
 {
-    static const param_desc_t SN[] = {DD("PSLOPE", F_INT, -64, 62, 0), DD("P.AMT", F_INT, 0, 127, 0),
-                                      DD("P.DEC", F_INT, 0, 127, 30), DD("N.FRQ", F_INT, 0, 127, 120),
+    static const param_desc_t SN[] = {DD("PSLOPE", F_INT, -64, 62, 0), DD(W_PAMT, F_INT, 0, 127, 0),
+                                      DD(W_PDEC, F_INT, 0, 127, 30), DD(W_NSFRQ, F_INT, 0, 127, 120),
                                       DD("MIX", F_INT, 0, 127, 90), DD("REPT", F_INT, 0, 127, 0)};
     static const param_desc_t CY[] = {DD("FINE", F_INT, -64, 62, 0), DD("MOD2", F_INT, 0, 127, 60),
                                       DD("PIT2", F_INT, 0, 127, 120), DD("PIT1", F_INT, 0, 127, 90),

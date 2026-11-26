@@ -34,7 +34,7 @@ static void op_box(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)   /* 
 
 /* the header: [tag] title | BPM, play / stop, the four beats, REC (else the unsaved dot), the battery */
 static uint8_t proj_unsaved;                           /* (PHEBUS) the work differs from flash (project.c unsaved_tick) */
-#define OP_BPM_R 154                                   /* the tempo's right edge */
+#define OP_BPM_R 156                                   /* the tempo's right edge */
 static uint8_t sel_t;                                   /* (wave 9) frames the SELECT chip stays filled after a turn */
 static int sel_chip(char *v, int32_t *ratio, uint16_t *col);   /* (ui_sel.c) */
 /* (wave 10, Ben 23 Nov 2026) THE -/+ LEGEND: what a single tap of OCT- and OCT+ does on the screen shown, in one small place (the
@@ -99,7 +99,7 @@ static void bk_strip(const char *const lab[11], uint32_t on, uint32_t *cache)
     for (i = 0; i < 11u; i++) {
         int32_t r = i < 6u ? 0 : 1, c = i < 6u ? (int32_t)i : (int32_t)i - 6, x = 2 + c * 40, y = r * 13;
         if (!lab[i]) {
-            op_box(x, y, 37, 12, TE_G1);
+            continue;                                   /* (review V5: a key with no job here: not drawn, no empty row) */
         } else if ((on >> i) & 1u) {
             cv_rect(x, y, 37, 12, C_WHITE);
             te_text_c(x + 18, y - 2, lab[i], C_BLACK);
@@ -148,42 +148,32 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
             char t[8];
             int32_t room;
             fmt_int(t, song.g[G_BPM]);
-            room = OP_BPM_R - text_w(&FONT_S, t) - 6;
+            room = OP_BPM_R - text_w(&FONT_S, t) - 8;   /* (review V5: a clear gap before the tempo, the tempo 2 px right) */
             while (b[0] && w + 6 + text_w(&FONT_S, b) > room)
                 b[str_len(b) - 1u] = 0;
         }
-        if (fill_now || perf.lat) {                     /* (PHEBUS wave 3) a fill on (held, latched, the bar): FILL inverted,
-                                                         * white: it is everyone's (the conditions of every track). (wave 6)
-                                                         * PERFORM pads latched: PERF and how many, the same way */
-            int32_t x = w + 6;
-            if (fill_now) {
-                cv_rect(x, 2, text_w(&FONT_S, "FILL") + 4, 16, C_WHITE);
-                x = cv_text(x + 2, 2, &FONT_S, "FILL", C_BLACK) + 4;
-            }
-            if (perf.lat) {                             /* (PERF, not FX: never read as a voice's FX slot) */
-                char f[8] = "PERF ";
-                if (fill_now)
-                    str_cpy(f, "P", 8);
-                fmt_int(f + str_len(f), (int32_t)pf_count(perf.lat));
-                cv_rect(x, 2, text_w(&FONT_S, f) + 4, 16, C_WHITE);
-                cv_text(x + 2, 2, &FONT_S, f, C_BLACK);
-            }
-        } else if (hdr_mchip) {                         /* (wave 10) what MASTER turns while this button is held */
-            int32_t cx = w + 5, cw = 18 + text_w(&FONT_S, hdr_mchip) + 3;
-            uint32_t hot = master_t != 0u;
-            cv_rect(cx, 1, cw, 18, hot ? hdr_mcol : te_dim_of(hdr_mcol));
-            te_dial(cx + 9, 10, 6, hdr_mratio, hot ? C_BLACK : hdr_mcol, hot ? hdr_mcol : C_BLACK);
-            cv_text(cx + 18, 2, &FONT_S, hdr_mchip, hot ? C_BLACK : hdr_mcol);
-        } else if (chip) {                              /* (wave 9) WHAT SELECT TURNS: its little dial and the value, in the
+        {
+            int32_t xe;                                 /* where the title or the chip ends */
+            (void)xe;
+            if (hdr_mchip) {                            /* (wave 10) what MASTER turns while this button is held */
+                int32_t cx = w + 5, cw = 18 + text_w(&FONT_S, hdr_mchip) + 3;
+                uint32_t hot = master_t != 0u;
+                cv_rect(cx, 1, cw, 18, hot ? hdr_mcol : te_dim_of(hdr_mcol));
+                te_dial(cx + 9, 10, 6, hdr_mratio, hot ? C_BLACK : hdr_mcol, hot ? hdr_mcol : C_BLACK);
+                cv_text(cx + 18, 2, &FONT_S, hdr_mchip, hot ? C_BLACK : hdr_mcol);
+                xe = cx + cw;
+            } else if (chip) {                          /* (wave 9) WHAT SELECT TURNS: its little dial and the value, in the
                                                          * colour of what it acts on, where the title sits (the SELECT knob is
                                                          * at the screen's upper left); filled a moment after a turn */
-            int32_t cx = w + 5, cw = 18 + text_w(&FONT_S, cv_) + 3;
-            uint32_t hot = sel_t != 0u;
-            cv_rect(cx, 1, cw, 18, hot ? cc : te_dim_of(cc));
-            te_dial(cx + 9, 10, 6, cr, hot ? C_BLACK : cc, hot ? cc : C_BLACK);
-            cv_text(cx + 18, 2, &FONT_S, cv_, hot ? C_BLACK : cc);
-        } else {
-            cv_text(w + 6, 2, &FONT_S, b, TE_G3);
+                int32_t cx = w + 5, cw = 18 + text_w(&FONT_S, cv_) + 3;
+                uint32_t hot = sel_t != 0u;
+                cv_rect(cx, 1, cw, 18, hot ? cc : te_dim_of(cc));
+                te_dial(cx + 9, 10, 6, cr, hot ? C_BLACK : cc, hot ? cc : C_BLACK);
+                cv_text(cx + 18, 2, &FONT_S, cv_, hot ? C_BLACK : cc);
+                xe = cx + cw;
+            } else {
+                xe = cv_text(w + 6, 2, &FONT_S, b, TE_G3);
+            }
         }
     }
     fmt_int(b, song.g[G_BPM]);
@@ -195,13 +185,31 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
     } else {
         cv_rect(OP_BPM_R + 6, 5, 10, 10, TE_G3);
     }
+    if (fill_now || perf.lat) {                         /* (PHEBUS wave 3) a fill on (held, latched, the bar): FILL inverted,
+                                                         * white, everyone's; (wave 6) PERFORM pads latched: PF and how many.
+                                                         * (Review V5) in the beat lights' place, never the title's or the
+                                                         * chip's: a fill is the bar's own state */
+        char f[8];
+        if (fill_now && perf.lat) {
+            str_cpy(f, "F+P", 8);
+            fmt_int(f + 3, (int32_t)pf_count(perf.lat));
+        } else if (fill_now) {
+            str_cpy(f, "FILL", 8);
+        } else {
+            str_cpy(f, "PF", 8);
+            fmt_int(f + 2, (int32_t)pf_count(perf.lat));
+        }
+        cv_rect(OP_BPM_R + 18, 2, 34, 16, C_WHITE);
+        te_text_c(OP_BPM_R + 35, 2, f, C_BLACK);
+    } else
     for (k = 0; k < 4u; k++)                           /* the four beats of the bar (wave 7: 7 px apart, 4 px right, so the
                                                          * title PATTERN A clears the tempo) */
-        cv_rect(OP_BPM_R + 22 + (int32_t)k * 7, 7, 6, 6, playing && beat % 4u == k ? (k || !song.rec ? C_WHITE : TE_RED) : TE_G2);   /* (red: recording only) */
+        cv_rect(OP_BPM_R + 22 + (int32_t)k * 6, 7, 5, 6, playing && beat % 4u == k ? (k || !song.rec ? C_WHITE : TE_RED) : TE_G2);   /* (red: recording only) */
     if (song.rec || sr_on)                              /* (recording, or STEP REC: ui_grid.c) */
-        te_disc(209, 10, 4, TE_RED);
+        te_disc(208, 10, 4, TE_RED);                   /* (review V5: lights 5 px, 6 apart: the disc 4 px clear of them,
+                                                         * 6 of the battery) */
     else if (proj_unsaved)                             /* (saved again at the next stop: project.c autosave_tick) */
-        te_disc(209, 10, 3, C_WHITE);                  /* (the bank: a size bigger, harder to miss: work not yet in flash) */
+        te_disc(208, 10, 3, C_WHITE);                  /* (the bank: a size bigger, harder to miss: work not yet in flash) */
     {   /* battery, 3 bars (filling in turn while a USB host charges it) */
         int32_t lvl = batt_shown(), i;
         op_box(217, 5, 17, 10, TE_G3);
@@ -599,7 +607,8 @@ static void op_prism_panel(const track_t *t, int32_t x0, int32_t y0, int32_t k) 
     uint32_t model = prism_model(t), kk = (uint32_t)t->p[P_E0] | (uint32_t)t->p[P_E1] << 4 | (uint32_t)t->p[P_E2] << 12 |
                                           (uint32_t)t->p[P_E3] << 20, i;
     int32_t h = t->p[P_E1] * 258, tb = t->p[P_E2] * 258, mo = t->p[P_E3] * 258, x;
-#define PK(v) ((v) * k)
+#define PK(v) ((v) * (k ? k : 1))
+#define PX(v) (k ? (v) * k : (v) * 57 / 20)                /* (review V8: k 0, the waves across the width, 228 px) */
     if (model == PRM_FOLD || model == PRM_WAVE || model == PRM_HARM) {
         if (kk != key) {                                /* a control moved: the picture again */
             int16_t b[32];
@@ -636,12 +645,12 @@ static void op_prism_panel(const track_t *t, int32_t x0, int32_t y0, int32_t k) 
         }
         if (model == PRM_HARM) {
             for (i = 0; i < PR_HARM_N; i++)
-                cv_rect(x0 + PK(4 + (int32_t)i * 3), y0 + PK(38 - pts[i]), PK(2), PK(pts[i] + 1), tint_col(0u, 0));
+                cv_rect(x0 + PX(4 + (int32_t)i * 3), y0 + PK(38 - pts[i]), k ? PK(2) : 4, PK(pts[i] + 1), tint_col(0u, 0));
         } else {
             for (x = 0; x < 80; x += 4)
-                cv_pset(x0 + PK(x), y0 + PK(20), OP_PUR_D);
+                cv_pset(x0 + PX(x), y0 + PK(20), OP_PUR_D);
             for (i = 1; i < 80u; i++) {
-                cv_line(x0 + PK((int32_t)i - 1), y0 + PK(20 - pts[i - 1]), x0 + PK((int32_t)i), y0 + PK(20 - pts[i]), tint_col(0u, 0));
+                cv_line(x0 + PX((int32_t)i - 1), y0 + PK(20 - pts[i - 1]), x0 + PX((int32_t)i), y0 + PK(20 - pts[i]), tint_col(0u, 0));
                 if (k > 1)
                     cv_line(x0 + PK((int32_t)i - 1), y0 + PK(20 - pts[i - 1]) - 1, x0 + PK((int32_t)i), y0 + PK(20 - pts[i]) - 1,
                             tint_col(0u, 0));
@@ -676,6 +685,7 @@ static void op_prism_panel(const track_t *t, int32_t x0, int32_t y0, int32_t k) 
                     (int32_t)i <= t->p[P_E2] * 20 / 128 ? tint_col(2u, 0) : OP_PUR_D);
     }
 #undef PK
+#undef PX
 }
 
 static void op_synth_scene(track_t *t, const int32_t ratio[4], int analog_wave)
@@ -1054,24 +1064,27 @@ static void gp_sends(const track_t *t, uint16_t c)
 /* the INSERT: its curve, the output for an input from -1 to 1 (SOFT .. CRUSH: the shape itself, fx.c ins_shape, after
  * DRIVE, at LEVEL), mixed with the dry line by MIX; the swept ones (PHASR, FLANG, CHOR): the notches they comb into
  * the sound, as deep as DEPTH, peaked by FDBK, moving at RATE; OFF: the dry line */
-static void gp_insert(const track_t *t, uint16_t c)
+/* (review 26 Nov, U3) between x xl and xr (the drum screen's INS: beside its tile); the same proportions as the full plot's */
+static void gp_insert_in(const track_t *t, uint16_t c, int32_t xl, int32_t xr)
 {
     const int16_t *p = t->p;
-    int32_t ty = clamp(p[P_ITYPE], 0, IT_N - 1), mix = ins_mixq(p[P_IMIX]), x;
-    gp_dots(SP_M);
+    int32_t ty = clamp(p[P_ITYPE], 0, IT_N - 1), mix = ins_mixq(p[P_IMIX]), x, wd = xr - xl, cx = xl + wd / 2;
+    int32_t dy = (SP_B - SP_T) * 16 / 74;               /* (16 px in the full plot's 74) */
+    for (x = xl; x <= xr; x += 4)                       /* the dotted rule, as gp_dots, between xl and xr */
+        cv_pset(x, SP_M, OP_PUR_D);
     gp_go = 0;
     if (ty >= IT_PHASER) {
         int32_t n = ty == IT_PHASER ? 4 : ty == IT_FLANGER ? 9 : 2, sh = (int32_t)(ui.frame * (uint32_t)(1 + p[P_IA] / 8)) % 64;
-        for (x = SP_L; x <= SP_R; x += 2) {
-            int32_t ph = ((x - SP_L) * n * 1024 / (SP_R - SP_L) + sh * 16) & 1023, s = SINE[ph];
+        for (x = xl; x <= xr; x += 2) {
+            int32_t ph = ((x - xl) * n * 1024 / wd + sh * 16) & 1023, s = SINE[ph];
             int32_t g = s > 0 ? s * p[P_IC] / 127 : s * p[P_IB] / 127;   /* FDBK the peaks, DEPTH the notches */
-            gp_to(x, SP_M - 16 - ((g * 28) >> 15) * mix / 32768, c);
+            gp_to(x, SP_M - dy - ((g * (SP_B - SP_T) * 28 / 74) >> 15) * mix / 32768, c);
         }
         return;
     }
     const int32_t R = (SP_B - SP_T) / 2;                /* (a square as tall as the plot: 37 px in the old one) */
-    for (x = 120 - R; x <= 120 + R; x += 1) {           /* a square: in across, out up */
-        int32_t in = (x - 120) * 32767 / R, out = in, g = 4096 + p[P_IA] * p[P_IA] * 3;
+    for (x = cx - R; x <= cx + R; x += 1) {             /* a square: in across, out up */
+        int32_t in = (x - cx) * 32767 / R, out = in, g = 4096 + p[P_IA] * p[P_IA] * 3;
         if (ty == IT_CRUSH)
             out = ins_shape(IT_CRUSH, in, ins_bits_sh(p[P_IA]));
         else if (ty)
@@ -1079,19 +1092,21 @@ static void gp_insert(const track_t *t, uint16_t c)
         out = ins_mix(in, out, mix);
         gp_to(x, SP_M - clamp(out, -32767, 32767) * R / 32768, c);
     }
-    cv_line(120 - R, SP_M + R, 120 + R, SP_M - R, OP_PUR_D);   /* the dry line */
+    cv_line(cx - R, SP_M + R, cx + R, SP_M - R, OP_PUR_D);   /* the dry line */
     if (!ty)
         return;
     gp_go = 0;                                          /* right: TONE (CRUSH: LPF), the low-pass after it */
-    for (x = 172; x <= SP_R; x += 2)
-        gp_to(x, SP_M - 10 + gp_resp(x, 176 + p[ty == IT_CRUSH ? P_IC : P_IB] * 52 / 127, 0, 6, 0), tint_col(2u, 0));
+    for (x = xl + wd * 164 / 224; x <= xr; x += 2)
+        gp_to(x, SP_M - dy * 10 / 16 + gp_resp(x, xl + wd * 168 / 224 + p[ty == IT_CRUSH ? P_IC : P_IB] * wd * 52 / 224 / 127, 0, 6, 0),
+              tint_col(2u, 0));
     if (ty == IT_CRUSH) {                               /* left: RATE, a wave held at the rate */
-        int32_t step = 2 + (127 - p[P_IB]) / 8;
+        int32_t step = 2 + (127 - p[P_IB]) / 8, xw = wd * 60 / 224;
         gp_go = 0;
-        for (x = 0; x <= 60; x++)
-            gp_to(SP_L + x, SP_M - ((SINE[(uint32_t)(x - x % step) * 17u & 1023u] * 20) >> 15), tint_col(1u, 0));
+        for (x = 0; x <= xw; x++)
+            gp_to(xl + x, SP_M - ((SINE[(uint32_t)(x - x % step) * 17u & 1023u] * (SP_B - SP_T) * 20 / 74) >> 15), tint_col(1u, 0));
     }
 }
+static void gp_insert(const track_t *t, uint16_t c) { gp_insert_in(t, c, SP_L, SP_R); }
 /* VOICE: three keys held (low first, high next, the middle last): POLY plays them all, the others one, by PRIO (LAST,
  * LOW, HIGH); MONO starts it apart from the note before, LEGATO tied on; UNISON thick. GLIDE how long the pitch
  * slides, GLMODE RATE (the longer jump slides longer) or TIME (both the same) */
@@ -1183,13 +1198,18 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
     static uint32_t head, line, vo, dr, knobs, bar;
     const uint8_t *mx = op_mx;
     uint32_t i, sig = 7u, lk = ly_lock != LY_PLAY;
-    op_header("GLO", C_WHITE, ui.msg_t ? ui.msg : flags & 16u ? "PANS" : "MIXER", &head);   /* (a message: in the title) */
+    op_header("GLO", C_WHITE, flags & 16u ? "PANS" : "MIXER", &head);   /* (review V5: a message in the line under, whole) */
     op_band_tick();
     sig = studio_hash(lk * 3u + 5u, ui.msg_t ? ui.msg : "");
     if (ui.force || sig != line) {                      /* the line: what a key does; -/+; LOCK while it stays open */
         int32_t x = 236;
         line = sig;
         cv_begin(240, BK_Y - OP_HEAD_H, C_BLACK);
+        if (ui.msg_t) {                                 /* (a message: a white bar, as every layer's) */
+            cv_rect(0, 0, 240, 17, C_WHITE);
+            te_text_c(120, 0, ui.msg, C_BLACK);
+            cv_blit(0, OP_HEAD_H);
+        } else {
         if (lk) {
             int32_t w = (int32_t)text_w(&FONT_S, "LOCK") + 6;
             cv_rect(x - w, 0, w, 16, C_WHITE);
@@ -1199,6 +1219,7 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
         x = pm_draw(x, 0, "CLEAR", "SOLO") - 8;
         cv_text(4, 0, &FONT_S, x >= 4 + (int32_t)text_w(&FONT_S, "TAP A KEY: MUTE") ? "TAP A KEY: MUTE" : "TAP: MUTE", C_WHITE);
         cv_blit(0, OP_HEAD_H);
+        }
     }
     sig = 11u + (flags & 16u);
     for (i = 0; i < NTRK; i++)
@@ -1208,7 +1229,7 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
         vo = sig;
         cv_begin(240, 32, C_BLACK);
         for (i = 0; i < NTRK; i++) {
-            int32_t x = 1 + 60 * (int32_t)i, w = 58, lv = ratio[i] < 0 ? 0 : ratio[i], m = (int32_t)mx[i];
+            int32_t x = 2 + 60 * (int32_t)i, w = 56, lv = ratio[i] < 0 ? 0 : ratio[i], m = (int32_t)mx[i];
             uint32_t mute = trk[i].p[P_MUTE] != 0, solo = (song.solo >> i) & 1u, quiet = trk_silent(&trk[i]) && !mute;
             uint16_t c = TE_COL[i], bg = mute ? TE_MUTE : solo ? TE_SOLO : TE_G1, fg = mute || solo ? C_BLACK : quiet ? TE_G2 : c;
             if (flags & 16u)                            /* (the pans' page: the bar is the level still) */
@@ -1232,22 +1253,23 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
         dr = sig;
         cv_begin(240, 80, C_BLACK);
         for (i = 0; i < 16u; i++) {                     /* (i: the grid's place; l: the sound there) */
-            int32_t x = 1 + (int32_t)(i % 4u) * 60, y = (int32_t)(i / 4u) * 20;
+            int32_t x = 2 + (int32_t)(i % 4u) * 60, y = (int32_t)(i / 4u) * 20;   /* (review V5: 56 px tiles, 2 px clear
+                                                         * of the screen's edges, 4 apart) */
             uint32_t l = DRUM_GRID[i], m = (drum_mute >> l) & 1u, so = (drum_solo >> l) & 1u,
                      quiet = !m && (trk_silent(TDRUM) || drum_silenced(l));
             char nm[8];
             te_upper(nm, LANE_SHORT[l], sizeof nm);
-            if (m || so) {                              /* (the tile yellow / ice blue, the name black; at its right end the
-                                                         * letter, M or S, in a black tab. The drum grid: the tab flush with
-                                                         * the tile's right edge, 8 px, so a six-letter name (OP HAT, SHAKER,
-                                                         * C-BELL, 48 px) keeps a pixel clear of the tile's edge and the tab) */
-                cv_rect(x, y, 58, 18, m ? TE_MUTE : TE_SOLO);
-                te_text_c(x + 25, y + 1, nm, C_BLACK);
-                cv_rect(x + 50, y + 2, 8, 14, C_BLACK);
-                cv_text(x + 51, y + 1, &FONT_S, m ? "M" : "S", m ? TE_MUTE : TE_SOLO);
+            if (m || so) {                              /* (the tile yellow / ice blue, the name black, set narrow so it keeps
+                                                         * clear of the tab; at its right end the letter, M or S, in a black
+                                                         * tab 1 px inside the tile's edge: review V5) */
+                int32_t nw = cv_text_narrow(0, 0, nm, 0, 0);
+                cv_rect(x, y, 56, 18, m ? TE_MUTE : TE_SOLO);
+                cv_text_narrow(x + (44 - nw) / 2, y + 1, nm, C_BLACK, 1);
+                cv_rect(x + 45, y + 2, 10, 14, C_BLACK);
+                cv_text(x + 46, y + 1, &FONT_S, m ? "M" : "S", m ? TE_MUTE : TE_SOLO);
             } else {
-                cv_rect(x, y, 58, 18, TE_G1);
-                te_text_c(x + 29, y + 1, nm, quiet ? TE_G2 : TE_COL[TRK_DRUM]);
+                cv_rect(x, y, 56, 18, TE_G1);
+                te_text_c(x + 28, y + 1, nm, quiet ? TE_G2 : TE_COL[TRK_DRUM]);
             }
         }
         cv_blit(0, BK_Y + 34);
@@ -1378,17 +1400,18 @@ static void op_home_body(void)
                 room -= 12;
             for (n = str_len(b); n && text_w(&FONT_S, b) > room; n--)   /* (cut to its room: never into the next voice) */
                 b[n - 1u] = 0;
-            hz_label(x0, 17, b, col, (int)sel);
-            hz_badge(x0 + 2 + text_w(&FONT_S, b), 16, muted, solo, rec);
-            for (j = 0; j < 16u; j++) {                 /* its steps in view: 4 px a step */
+            hz_label(x0, 16, b, col, (int)sel);
+            hz_badge(x0 + 2 + text_w(&FONT_S, b), 15, muted, solo, rec);
+            for (j = 0; j < 16u; j++) {                 /* its steps in view: 4 px a step, a 4 px bar (review O1, Ben: "Give
+                                                         * synths a 4 px step bar") */
                 uint32_t p = bank * 16u + j;
                 int32_t x = x0 + (int32_t)j * 4 + (int32_t)(j / 4u);
                 uint16_t c;
                 if (p >= len)
                     continue;
                 c = playing && p == pos ? C_WHITE : step_on(&t->step[p]) ? col
-                  : t->step[p].time == ST_TIE ? (muted ? TE_G2 : TE_DIM[i]) : TE_G1;
-                cv_rect(x, 34, 3, 3, c);
+                  : t->step[p].time == ST_TIE ? (muted ? TE_G3 : TE_DIM[i]) : TE_G2;   /* (O1: the empty ones too, a bar) */
+                cv_rect(x, 33, 3, 4, c);
             }
         }
         cv_blit(0, OP_BODY_Y + HZ_DECK);

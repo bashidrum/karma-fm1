@@ -15,7 +15,7 @@
  *   the pages      EDIT: SRC, again the next page (FLTR AMP LFO FX); ENV: AMP, LFO: LFO (again: the page's next half); SEQ:
  *                  TRIG (again: its next half); SELECT walks every half of every page; they change the page with a trig
  *                  held too. FX (wave 8, Ben 22 Nov 2026: "FX = whole mix only"; the drum voice's bus insert "stays its
- *                  own"): the drum voice's own FILTER, INSERT, INSERT 2, SENDS, SLICER, the Rytm's FX track; a trig held,
+ *                  own"): the drum voice's own FILTER, INSERT, SENDS, SLICER, the Rytm's FX track; a trig held,
  *                  its knobs lock them on the step as any tab's (it was the FX button with a trig held)
  *   the knobs      nothing held: the sound's value (the first turn on a built-in kit makes the project's own copy,
  *                  drum_snd.c); a trig held: the value LOCKED on that trig (TRIG: the trig's own VEL RETRIG NUDGE COND,
@@ -36,30 +36,40 @@ static const char *nav_map_hint;
 static const char *hdr_mchip;                          /* (ui_op.c) */
 static void map_chip(uint32_t l);
 static void dmap_dials(uint32_t *cache);                /* (ui_kit.c) */
+static int dsnd_list_on(void);                          /* (review 26 Nov, O2: ui_kit.c, the six-row sound list) */
+static uint32_t dsnd_list_sig(void);
+static void dsnd_list(void);
+static void dpic_filter(uint32_t l);                    /* (review 26 Nov, U3: ui_synth.c, the synth pages' drawings in teal) */
+static void dpic_lfo(uint32_t l);
+static void dpic_sends(uint32_t l);
+static void dpic_kit(uint32_t h);
+static uint32_t dpic_sig(uint32_t l);
 static uint32_t dmap_marks(void);
 /* (drum_newvel, the velocity a new trig and a drum key take: seq.c; TRIG, nothing held: KNOB 1) */
 static uint8_t dk_touch = 0xFF;                         /* a trig held: the id of the knob last turned in this hold */
 static const char *const DPG_NAME[DPG_TABS] = {"TRIG", "SRC", "FLTR", "AMP", "LFO", "FX"};
-/* (wave 8) the FX tab's halves: the drum voice's own pages (params.c PAGES: INSERT, INSERT 2, FILTER of FAM_DRM, the SLICER
+/* (wave 8) the FX tab's halves: the drum voice's own pages (params.c PAGES: INSERT, FILTER of FAM_DRM, the SLICER
  * every voice has), by name once. (The drum effects under FX, Ben 23 Nov 2026, 21:30 to 21:45, "Just mirror the synths as
- * closely as possible") in a synth voice's FX order: INS (the kit's INSERT, INSERT 2), SENDS (the SELECTED SOUND's own:
- * DELAY, REVERB, KIT FX; a sound page, not a PAGES one), SLICER (the kit's), then the whole mix's DELAY, REV/CHO, MASTER.
- * The kit's FILTER is the last half: EDIT's third category (Ben 21:40, "FILTER should live under Edit"), not FX's. The
- * kit's pages say KIT in the header and SELECT does nothing there (it picks a sound they do not act on) */
-#define NDBUS 8u                                        /* (wave 9: then the whole mix's, the FX group's MIX) */
-#define DBH_SENDS 2u                                    /* the selected sound's SENDS */
-#define DBH_MIX 4u                                      /* the whole mix's first (DELAY) */
-#define DBH_FILTER 7u                                   /* the kit's FILTER (EDIT's KIT FLT) */
+ * closely as possible") in a synth voice's FX order: INS (the kit's INSERT, its MIX on KNOB 4), SENDS (the SELECTED SOUND's own:
+ * DELAY, REVERB, KIT FX; a sound page, not a PAGES one), SLICER (the kit's). (Review 26 Nov, Ben's picker "One white MIX
+ * screen": the whole mix's MIX is the PAGES' DELAY, REV/CHO, MASTER, the same screen whichever voice is selected, as STUT
+ * is; no longer halves here.) The kit's FILTER is the last half: EDIT's third category (Ben 21:40, "FILTER should live
+ * under Edit"), not FX's. The kit's pages say KIT in the header; SELECT turns the kit INSERT's type and the SLICER's mode
+ * there, as on a synth voice's FX pages (review 26 Nov, "Type on SELECT, as synths") */
+#define NDBUS 4u                                        /* (Ben, 26 Nov 2026, "move MIX to K4": the kit INSERT one page, its MIX
+                                                         * on KNOB 4; no INSERT 2) */
+#define DBH_SENDS 1u                                    /* the selected sound's SENDS */
+#define DBH_SLICER 2u                                   /* the kit's SLICER */
+#define DBH_FILTER 3u                                   /* the kit's FILTER (EDIT's KIT FLT) */
 static uint8_t dbus_pg[NDBUS];
 static uint32_t dbus_page(uint32_t h)                   /* the FX tab's half h: its PAGES index (SENDS: none, 0) */
 {
-    static const char *const T[NDBUS] = {"INSERT", "INSERT 2", "", "SLICER", "DELAY", "REV/CHO", "MASTER", "FILTER"};
-    static const uint8_t F[NDBUS] = {FAM_DRM, FAM_DRM, FAM_DRM, FAM_DRM, FAM_MFX, FAM_MFX, FAM_MFX, FAM_DRM};
-    if (!dbus_pg[0] && !dbus_pg[1]) {
+    static const char *const T[NDBUS] = {"INSERT", "", "SLICER", "FILTER"};
+    if (!dbus_pg[0]) {
         uint32_t i, k;
         for (k = 0; k < NDBUS; k++)
             for (i = 0; i < NPAGES; i++)
-                if (PAGES[i].fam == F[k] && str_eq(PAGES[i].title, T[k]))
+                if (PAGES[i].fam == FAM_DRM && str_eq(PAGES[i].title, T[k]))
                     dbus_pg[k] = (uint8_t)i;
     }
     return dbus_pg[h % NDBUS];
@@ -78,7 +88,13 @@ static uint32_t dpg_half(void)
 static int dpg_sends(void) { return drum_pg == DPG_FX && dpg_half() == DBH_SENDS; }   /* the sound's SENDS (FX) */
 static int dpg_snd(void) { return (drum_pg && drum_pg < DPG_FX) || dpg_sends(); }    /* a page of the selected sound */
 static int dpg_bus(void) { return drum_pg == DPG_FX && dpg_half() != DBH_SENDS; }     /* a PAGES page: the kit's, the mix's */
-static int dpg_kit(void) { return dpg_bus() && (dpg_half() < DBH_MIX || dpg_half() == DBH_FILTER); }   /* the KIT's */
+static int dpg_kit(void) { return dpg_bus(); }          /* the KIT's (every PAGES half: INSERT, SLICER, FILTER) */
+/* (U2, Ben 26 Nov) the empty kit INSERT: its knobs show nothing, do nothing, lock nothing, as a synth voice's empty slot (its
+ * values' labels say "-"; its MIX on KNOB 4 too) */
+static int dkit_dead(const page_t *pg, uint32_t k, const param_desc_t *d)
+{
+    return !d || !d->label || d->label[0] == '-' || (pg->id[k & 3u] == P_IMIX && !TDRUM->p[P_ITYPE]);
+}
 static uint32_t dpg_id(uint32_t k)
 {
     static const uint8_t SENDS[4] = {DSP_DEL, DSP_REV, DSP_KFX, 0xFF};   /* (a synth voice's SENDS: DELAY REVERB CHORUS) */
@@ -262,23 +278,6 @@ static void drum_held_oct(uint32_t up)
 }
 
 /* ---- drawing */
-static int32_t cv_text_tall(int32_t x, int32_t y, const char *s, uint16_t c)   /* FONT_S drawn twice as tall */
-{
-    const felucca_font_t *f = &FONT_S;
-    for (; *s; s++) {
-        uint32_t gi = glyph(f, (uint8_t)*s), gx, gy, w = f->bw[gi];
-        const uint8_t *gd = f->data + f->off[gi];
-        for (gy = 0; gy < f->h * 2u; gy++)
-            for (gx = 0; gx < w; gx++) {
-                uint32_t i = (gy >> 1) * w + gx;
-                if ((gd[i >> 3] >> (7u - (i & 7u))) & 1u)
-                    cv_pset(x - f->pad + (int32_t)gx, y + (int32_t)gy, c);
-            }
-        x += f->adv[gi];
-    }
-    return x;
-}
-static int32_t text_w_tall(const char *s) { return text_w(&FONT_S, s); }
 static uint16_t drum_tile_col(uint32_t l)               /* a sound's tile in the map: lit as it plays, dim with trigs */
 {
     uint32_t i, len = trk_len(TDRUM), has = 0;
@@ -357,7 +356,7 @@ static uint32_t drum_trig_sig(uint32_t l, uint32_t bank)
  * (a locked one inverted); the touched knob's label inverted and its value underlined. Each knob a 60 px column: the ring
  * at its left, the value in the 40 px after it (DIAL_VX .. + DIAL_VW). Five letters there take a narrower step (7 px, the
  * others 8), so no value reaches the next column's ring (wave 3 had "PITCH" against it, Ben's drum LFO page); longer
- * ones are cut to five (dval_fit). dial_over counts any drawn past its column (tests/ui_pages_test.c) */
+ * ones are cut to six, set a pixel closer (dval_fit, review V2). dial_over counts any drawn past its column (tests/ui_pages_test.c) */
 #define DIAL_VX 17                                      /* the value's start in its column */
 #define DIAL_VW 40                                      /* its room */
 static uint32_t dial_over;                              /* values drawn past their column (0, always) */
@@ -366,6 +365,10 @@ static const uint16_t *dial_tint;                       /* (wave 7) a colour a k
 static uint8_t dial_mark;                               /* (wave 11) a bit a knob: something is mapped onto it (ui_map.c) */
 static int32_t dial_adv(const char *s) { return str_len(s) >= 5u ? 7 : 8; }
 static int32_t dial_w(const char *s) { return (int32_t)str_len(s) * dial_adv(s); }
+/* (review V2: the dictionary's words have six letters at most) six letters start 2 px nearer the ring and keep 4 px clear of
+ * the next one; fewer keep the old 7 */
+static int32_t dial_vx(const char *s) { return str_len(s) >= 6u ? DIAL_VX - 2 : DIAL_VX; }
+static int dial_wide(const char *s) { return dial_vx(s) + dial_w(s) > (str_len(s) >= 6u ? 57 : DIAL_VX + DIAL_VW - 3); }
 static int32_t cv_text_tall_n(int32_t x, int32_t y, const char *s, uint16_t c, int32_t adv)   /* FONT_S x2 tall, adv a letter */
 {
     const felucca_font_t *f = &FONT_S;
@@ -381,6 +384,30 @@ static int32_t cv_text_tall_n(int32_t x, int32_t y, const char *s, uint16_t c, i
         x += adv;
     }
     return x;
+}
+/* the 27 keys as a piano (CHROMATIC's; review V8: ARP > KEY's too): white 15 px, black over them; the keys in on lit in col,
+ * the unlit white ones grey; a dot on the keys in dot (CHROMATIC: the sound's own pitch; KEY: the root) */
+static void piano_draw(int32_t y0, int32_t wh, int32_t bh, uint32_t on, uint32_t dot, uint16_t col, uint16_t off)
+{
+    static const int8_t W[12] = {0, -1, 1, -1, 2, -1, 3, 4, -1, 5, -1, 6};
+    uint32_t k;
+    for (k = 0; k < 27u; k++)
+        if (W[k % 12u] >= 0) {
+            int32_t x = ((int32_t)(k / 12u) * 7 + W[k % 12u]) * 15;
+            uint32_t o = (on >> k) & 1u;
+            cv_rect(x + 1, y0, 13, wh, o ? col : off);
+            if ((dot >> k) & 1u)
+                te_disc(x + 7, y0 + wh - 6, 2, o ? C_BLACK : col);
+        }
+    for (k = 0; k < 27u; k++)
+        if (W[k % 12u] < 0) {
+            int32_t x = ((int32_t)(k / 12u) * 7 + W[(k - 1u) % 12u]) * 15 + 10;
+            uint32_t o = (on >> k) & 1u;
+            cv_rect(x, y0, 10, bh, o ? col : C_BLACK);
+            op_box(x, y0, 10, bh, off);
+            if ((dot >> k) & 1u)
+                te_disc(x + 5, y0 + bh - 5, 2, o ? C_BLACK : col);
+        }
 }
 static void op_dials(const char *const lab[4], const char *const val[4], const int32_t ratio[4], uint32_t locked,
                      uint32_t dim, uint16_t col, uint32_t sig, uint32_t *cache)
@@ -410,7 +437,7 @@ static void op_dials(const char *const lab[4], const char *const val[4], const i
         return;
     }
     for (k = 0; k < 4u; k++) {
-        int32_t x0 = 2 + 60 * (int32_t)k, vx = x0 + DIAL_VX, vw;
+        int32_t x0 = 2 + 60 * (int32_t)k, vx = x0 + dial_vx(val[k]), vw;
         uint32_t hot = ui.hot_t && ui.hot_col == k, lk = (locked >> k) & 1u;
         uint16_t c = (dim >> k) & 1u ? TE_G3 : (dim >> (4u + k)) & 1u ? TE_G4 : dial_tint ? dial_tint[k] : col;   /* (wave 5: dim bits 4..7, a shared
                                                          * value on a voice's page: white-grey, not the voice's colour) */
@@ -428,7 +455,7 @@ static void op_dials(const char *const lab[4], const char *const val[4], const i
             cv_rect(x0 + 11, 49, 2, 2, c);
         }
         vw = dial_w(val[k]);
-        dial_over += vw > DIAL_VW - 3;                  /* (its ink and a clear gap: wave 3's 40 px "PITCH" touched the next ring) */
+        dial_over += dial_wide(val[k]);                 /* (its ink and a clear gap: wave 3's 40 px "PITCH" touched the next ring) */
         if (lk) {                                       /* locked on the trig held: inverted (the Rytm's way) */
             cv_rect(vx - 3, 21, vw + 5, 34, c);
             cv_text_tall_n(vx, 22, val[k], C_BLACK, dial_adv(val[k]));
@@ -445,35 +472,67 @@ static void drum_dials(const char *const lab[4], const char *const val[4], const
 {
     op_dials(lab, val, ratio, locked, dim, TE_DRUM, sig, cache);
 }
-/* a value made to fit its column (40 px: five letters of the tall face, narrower) */
+/* a value made to fit its column (40 px: six letters of the tall face at most, narrower) */
 static void dval_fit(char *b)
 {
-    while (str_len(b) > 5u)
+    while (str_len(b) > 6u)
         b[str_len(b) - 1u] = 0;
 }
 
 /* (wave 12, Ben 23 Nov 13:35: "I don't need to see the sequence on screen, it's shown on my keys") a picture of the selected
- * slot's sound, in the synth pages' language: its level over the first half second (filled, the drums' teal; a noise layer of its
- * own in grey), its pitch sweep (a white line from the top, the drop in semitones). Worked out from the sound's values (the
- * machines' envelope laws, approximately for HEX), not rendered: no RAM, a few hundred operations */
+ * slot's sound, in the synth pages' language: its level over time (filled, the drums' teal; a noise layer of its own in
+ * grey), its pitch sweep (a white line from the top, the drop in semitones). Worked out from the sound's values (the
+ * machines' envelope laws, approximately for HEX), not rendered: no RAM, a few hundred operations. (Review 26 Nov, U3, Ben's
+ * picker "Each page its own picture": the time across is scaled to the sound, the shortest of 125 MS, 250 MS, 500 MS, 1 S
+ * and 2 S it fits in, named at the top right; four marks a quarter of it each) */
 #define SP_W 232
+static const uint16_t SP_SPAN[5] = {125, 250, 500, 1000, 2000};
+static uint32_t snd_len_ms(const dslot_t *sl)           /* how long the sound lasts (to 1 % of its level), 2000 at most */
+{
+    if (sl->mach & 1u) {
+        const dsnd_t *d = (const dsnd_t *)sl->snd;
+        uint32_t ka = ds_k32(d->decay), kn = ds_k32(d->ndec), b, nb = (uint32_t)FS * 2u / CTL;
+        uint32_t hold = ds_blocks(d->hold), nhold = ds_blocks(d->nhold);
+        int32_t a = d->wave ? (int32_t)d->tlev * 258 : 0, z = (d->src & 15u) ? (int32_t)d->nlev * 258 : 0;
+        for (b = 0; b < nb && (a > 327 || z > 327 || hold || nhold); b++) {
+            if (hold) hold--; else a = (int32_t)(((uint32_t)a * ka) >> 16);
+            if (nhold) nhold--; else z = (int32_t)(((uint32_t)z * kn) >> 16);
+        }
+        return b * 1000u / ((uint32_t)FS / CTL);
+    } else {
+        const hex_snd_t *d = (const hex_snd_t *)sl->snd;
+        uint32_t ms = (uint32_t)(12 * (int32_t)d->dec + 2 * (int32_t)d->dec * (int32_t)d->dec / 10 + 10) + d->atk / 2u;
+        return ms < 2000u ? ms : 2000u;
+    }
+}
+static uint32_t snd_span_ms(const dslot_t *sl)          /* the picture's span: the shortest of SP_SPAN the sound fits in */
+{
+    uint32_t len = snd_len_ms(sl), i;
+    for (i = 0; i < 4u && SP_SPAN[i] < len + len / 8u; i++)
+        ;
+    return SP_SPAN[i];
+}
 static void snd_picture(const dslot_t *sl, int32_t x0, int32_t y0, int32_t h)
 {
     int32_t c, amp[SP_W / 2], nz[SP_W / 2], pit[SP_W / 2];
-    uint32_t n = SP_W / 2u, i;
+    uint32_t n = SP_W / 2u, i, span = snd_span_ms(sl);
+    char lb[8];
     if (sl->mach & 1u) {                               /* CLASSIC: hold, then DECAY_K a sample (ds_k32 a block); the noise
                                                         * its own; the pitch BEND semitones falling at BTIME */
         const dsnd_t *d = (const dsnd_t *)sl->snd;
-        uint32_t ka = ds_k32(d->decay), kn = ds_k32(d->ndec), kp = ds_k32(d->btime), b;
+        uint32_t ka = ds_k32(d->decay), kn = ds_k32(d->ndec), kp = ds_k32(d->btime), b, done = 0;
+        uint32_t total = (uint32_t)FS / CTL * span / 1000u; /* (the blocks across: 44100 / 32 x 2000 / 1000, 32 bits) */
         int32_t a = d->wave ? (int32_t)d->tlev * 258 : 0, z = (d->src & 15u) ? (int32_t)d->nlev * 258 : 0, pe = 32767;
-        uint32_t hold = ds_blocks(d->hold), nhold = ds_blocks(d->nhold), per = (uint32_t)FS / 2u / CTL / n + 1u;
+        uint32_t hold = ds_blocks(d->hold), nhold = ds_blocks(d->nhold);
         for (i = 0; i < n; i++) {
+            uint32_t to = (i + 1u) * total / n;         /* (constant divisor n) */
             amp[i] = a, nz[i] = z, pit[i] = d->bend ? (pe * (int32_t)d->bend) >> 15 : 0;
-            for (b = 0; b < per; b++) {
+            for (b = done; b < to; b++) {
                 if (hold) hold--; else a = (int32_t)(((uint32_t)a * ka) >> 16);
                 if (nhold) nhold--; else z = (int32_t)(((uint32_t)z * kn) >> 16);
                 pe = (int32_t)(((uint32_t)pe * kp) >> 16);
             }
+            done = to;
         }
     } else {                                           /* HEX (the LXR's laws, from its own tables' marks, hex_drums.c):
                                                         * DEC 5 ~60 ms .. 60 ~1.3 s to silence; PAMT 20 ~10 semitones; PDEC
@@ -483,16 +542,16 @@ static void snd_picture(const dslot_t *sl, int32_t x0, int32_t y0, int32_t h)
         int32_t ms_atk = (int32_t)d->atk / 2, semis = (int32_t)d->pamt * 6 / 10, ms_p = (int32_t)d->pdec * 17 / 10 + 2;
         int32_t lv = (int32_t)d->level * 258;
         for (i = 0; i < n; i++) {
-            int32_t t = (int32_t)i * 500 / (int32_t)n, e;
+            int32_t t = (int32_t)(i * span / n), e;     /* (ms; constant divisor n) */
             e = t < ms_atk ? lv * t / (ms_atk ? ms_atk : 1) : t - ms_atk >= ms_dec ? 0
-                : lv - lv * (t - ms_atk) / ms_dec;   /* (32766 x 1000: 32 bits) */
+                : lv - lv * (t - ms_atk) / ms_dec;   /* (32766 x 2000: 32 bits; ms_dec > 0) */
             e = e * e / (lv ? lv : 1);                   /* (a curve: the LXR's fall is exponential-ish; 32766^2 < 2^31) */
             amp[i] = e, nz[i] = 0;
             pit[i] = d->model <= HM_CLAP && semis ? semis * 64 / (64 + t * 64 / ms_p) : 0;
         }
     }
     op_box(x0 - 1, y0 - 1, SP_W + 2, h + 2, TE_G1);
-    for (c = 1; c < 4; c++)                            /* an eighth of a second a mark */
+    for (c = 1; c < 4; c++)                            /* a quarter of the span a mark */
         cv_rect(x0 + c * SP_W / 4, y0, 1, h, TE_G1);
     for (i = 0; i < n; i++) {
         int32_t ha = amp[i] * h / 32767, hn = nz[i] * h / 32767, x = x0 + (int32_t)i * 2;
@@ -505,12 +564,14 @@ static void snd_picture(const dslot_t *sl, int32_t x0, int32_t y0, int32_t h)
             cv_rect(x, py, 2, 1, C_WHITE);
         }
     }
-}
-static int snd_pic_fits(uint32_t l, const char *pos)   /* SOUND <name> and its place side by side on one line */
-{
-    char a[28] = "SOUND ";
-    slot_name(&pkit.s[l & 15u], a + 6, sizeof a - 6u);
-    return 4 + text_w(&FONT_S, a) + 8 + text_w(&FONT_S, pos) <= 236;
+    if (span < 1000u) {                                /* the span, at the top right (UK: MS, S; one format: 250MS, 1.0S) */
+        fmt_int(lb, (int32_t)span);
+        str_cpy(lb + str_len(lb), "MS", 3);
+    } else {
+        fmt_int(lb, (int32_t)(span / 1000u));
+        str_cpy(lb + str_len(lb), ".0S", 4);
+    }
+    cv_text(x0 + SP_W - 3 - text_w(&FONT_S, lb), y0, &FONT_S, lb, TE_G3);
 }
 static uint32_t snd_pic_sig(const dslot_t *sl)
 {
@@ -526,7 +587,7 @@ static void drum_main_draw(void)
     static uint32_t head, sa, sb, sc, foot, bar;
     uint32_t l = drum_lane & 15u, len = trk_len(TDRUM), bank = sg_page(), model = drum_model(), i, sig;
     int32_t first = sg_held ? sg_first() : -1;
-    int chrom = drum_keys == DK_CHROM;
+    int chrom = drum_keys == DK_CHROM, lst;
     char sub[28], info[32];
     if (map_lyr && map_vis) {                           /* (wave 12) HOLD LFO: the header says LFO with MASTER's chip */
         map_chip(map_lyr);
@@ -535,6 +596,13 @@ static void drum_main_draw(void)
     } else {
         op_header("DRUM", TE_DRUM, dpg_kit() ? "KIT" : "", &head);   /* (the title place is SELECT's chip: the slot; the
                                                          * kit's pages: KIT, no chip, SELECT does nothing) */
+    }
+    lst = dsnd_list_on();
+    if (lst && (ui.force || dsnd_list_sig() != sa)) {   /* (O2) PRESETS turning: the list over the body, as a synth's PRESETS */
+        sa = dsnd_list_sig(), sb = sa + 1u;
+        cv_begin(240, 109, C_BLACK);
+        dsnd_list();
+        cv_blit(0, SG_BODY_Y);
     }
     /* the name, what is held, the map */
     if (first >= 0) {
@@ -564,7 +632,7 @@ static void drum_main_draw(void)
     }
     sig = studio_hash(drum_map_sig() * 31u + l, sub) + ((drum_mute >> l) & 1u) * 7u + ((drum_solo >> l) & 1u) * 11u +
           (uint32_t)dpg_kit() * 977u;
-    if (ui.force || sig != sa) {
+    if (!lst && (ui.force || sig != sa)) {
         sa = sig;
         cv_begin(240, 54, C_BLACK);
         {
@@ -631,52 +699,32 @@ static void drum_main_draw(void)
     }
     sig = studio_hash(chrom ? fm1_in.notes * 7u + 3u : snd_pic_sig(&pkit.s[l]) + drum_pg * 7u + bank * 131u + len * 977u +
                       (first >= 0 ? drum_trig_sig(l, bank) : 0u), info) + (uint32_t)chrom * 99991u + pkit_gen * 3u + l +
-          dpg_half() * 7919u + pkit.s[l].send * 131u + kfx_count() * 17u;
-    if (ui.force || sig != sb) {
+          dpg_half() * 7919u + pkit.s[l].send * 131u + pkit.s[l].rsv * 337u + kfx_count() * 17u + dpic_sig(l) +
+          (!drum_pg ? patt_tiles_sig() * 40503u : 0u);
+    if (!lst && (ui.force || sig != sb)) {
         sb = sig;
         cv_begin(240, 55, C_BLACK);
         if (chrom) {                                    /* the 27 keys: white 15 px, black over them; the sound's own pitch
                                                          * dotted; a key down lit */
-            static const int8_t W[12] = {0, -1, 1, -1, 2, -1, 3, 4, -1, 5, -1, 6};
-            uint32_t k;
-            for (k = 0; k < 27u; k++)
-                if (W[k % 12u] >= 0) {
-                    int32_t x = ((int32_t)(k / 12u) * 7 + W[k % 12u]) * 15;
-                    uint32_t on = (fm1_in.notes >> k) & 1u;
-                    cv_rect(x + 1, 0, 13, 28, on ? TE_DRUM : TE_G3);
-                    if (k == CHR_KEY0)
-                        te_disc(x + 7, 22, 2, on ? C_BLACK : TE_DRUM);
-                }
-            for (k = 0; k < 27u; k++)
-                if (W[k % 12u] < 0) {
-                    int32_t x = ((int32_t)(k / 12u) * 7 + W[(k - 1u) % 12u]) * 15 + 10;
-                    uint32_t on = (fm1_in.notes >> k) & 1u;
-                    cv_rect(x, 0, 10, 17, on ? TE_DRUM : C_BLACK);
-                    op_box(x, 0, 10, 17, TE_G3);
-                }
+            piano_draw(0, 28, 17, fm1_in.notes, 1u << CHR_KEY0, TE_DRUM, TE_G3);
             cv_text(4, 36, &FONT_S, info, TE_G3);
-        } else if (dpg_sends()) {                       /* (the drum effects under FX) the selected sound's own sends */
-            char a[28] = "SOUND ";
-            slot_name(&pkit.s[l], a + 6, sizeof a - 6u);
-            cv_text(4, 0, &FONT_S, a, TE_DRUM);
-            cv_text_tall(4, 20, "SENDS", TE_DRUM);
-            cv_text(236 - text_w(&FONT_S, sl_kfx_off(l) ? "KIT FX OFF" : "KIT FX ON"), 26, &FONT_S,
-                    sl_kfx_off(l) ? "KIT FX OFF" : "KIT FX ON", sl_kfx_off(l) ? TE_G4 : TE_DRUM);
-            if (first >= 0)
-                cv_text(236 - text_w(&FONT_S, "LOCK ON THE STEP"), 0, &FONT_S, "LOCK ON THE STEP", TE_DRUM);
-        } else if (drum_pg == DPG_FX) {                 /* the FX tab: the kit's own pages (the whole mix's: below) */
+        } else if (dpg_bus()) {                         /* the FX tab: the kit's own pages, their pictures (review 26 Nov,
+                                                         * U3: the INSERT's tile and curve, the SLICER's pattern, the kit
+                                                         * FILTER's curve; no giant word) */
             char a[28];
-            if (dpg_kit()) {                            /* (how many sounds go through: KIT FX ON) */
+            if (first >= 0) {                           /* (a step held: one line, what a knob does now) */
+                str_cpy(a, "LOCK ON THE STEP", sizeof a);
+            } else if (dpg_half() == 0u && !TDRUM->p[P_ITYPE]) {   /* (U2) the empty INSERT: as a synth's empty slot */
+                str_cpy(a, "EMPTY: SELECT PICKS A TYPE", sizeof a);
+            } else {                                    /* (how many sounds go through: KIT FX ON) */
                 str_cpy(a, "THE KIT: ", sizeof a);
                 fmt_int(a + str_len(a), (int32_t)kfx_count());
                 str_cpy(a + str_len(a), " OF 16 SOUNDS", 14);
-            } else {
-                str_cpy(a, "THE WHOLE MIX", sizeof a);
             }
-            cv_text(4, 0, &FONT_S, a, dpg_kit() ? TE_G4 : TE_G4);
-            cv_text_tall(4, 20, PAGES[dbus_page(dpg_half())].title, dpg_kit() ? TE_DRUM : C_WHITE);
-            if (first >= 0)
-                cv_text(236 - text_w(&FONT_S, "LOCK ON THE STEP"), 0, &FONT_S, "LOCK ON THE STEP", TE_DRUM);
+            cv_text(4, 0, &FONT_S, a, first >= 0 ? TE_DRUM : TE_G4);
+            dpic_kit(dpg_half());
+        } else if (!drum_pg && dpg_half() == TH_AD && first < 0) {   /* (review 26 Nov, U4) SEQ > A-D: the four patterns */
+            patt_tiles(0);
         } else if (!drum_pg) {                          /* TRIG, PATTERN, A-D: the step held (its values), the keys' page */
             char a[32], b2[32];
             int xi = first >= 0 ? dt_x((uint32_t)first, l) : -1;
@@ -735,27 +783,36 @@ static void drum_main_draw(void)
                 cv_text(4, 20, &FONT_S, a, TE_G4);
                 cv_text(4, 38, &FONT_S, "HOLD A STEP FOR ITS VALUES", TE_G3);
             }
-        } else {                                        /* a sound page: SOUND 606 SNARE, its place, its picture */
+        } else {                                        /* a sound page: (review V4, "say each once": the title names the
+                                                         * sound) where it comes from and its place, "606 \xB7 8/41", its picture */
             char a[28], g[12];
             int32_t p = snd_pos_of(l, 1);
             if (first >= 0) {                           /* (a step held: its locks; the line above says which step) */
                 cv_text(4, 0, &FONT_S, info, TE_DRUM);
             } else {
-                str_cpy(a, "SOUND ", sizeof a);
-                slot_name(&pkit.s[l], a + 6, sizeof a - 6u);
-                cv_text(4, 0, &FONT_S, a, TE_DRUM);
+                const dslot_t *sd = &pkit.s[l];
+                if (sd->src == DSRC_INIT)
+                    str_cpy(a, "INIT", sizeof a);
+                else
+                    kit_name_of(sd->src, a, 13);
                 if (p >= 0) {
                     uint32_t i2, sz;
                     snd_group(l, (uint32_t)p, g, sizeof g, &i2, &sz);
-                    fmt_int(a, (int32_t)i2);
+                    str_cpy(a + str_len(a), " \xB7 ", 4);
+                    fmt_int(a + str_len(a), (int32_t)i2);
                     str_cpy(a + str_len(a), "/", 2);
                     fmt_int(a + str_len(a), (int32_t)sz);
-                    if (4 + text_w(&FONT_S, "SOUND ") + 8 * 18 + 6 + text_w(&FONT_S, a) <= 236 ||
-                        snd_pic_fits(l, a))                 /* (a long name: its place only where both fit) */
-                        cv_text(236 - text_w(&FONT_S, a), 0, &FONT_S, a, TE_G3);
                 }
+                cv_text(4, 0, &FONT_S, a, TE_DRUM);
             }
-            snd_picture(&pkit.s[l], 4, 20, 32);
+            if (dpg_sends())                            /* (review 26 Nov, U3, "Each page its own picture") */
+                dpic_sends(l);
+            else if (drum_pg == 2u)
+                dpic_filter(l);
+            else if (drum_pg == 4u)
+                dpic_lfo(l);
+            else                                        /* SRC, AMP: the level over time, scaled to the sound */
+                snd_picture(&pkit.s[l], 4, 20, 32);
         }
         cv_blit(0, 76);
     }
@@ -785,8 +842,8 @@ static void drum_main_draw(void)
                 int16_t *hv;
                 const param_desc_t *d = page_desc(pg, k, &hv);
                 int32_t x = -1, vv;
-                if (!d || !hv || id == 0xFFu)
-                    continue;
+                if (!hv || id == 0xFFu || dkit_dead(pg, k, d))
+                    continue;                           /* (an empty INSERT's values: not shown, as a synth's empty slot) */
                 lab[k] = d->label;
                 if (pg->scope == SC_TRACK && first >= 0)
                     x = lock_find(TDRUM, (uint32_t)first, id, 0);
@@ -863,10 +920,7 @@ static void drum_main_draw(void)
             }
         }
         dial_mark = (uint8_t)(dpg_snd() ? dmap_marks() : 0u);   /* (wave 12: the knob the LFO moves) */
-        if (dpg_bus() && PAGES[dbus_page(dpg_half())].fam == FAM_MFX)   /* (the whole mix's: white-grey) */
-            op_dials(lab, val, ratio, locked, dim, TE_G4, drum_pg * 977u + dpg_half() * 31u + pkit_gen, &foot);
-        else
-            drum_dials(lab, val, ratio, locked, dim, drum_pg * 977u + dpg_half() * 31u + pkit_gen, &foot);
+        drum_dials(lab, val, ratio, locked, dim, drum_pg * 977u + dpg_half() * 31u + pkit_gen, &foot);
         dial_mark = 0;
     }
     op_trackbar(&bar);
@@ -973,7 +1027,10 @@ static void drum_grid_input(uint32_t pressed)
         ui.hot_t = 40;
         if (dpg_bus()) {                                /* (wave 8) the FX tab: the drum voice's own pages */
             const page_t *pg = &PAGES[dbus_page(dpg_half())];
-            if (pg->id[k] == 0xFFu)
+            int16_t *hv;
+            const param_desc_t *d = pg->id[k] != 0xFFu ? page_desc(pg, k, &hv) : 0;
+            if (dkit_dead(pg, k, d))                    /* (an empty INSERT: its values do nothing, are not lockable: as a
+                                                         * synth voice's empty slot) */
                 continue;
             if (sg_held && pg->scope != SC_TRACK)
                 ui_message("NOT LOCKABLE");

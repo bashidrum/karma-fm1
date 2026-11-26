@@ -21,6 +21,65 @@
 /* ---- the values */
 static void syn_fmt_type(char *b, uint32_t ty) { str_cpy(b, ty < NVTYPE ? VTYPES[ty].name : "--", 8); }
 /* page pg's four knobs on the selected synth track: labels, values (a step held, first: its lock, inverted), dials */
+/* (review V8, Ben: "Fix all three") OSC 3/4 and 4/4: the voice's voices, not page 1's wave again: POLY eight dots, the ones
+ * sounding filled; UNISON the eight stacked on one note, fanned out as far as DETUNE spreads them; MONO and LEGATO one; the
+ * line under says how they are taken (PRIOR on 3/4, ALLOC on 4/4: ROT goes round, REUSE takes the first free) */
+static void syn_voices(const track_t *t, uint16_t c, uint16_t cd)
+{
+    int32_t vm = clamp(t->p[P_VOICE], 0, 3), i, cy = 76, spread = t->p[P_DETUNE] * 24 / 127;
+    char b[28];
+    for (i = 0; i < NVOICE; i++) {
+        int on = t->v[i].active != 0, x;
+        if (vm == V_UNISON) {
+            x = 120 + (2 * i - (NVOICE - 1)) * spread / 2;
+            cv_rect(x - 1, cy - 12, 3, 24, on ? c : cd);
+        } else if (vm == V_POLY) {
+            x = 22 + i * 28;
+            if (on)
+                te_disc(x, cy, 7, c);
+            else
+                op_box(x - 7, cy - 7, 15, 15, cd);
+        } else if (!i) {
+            if (on)
+                te_disc(120, cy, 9, c);
+            else
+                op_box(111, cy - 9, 19, 19, cd);
+        }
+    }
+    str_cpy(b, vm == V_POLY ? "POLY: 8 VOICES" : vm == V_UNISON ? "UNISON: 8 ON ONE NOTE" : vm == V_MONO ? "MONO: ONE VOICE"
+                                                                                                    : "LEGATO: ONE VOICE", sizeof b);
+    cv_text(4, 94, &FONT_S, b, TE_G3);
+    str_cpy(b, t->p[P_ALLOC] ? "REUSE" : "ROT", 8);
+    cv_text(236 - text_w(&FONT_S, b), 94, &FONT_S, b, TE_G3);
+}
+/* (review V6, Ben: "One format with units") an envelope's value on its dial, both envelopes alike: a time in ms under a second
+ * ("340MS"), then seconds ("1.2S", "12S"); the sustain in % ("80%"). 0: not an envelope's time or level */
+static int env_fmt(uint32_t id, const param_desc_t *d, int32_t x, char *v)
+{
+    int env = (id >= P_ATK && id <= P_REL) || (id >= P_FATK && id <= P_FREL);
+    if (!env)
+        return 0;
+    if (d->fmt == F_TIME) {
+        uint32_t ms10 = TIME_MS_X10[x & 127];
+        if (ms10 < 9995u) {
+            fmt_int(v, (int32_t)((ms10 + 5u) / 10u));
+            str_cpy(v + str_len(v), "MS", 3);
+        } else {
+            if (ms10 < 99500u)
+                fmt_fix(v, (int32_t)((ms10 + 50u) / 100u), 1);
+            else
+                fmt_int(v, (int32_t)((ms10 + 5000u) / 10000u));
+            str_cpy(v + str_len(v), "S", 2);
+        }
+        return 1;
+    }
+    if (d->fmt == F_PCT) {
+        fmt_int(v, d->max > 0 ? (x * 100 + d->max / 2) / d->max : x);
+        str_cpy(v + str_len(v), "%", 2);
+        return 1;
+    }
+    return 0;                                           /* (ENV SYNC on: the note values, as they are) */
+}
 static void syn_vals(const page_t *pg, int32_t first, const char *lab[4], char v[4][12], int32_t ratio[4], uint32_t *locked,
                      uint32_t *dim)
 {
@@ -85,7 +144,8 @@ static void syn_vals(const page_t *pg, int32_t first, const char *lab[4], char v
             if (!p_lockable(id))
                 *dim |= 1u << k;
         }
-        param_format(d, x, v[k], &u);
+        if (!env_fmt(id, d, x, v[k]))
+            param_format(d, x, v[k], &u);
         dval_fit(v[k]);
         ratio[k] = d->max > d->min ? (x - d->min) * 1000 / (d->max - d->min) : -1;
     }
@@ -188,14 +248,13 @@ static void syn_adsr(const track_t *t, uint32_t a_id, int32_t x0, int32_t x1, in
 #undef SY
 #undef SL
 }
-/* the filter's response at TYPE: CUTOFF (0..127), RESO, the ENV amount's sweep (shaded, as far as it opens it) */
-static void syn_filter(const track_t *t, uint16_t c, uint16_t cd)
+/* the filter's response at TYPE: CUTOFF (0..127), RESO, the ENV amount's sweep (shaded, as far as it opens it). (Review 26
+ * Nov, U3) by value, so the drum screen's FLTR and KIT FLT draw the same picture: ty VF_NTYPE an open filter (OFF), flat */
+static void syn_filter_at(uint32_t ty, int32_t cut, int32_t res, int32_t env, int32_t drv, int32_t key, uint16_t c, uint16_t cd)
 {
-    const int16_t *p = t->p;
-    uint32_t ty = (uint32_t)p[P_FTYPE] % VF_NTYPE;
-    int32_t w = SP_R - SP_L - 20, y0 = SP_T + 12 - p[P_FDRV] * 8 / 127, xc = SP_L + 10 + p[P_FCUT] * w / 127;   /* (DRIVE:
+    int32_t w = SP_R - SP_L - 20, y0 = SP_T + 12 - drv * 8 / 127, xc = SP_L + 10 + cut * w / 127;   /* (DRIVE:
                                                          * the passband lifted, louder into the ladder) */
-    int32_t r = p[P_FRES] * (SP_B - SP_T - 8) / 127, env = p[P_ED_FLT], xe = clamp(xc + env * w / 64, SP_L, SP_R), x;
+    int32_t r = res * (SP_B - SP_T - 8) / 127, xe = clamp(xc + env * w / 64, SP_L, SP_R), x;
     int32_t k = ty == VF_LP24 ? 10 : ty == VF_LP12 || ty == VF_HP ? 5 : 6;
     gp_dots(y0);
     for (x = xe; x != xc; x += xe > xc ? -3 : 3) {      /* the sweep: from where the envelope takes it, back */
@@ -206,19 +265,28 @@ static void syn_filter(const track_t *t, uint16_t c, uint16_t cd)
     gp_go = 0;
     for (x = SP_L; x <= SP_R; x += 2) {
         int32_t dd = x - xc, v = 0;
-        if (ty == VF_HP || ty == VF_BP)
-            v += dd < 0 ? -dd * k / 8 : 0;
-        if (ty != VF_HP)
-            v += dd > 0 ? dd * k / 8 : 0;
-        if (ty == VF_BP)
-            v += 6;
-        if (dd > -16 && dd < 16)
-            v -= r * (256 - dd * dd) / 256;
+        if (ty < VF_NTYPE) {
+            if (ty == VF_HP || ty == VF_BP)
+                v += dd < 0 ? -dd * k / 8 : 0;
+            if (ty != VF_HP)
+                v += dd > 0 ? dd * k / 8 : 0;
+            if (ty == VF_BP)
+                v += 6;
+            if (dd > -16 && dd < 16)
+                v -= r * (256 - dd * dd) / 256;
+        }
         gp_to(x, y0 + v, c);
     }
+    if (ty >= VF_NTYPE)
+        return;
     cv_rect(xc - 1, SP_B - 3, 3, 4, C_WHITE);           /* where CUTOFF is */
-    if (p[P_FKEY])                                      /* KEY: the cutoff follows the note, a slope through it */
-        cv_line(xc - 14, SP_B - 2, xc + 14, SP_B - 2 - p[P_FKEY] * 12 / 127, C_WHITE);
+    if (key)                                            /* KEY: the cutoff follows the note, a slope through it */
+        cv_line(xc - 14, SP_B - 2, xc + 14, SP_B - 2 - key * 12 / 127, C_WHITE);
+}
+static void syn_filter(const track_t *t, uint16_t c, uint16_t cd)
+{
+    const int16_t *p = t->p;
+    syn_filter_at((uint32_t)p[P_FTYPE] % VF_NTYPE, p[P_FCUT], p[P_FRES], p[P_ED_FLT], p[P_FDRV], p[P_FKEY], c, cd);
 }
 /* the LFO: two cycles of its wave, running, "now" a dot (as graph_lfo, in the body's rows) */
 static void syn_lfo(track_t *t, uint16_t c)
@@ -265,7 +333,7 @@ static void syn_fx_slots(const track_t *t, uint32_t cur, uint16_t c, uint16_t cd
         int32_t x = 2 + (int32_t)k * 79, ty = clamp(t->p[P_XS(k, 0)], 0, XT_N - 1);
         if (xt_send(ty))
             ty = XT_OFF;                                /* (wave 8: no slot type: shown as it plays, OFF) */
-        char lb[4] = {'F', 'X', (char)('1' + k), 0};
+        char lb[5] = {'F', 'X', ' ', (char)('1' + k), 0};   /* (review V2: FX 1) */
         uint16_t fg = ty ? (k == cur ? C_WHITE : c) : TE_G3;
         if (k == cur)
             cv_rect(x, 2, 77, 40, cd);
@@ -328,37 +396,40 @@ static void syn_fx_pic(const track_t *t, uint32_t k, uint16_t c)
 }
 /* (wave 8) SENDS: how much of this voice goes to the whole mix's DELAY, REVERB and CHORUS, three boxes over the knobs: the
  * echoes, the tail, the doubled wave, each as tall as its send (their settings are the FX button's pages: not drawn here) */
+static void syn_send_box(uint32_t k, int32_t a, uint16_t c, uint16_t cd)   /* (U3: one box, k 0 DELAY 1 REVERB 2 CHORUS) */
+{
+    int32_t i, x, x0 = 4 + (int32_t)k * 60, hh = SP_B - SP_T - 4, h;
+    a = clamp(a, 0, 127), h = hh * a / 127;
+    op_box(x0, SP_T, 52, SP_B - SP_T + 1, a ? cd : TE_G2);
+    if (!a) {
+        cv_rect(x0 + 4, SP_B - 3, 44, 1, TE_G2);
+        return;
+    }
+    if (k == 0u)                                        /* DELAY: the sound, then its echoes */
+        for (i = 0, x = h; i < 5 && x > 0; i++, x = x * 2 / 3)
+            cv_rect(x0 + 5 + i * 9, SP_B - 2 - x, 4, x, i ? cd : c);
+    else if (k == 1u)                                   /* REVERB: a tail */
+        for (i = 0; i < 44; i += 2)
+            cv_rect(x0 + 4 + i, SP_B - 2 - h * (44 - i) / 44, 1, h * (44 - i) / 44 + 1, c);
+    else {                                              /* CHORUS: the wave and its second voice */
+        int32_t py = SP_M, py2 = SP_M;
+        for (i = 0; i <= 44; i++) {
+            int32_t v = SINE[((uint32_t)i * 23u) & 1023u], v2 = SINE[((uint32_t)i * 23u + 90u) & 1023u];
+            int32_t y = SP_M - ((v * (h / 2)) >> 15), y2 = SP_M - ((v2 * (h / 2)) >> 15);
+            if (i) {
+                cv_line(x0 + 3 + i, py2, x0 + 4 + i, y2, cd);
+                cv_line(x0 + 3 + i, py, x0 + 4 + i, y, c);
+            }
+            py = y, py2 = y2;
+        }
+    }
+}
 static void syn_sends(const track_t *t, uint16_t c, uint16_t cd)
 {
     static const uint8_t ID[3] = {P_DLY, P_REV, P_CHOR};
     uint32_t k;
-    int32_t i, x;
-    for (k = 0; k < 3u; k++) {
-        int32_t x0 = 4 + (int32_t)k * 60, a = clamp(t->p[ID[k]], 0, 127), hh = SP_B - SP_T - 4, h = hh * a / 127;
-        op_box(x0, SP_T, 52, SP_B - SP_T + 1, a ? cd : TE_G2);
-        if (!a) {
-            cv_rect(x0 + 4, SP_B - 3, 44, 1, TE_G2);
-            continue;
-        }
-        if (k == 0u)                                    /* DELAY: the sound, then its echoes */
-            for (i = 0, x = h; i < 5 && x > 0; i++, x = x * 2 / 3)
-                cv_rect(x0 + 5 + i * 9, SP_B - 2 - x, 4, x, i ? cd : c);
-        else if (k == 1u)                               /* REVERB: a tail */
-            for (i = 0; i < 44; i += 2)
-                cv_rect(x0 + 4 + i, SP_B - 2 - h * (44 - i) / 44, 1, h * (44 - i) / 44 + 1, c);
-        else {                                          /* CHORUS: the wave and its second voice */
-            int32_t py = SP_M, py2 = SP_M;
-            for (i = 0; i <= 44; i++) {
-                int32_t v = SINE[((uint32_t)i * 23u) & 1023u], v2 = SINE[((uint32_t)i * 23u + 90u) & 1023u];
-                int32_t y = SP_M - ((v * (h / 2)) >> 15), y2 = SP_M - ((v2 * (h / 2)) >> 15);
-                if (i) {
-                    cv_line(x0 + 3 + i, py2, x0 + 4 + i, y2, cd);
-                    cv_line(x0 + 3 + i, py, x0 + 4 + i, y, c);
-                }
-                py = y, py2 = y2;
-            }
-        }
-    }
+    for (k = 0; k < 3u; k++)
+        syn_send_box(k, t->p[ID[k]], c, cd);
 }
 /* (wave 5) the grid (mock-synth-mod-A): the sources down, the destinations across (seven at a time, the cursor's half), a dot
  * a cell, as large as its amount, a ring when negative, the cursor framed white */
@@ -367,20 +438,21 @@ static void syn_matrix(const track_t *t, uint16_t c)
     uint8_t cols[MD_N];
     uint32_t ti = (uint32_t)(t - trk) % NPART, r, j, n = mx_vis(ti, cols), cp = mx_vis_pos(ti, (uint32_t)mx_col);
     uint32_t j0 = (uint32_t)clamp((int32_t)cp - 5, 0, (int32_t)n - 6);
+    uint16_t cm = TE_MID[song.sel & 3u];                /* (review V8) the voice's colour, dim: the heads not at the cursor */
     char nm[8];
     for (j = j0; j < j0 + 6u && j < n; j++) {           /* (wave 11: an assignable column is named by its parameter, white-grey
                                                          * as every head; "+" the empty one that makes another) */
         mx_col_name(ti, cols[j], nm);
-        cv_text(38 + (int32_t)(j - j0) * 32 + (32 - text_w(&FONT_S, nm)) / 2, 0, &FONT_S, nm,
-                j == cp ? C_WHITE : cols[j] >= MD_AS1 ? TE_G4 : TE_G3);
+        cv_text_tight(38 + (int32_t)(j - j0) * 32 + (32 - cv_text_tight(0, 0, nm, 0, 0)) / 2, 0, nm,
+                      j == cp ? c : cm, 1);   /* (review V8: the voice's colour, the cursor's bright, the rest dim) */
     }
     if (j0)                                             /* (more columns either side: the cursor slides the view) */
-        cv_text(31, 0, &FONT_S, "<", TE_G2);
+        cv_text(31, 0, &FONT_S, "<", cm);
     if (j0 + 6u < n)
-        cv_text(232, 0, &FONT_S, ">", TE_G2);
+        cv_text(232, 0, &FONT_S, ">", cm);
     for (r = 0; r < MS_N; r++) {
         int32_t y = 16 + (int32_t)r * 13;
-        cv_text(2, y - 2, &FONT_S, N_MSRC[r], r == (uint32_t)mx_row ? C_WHITE : TE_G4);
+        cv_text_tight(2, y - 2, N_MSRC[r], r == (uint32_t)mx_row ? c : cm, 1);
         for (j = j0; j < j0 + 6u && j < n; j++) {
             uint32_t d = cols[j];
             int32_t x = 38 + (int32_t)(j - j0) * 32 + 16, a = mx_get(ti, r, d), cy = y + 5, rad;
@@ -394,10 +466,128 @@ static void syn_matrix(const track_t *t, uint16_t c)
             else
                 op_box(x - rad, cy - rad, 2 * rad + 1, 2 * rad + 1, c);
             if (r == (uint32_t)mx_row && j == cp)
-                op_box(x - 13, y - 1, 27, 13, C_WHITE);
+                op_box(x - 13, y - 1, 27, 13, c);
         }
     }
 }
+
+/* ---- (review 26 Nov, U3, Ben's picker "Each page its own picture") the drum screen's pictures: the synth pages' drawings,
+ * in the drums' teal, in the drum screen's lower band (its rows 20 to 52, under the line that names the sound or the kit):
+ * FLTR the filter's response (syn_filter_at), LFO the wave, SENDS the send boxes (syn_send_box) and the kit's KIT FX, the
+ * kit's INS its tile and curve (gp_insert_in), SLICER the pattern (syn_slicer), KIT FLT the kit filter's curve. Worked out
+ * from the values, as the synth pages' (no RAM, no rendering) */
+#define DP_T 20
+#define DP_B 52
+static int32_t dpic_val(uint32_t l, uint32_t id, int32_t lo, int32_t hi)   /* sound l's id on a scale of lo..hi */
+{
+    const param_desc_t *d = dsp_desc(sl_mach(l), lane_snd(l), id);
+    if (!d)
+        return lo;
+    return lo + (snd_val(l, id) - d->min) * (hi - lo) / (d->max > d->min ? d->max - d->min : 1);
+}
+static void dpic_filter(uint32_t l)
+{
+    uint32_t ty;
+    int32_t cut, res, env = 0, drv;
+    sp_t = DP_T, sp_b = DP_B;
+    if (sl_mach(l)) {                                   /* CLASSIC: OFF LP BP HP, LP+ BP+ HP+ (the tone through it too) */
+        static const uint8_t TY[7] = {VF_NTYPE, VF_LP12, VF_BP, VF_HP, VF_LP12, VF_BP, VF_HP};
+        ty = TY[(uint32_t)snd_val(l, DSP_S0 + DS_FTYPE) % 7u];
+        cut = dpic_val(l, DSP_S0 + DS_FREQ, 0, 127), res = dpic_val(l, DSP_S0 + DS_RES, 0, 127);
+        env = snd_val(l, DSP_S0 + DS_FENV), drv = dpic_val(l, DSP_S0 + DS_DRIVE, 0, 127);
+    } else {                                            /* HEX: LP HP BP UBP NTCH PEAK LP2 OFF (the band ones drawn as BP) */
+        static const uint8_t TY[8] = {VF_LP12, VF_HP, VF_BP, VF_BP, VF_BP, VF_BP, VF_LP24, VF_NTYPE};
+        ty = TY[(uint32_t)snd_val(l, DSP_FTYPE) % 8u];
+        cut = dpic_val(l, DSP_CUT, 0, 127), res = dpic_val(l, DSP_RES, 0, 127), drv = dpic_val(l, DSP_DRIVE, 0, 127);
+    }
+    syn_filter_at(ty, cut, res, env, drv, 0, TE_DRUM, TE_DIM[3]);
+    sp_t = 40, sp_b = 114;
+}
+static void dpic_lfo(uint32_t l)                        /* two cycles of the sound's LFO from where a hit starts it (the white
+                                                         * square), as tall as its DEPTH (none: the shape, dim) */
+{
+    const dlfo_t *f = &pkit.s[l & 15u].lfo;
+    int32_t x, py = 0, a, dep = f->dep, mag = dep < 0 ? -dep : dep;
+    uint32_t ph0 = (uint32_t)f->sph << 25, step = 0xFFFFFFFFu / (uint32_t)((SP_R - SP_L) / 2);
+    sp_t = DP_T, sp_b = DP_B;
+    a = (SP_B - SP_T) / 2 - 1;
+    if (mag)
+        a = a * (mag < 16 ? 16 : mag) / 64;             /* (a quarter at least: the shape stays readable) */
+    gp_dots(SP_M);
+    for (x = SP_L; x <= SP_R; x++) {
+        uint32_t ph = ph0 + (uint32_t)(x - SP_L) * step;
+        int32_t w = f->wav % 5u == 4u ? gp_noise((x - SP_L) * 16 / (SP_R - SP_L) + 1)   /* (S&H: held steps) */
+                                      : dlfo_wave(f->wav % 5u, ph, 0);
+        int32_t y = SP_M - (dep < 0 ? -w : w) * a / 32768;
+        if (x > SP_L)
+            cv_line(x - 1, py, x, y, mag ? TE_DRUM : TE_DIM[3]);
+        else
+            cv_rect(x - 2, y - 2, 5, 5, C_WHITE);       /* (drawn first: the line runs from it) */
+        py = y;
+    }
+    sp_t = 40, sp_b = 114;
+}
+static void dpic_sends(uint32_t l)                      /* DELAY, REVERB as a synth voice's; KIT FX: the kit's 16 sounds, those
+                                                         * through its effects lit, this one bright (OFF: its tile empty) */
+{
+    uint32_t i, off = sl_kfx_off(l);
+    int32_t x0 = 124;
+    sp_t = DP_T, sp_b = DP_B;
+    syn_send_box(0, (int32_t)sl_send(l, 1), TE_DRUM, TE_DIM[3]);
+    syn_send_box(1, (int32_t)sl_send(l, 0), TE_DRUM, TE_DIM[3]);
+    op_box(x0, SP_T, 52, SP_B - SP_T + 1, off ? TE_G2 : TE_DIM[3]);
+    for (i = 0; i < DRUM_LANES; i++) {                  /* (the drum grid's places, as the map above) */
+        uint32_t l2 = DRUM_GRID[i];
+        int32_t x = x0 + 4 + (int32_t)(i % 4u) * 11, y = SP_T + 4 + (int32_t)(i / 4u) * 7;
+        if (l2 == (l & 15u))
+            (off ? op_box : cv_rect)(x, y, 9, 5, off ? TE_G3 : TE_DRUM);
+        else
+            cv_rect(x, y, 9, 5, sl_kfx_off(l2) ? TE_G1 : TE_DIM[3]);
+    }
+    sp_t = 40, sp_b = 114;
+}
+static void dpic_kit(uint32_t h)                        /* the kit's FX tab half h: INSERT, SLICER, FILTER */
+{
+    const track_t *t = TDRUM;
+    sp_t = DP_T, sp_b = DP_B;
+    if (h == 0u) {                                      /* INS: its tile (a synth FX slot's, the one there is), its curve */
+        int32_t ty = clamp(t->p[P_ITYPE], 0, IT_N - 1);
+        cv_rect(2, SP_T - 1, 77, SP_B - SP_T + 3, TE_DIM[3]);
+        op_box(2, SP_T - 1, 77, SP_B - SP_T + 3, C_WHITE);
+        cv_text(6, SP_T, &FONT_S, "INS", C_WHITE);
+        if (ty)
+            cv_rect(66, SP_T + 4, 7, 7, C_WHITE);       /* on */
+        cv_text(6, SP_T + 16, &FONT_S, N_ITYPE[ty], ty ? C_WHITE : TE_G3);
+        gp_insert_in(t, TE_DRUM, 92, SP_R);
+    } else if (h == DBH_SLICER) {
+        syn_slicer(t, TE_DRUM);
+    } else {                                            /* KIT FLT: < 0 a low-pass closing, > 0 a high-pass opening */
+        int32_t tf = t->p[P_TFLT];
+        syn_filter_at(tf < 0 ? VF_LP12 : tf > 0 ? VF_HP : VF_NTYPE, tf < 0 ? 127 + tf * 127 / 64 : tf * 127 / 63, 0, 0, 0, 0,
+                      TE_DRUM, TE_DIM[3]);
+    }
+    sp_t = 40, sp_b = 114;
+}
+static uint32_t dpic_sig(uint32_t l)                    /* what the pictures show, for the redraw */
+{
+    const track_t *t = TDRUM;
+    uint32_t s = 0, i;
+    const uint8_t *lf = (const uint8_t *)&pkit.s[l & 15u].lfo;
+    for (i = 0; i < sizeof(dlfo_t); i++)
+        s = s * 31u + lf[i];
+    for (i = 0; i < DRUM_LANES; i++)
+        s = s * 3u + sl_kfx_off(i);
+    for (i = P_ITYPE; i <= P_IMIX; i++)
+        s = s * 131u + (uint32_t)(uint16_t)t->p[i];
+    for (i = P_SLCR; i <= P_SLDEPTH; i++)
+        s = s * 131u + (uint32_t)(uint16_t)t->p[i];
+    s = s * 131u + (uint32_t)(uint16_t)t->p[P_TFLT];
+    if (drum_pg == DPG_FX && ((dpg_half() == 0u && t->p[P_ITYPE] >= IT_PHASER) || (dpg_half() == DBH_SLICER && t->p[P_SLCR])))
+        s ^= (ui.frame / 2u + 1u) * 40503u;             /* (the INSERT's sweep runs, the SLICER's step) */
+    return s;
+}
+#undef DP_T
+#undef DP_B
 
 /* the body of a sound page (240 x 109 at y 22): the subject large, a line, the drawing */
 static void syn_body(track_t *t, const page_t *pg, uint32_t half, uint32_t *cache)
@@ -437,7 +627,7 @@ static void syn_body(track_t *t, const page_t *pg, uint32_t half, uint32_t *cach
         fmt_int(sub + str_len(sub), (int32_t)NVTYPE);
         if (ty < NVTYPE && VTYPES[ty].eng == ENGI_PRISM && prism_model(t) >= PRM_PLX &&
             plx_stride(prism_model(t) - PRM_PLX) > eng_arena_size(t))
-            str_cpy(sub + str_len(sub), "  NOT ON THIS TRACK", 20);   /* (the device build's limit: engines.c) */
+            str_cpy(sub + str_len(sub), "  NOT ON THIS VOICE", 20);   /* (the device build's limit: engines.c) */
         if (half == 1u) {                               /* OCT TUNE GLIDE VOICE: the pitch on a scale of +-3 octaves, the
                                                          * voice's ways */
             int32_t px = 120 + (t->p[P_OCT] * 1200 + t->p[P_TUNE]) * 108 / 3600, o;
@@ -447,8 +637,14 @@ static void syn_body(track_t *t, const page_t *pg, uint32_t half, uint32_t *cach
             cv_rect(px - 2, SP_T - 9, 5, 7, c);
             gp_voice(t, c);
         }
+        else if (half >= 2u)                            /* (review V8) OSC 3/4 and 4/4: the voices, not page 1's wave again */
+            syn_voices(t, c, TE_DIM[v]);
+        else if (t->eng_req % NENGINES == ENGI_PRISM && (prism_model(t) == PRM_FOLD || prism_model(t) == PRM_WAVE ||
+                                                         prism_model(t) == PRM_HARM))
+            op_prism_panel(t, 6, SP_T - 6, 0);          /* (FOLD, WAVE, HARM: the model's own picture, across the width as
+                                                         * every wave, review V8) */
         else if (t->eng_req % NENGINES == ENGI_PRISM && prism_model(t) < PRM_PLX)
-            op_prism_panel(t, 80, SP_T - 6, 1);         /* (FOLD, SWARM, WAVE, HARM, CHORD: the model's own picture) */
+            op_prism_panel(t, 80, SP_T - 6, 1);         /* (SWARM, CHORD: the model's own picture) */
         else
             gp_osc(t, c);
         break;
@@ -468,18 +664,7 @@ static void syn_body(track_t *t, const page_t *pg, uint32_t half, uint32_t *cach
         str_cpy(big, filt ? "FILTER" : "AMP", 16);
         str_cpy(sub, filt ? (link ? "LINKED TO THE AMP ENV" : "ITS OWN ADSR") : (link ? "THE FILTER FOLLOWS IT" : "THE VOICE'S LEVEL"),
                 40);
-        x = 236 - text_w(&FONT_S, "FILT") - 6;          /* AMP | FILT, the one shown filled */
-        if (filt) {
-            op_box(x - text_w(&FONT_S, "AMP") - 12, 4, text_w(&FONT_S, "AMP") + 8, 18, TE_G3);
-            cv_text(x - text_w(&FONT_S, "AMP") - 8, 5, &FONT_S, "AMP", TE_G3);
-            cv_rect(x, 4, text_w(&FONT_S, "FILT") + 6, 18, c);
-            cv_text(x + 3, 5, &FONT_S, "FILT", C_BLACK);
-        } else {
-            cv_rect(x - text_w(&FONT_S, "AMP") - 12, 4, text_w(&FONT_S, "AMP") + 8, 18, c);
-            cv_text(x - text_w(&FONT_S, "AMP") - 8, 5, &FONT_S, "AMP", C_BLACK);
-            op_box(x, 4, text_w(&FONT_S, "FILT") + 6, 18, TE_G3);
-            cv_text(x + 3, 5, &FONT_S, "FILT", TE_G3);
-        }
+        (void)x;                                        /* (review V4: no AMP | FILT chips: the tab row says it) */
         cv_rect(0, SP_B + 1, 240, 1, TE_G1);
         if (filt && !link)                              /* the other envelope faint behind (both shapes) */
             syn_adsr(t, P_ATK, SP_L, SP_R, SP_T, SP_B, TE_DIM[v], 0);
@@ -526,7 +711,7 @@ static void syn_body(track_t *t, const page_t *pg, uint32_t half, uint32_t *cach
             cv_blit(0, 22);
             return;
         }
-        str_cpy(big, pg->graph == GR_LFO2 ? "LFO 2" : "LFO", 16);
+        str_cpy(big, pg->graph == GR_LFO2 ? "LFO 2" : W_LFO1, 16);   /* (review V2: LFO 1) */
         if (pg->graph == GR_LFO2) {                     /* (wave 5) the second LFO, running */
             const mxt_t *m = &mxt[song.sel % NPART];
             int32_t x, py = SP_M, ny = SP_M, a;

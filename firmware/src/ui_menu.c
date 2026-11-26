@@ -1,165 +1,165 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
-/* SLOOP menu (HOME held), in sections as the pages are (2.4): SCREEN (COLOR, ZOOM), LIGHTS (LIGHTS, KEYS, NOTES),
- * AUDIO (LOWCUT, USB AUDIO, USB SERIAL), SYSTEM (HARDWARE CALIBRATION, LEARN CLEAR (2.6), ABOUT). (wave 9: SEL, the PAGE button, goes to the next section; GLO to GLOBAL) goes to the section
- * before / after (stopping at the ends), KNOB 1..3 set the section's settings in order (the knob's colour marks
- * its row; wave 9: SEL, the PAGE button, the next section, GLO the next category GLOBAL), PRESETS moves the cursor; OCT+ steps the cursor's setting round or opens it (CALIBRATION, ABOUT),
- * OCT- closes (from ABOUT: back to the section). */
-/* ------------------------------------------------------------ menu --- */
-enum { MI_COLOR, MI_ZOOM, MI_DISCO, MI_LIGHTS, MI_KEYS, MI_NOTES, MI_LOWCUT, MI_USB, MI_SERIAL, MI_PANEL, MI_LCLEAR, MI_ABOUT,
-       MI_COUNT };
-static const char *const MI_NAME[MI_COUNT] = {"COLOR", "ZOOM", "DISCO", "LIGHTS", "KEYS", "NOTES", "SPEAKER LOWCUT", "USB AUDIO",
-                                              "USB SERIAL", "HARDWARE CALIBRATION", "MIDI LEARN CLEAR", "ABOUT"};
-enum { MS_SCREEN, MS_LIGHTS, MS_AUDIO, MS_SYSTEM, MS_COUNT };
-static const char *const MS_NAME[MS_COUNT] = {"SCREEN", "LIGHTS", "AUDIO", "SYSTEM"};   /* (AUDIO: and USB) */
-static const uint8_t MS_FIRST[MS_COUNT + 1] = {MI_COLOR, MI_DISCO, MI_LOWCUT, MI_PANEL, MI_COUNT};   /* rows of each */
+/* GLO > DEVICE: the FM-1's own settings (SLOOP's menu, 2.4; KARMA kept the sections). (Review U5, Ben 26 Nov 2026: "Redraw in
+ * the GLO frame") its sections are four normal GLO pages now (params.c PAGES: SCREEN, LIGHTS, AUDIO, TOOLS), with the header
+ * GLO, the tab row and the dials every GLO page has; SEL the next page, GLO the next category, OCT- / OCT+ step the knob last
+ * turned as on any page (never back to HOME). The knobs are virtual ids (V_COLOR ..): dev_desc says what each is, dev_edit
+ * turns it. MIDI LEARN's CLEAR moved beside LEARN (GLO > MIDI 3). TOOLS: CALIB (the hardware calibration) and ABOUT, opened
+ * by a turn right; ABOUT is a screen over the page (ui.menu = 2), OCT- back to TOOLS. The settings are kept with the
+ * settings (settings_later: saved once quiet, as GLO > SYSTEM's) */
 static const char *const DISCO_NAME[DISCO_N] = {"QUIET", "NORMAL", "SHOW"};   /* (wave 11) how much the lights move */
 static const char *const LIGHTS_NAME[LIGHTS_N] = {"OFF", "LOW", "MID", "HIGH"};   /* every button lit, the labels readable */
-static const char *const KEYS_NAME[KEYS_N] = {"OFF", "C KEYS", "WHITE KEYS", "ALL KEYS"};      /* keys lit too, at the LIGHTS level */
-#define MI_Y0 26                                   /* the first row, under the section tabs */
-#define MI_DY 50                                   /* a row: the label, the value in large type */
-#define MI_DY4 44                                  /* (wave 11) a row of a four-row section (LIGHTS) */
+static const char *const KEYS_NAME[KEYS_N] = {"OFF", "C", "WHITE", "ALL"};   /* keys lit too, at the LIGHTS level (C: the C
+                                                         * keys; review V2: six characters at most) */
+static const char *const PAL_NAME[] = {"GREEN", "AMBER", "CYAN", "RED", "MONO"};   /* (gfx.c PALETTES, in order) */
+static const char *const USB_NAME[] = {"MIX", "FULL", "STEMS"};   /* (USB AUDIO: the whole mix (was MASTER), every voice, STEMS) */
+_Static_assert(sizeof PAL_NAME / sizeof PAL_NAME[0] == NPALETTES, "a name for each palette");
 
-static uint32_t mi_sec(uint32_t i)                 /* the section of item i */
+/* knob id's description and its value now (in vtype_shown, params.c) */
+static const param_desc_t *dev_desc(uint32_t id, int16_t **valp)
 {
-    uint32_t k = 0;
-    while (k + 1u < MS_COUNT && i >= MS_FIRST[k + 1u])
-        k++;
-    return k;
+    static const param_desc_t D[] = {
+        [V_COLOR - V_DEV0] = PE("COLOUR", PAL_NAME, 0), [V_ZOOM - V_DEV0] = PE("ZOOM", N_ONOFF, 0),
+        [V_DISCO - V_DEV0] = PE("DISCO", DISCO_NAME, 1), [V_LIGHTS - V_DEV0] = PE("LIGHTS", LIGHTS_NAME, 0),
+        [V_KEYS - V_DEV0] = PE("KEYS", KEYS_NAME, 0), [V_NOTES - V_DEV0] = PE("NOTES", N_ONOFF, 0),
+        [V_LOWCUT - V_DEV0] = PE("LOWCUT", N_ONOFF, 0), [V_USB - V_DEV0] = PE("USB", USB_NAME, 0),
+        [V_SERIAL - V_DEV0] = PE("SERIAL", N_ONOFF, 0), [V_CALIB - V_DEV0] = PE("CALIB", N_GO, 0),
+        [V_ABOUT - V_DEV0] = PE("ABOUT", N_GO, 0), [V_LCLEAR - V_DEV0] = PE("CLEAR", N_GO, 0),
+    };
+    int32_t v = 0;
+    switch (id) {
+    case V_COLOR: v = (int32_t)settings.palette; break;
+    case V_ZOOM: v = settings.zoom != 0; break;
+    case V_DISCO: v = disco % DISCO_N; break;
+    case V_LIGHTS: v = lights_lvl % LIGHTS_N; break;
+    case V_KEYS: v = lights_keys % KEYS_N; break;
+    case V_NOTES: v = lights_notes != 0; break;
+    case V_LOWCUT: v = settings.lowcut != 0; break;
+    case V_USB: v = usb_stems_set ? 2 : usb_full ? 1 : 0; break;
+    case V_SERIAL: v = usb_serial != 0; break;
+    default: break;                                    /* (CALIB, ABOUT, CLEAR: actions, "--") */
+    }
+    vtype_shown = (int16_t)v;
+    *valp = &vtype_shown;
+    return &D[(id - V_DEV0) % (sizeof D / sizeof D[0])];
 }
-static uint32_t mi_row(uint32_t i) { return i - MS_FIRST[mi_sec(i)]; }   /* its row: KNOB 1 + row sets it */
-
-/* item i's value as shown, and its colour */
-static const char *mi_value(uint32_t i, uint16_t *c)
+/* a value that does nothing now (dim): KEYS without LIGHTS, NOTES when QUIET, CLEAR with nothing learned */
+static int dev_dim(uint32_t id)
 {
-    *c = C_HI;
-    switch (i) {
-    case MI_COLOR: return PALETTES[settings.palette].name;
-    case MI_ZOOM: return settings.zoom ? "ON" : "OFF";
-    case MI_DISCO: return DISCO_NAME[disco % DISCO_N];
-    case MI_LIGHTS: return LIGHTS_NAME[lights_lvl % LIGHTS_N];
-    case MI_KEYS:
-        *c = lights_lvl ? C_HI : C_DIM;               /* (needs LIGHTS) */
-        return KEYS_NAME[lights_keys % KEYS_N];
-    case MI_NOTES:
-        *c = disco == DISCO_QUIET ? C_DIM : C_HI;        /* (QUIET: no notes, whatever this says) */
-        return lights_notes ? "ON" : "OFF";
-    case MI_LOWCUT: return settings.lowcut ? "ON" : "OFF";
-    case MI_USB: return usb_stems_set ? "STEMS" : usb_full ? "FULL" : "MASTER";
-    case MI_SERIAL: return usb_serial ? "ON" : "OFF";
-    case MI_LCLEAR: {                                 /* (2.6) the CCs MIDI LEARN holds; OCT+ clears them */
-        static char b[8];
-        uint32_t n = ml_count();
-        if (!n) {
-            *c = C_DIM;
-            return "NONE";
-        }
-        fmt_int(b, (int32_t)n);
-        str_cpy(b + str_len(b), " CC", 4);
-        return b;
-    }
-    default:
-        *c = C_DIM;
-        return "";                                    /* (an action: OCT+ opens it) */
-    }
+    return (id == V_KEYS && !lights_lvl) || (id == V_NOTES && disco == DISCO_QUIET) || (id == V_LCLEAR && !ml_count());
+}
+/* the change waiting for the next start (USB AUDIO, USB SERIAL: usb.c) */
+static int dev_restart(uint32_t id)
+{
+    return (id == V_SERIAL && usb_serial != usb_cdc_now()) || (id == V_USB && usb_stems_set != USB_STEMS_NOW);
 }
 
-static void draw_menu(void)
+static void ask_set(uint32_t kind, uint32_t arg, const char *what);   /* (ui_input.c) */
+static int32_t dev_step(int32_t v, int32_t s, int32_t n) { return clamp(v + s, 0, n - 1); }
+/* knob id turned s (> 0 right, < 0 left): the setting, stopping at the ends; the actions on a turn right */
+static void dev_edit(uint32_t id, int32_t s)
 {
-    uint32_t i, pass, sec = mi_sec(ui.menu_sel % MI_COUNT);
-    uint32_t sig = ui.menu * 7u + ui.menu_sel * 131u + settings.palette * 1009u + settings.lowcut * 7919u +
-                   settings.zoom * 104729u + lights_lvl * 1299709u + lights_keys * 15485863u + ml_count() * 2654435u +
-                   lights_notes * 32452843u + disco * 7741u + usb_full * 49979687u + usb_serial * 86028121u + usb_stems_set * 15485863u;
-    if (!ui.force && sig == ui.menu_sig)
+    if (!s)
         return;
-    ui.menu_sig = sig;
-    if (ui.force)                                   /* head + rule + two bands cover rows 0..229 */
-        lcd_fill(0, H_HEAD + 1 + 124 + 95, 240, 240 - (H_HEAD + 1 + 124 + 95), C_BLACK);
-    cv_begin(240, H_HEAD, C_BLACK);
-    cv_text(4, 1, &FONT_S, ui.menu == 2 ? "ABOUT" : "MENU", C_HI);
-    if (ui.menu != 2) {                             /* the section and its number, as a page's "ENV DEST 2/2" */
-        char t[16];
-        str_cpy(t, MS_NAME[sec], sizeof t);
-        str_cpy(t + str_len(t), " ", 2);
-        fmt_int(t + str_len(t), (int32_t)sec + 1);
-        str_cpy(t + str_len(t), "/", 2);
-        fmt_int(t + str_len(t), MS_COUNT);
-        cv_text(236 - text_w(&FONT_S, t), 1, &FONT_S, t, C_GRAY);
+    switch (id) {
+    case V_COLOR:
+        settings.palette = (uint32_t)dev_step((int32_t)settings.palette, s, (int32_t)NPALETTES);
+        palette_set(settings.palette);
+        ui.force = 1;
+        break;
+    case V_ZOOM:
+        settings.zoom = s > 0;
+        break;
+    case V_LOWCUT:
+        settings.lowcut = s > 0;
+        fx_lowcut = (uint8_t)(settings.lowcut != 0);
+        break;
+    case V_DISCO:
+        disco = (uint8_t)dev_step(disco, s, DISCO_N);
+        break;
+    case V_LIGHTS:
+        lights_lvl = (uint8_t)dev_step(lights_lvl, s, LIGHTS_N);
+        break;
+    case V_KEYS:
+        lights_keys = (uint8_t)dev_step(lights_keys, s, KEYS_N);
+        if (lights_keys && !lights_lvl)
+            lights_lvl = LIGHTS_LOW;                   /* keys lit need a level: the lowest */
+        break;
+    case V_NOTES:
+        lights_notes = (uint8_t)(s > 0);
+        break;
+    case V_USB: {                                      /* MASTER, FULL, STEMS (KARMA 3.0: at the next start) */
+        int32_t v = dev_step(usb_stems_set ? 2 : usb_full ? 1 : 0, s, 3);
+        usb_full = (uint8_t)(v == 1);
+        usb_stems_set = (uint8_t)(v == 2);
+        if (dev_restart(V_USB))
+            ui_message("USB AUDIO: AT THE NEXT START");
+        break;
     }
-    cv_blit(0, Y_HEAD);
-    lcd_fill(0, H_HEAD, 240, 1, C_LINE);
-    for (pass = 0; pass < 2u; pass++) {             /* the canvas holds 124 rows: draw in two bands */
-        cv_begin(240, pass ? 95u : 124u, C_BLACK);
-        cv_oy = pass ? -124 : 0;
-        if (ui.menu == 2) {
-            cv_text(4, 4, &FONT_L, "PHEBUS", C_WHITE);   /* (Ben's build: PHEBUS, based on KARMA; every upstream credit
-                                                         * kept below, a licence requirement; review 21) */
-            {                                           /* the four tracks' colours after the name (the splash's bars) */
-                int32_t x = 4 + (int32_t)text_w(&FONT_L, "PHEBUS") + 8, k;
-                for (k = 0; k < 4; k++)
-                    cv_rect(x + k * 14, 16, 10, 10, TE_COL[k]);
-            }
-            cv_text(cv_text(4, 36, &FONT_S, "BASED ON ", C_HI), 36, &FONT_S, FELUCCA_VERSION, C_HI);
-            cv_text(4, 54, &FONT_S, "KARMA: ARIEL MUCHNIK", C_AMB);
-            cv_text(236 - text_w(&FONT_S, __DATE__), 132, &FONT_S, __DATE__, C_GRAY);   /* build date (by GITHUB's line) */
-            cv_text(4, 72, &FONT_S, "FELUCCA: LEO KUROSHITA", C_HI);
-            cv_text(4, 88, &FONT_S, "H\xDCGELTON INSTRUMENTS", C_HI);   /* Latin-1 U-umlaut */
-            cv_text(cv_text(4, 104, &FONT_S, "@KUROGEDELIC", C_AMB) + 8, 104, &FONT_S, "HUGELTON.COM", C_AMB);
-            cv_text(4, 119, &FONT_S, "GPL-3.0, NO WARRANTY", C_HI);
-            cv_text(4, 132, &FONT_S, "GITHUB: KARMA-FM1", C_AMB);   /* (the source: github.com/eatyourgreensstudio-dotcom/karma-fm1) */
-            /* (2026-11-11: the sounds' sources as KARMA has them (Plaits, Elements: Emilie Gillet's code; the
-             * Mutable Instruments name is not used on derivative works, their guidelines), LICENSING.md in full; SLOOP's samples, PHASE and
-             * VOICE engines are gone) */
-            cv_text(4, 146, &FONT_S, "BASED ON SLOOP (ISOD89)", C_DIM);
-            cv_text(4, 159, &FONT_S, "303: X0X  JUNO: FM-106", C_DIM);
-            cv_text(4, 172, &FONT_S, "CODE: EMILIE GILLET", C_DIM);
-            cv_text(4, 185, &FONT_S, "DRUMS: LXR-02, ERICA SYNTHS", C_DIM);
-            cv_text(4, 198, &FONT_S, "FONT: TERMINUS (OFL)", C_DIM);
-        } else {
-            int32_t x = 4;
-            for (i = 0; i < MS_COUNT; i++) {        /* the sections as tabs: this one lit */
-                int32_t w = text_w(&FONT_S, MS_NAME[i]);
-                if (i == sec)
-                    cv_rect(x - 2, 3, w + 4, 18, C_LINE);
-                cv_text(x, 4, &FONT_S, MS_NAME[i], i == sec ? C_WHITE : C_DIM);
-                x += w + 10;
-            }
-            int32_t dy = MS_FIRST[sec + 1u] - MS_FIRST[sec] > 3u ? MI_DY4 : MI_DY;   /* (wave 11: LIGHTS has four rows) */
-            for (i = MS_FIRST[sec]; i < MS_FIRST[sec + 1u]; i++) {
-                uint32_t r = i - MS_FIRST[sec];
-                int32_t y = MI_Y0 + (int32_t)r * dy, xv;
-                int cur = i == ui.menu_sel;
-                uint16_t vc;
-                const char *v = mi_value(i, &vc);
-                char k[4] = {'K', (char)('1' + r), 0, 0};
-                cv_rect(4, y + 2, 4, dy - 8, cur ? C_WHITE : TE_G3);   /* the knob's row: white active, grey idle (no
-                                                                    * voice colours: the menu is no voice's, review 16a) */
-                xv = cv_text(14, y, &FONT_S, k, cur ? C_WHITE : TE_G3);
-                cv_text(xv + 6, y, &FONT_S, MI_NAME[i], cur ? C_WHITE : C_GRAY);
-                if (v[0] && text_w(&FONT_L, v) <= 222) {
-                    xv = cv_text(14, y + 16, &FONT_L, v, cur && vc == C_HI ? C_WHITE : vc);
-                } else if (v[0]) {                      /* (too wide for the large type: WHITE KEYS) */
-                    xv = cv_text(14, y + 24, &FONT_S, v, cur && vc == C_HI ? C_WHITE : vc);
-                } else {
-                    xv = cv_text(14, y + 24, &FONT_S, "OCT+ OPENS", cur ? C_WHITE : C_DIM);
-                }
-                if (i == MI_COLOR) {                    /* the palette's colours */
-                    uint32_t q;
-                    for (q = 0; q < 5u; q++)
-                        cv_rect(xv + 10 + (int32_t)q * 14, y + 28, 10, 10, pal[q]);
-                }
-                if ((i == MI_SERIAL && usb_serial != usb_cdc_now()) || (i == MI_USB && usb_stems_set != USB_STEMS_NOW))
-                    cv_text(xv + 8, y + 30, &FONT_S, "RESTART", C_AMB);   /* (usb.c: at the next start) */
-            }
-            if (dy == MI_DY) {
-                cv_text(4, MI_Y0 + 3 * MI_DY + 6, &FONT_S, "SEL: NEXT SECTION  OCT-: BACK", C_DIM);
-                cv_text(4, MI_Y0 + 3 * MI_DY + 22, &FONT_S, "KNOBS 1-3 SET ROWS  OCT+: OK", C_DIM);   /* (rows .. 218) */
-            } else {
-                cv_text(4, MI_Y0 + 4 * MI_DY4 + 2, &FONT_S, "KNOBS 1-4 SET ROWS  SEL: NEXT", C_DIM);   /* (rows .. 218) */
-            }
+    case V_SERIAL:
+        usb_serial = (uint8_t)(s > 0);
+        if (dev_restart(V_SERIAL))
+            ui_message("USB SERIAL: AT THE NEXT START");
+        break;
+    case V_CALIB:
+        if (s > 0) {
+            panel_setup();
+            ui.force = 1;
         }
+        return;
+    case V_ABOUT:
+        if (s > 0) {
+            ui.menu = 2;
+            ui.force = 1;
+        }
+        return;
+    case V_LCLEAR:                                     /* (2.6) every learned CC: asks, as every action that loses
+                                                         * something (hold SAVE) */
+        if (s > 0) {
+            if (ml_count())
+                ask_set(ASK_GO, V_LCLEAR, "CLEAR LEARN");
+            else
+                ui_message("NOTHING LEARNED");
+        }
+        return;
+    default:
+        return;
+    }
+    settings_later = 1;                                /* (kept with the settings, saved once quiet) */
+}
+
+/* ABOUT (GLO > DEVICE > TOOLS, a turn right): who made it, every upstream credit kept (a licence requirement), the build
+ * date. In the GLO frame: the header GLO ABOUT; lines 15 px apart (the dim credits 14), clear of the bottom edge (review V5) */
+static void draw_about(void)
+{
+    static const struct { uint8_t y; uint8_t c; const char *s; } L[] = {
+        {0, 1, "KARMA: ARIEL MUCHNIK"}, {15, 0, "FELUCCA: LEO KUROSHITA"}, {30, 0, "H\xDCGELTON INSTRUMENTS"},
+        {45, 1, "@KUROGEDELIC"}, {60, 0, "GPL-3.0, NO WARRANTY"}, {75, 1, "GITHUB: KARMA-FM1"},
+        {94, 2, "BASED ON SLOOP (ISOD89)"}, {108, 2, "303: X0X  JUNO: FM-106"}, {122, 2, "CODE: EMILIE GILLET"},
+        {136, 2, "DRUMS: LXR-02, ERICA SYNTHS"}, {150, 2, "FONT: TERMINUS (OFL)"},
+    };
+    uint32_t i, pass;
+    if (!ui.force && ui.menu_sig == 2u)
+        return;
+    ui.menu_sig = 2u;
+    lcd_fill(0, 0, 240, 240, C_BLACK);
+    op_header("GLO", TE_G4, "ABOUT", &ui.head_sig);
+    for (pass = 0; pass < 2u; pass++) {                /* the canvas holds 124 rows: two bands, 22 .. 237 */
+        cv_begin(240, pass ? 92u : 124u, C_BLACK);
+        cv_oy = pass ? -124 : 0;
+        cv_text(4, 2, &FONT_L, "PHEBUS", C_WHITE);     /* (Ben's build: PHEBUS, based on KARMA; review 21) */
+        {                                               /* the four voices' colours after the name (the splash's bars) */
+            int32_t x = 4 + (int32_t)text_w(&FONT_L, "PHEBUS") + 8, k;
+            for (k = 0; k < 4; k++)
+                cv_rect(x + k * 14, 12, 10, 10, TE_COL[k]);
+        }
+        cv_text(cv_text(4, 32, &FONT_S, "BASED ON ", C_HI), 32, &FONT_S, FELUCCA_VERSION, C_HI);
+        for (i = 0; i < sizeof L / sizeof L[0]; i++)
+            cv_text(4, 50 + L[i].y, &FONT_S, L[i].s, L[i].c == 1u ? C_AMB : L[i].c ? C_DIM : C_HI);
+        cv_text(236 - text_w(&FONT_S, "HUGELTON.COM"), 50 + 45, &FONT_S, "HUGELTON.COM", C_AMB);
+        cv_text(236 - text_w(&FONT_S, __DATE__), 50 + 75, &FONT_S, __DATE__, C_GRAY);   /* build date (by GITHUB's line) */
         cv_oy = 0;
-        cv_blit(0, H_HEAD + 1 + pass * 124u);
+        cv_blit(0, 22 + pass * 124u);
     }
 }
 
@@ -168,112 +168,4 @@ static void enc_drop(void)                             /* knob turns nobody take
     uint32_t k;
     for (k = 0; k < NE; k++)
         panel_enc(k);
-}
-
-static void menu_close(void)
-{
-    if (song.playing || transport_req)
-        settings_later = 1;                            /* (a flash write stops the audio: once stopped) */
-    else
-        settings_save();                               /* palette / panel table, if changed */
-    ui.menu = 0;
-    ui.force = 1;
-    go_home();
-}
-
-/* item i: a knob turned s (> 0 right, < 0 left), or 0: OCT+ (steps round, toggles, or opens) */
-static void mi_set(uint32_t i, int32_t s)
-{
-    switch (i) {
-    case MI_COLOR:                                     /* both ways round; OCT+ the next */
-        settings.palette = (settings.palette + (s < 0 ? NPALETTES - 1u : 1u)) % NPALETTES;
-        palette_set(settings.palette);
-        break;
-    case MI_ZOOM:
-    case MI_LOWCUT: {                                  /* right ON, left OFF; OCT+ toggles */
-        uint32_t *v = i == MI_LOWCUT ? &settings.lowcut : &settings.zoom;
-        *v = s > 0 ? 1u : s < 0 ? 0u : !*v;
-        fx_lowcut = (uint8_t)(settings.lowcut != 0);
-        break;
-    }
-    case MI_USB: {                                     /* MASTER, FULL, STEMS (KARMA 3.0: at the next start); OCT+ round */
-        uint32_t v = usb_stems_set ? 2u : usb_full ? 1u : 0u;
-        v = s > 0 ? (v < 2u ? v + 1u : 2u) : s < 0 ? (v ? v - 1u : 0u) : (v + 1u) % 3u;
-        usb_full = (uint8_t)(v == 1u);
-        usb_stems_set = (uint8_t)(v == 2u);
-        break;
-    }
-    case MI_SERIAL:
-        usb_serial = (uint8_t)(s > 0 ? 1u : s < 0 ? 0u : !usb_serial);
-        break;
-    case MI_NOTES:
-        lights_notes = (uint8_t)(s > 0 ? 1u : s < 0 ? 0u : !lights_notes);
-        break;
-    case MI_DISCO:                                     /* QUIET NORMAL SHOW, stopping at the ends; OCT+ round */
-        disco = (uint8_t)(s > 0 ? (disco + 1u < DISCO_N ? disco + 1u : disco) : s < 0 ? (disco ? disco - 1u : 0u)
-                                                                             : (disco + 1u) % DISCO_N);
-        break;
-    case MI_LIGHTS:
-    case MI_KEYS: {                                    /* brighter / dimmer (stops at the ends); OCT+ steps round */
-        uint8_t *v = i == MI_LIGHTS ? &lights_lvl : &lights_keys;
-        uint32_t n = i == MI_LIGHTS ? LIGHTS_N : KEYS_N;
-        if (s > 0 && *v + 1u < n)
-            (*v)++;
-        else if (s < 0 && *v > 0u)
-            (*v)--;
-        else if (!s)
-            *v = (uint8_t)((*v + 1u) % n);
-        if (i == MI_KEYS && lights_keys && !lights_lvl)
-            lights_lvl = LIGHTS_LOW;                   /* keys lit need a level: the lowest */
-        break;
-    }
-    case MI_LCLEAR:                                    /* (2.6) every learned CC: OCT+ */
-        if (!s)
-            ui_message(ml_clear_all() ? "LEARN CLEARED" : "NOTHING LEARNED");
-        break;
-    case MI_PANEL:                                     /* actions: OCT+ only */
-        if (!s) {
-            panel_setup();
-            ui.force = 1;
-        }
-        break;
-    case MI_ABOUT:
-        if (!s) {
-            ui.menu = 2;
-            ui.force = 1;
-        }
-        break;
-    default:
-        break;
-    }
-}
-
-/* menu: SELECT the section, KNOB 1..3 its settings, PRESETS the cursor, OCT+ ok, OCT- close (ABOUT -> the section) */
-static void menu_input(uint32_t pressed)
-{
-    int32_t s;
-    uint32_t k, ok = (pressed >> panel.btn[B_OCTUP]) & 1u, back = (pressed >> panel.btn[B_OCTDN]) & 1u;
-    uint32_t sel = ui.menu_sel % MI_COUNT, sec = mi_sec(sel), n = MS_FIRST[sec + 1u] - MS_FIRST[sec];
-    if (back) {
-        if (ui.menu == 2)
-            ui.menu = 1, ui.force = 1;
-        else
-            menu_close();
-        return;
-    }
-    if (ui.menu != 1) {
-        enc_drop();
-        return;
-    }
-    (void)panel_enc(EN_SELECT);                        /* (wave 9: the sections are SEL's, the PAGE button) */
-    if ((s = panel_enc(EN_PRESET)) != 0)               /* the cursor, round the section's rows */
-        ui.menu_sel = (uint8_t)(MS_FIRST[sec] + (sel - MS_FIRST[sec] + (s > 0 ? 1u : n - 1u)) % n);
-    for (k = 0; k < 4u; k++)
-        if ((s = panel_enc(EN_K1 + k)) != 0 && k < n) {
-            ui.menu_sel = (uint8_t)(MS_FIRST[sec] + k);   /* (the cursor follows the knob turned) */
-            mi_set(MS_FIRST[sec] + k, s);
-        }
-    if (ok)
-        mi_set(ui.menu_sel % MI_COUNT, 0);
-    enc_drop();                                        /* swallow the rest while the menu is up */
 }

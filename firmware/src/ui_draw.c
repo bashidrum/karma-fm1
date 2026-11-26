@@ -2,7 +2,8 @@
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* Felucca UI drawing: status bar (top), columns + gauges, graphs, focus readout,
  * footer (steps + engine / preset / page). */
-static void draw_menu(void);
+static void draw_about(void);
+static int dev_dim(uint32_t id);                       /* (review U5: ui_menu.c) */
 static uint32_t str_hash(uint32_t h, const char *s);
 static uint32_t projpg_sig(void);                       /* (the bank: SAVE > PROJECT, below) */
 /* (the knob band shows no icon: the look-ups by label, icons.c, are not built in) */
@@ -91,11 +92,11 @@ static void draw_column(uint32_t c, const char *label, const char *val, const ch
     char l[8], v[10], u[8];
     (void)icon;
     fit(l, label, &FONT_S, 54);
-    fit(v, val, &FONT_S, is_eng_name(val) ? 56 : 48);   /* engine names whole */
+    fit(v, val, &FONT_S, is_eng_name(val) ? 56 : 54);   /* engine names whole; (review V2) six letters */
     fit(u, unit, &FONT_S, 54 - text_w(&FONT_S, v) - 3);
     if (c < 4u) {                                       /* (the big values: their own fit) */
         str_cpy(ui.big_l[c], l, 8);
-        fit(ui.big_v[c], val, &FONT_L, 112 - (unit[0] ? 4 : 0));
+        fit(ui.big_v[c], val, &FONT_S, 112);            /* (review V3: printed in its row, small type) */
         str_cpy(ui.big_u[c], unit, 8);
         ui.big_c[c] = vc;
         str_cpy(opk.lab[c], l, 8);
@@ -239,17 +240,17 @@ static void graph_steps(const track_t *t, uint16_t c)
             cv_rect(x - 1, y + 16, 3, 3, C_WHITE);
     }
 }
+static void piano_draw(int32_t y0, int32_t wh, int32_t bh, uint32_t on, uint32_t dot, uint16_t col, uint16_t off);
+/* ARP > KEY: (review V8) CHROMATIC's piano, the keys of the scale lit in the voice's colour, the root dotted */
 static void graph_scale(const track_t *t, uint16_t c)
 {
-    static const uint8_t BLACK[12] = {0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0};
-    uint32_t i, mask = scale_mask(t);
-    for (i = 0; i < 12u; i++) {
-        uint32_t deg = (i + 12u - (uint32_t)t->p[P_ROOT]) % 12u;
-        int32_t x = 6 + (int32_t)i * 19;
-        uint16_t col = (mask >> deg) & 1u ? (deg == 0u ? C_WHITE : c) : C_DIM;
-        cv_rect(x, BLACK[i] ? 10 : 40, 16, 1, col);
-        cv_rect(x + 7, BLACK[i] ? 10 : 40, 1, 40, col);
+    uint32_t i, mask = scale_mask(t), on = 0, root = 0;
+    for (i = 0; i < 27u; i++) {
+        uint32_t deg = (i % 12u + 12u - (uint32_t)t->p[P_ROOT] % 12u) % 12u;
+        on |= ((mask >> deg) & 1u) << i;
+        root |= (uint32_t)(deg == 0u) << i;
     }
+    piano_draw(18, 62, 38, on, root, c, TE_G3);
 }
 
 static void graph_fx(const track_t *t, uint16_t c)
@@ -339,6 +340,8 @@ static uint32_t graph_signature(void)
         h ^= (ui.frame / 2u + 1u) * 40503u;
     if (pg->graph == GR_SLCR && t->p[P_SLCR])        /* the SLICER's step playing */
         h ^= (sl[song.sel].idx + 1u) * 2654435761u;
+    if (pg->fam == FAM_MFX && pg->id[0] == G_DUST)  /* (review V3) MASTER's meter runs */
+        h ^= (ui.frame / 2u + 1u) * 40503u;
     if (pg->graph == GR_PROJ)                        /* (the bank) the two summaries, the live state */
         h ^= projpg_sig() * 2654435761u;
     if (pg->graph == GR_SLOTS)                       /* (a checksum over each slot) */
@@ -355,34 +358,11 @@ static void graph_browse(void)
 {
     uint32_t total, cur, e, k;
     int32_t row;
-    if (is_drum(TSEL)) {                                 /* (wave 12) the drums: the whole kits, the one loaded teal (CUSTOM:
-                                                         * a kit changed from it, first) */
-        int32_t p = kit_changed() ? -1 : kit_pos(pkit.base);
-        uint32_t n = kit_src_n();
-        for (row = -3; row <= 3; row++) {
-            int32_t y = 4 + (row + 3) * 17, q = (p < 0 ? 0 : p) + row;
-            char nm[13];
-            int sel = row == 0;
-            if (p < 0 && row == 0) {
-                str_cpy(nm, "CUSTOM", sizeof nm);
-            } else {
-                if (p < 0 && row > 0)
-                    q--;
-                q = (q % (int32_t)n + (int32_t)n) % (int32_t)n;
-                kit_name_of(kit_src((uint32_t)q), nm, sizeof nm);
-            }
-            if (sel)
-                cv_rect(4, y + 6, 3, 3, C_WHITE);
-            cv_text(14, y, &FONT_S, p < 0 && sel ? "" : kit_src((uint32_t)q) < DRUM_SAMPLED ? "HEX" : kit_src((uint32_t)q) < DRUM_USR ? "CLS" : "MY", sel ? C_GRAY : C_DIM);
-            cv_text(54, y, &FONT_S, nm, sel ? TE_DRUM : C_GRAY);
-        }
-        return;
-    }
     cur = preset_pos(&total);
     if (!total)
         return;
-    for (row = -3; row <= 3; row++) {
-        int32_t y = 4 + (row + 3) * 17;
+    for (row = -2; row <= 3; row++) {                    /* (review V5: six rows, none cut by the tab row) */
+        int32_t y = 4 + (row + 2) * 17;
         char tag[5], nm[13];
         int sel = row == 0;
         uint32_t n = (cur + total * 4u + (uint32_t)row) % total;
@@ -404,8 +384,8 @@ static void graph_browse(void)
 /* user preset slots around the selected one: "U07  NAME" / EMPTY, the selected one in white */
 static void graph_user(void)
 {
-    int32_t row, first = clamp((int32_t)ui.uslot - 3, 0, UP_SLOTS - 7);
-    for (row = 0; row < 7; row++) {
+    int32_t row, first = clamp((int32_t)ui.uslot - 2, 0, UP_SLOTS - 6);
+    for (row = 0; row < 6; row++) {                      /* (review V5: six rows, none cut by the tab row) */
         uint32_t k = (uint32_t)(first + row);
         int32_t y = 4 + row * 17;
         char tag[4], nm[13];
@@ -747,30 +727,113 @@ static int menu_page(const page_t *pg)
 {
     return pg->scope == SC_GLOBAL && pg->graph == GR_NONE && (pg->fam == FAM_GLO || pg->fam == FAM_SAVE || pg->fam == FAM_MFX);
 }
+static int dev_restart(uint32_t id);                    /* (ui_menu.c) */
+/* (review V3, Ben 26 Nov 2026: "plain rows on GLO") each knob a row: its number in a chip, its name, its value printed
+ * right-aligned (no bar: the dials under give the rest); COLOUR shows the palette's colours, USB and SERIAL say RESTART
+ * while the change waits for the next start */
 static void graph_menu(const track_t *t)
 {
     uint32_t c;
     (void)t;
     for (c = 0; c < 4u; c++) {
-        int32_t y = 2 + (int32_t)c * 26, x, lw, vw, uw;   /* (wave 9: 26 px rows, the tab row under) */
-        uint16_t vc = ui.big_c[c] == C_DIM ? C_DIM : ui.big_c[c] == C_WHITE && knob_tint[c] >= TINT_NEUTRAL ? C_WHITE : tint_col(c, 0);   /* (the page's tint; dim: does nothing now; a voice's touched: its colour, review 16e) */
-        char n[2] = {(char)('1' + c), 0};
+        int32_t y = 2 + (int32_t)c * 26, xv;
+        uint32_t id = cur_page()->id[c];
+        uint16_t vc = ui.big_c[c] == C_DIM ? C_DIM : C_WHITE;
+        char n[2] = {(char)('1' + c), 0}, v[16];
         if (!ui.big_l[c][0])
             continue;
         cv_rect(4, y + 6, 12, 18, tint_col(c, 0));      /* the knob: its number, in the page's tint */
         cv_text(6, y + 7, &FONT_S, n, C_BLACK);
-        lw = cv_text(22, y + 7, &FONT_S, ui.big_l[c], tint_col(c, 0));
-        (void)vc, (void)vw, (void)uw, (void)x;
-        if (opk.ratio[c] >= 0) {                        /* (PHEBUS wave 4: the value once, in the dials under; here where
-                                                         * the knob sits) */
-            int32_t gx = lw + 10 > 100 ? lw + 10 : 100, gw = 228 - gx;
-            cv_rect(gx, y + 13, gw, 3, TE_G2);
-            cv_rect(gx, y + 13, opk.ratio[c] * gw / 1000, 3, ui.big_c[c] == C_DIM ? C_DIM : tint_col(c, 0));
+        cv_text(22, y + 7, &FONT_S, ui.big_l[c], tint_col(c, 0));
+        str_cpy(v, ui.big_v[c], sizeof v);
+        if (ui.big_u[c][0] && str_len(v) + str_len(ui.big_u[c]) + 1u < sizeof v) {
+            if (ui.big_u[c][0] != '%')
+                str_cpy(v + str_len(v), " ", 2);
+            str_cpy(v + str_len(v), ui.big_u[c], sizeof v - str_len(v));
+        }
+        xv = 228 - text_w(&FONT_S, v);
+        cv_text(xv, y + 7, &FONT_S, v, vc);
+        if (id == V_COLOR) {                            /* the palette's colours, left of its name */
+            uint32_t q;
+            for (q = 0; q < 5u; q++)
+                cv_rect(xv - 8 - (5 - (int32_t)q) * 12, y + 10, 9, 9, pal[q]);
+        } else if (id >= V_DEV0 && id <= V_DEVN && dev_restart(id)) {
+            cv_text(xv - 8 - text_w(&FONT_S, "RESTART"), y + 7, &FONT_S, "RESTART", C_AMB);
         }
         cv_rect(22, y + 25, 206, 1, C_LINE);
     }
 }
 
+/* (review V3, Ben 26 Nov 2026: "Pictures on MIX") the whole mix's pages draw what their knobs do, white and grey as the
+ * whole mix is, as a voice's pages do: DELAY its taps (spaced by TIME, falling by FDBK, as loud as MIX, duller by COLOUR),
+ * REV/CHO the reverb's tail (as long as SIZE, darker sooner with DAMP) over the chorus's wave (RATE, DEPTH), MASTER the
+ * output's meter, the DUCK's dip on each beat and the DUST */
+static void graph_mix(const page_t *pg)
+{
+    int32_t base = 98, top = 10, i;
+    cv_rect(6, base + 1, 228, 1, TE_G2);
+    if (pg->id[0] == G_DTIME) {
+        static const uint8_t Q[9] = {72, 36, 18, 9, 24, 12, 54, 27, 108};   /* (N_DLY: px a tap, a quarter = 72) */
+        int32_t dx = Q[clamp(song.g[G_DTIME], 0, 8)], h = (base - top) * song.g[G_DMIX] / 127, x = 10 + dx;
+        int32_t fb = clamp(song.g[G_DFDBK], 0, 120), dull = 127 - song.g[G_DCOLOR];
+        cv_rect(8, top, 4, base - top + 1, C_WHITE);    /* the dry hit */
+        cv_text(16, top - 8, &FONT_S, "DRY", TE_G3);
+        for (i = 0; x < 232 && h > 0; i++, x += dx) {
+            int32_t g = i * dull / 40;
+            cv_rect(x - 1, base + 1 - h, 3, h, g > 2 ? TE_G3 : g > 0 ? TE_G4 : C_WHITE);
+            h = fb >= 100 ? h : h * fb / 100;
+        }
+    } else if (pg->id[0] == G_RSIZE) {
+        int32_t len = 40 + song.g[G_RSIZE] * 150 / 127, damp = song.g[G_RDAMP], wy = 84;
+        int32_t amp = 2 + song.g[G_CDEPTH] * 10 / 127, cyc = 1 + song.g[G_CRATE] * 7 / 127, py = wy;
+        uint32_t r = 0x2545F491u;
+        for (i = 0; i < len; i += 2) {                  /* the tail: dense lines, falling to nothing at SIZE's end */
+            int32_t e = (len - i) * 1000 / len, eh, h;
+            e = e * e / 1000;
+            r = r * 1664525u + 1013904223u;
+            eh = (wy - 6 - top) * e / 1000;
+            h = eh / 2 + (int32_t)((r >> 24) * (uint32_t)eh / 512u);
+            cv_rect(12 + i, wy - 6 - h, 1, h, i * 127 / len > 127 - damp ? TE_G3 : TE_G4);
+        }
+        cv_rect(8, top, 2, wy - 6 - top, C_WHITE);      /* the hit */
+        for (i = 0; i <= 224; i += 2) {                 /* the chorus: its wave, RATE's cycles, DEPTH high */
+            int32_t y = wy - SINE[(uint32_t)(i * cyc * 1024 / 224) & 1023u] * amp / 32767;
+            if (i)
+                cv_line(6 + i - 2, py, 6 + i, y, TE_G4);
+            py = y;
+        }
+    } else {                                            /* MASTER: the output, the duck, the dust */
+        int32_t pk = drums.peak, m, w, x;
+        uint32_t r = 0x9E3779B9u, k;
+        for (k = 0; k < NPART; k++)
+            pk = trk[k].peak > pk ? trk[k].peak : pk;
+        for (k = 0; k < NPART; k++)
+            trk[k].peak = 0;
+        drums.peak = 0;
+        m = meter_px(pk) * 228 / (TS_H - 2);
+        op_lvl = m > op_lvl - 6 ? m : op_lvl - 6;       /* (falls, as the voices' meters) */
+        cv_text(6, 0, &FONT_S, "OUT", TE_G3);
+        for (x = 0; x < 57; x++)                        /* 57 segments of 4 px */
+            cv_rect(6 + x * 4, 16, 3, 12, x * 4 < op_lvl ? (x >= 52 ? C_WHITE : TE_G4) : TE_G2);
+        cv_text(6, 34, &FONT_S, "DUCK", TE_G3);
+        w = song.g[G_DUCK] * 22 / 127;                  /* a beat's dip: down by DUCK, back up over the beat */
+        for (k = 0; k < 4u; k++) {
+            int32_t x0 = 6 + (int32_t)k * 57, j, py = 52;
+            for (j = 0; j < 57; j += 3) {
+                int32_t y = 52 + w - w * j / 56;
+                if (j)
+                    cv_line(x0 + j - 3, py, x0 + j, y, song.g[G_DUCK] ? C_WHITE : TE_G3);
+                py = y;
+            }
+        }
+        cv_text(6, 78, &FONT_S, "DUST", TE_G3);
+        for (k = 0; k < (uint32_t)song.g[G_DUST] * 2u; k++) {
+            r = r * 1664525u + 1013904223u;
+            cv_rect(50 + (int32_t)((r >> 8) % 182u), 80 + (int32_t)((r >> 20) % 16u), 1, 1, TE_G4);
+        }
+        (void)base;
+    }
+}
 static uint32_t key_strip_c;                            /* (wave 10: the KEY page's chord strip, drawn: draw_foot) */
 static void draw_graph(void)
 {
@@ -789,7 +852,7 @@ static void draw_graph(void)
         graph_scope(c);
 #endif
     } else if (drum_note) {                          /* a page the drum track has no use for */
-        static const char *const L[2] = {"DRUM TRACK", "SEQ  TRACKS  GLO DRUMS"};
+        static const char *const L[2] = {"DRUM VOICE", "SEQ  TRACKS  GLO DRUMS"};
         cv_text((240 - text_w(&FONT_S, L[0])) / 2, 26, &FONT_S, L[0], C_HI);
         cv_text((240 - text_w(&FONT_S, L[1])) / 2, 52, &FONT_S, L[1], C_DIM);
     } else {
@@ -844,7 +907,9 @@ static void draw_graph(void)
         default:
             if (big_page(pg)) {
                 cv_oy = 0;
-                if (menu_page(pg)) {
+                if (pg->fam == FAM_MFX) {
+                    graph_mix(pg);
+                } else if (menu_page(pg)) {
                     graph_menu(t);
                 } else if (fam_stage(pg->fam) >= 0) {        /* a sound page: what its knobs do, big (review 8) */
                     op_sound(t, pg);
@@ -963,7 +1028,7 @@ static void draw_columns_set(void)
         const track_t *t = TSEL;
         uint32_t lvl = trk_level(song.sel);
         fmt_int(val, (int32_t)song.sel + 1);
-        draw_column(0, "TRACK", val, "/4", VAL(0u), (int32_t)song.sel * 1000 / (NTRK - 1), ICON_AUTO);
+        draw_column(0, W_VOICE, val, "/4", VAL(0u), (int32_t)song.sel * 1000 / (NTRK - 1), ICON_AUTO);
         if (!lvl || t->p[P_MUTE]) {                    /* (MUTE: a turn of KNOB 2 unmutes, tracks_edit) */
             str_cpy(val, "MUTE", 12);
             unit = "";
@@ -989,21 +1054,6 @@ static void draw_columns_set(void)
         draw_column(3, "SAVE", "--", "", C_HI, -1, ICON_AUTO);
         return;
     }
-    if (cur_page()->graph == GR_BROWSE && is_drum(TSEL)) {   /* (wave 12) the drums: the whole kit's place in the list */
-        int32_t p = kit_changed() ? -1 : kit_pos(pkit.base);
-        char u[8];
-        if (p < 0)
-            str_cpy(val, "--", 12);
-        else
-            fmt_int(val, p + 1);
-        str_cpy(u, "/", 8);
-        fmt_int(u + 1, (int32_t)kit_src_n());
-        draw_column(0, "KIT", val, u, VAL(0u), -1, ICON_NONE);
-        draw_column(1, "", "", "", C_HI, -1, ICON_AUTO);
-        draw_column(2, "", "", "", C_HI, -1, ICON_AUTO);
-        draw_column(3, "", "", "", C_HI, -1, ICON_AUTO);
-        return;
-    }
     if (cur_page()->graph == GR_BROWSE) {
         uint32_t total, cur = preset_pos(&total);
         char u[8];
@@ -1011,7 +1061,7 @@ static void draw_columns_set(void)
         str_cpy(u, "/", 8);
         fmt_int(u + 1, (int32_t)total);
         draw_column(0, "No.", val, u, VAL(0u), -1, ICON_NONE);
-        draw_column(1, "ENG", ENGINES[TSEL->eng_req]->name, "", VAL(1u), -1, engine_icon(ENGINES[TSEL->eng_req]->name));
+        draw_column(1, "ENG", word_short(ENGINES[TSEL->eng_req]->name), "", VAL(1u), -1, engine_icon(ENGINES[TSEL->eng_req]->name));
         draw_column(2, "", "", "", C_HI, -1, ICON_AUTO);
         draw_column(3, "", "", "", C_HI, -1, ICON_AUTO);
         return;
@@ -1062,13 +1112,23 @@ static void draw_columns_set(void)
             draw_column(c, "USB", val, unit, C_HI, -1, ICON_AUTO);
             continue;
         }
+        if (cur_page()->id[c] == V_LCLEAR) {            /* (review U5) GLO > MIDI 3 > CLEAR: the CCs learned, a turn right
+                                                       * clears them (it asks) */
+            uint32_t nl = ml_count();
+            if (nl) {
+                fmt_int(val, (int32_t)nl);
+                str_cpy(val + str_len(val), " CC", 4);
+            }
+            draw_column(c, d->label, nl ? val : "NONE", "", nl ? VAL(c) : C_DIM, -1, ICON_AUTO);
+            continue;
+        }
         if (cur_page()->id[c] == G_INFO && cur_page()->scope == SC_GLOBAL) {
             fmt_int(val, (int32_t)(song.cpu_q8 * 100u / 256u));
             unit = "%";
         } else {
             param_format(d, *vp, val, &unit);
         }
-        draw_column(c, d->label, val, unit, VAL(c), d->fmt == F_ENUM && d->max < 2 ? -1 : RATIO(d, *vp),
+        draw_column(c, d->label, val, unit, dev_dim(cur_page()->id[c]) ? C_DIM : VAL(c), d->fmt == F_ENUM && d->max < 2 ? -1 : RATIO(d, *vp),
                     param_icon(d, *vp));
     }
 }
@@ -1089,8 +1149,6 @@ static void ui_timers(void)
         ui.msg_t--;
     if (ui.bpm_t)
         ui.bpm_t--;
-    if (ui.arm_t && !--ui.arm_t)
-        ui.arm = 0;
     if (ui.hot_t)
         ui.hot_t--;
     if (sel_t)
@@ -1108,6 +1166,9 @@ static void ui_draw(void)
     ui.frame++;
     if (boot_draw())                                    /* (KARMA 3.0: the boot animation first) */
         return;
+    page_fix();                                         /* (a voice changed after ui_input's own page_fix, by ALGORITHM or a
+                                                         * load: never one frame of a page that voice has not got, e.g. the
+                                                         * drums on SAVE > PRESETS: their place is KITS) */
     pads_tick();
     knob_tint_all(song.sel & 3u);                       /* (wave 7) the graphs' tints are the selected voice's unless a
                                                          * screen says otherwise (HOME, the layers and the lane no longer
@@ -1160,7 +1221,7 @@ static void ui_draw(void)
         ui.force = 1;
     }
     if (ui.menu) {
-        draw_menu();
+        draw_about();
         ui_timers();
         ui.force = 0;
         return;

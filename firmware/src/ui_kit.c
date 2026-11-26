@@ -150,6 +150,9 @@ static void snd_browse(int32_t s)
     brw_locks(kept, dropped);
     brw_col = TE_DRUM;
     brw_t = 90;
+    if (brw_r2[0])                                      /* (O2: the list shows the sound; the locks a machine change kept or
+                                                         * dropped, said) */
+        ui_message(brw_r2);
     if (!song.playing)
         audition_lane(L);                               /* (heard once a detent, stopped; playing, the pattern plays it) */
     ui.force = 1;
@@ -404,10 +407,43 @@ static void kit_ui_tick(void)
         pkit_old_kept = 0;
     }
 }
-/* the readout in the dials' band (ui_drum.c op_dials): KIT 808 / SOUND 808 SNARE large, the group and place, the locks */
+/* (review 26 Nov, O2, Ben's picker "Six-row list on drums too") PRESETS turning on the drum screen: the slot's sounds as the
+ * synth voices' PRESETS list, six rows, the one taken fourth with a dot (same kind first: the list's own order, ukit.c), its
+ * machine (HEX, CLS, MY) grey, its name; the one taken teal. Over the drum screen's body while the knob turns and a moment
+ * after; where it started, when that is no entry of the list (an edited sound): AS IT WAS */
+static int dsnd_list_on(void) { return brw_t && brw_live(1u) && !ui.msg_t; }
+static uint32_t dsnd_list_sig(void) { return (uint32_t)brw.pos * 2654435761u + brw.lane * 977u + brw.n + 7u; }
+static void dsnd_list(void)
+{
+    uint32_t L = brw.lane & 15u, ring = brw.in ? brw.n : brw.n + 1u;
+    int32_t row;
+    for (row = -3; row <= 2; row++) {
+        int32_t y = 4 + (row + 3) * 17;
+        uint32_t v = (uint32_t)(((int32_t)brw.pos + row) % (int32_t)ring + (int32_t)ring) % ring, e = brw_entry(v);
+        char nm[28];
+        const char *tag = "";
+        int sel = row == 0;
+        if (e == BRW_ORIGIN && !brw.in) {
+            str_cpy(nm, "AS IT WAS", sizeof nm);
+        } else {
+            uint32_t src, kind;
+            if (e == BRW_ORIGIN)
+                e = brw.start;
+            snd_at(L, e, &src, &kind);
+            tag = src == DSRC_INIT ? (kind ? "CLS" : "HEX") : src < DRUM_SAMPLED ? "HEX" : src < DRUM_USR ? "CLS" : "MY";
+            snd_name_at(L, e, nm, sizeof nm);
+        }
+        if (sel)
+            cv_rect(4, y + 6, 3, 3, C_WHITE);
+        cv_text(14, y, &FONT_S, tag, sel ? C_GRAY : C_DIM);
+        cv_text(54, y, &FONT_S, nm, sel ? TE_DRUM : C_GRAY);
+    }
+}
+/* the readout in the dials' band (ui_drum.c op_dials): KIT 808 / SOUND 808 SNARE large, the group and place, the locks (a
+ * sound's: the list says it, O2; the dials stay) */
 static int brw_draw(void)
 {
-    if (!brw_t || ui.msg_t)
+    if (!brw_t || ui.msg_t || dsnd_list_on())
         return 0;
     cv_text_tall_n(4, 6, brw_l1, brw_col, str_len(brw_l1) > 26u ? 7 : 8);
     cv_text(4, 40, &FONT_S, brw_l2, TE_G4);
@@ -522,7 +558,7 @@ static void dmap_dials(uint32_t *cache)                  /* the four dials while
         return;
     }
     for (k = 0; k < 4u; k++) {
-        int32_t x0 = 2 + 60 * (int32_t)k, vx = x0 + DIAL_VX, vw = dial_w(v[k]);
+        int32_t x0 = 2 + 60 * (int32_t)k, vx = x0 + dial_vx(v[k]), vw = dial_w(v[k]);
         uint32_t hot = ui.hot_t && ui.hot_col == k;
         uint16_t lc = st[k] == 2u ? col : TE_G2, vc = st[k] == 2u ? (amt[k] ? col : TE_G3) : TE_G2;
         if (!st[k])
@@ -537,7 +573,7 @@ static void dmap_dials(uint32_t *cache)                  /* the four dials while
             map_ring(x0 + 7, 38, 6, amt[k], col, TE_G2);
         else
             te_dial(x0 + 7, 38, 6, -1, TE_G1, TE_G1);
-        dial_over += vw > DIAL_VW - 3;
+        dial_over += dial_wide(v[k]);
         if (st[k] == 2u && amt[k])
             op_box(vx - 3, 21, vw + 5, 34, col);
         cv_text_tall_n(vx, 22, v[k], vc, dial_adv(v[k]));
