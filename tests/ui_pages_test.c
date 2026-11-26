@@ -4590,6 +4590,14 @@ int main(int argc, char **argv)
             master_in(1000); frames(2);
             check(mac_env[0] > 0 && song.master_q12 == mq, "w10: ENV + MASTER: the amp envelope longer (a scale, nothing stored changed)");
             ui.force = 1; frame(); ppm("w10-hold-env");
+            {   /* (review V6) both envelopes: ms under a second, then seconds, the sustain in % */
+                char e1[12], e2[12], e3[12], e4[12];
+                int okf = env_fmt(P_ATK, &TP[P_ATK], 0, e1) && env_fmt(P_FREL, &TP[P_FREL], 127, e2) &&
+                          env_fmt(P_FSUS, &TP[P_FSUS], 127, e3) && env_fmt(P_DEC, &TP[P_DEC], 60, e4) && !env_fmt(P_FCUT, &TP[P_FCUT], 60, e4);
+                env_fmt(P_DEC, &TP[P_DEC], 60, e4);
+                check(okf && strstr(e1, "MS") && e2[strlen(e2) - 1] == 'S' && !strstr(e2, "MS") && !strcmp(e3, "100%") && strlen(e4) <= 6u,
+                      "V6: envelope times in one format with units (MS, then S), sustain in %");
+            }
             check(px_count(0, 22, 240, 17, C_WHITE) < 60u, "V4: ENV + MASTER: no white bar over the big MASTER readout (said once)");
             check(pm_lm == 0 && pm_lp == 0, "w10: ENV held: no -/+ (the MASTER pair only)");
             release(B_ENV); frames(4);

@@ -21,6 +21,34 @@
 /* ---- the values */
 static void syn_fmt_type(char *b, uint32_t ty) { str_cpy(b, ty < NVTYPE ? VTYPES[ty].name : "--", 8); }
 /* page pg's four knobs on the selected synth track: labels, values (a step held, first: its lock, inverted), dials */
+/* (review V6, Ben: "One format with units") an envelope's value on its dial, both envelopes alike: a time in ms under a second
+ * ("340MS"), then seconds ("1.2S", "12S"); the sustain in % ("80%"). 0: not an envelope's time or level */
+static int env_fmt(uint32_t id, const param_desc_t *d, int32_t x, char *v)
+{
+    int env = (id >= P_ATK && id <= P_REL) || (id >= P_FATK && id <= P_FREL);
+    if (!env)
+        return 0;
+    if (d->fmt == F_TIME) {
+        uint32_t ms10 = TIME_MS_X10[x & 127];
+        if (ms10 < 9995u) {
+            fmt_int(v, (int32_t)((ms10 + 5u) / 10u));
+            str_cpy(v + str_len(v), "MS", 3);
+        } else {
+            if (ms10 < 99500u)
+                fmt_fix(v, (int32_t)((ms10 + 50u) / 100u), 1);
+            else
+                fmt_int(v, (int32_t)((ms10 + 5000u) / 10000u));
+            str_cpy(v + str_len(v), "S", 2);
+        }
+        return 1;
+    }
+    if (d->fmt == F_PCT) {
+        fmt_int(v, d->max > 0 ? (x * 100 + d->max / 2) / d->max : x);
+        str_cpy(v + str_len(v), "%", 2);
+        return 1;
+    }
+    return 0;                                           /* (ENV SYNC on: the note values, as they are) */
+}
 static void syn_vals(const page_t *pg, int32_t first, const char *lab[4], char v[4][12], int32_t ratio[4], uint32_t *locked,
                      uint32_t *dim)
 {
@@ -85,7 +113,8 @@ static void syn_vals(const page_t *pg, int32_t first, const char *lab[4], char v
             if (!p_lockable(id))
                 *dim |= 1u << k;
         }
-        param_format(d, x, v[k], &u);
+        if (!env_fmt(id, d, x, v[k]))
+            param_format(d, x, v[k], &u);
         dval_fit(v[k]);
         ratio[k] = d->max > d->min ? (x - d->min) * 1000 / (d->max - d->min) : -1;
     }
