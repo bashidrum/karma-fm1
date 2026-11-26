@@ -462,7 +462,10 @@ static void ask_set(uint32_t kind, uint32_t arg, const char *what)
     ui.ask = (uint8_t)kind;
     ui.ask_arg = (uint8_t)arg;
     ask_keeps = (uint8_t)((kind == ASK_UP && (arg & 3u) == 2u && !up_used(arg >> 2)) ||   /* (SAVE into an empty slot) */
-                          (kind == ASK_BANK && arg == 1u));   /* (the bank's SWAP: nothing is lost, a white ring) */
+                          (kind == ASK_BANK && arg == 1u) ||  /* (the bank's SWAP: nothing is lost, a white ring) */
+                          (kind == ASK_UKIT && (arg & UK_ASK_STOP) && (arg & 3u) == UKOP_SAVE && !ukit_has((arg >> 2) & 7u)));
+                                                         /* (Ben, 26 Nov 2026: a user kit saved into an empty one while playing:
+                                                          * only the audio stops, nothing is lost) */
     if (kind == ASK_KIT || kind == ASK_UKIT)            /* (wave 12: the readout gives way to the question) */
         brw_t = 0;
     ui_say("HOLD SAVE: ", what);
@@ -542,7 +545,7 @@ static void ask_do(void)
         kit_ask_do(a);
         break;
     case ASK_UKIT:                                        /* (wave 12) SAVE > KITS: LOAD, ERASE, SAVE over */
-        ukit_do(a & 3u, a >> 2);
+        ukit_do(a & 3u, (a >> 2) & 7u);                   /* (UK_ASK_STOP: ukit_do stops the transport first) */
         break;
     case ASK_PADS:
         stl_pads_clear();

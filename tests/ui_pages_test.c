@@ -5284,6 +5284,32 @@ int main(int argc, char **argv)
         encs[panel.enc[EN_K2]] = 1; frame();
         check(pkit.base == DSRC_USER + 4u && pkit.s[2].snd[7] == 20u, "w12: LOAD over an unchanged kit: MY KIT 5 at once");
         ui.force = 1; frame(); ppm("w12-save-kits-stored");
+        {   /* (Ben, 26 Nov 2026: "Make it say "This will stop the audio" - like Ableton does") a user kit while playing */
+            encs[panel.enc[EN_K1]] = 1; frame();           /* MY KIT 6: empty */
+            transport_req = 1; frames(3);
+            check(ukit_sel == 5u && !ukit_has(5) && song.playing, "E3: (MY KIT 6 empty, playing)");
+            encs[panel.enc[EN_K4]] = 1; frame();
+            check(ui.ask == ASK_UKIT && str_eq(ui.msg, "HOLD SAVE: STOPS THE AUDIO") && ask_keeps && song.playing &&
+                  ukit_state(5) != UK_STORED, "E3: SAVE into an empty kit while playing asks (HOLD SAVE: STOPS THE AUDIO, white), nothing written");
+            ui.force = 1; frame(); ppm("e3-kit-stop-ask");
+            press(B_SAVE); frames(30); release(B_SAVE); frames(2);
+            check(song.playing && ukit_state(5) != UK_STORED, "E3: let go before the ring fills: still playing, nothing written");
+            press(B_SAVE); frames(20); ui.force = 1; frame(); ppm("e3-kit-stop-hold");
+            frames(80); release(B_SAVE); frames(3);
+            check(!song.playing && !transport_req && ukit_state(5) == UK_STORED && pkit.base == DSRC_USER + 5u && !kit_changed(),
+                  "E3: held until the ring fills: the transport stops, then MY KIT 6 is written");
+            transport_req = 1; frames(3);
+            encs[panel.enc[EN_K4]] = 1; frame();
+            check(ui.ask == ASK_UKIT && (ui.ask_arg & UK_ASK_STOP) && !ask_keeps && str_eq(ui.msg, "HOLD SAVE: STOPS THE AUDIO"),
+                  "E3: SAVE over a stored kit while playing: the same question, red (it replaces)");
+            ask_drop(); frame();
+            encs[panel.enc[EN_K3]] = 1; frame();
+            check(ui.ask == ASK_UKIT && (ui.ask_arg & UK_ASK_STOP) && (ui.ask_arg & 3u) == UKOP_ERASE && song.playing,
+                  "E3: ERASE while playing: asks the same");
+            press(B_SAVE); frames(100); release(B_SAVE); frames(3);
+            check(!song.playing && ukit_state(5) == UK_ERASED, "E3: held: stopped, then erased");
+            encs[panel.enc[EN_K1]] = -1; frame();
+        }
         ukit_put(4, 0);
         kit_set(DRUM_DEFAULT_KIT); song.sel = 0; ui.msg_t = 0; go_home(); frames(4);
     }
