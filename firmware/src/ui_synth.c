@@ -418,7 +418,7 @@ static void syn_body(track_t *t, const page_t *pg, uint32_t half, uint32_t *cach
             sig = (sig ^ m->as[i]) * 16777619u;
     }
     if (pg->graph == GR_LFO || pg->graph == GR_LFO2 || (pg->graph == GR_SLCR && t->p[P_SLCR]) ||
-        (pg->graph == GR_XSLOT && (t->p[pg->id[0]] == XT_PHASER || t->p[pg->id[0]] == XT_FLANGER)))
+        (pg->graph == GR_XSLOT && (t->p[P_XS(pg_slot(pg), 0)] == XT_PHASER || t->p[P_XS(pg_slot(pg), 0)] == XT_FLANGER)))
         sig ^= (ui.frame / 2u + 1u) * 40503u;           /* (the LFO runs, the SLICER's step) */
     if (pg->graph == GR_INS && t->p[P_ITYPE] >= IT_PHASER)
         sig ^= (ui.frame + 1u) * 40503u;

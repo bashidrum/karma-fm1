@@ -706,7 +706,8 @@ static void hold_screen_draw(void)
     const char *what = ui.msg + 11;                     /* (the question's action, after "HOLD SAVE: ") */
     uint16_t rc = ask_keeps ? C_WHITE : TE_RED;
     int32_t ratio = el >= span ? 1000 : (int32_t)(el * 1000u / span);
-    uint32_t sig = studio_hash(ui.hold_kind * 7u + (uint32_t)ratio / 20u + rc, what);
+    int stops = ui.ask == ASK_UKIT && (ui.ask_arg & UK_ASK_STOP);   /* (Ben, 26 Nov 2026: a user kit while playing, ui_kit.c) */
+    uint32_t sig = studio_hash(ui.hold_kind * 7u + (uint32_t)ratio / 20u + rc + (stops ? ui.ask_arg * 977u : 0u), what);
     if (!layer_shown) {
         lcd_fill(0, 0, 240, 240, C_BLACK);
         layer_shown = 1;
@@ -716,7 +717,12 @@ static void hold_screen_draw(void)
         return;
     cache = sig;
     cv_begin(240, 124, C_BLACK);
-    if (text_w(&FONT_L, what) <= 236)
+    if (stops) {                                        /* THIS WILL STOP THE AUDIO, what it does under it */
+        char act[24];
+        ukit_ask_what(ui.ask_arg, act, sizeof act);
+        te_text_c(120, 4, "THIS WILL STOP THE AUDIO", rc);
+        te_text_c(120, 24, act, TE_G4);
+    } else if (text_w(&FONT_L, what) <= 236)
         cv_text(120 - text_w(&FONT_L, what) / 2, 4, &FONT_L, what, rc);
     else
         te_text_c(120, 12, what, rc);

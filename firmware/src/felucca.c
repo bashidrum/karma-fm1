@@ -129,6 +129,8 @@ static int st_erase(uint32_t off)
     uint32_t took;
     if (!FL_STORE_OK(off, 0x1000u))
         return -8;
+    fm1_wdt_feed();                       /* (Ben, 26 Nov 2026: KEEP makes about 22 erases in one pass; on the slower
+                                           * chip they could outlast the ~8 s watchdog, as ota_erase could) */
     return fl_erase4k_quiet(off, &took);
 }
 static int st_prog(uint32_t off, const void *src, uint32_t n)

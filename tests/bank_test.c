@@ -344,6 +344,26 @@ int main(int argc, char **argv)
         waitpid(p, &st, 0);
         ok(WIFEXITED(st) && !WEXITSTATUS(st), "a KEEP cut half way leaves the old bank; KEEP again: the new one");
     }
+    {   /* (Ben, 26 Nov 2026) a backup's LIST: the live project into proj_tmp (editor.c), then the bank's objects listed, which
+         * reads the bank's summary from flash; the snapshot must stay the live project, never become the bank's */
+        project_t *bw = (project_t *)(void *)b0->b[4];
+        uint32_t i, len, crc, listed = 0, np = 0;
+        int32_t bpm = 0;
+        char kit[9] = {0};
+        power_cycle();                                 /* (the bank's summary not yet read) */
+        song.g[G_BPM] = (int16_t)(bw->c.g[G_BPM] + 9); /* (an edit not yet written: the live differs from the bank) */
+        x = live_now();
+        ok(memcmp(&x, bw, sizeof x) != 0 && !bank_s.known, "(the live project differs from the bank's, the summary unread)");
+        proj_capture((project_t *)(void *)&proj_tmp);
+        for (i = 0; i < 5u; i++)
+            listed += (uint32_t)bank_obj(i, &len, &crc);
+        diffp((const project_t *)(const void *)&proj_tmp, &x);
+        ok(listed == 5u && !memcmp(&proj_tmp, &x, sizeof x), "a backup lists the bank: its object 0 is still the live project, not the bank's");
+        for (i = 0; i < 4u; i++)
+            np += b0->n[i] >= (int)sizeof(proj_core_t);
+        ok(bank_summary(&n, &bpm, kit) && bpm == bw->c.g[G_BPM] && n == np && !strcmp(kit, "CUSTOM"),
+           "... and the bank's summary read from flash as before: its tempo, its patterns, its kit (CUSTOM)");
+    }
     {   /* the objects before the bank's area are untouched: user kits, settings */
         uint32_t i, untouched = 1;
         for (i = 0xCC000u; i < 0xDC000u; i++) untouched &= nor[i] == 0xFFu;

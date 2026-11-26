@@ -270,10 +270,26 @@ static void ukit_label(uint32_t n, char *b, uint32_t m)  /* what slot n holds: M
         str_cpy(b, "EMPTY", m);
 }
 enum { UKOP_LOAD, UKOP_ERASE, UKOP_SAVE };
+/* (Ben, 26 Nov 2026: "Make it say "This will stop the audio" - like Ableton does") a user kit is written to flash with the
+ * interrupts off (the sound, the sequencer, MIDI clock and USB held, up to 2.75 s on the slower chip): SAVE and ERASE while
+ * playing ask first (HOLD SAVE: STOPS THE AUDIO; the hold screen says THIS WILL STOP THE AUDIO over what it does); held to the
+ * end, the transport stops, then the kit is written; let go, nothing. Stopped: as before */
+#define UK_ASK_STOP 0x80u                               /* (in the question's argument: it stops the transport first) */
+static void ukit_ask_what(uint32_t a, char *b, uint32_t m)   /* the question's action: SAVE MY KIT 1, SAVE OVER .., ERASE .. */
+{
+    char nm[12];
+    uint32_t op = a & 3u, n = (a >> 2) & 7u;
+    ukit_name(n, nm, sizeof nm);                        /* (an empty one: the name it is saved as) */
+    str_cpy(b, op == UKOP_ERASE ? "ERASE " : op == UKOP_LOAD ? "LOAD " : ukit_has(n) ? "SAVE OVER " : "SAVE ", m);
+    str_cpy(b + str_len(b), nm, m - str_len(b));
+}
 static void ukit_do(uint32_t op, uint32_t n)            /* done (asked where it erases or replaces) */
 {
     char b[24], nm[12];
     ukit_label(n, nm, sizeof nm);
+    if (op != UKOP_LOAD && (song.playing || transport_req))
+        transport_req = 2;                              /* (asked first: THIS WILL STOP THE AUDIO) the transport stops, as
+                                                         * PLAY stops it, then the kit is written */
     if (op == UKOP_SAVE) {
         pkit_t k = pkit;
         uint32_t l;
@@ -340,13 +356,17 @@ static void ukit_turn(uint32_t k, int32_t s)            /* SAVE > KITS: KNOB 1 t
         }
         str_cpy(b, "ERASE ", sizeof b);
     } else {                                            /* SAVE: at once into an empty one, asks over one that holds a kit */
-        if (!ukit_has(n)) {
+        if (!ukit_has(n) && !song.playing && !transport_req) {
             ukit_do(UKOP_SAVE, n);
             return;
         }
-        str_cpy(b, "SAVE OVER ", sizeof b);
+        str_cpy(b, ukit_has(n) ? "SAVE OVER " : "SAVE ", sizeof b);
     }
     str_cpy(b + str_len(b), nm, sizeof b - str_len(b));
+    if (k != 1u && (song.playing || transport_req)) {   /* (SAVE or ERASE while playing: it writes to flash) */
+        ask_set(ASK_UKIT, (k - 1u) | n << 2 | UK_ASK_STOP, "STOPS THE AUDIO");
+        return;
+    }
     ask_set(ASK_UKIT, (k - 1u) | n << 2, b);
 }
 static void graph_ukit(void)                            /* the six user kits, what each holds, the one KNOB 1 picks white */

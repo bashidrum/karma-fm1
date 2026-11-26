@@ -950,8 +950,7 @@ static void drum_grid_input(uint32_t pressed)
         if (sg_held) {
             drum_held_oct(up);
         } else if (!drum_pg && dpg_half() == TH_AD) {   /* (wave 10) SEQ > A-D: the pattern before / after */
-            int32_t p = patt_shown();
-            patt_pick(clamp((p < 0 ? 0 : p) + (up ? 1 : -1), 0, 3));
+            ad_tap(up);                                 /* (stopped: once no second tap came, ui_input.c) */
         } else if (up && sg_page() + 1u == pages && pages < 4u) {
             sg_page_add(TDRUM);
         } else {

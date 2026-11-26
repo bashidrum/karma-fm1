@@ -4276,6 +4276,25 @@ int main(int argc, char **argv)
             check(preset_pos(&tot) == (p0 + 1u) % tot && song.octave == o0, "w10: SAVE > PRESETS: OCT+ the next sound");
             PMT(B_OCTDN);
             check(preset_pos(&tot) == p0, "w10: ... OCT- the one before");
+            {   /* (Ben, 26 Nov 2026: "Wait 0.3 s on load pages") */
+                int16_t r0 = t->p[P_FRES];
+                t->p[P_FRES] = (int16_t)(r0 + 7);         /* (an edited sound) */
+                tap(B_OCTUP); frames(2);
+                check(preset_pos(&tot) == p0 && t->p[P_FRES] == r0 + 7, "E4: SAVE > PRESETS: a single tap waits (nothing loaded yet, within 0.3 s)");
+                frames(20);                               /* (no further input: the UI tick loads it) */
+                check(preset_pos(&tot) == (p0 + 1u) % tot && song.octave == o0, "E4: ... 0.3 s with no second tap: the next sound loads");
+                PMT(B_OCTDN);
+                t->p[P_FRES] = (int16_t)(r0 + 7);
+                DTAP(B_OCTUP);
+                check(preset_pos(&tot) == p0 && t->p[P_FRES] == r0 + 7 && song.octave == o0 + 1,
+                      "E4: SAVE > PRESETS: a double tap: the octave up, nothing loaded, the edited sound kept");
+                DTAP(B_OCTDN);
+                check(preset_pos(&tot) == p0 && t->p[P_FRES] == r0 + 7 && song.octave == o0, "E4: ... and down again, the sound still kept");
+                tap(B_OCTUP); tap(B_HOME); frames(2);
+                check(preset_pos(&tot) == (p0 + 1u) % tot, "E4: a tap, then another button within 0.3 s: the tap acts first");
+                PMT(B_OCTDN);
+                t->p[P_FRES] = r0;
+            }
         }
         go_home(); frames(2);
         {
@@ -4296,8 +4315,33 @@ int main(int argc, char **argv)
             live_sec = 0;
             PMT(B_OCTUP);
             check(sec_loads == l0 + 1u && live_sec == 1, "w10: A-D, stopped: OCT+ loads B");
+            tap(B_OCTDN); frames(2);
+            check(sec_loads == l0 + 1u && live_sec == 1, "E4: A-D, stopped: a single tap waits (within 0.3 s, nothing loaded)");
+            frames(20);
+            check(sec_loads == l0 + 2u && live_sec == 0, "E4: ... 0.3 s with no second tap: A loads");
+            DTAP(B_OCTUP);
+            check(sec_loads == l0 + 2u && live_sec == 0 && song.octave == o0 + 1, "E4: A-D, stopped: a double tap: the octave, nothing loaded");
+            DTAP(B_OCTDN);
+            check(sec_loads == l0 + 2u && song.octave == o0, "E4: ... and back");
+            PMT(B_OCTUP);
             encs[panel.enc[EN_K1]] = -1; frame(); frames(4);
             check(live_sec == 0, "w10: A-D: KNOB 1 back to A");
+            {   /* E4 on the drum track's A-D */
+                uint32_t kk, nn, l1;
+                track_select(TRK_DRUM); go_home(); frames(2);
+                tap(B_SEQ); frames(2); tap(B_SEQ); frames(2); tap(B_SEQ); frames(2);
+                l1 = sec_loads;
+                check(nav_cat(&kk, &nn) == CT_PATTS && is_drum(TSEL), "E4: (the drum track, SEQ > A-D)");
+                DTAP(B_OCTUP);
+                check(sec_loads == l1 && live_sec == 0 && song.octave == o0 + 1, "E4: drums' A-D, stopped: a double tap: the octave, nothing loaded");
+                DTAP(B_OCTDN);
+                tap(B_OCTUP); frames(2);
+                check(sec_loads == l1, "E4: drums' A-D: a single tap waits");
+                frames(20);
+                check(sec_loads == l1 + 1u && live_sec == 1, "E4: ... then B loads");
+                encs[panel.enc[EN_K1]] = -1; frame(); frames(4);
+                track_select(0);
+            }
         }
         go_home(); frames(2);
         /* -- 12. (Ben 10:33) the steps show only on SEQ: from the GRID with nothing held a page button opens its real page;
@@ -5284,6 +5328,32 @@ int main(int argc, char **argv)
         encs[panel.enc[EN_K2]] = 1; frame();
         check(pkit.base == DSRC_USER + 4u && pkit.s[2].snd[7] == 20u, "w12: LOAD over an unchanged kit: MY KIT 5 at once");
         ui.force = 1; frame(); ppm("w12-save-kits-stored");
+        {   /* (Ben, 26 Nov 2026: "Make it say "This will stop the audio" - like Ableton does") a user kit while playing */
+            encs[panel.enc[EN_K1]] = 1; frame();           /* MY KIT 6: empty */
+            transport_req = 1; frames(3);
+            check(ukit_sel == 5u && !ukit_has(5) && song.playing, "E3: (MY KIT 6 empty, playing)");
+            encs[panel.enc[EN_K4]] = 1; frame();
+            check(ui.ask == ASK_UKIT && str_eq(ui.msg, "HOLD SAVE: STOPS THE AUDIO") && ask_keeps && song.playing &&
+                  ukit_state(5) != UK_STORED, "E3: SAVE into an empty kit while playing asks (HOLD SAVE: STOPS THE AUDIO, white), nothing written");
+            ui.force = 1; frame(); ppm("e3-kit-stop-ask");
+            press(B_SAVE); frames(30); release(B_SAVE); frames(2);
+            check(song.playing && ukit_state(5) != UK_STORED, "E3: let go before the ring fills: still playing, nothing written");
+            press(B_SAVE); frames(20); ui.force = 1; frame(); ppm("e3-kit-stop-hold");
+            frames(80); release(B_SAVE); frames(3);
+            check(!song.playing && !transport_req && ukit_state(5) == UK_STORED && pkit.base == DSRC_USER + 5u && !kit_changed(),
+                  "E3: held until the ring fills: the transport stops, then MY KIT 6 is written");
+            transport_req = 1; frames(3);
+            encs[panel.enc[EN_K4]] = 1; frame();
+            check(ui.ask == ASK_UKIT && (ui.ask_arg & UK_ASK_STOP) && !ask_keeps && str_eq(ui.msg, "HOLD SAVE: STOPS THE AUDIO"),
+                  "E3: SAVE over a stored kit while playing: the same question, red (it replaces)");
+            ask_drop(); frame();
+            encs[panel.enc[EN_K3]] = 1; frame();
+            check(ui.ask == ASK_UKIT && (ui.ask_arg & UK_ASK_STOP) && (ui.ask_arg & 3u) == UKOP_ERASE && song.playing,
+                  "E3: ERASE while playing: asks the same");
+            press(B_SAVE); frames(100); release(B_SAVE); frames(3);
+            check(!song.playing && ukit_state(5) == UK_ERASED, "E3: held: stopped, then erased");
+            encs[panel.enc[EN_K1]] = -1; frame();
+        }
         ukit_put(4, 0);
         kit_set(DRUM_DEFAULT_KIT); song.sel = 0; ui.msg_t = 0; go_home(); frames(4);
     }

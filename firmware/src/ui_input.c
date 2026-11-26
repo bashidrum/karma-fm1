@@ -462,7 +462,10 @@ static void ask_set(uint32_t kind, uint32_t arg, const char *what)
     ui.ask = (uint8_t)kind;
     ui.ask_arg = (uint8_t)arg;
     ask_keeps = (uint8_t)((kind == ASK_UP && (arg & 3u) == 2u && !up_used(arg >> 2)) ||   /* (SAVE into an empty slot) */
-                          (kind == ASK_BANK && arg == 1u));   /* (the bank's SWAP: nothing is lost, a white ring) */
+                          (kind == ASK_BANK && arg == 1u) ||  /* (the bank's SWAP: nothing is lost, a white ring) */
+                          (kind == ASK_UKIT && (arg & UK_ASK_STOP) && (arg & 3u) == UKOP_SAVE && !ukit_has((arg >> 2) & 7u)));
+                                                         /* (Ben, 26 Nov 2026: a user kit saved into an empty one while playing:
+                                                          * only the audio stops, nothing is lost) */
     if (kind == ASK_KIT || kind == ASK_UKIT)            /* (wave 12: the readout gives way to the question) */
         brw_t = 0;
     ui_say("HOLD SAVE: ", what);
@@ -542,7 +545,7 @@ static void ask_do(void)
         kit_ask_do(a);
         break;
     case ASK_UKIT:                                        /* (wave 12) SAVE > KITS: LOAD, ERASE, SAVE over */
-        ukit_do(a & 3u, a >> 2);
+        ukit_do(a & 3u, (a >> 2) & 7u);                   /* (UK_ASK_STOP: ukit_do stops the transport first) */
         break;
     case ASK_PADS:
         stl_pads_clear();
@@ -981,7 +984,10 @@ static void holds_input(uint32_t pressed, uint32_t now_ms)
  * A DOUBLE TAP (the same button again within DTAP_MS of the first press) changes the octave instead (CHROMATIC: its keys'
  * octave), the one exception to the no-double-press rule (Ben's choice): the second press takes back what the first did, so
  * nothing waits for a second press and the single tap never lags. Both at once: octave 0. With something held: minus removes
- * (a step: ui_grid.c; a key: seq.c oct_erase; a layer's own: layers_input), and no double tap */
+ * (a step: ui_grid.c; a key: seq.c oct_erase; a layer's own: layers_input), and no double tap.
+ * (Ben, 26 Nov 2026: "Wait 0.3 s on load pages") where a single tap loads something (SAVE > PRESETS, SEQ > A-D while
+ * stopped), taking it back could not bring an edited sound back: there the tap waits out DTAP_MS and acts only if no second
+ * tap came (dt_load_tick, each frame); a double tap there loads nothing. Another button first: the tap acts at once */
 #define DTAP_MS 300u
 static uint8_t pm_touch = 0xFF, pm_touch_pg = 0xFF;     /* the control last touched on page pm_touch_pg: KNOB 1..4, 4 SELECT */
 static int8_t pm_did_k = -1, pm_did_d;                  /* the fine step a first tap took (the second takes it back) */
@@ -990,6 +996,8 @@ static uint32_t dt_t;
 static struct {
     uint8_t cursor, bank, dcur, stlpg, lane, uslot;
     int8_t req, sec, chr;
+    uint8_t load;                                       /* (a load page's tap waiting out DTAP_MS: DT_LOAD | up << 1 | DT_AD; in
+                                                         * the byte before slen that was padding: no RAM) */
     int16_t slen;
     uint32_t ppos;
 } dt_s;
@@ -997,6 +1005,39 @@ static void pm_edit(uint32_t k, int32_t d)               /* KNOB k one fine step
 {
     ui.enc_t[EN_K1 + (k & 3u)] = fm1_ticks() - 0x7FFFFFFFu;
     edit_param(k, d);
+}
+#define DT_LOAD 1u
+#define DT_AD 4u                                        /* (SEQ > A-D; else SAVE > PRESETS) */
+static void dt_load_fire(void)                          /* a load page's waiting tap: done now (on the page it was made on) */
+{
+    uint32_t l = dt_s.load, k, n;
+    int32_t d = (l & 2u) ? 1 : -1, p;
+    dt_s.load = 0;
+    if (!l || ui.menu || vis_shown())
+        return;
+    if (l & DT_AD) {
+        if (on_drum_page() && !sg_held && nav_cat(&k, &n) == CT_PATTS) {
+            p = patt_shown();
+            patt_pick(clamp((p < 0 ? 0 : p) + d, 0, 3));
+        }
+    } else if (!ui.home && cur_page()->graph == GR_BROWSE) {
+        pm_edit(0, d);
+    }
+}
+static void ad_tap(uint32_t up)                         /* SEQ > A-D's -/+ (ui_grid.c, ui_drum.c): stopped, a load: it waits */
+{
+    int32_t p;
+    if (!song.playing && !transport_req) {
+        dt_s.load = (uint8_t)(DT_LOAD | (up ? 2u : 0u) | DT_AD);
+        return;
+    }
+    p = patt_shown();                                   /* (playing: queued, and a double tap takes it back: at once) */
+    patt_pick(clamp((p < 0 ? 0 : p) + (up ? 1 : -1), 0, 3));
+}
+static void dt_load_tick(uint32_t pressed)              /* each frame: the window passed with no second tap, or another button */
+{
+    if (dt_s.load && (fm1_ms - dt_t >= DTAP_MS || (pressed & ~(BTN_BIT(B_OCTDN) | BTN_BIT(B_OCTUP)))))
+        dt_load_fire();
 }
 static int pm_go_id(uint32_t id) { return id == G_LOAD || id == G_SAVE || id == G_CLRSEQ || id == G_INITSND || id == G_NEWPRJ || id == V_MK4; }
 static void dt_save(void)
@@ -1074,10 +1115,12 @@ static uint32_t pm_input(uint32_t pressed)
     }
     if (dt_btn == up && fm1_ms - dt_t < DTAP_MS) {      /* the double tap: the first one taken back, the octave */
         dt_btn = 0xFF;
+        dt_s.load = 0;                                  /* (a load page: the first tap never loaded, nothing loads) */
         dt_revert();
         pm_octave(up);
         return pressed & ~both;
     }
+    dt_load_fire();                                     /* (the other button's tap, still waiting: done first) */
     dt_save();
     dt_btn = (uint8_t)up;
     dt_t = fm1_ms;
@@ -1092,7 +1135,11 @@ static void pm_page_tap(uint32_t up)
     const param_desc_t *dd;
     if (ui.home || vis_shown() || pg->scope == SC_TRK || (is_drum(TSEL) && !page_for_drum(pg)))
         return;
-    if (pg->graph == GR_BROWSE || pg->graph == GR_USER || pg->graph == GR_UKIT) {   /* the preset / the slot before, after */
+    if (pg->graph == GR_BROWSE) {                       /* the preset before, after: once no second tap came (a load page) */
+        dt_s.load = (uint8_t)(DT_LOAD | (up ? 2u : 0u));
+        return;
+    }
+    if (pg->graph == GR_USER || pg->graph == GR_UKIT) { /* the slot before, after */
         if (!is_drum(TSEL) || pg->graph != GR_USER)
             pm_edit(0, d);
         return;
@@ -1203,6 +1250,7 @@ static void ui_input(void)
     uint32_t home = btn_hold(&ui.home_t0, B_HOME, now, 0);   /* (wave 10: held, nothing: the menu is GLO's DEVICE only) */
     int32_t s;
     int layered;
+    dt_load_tick(pressed);                              /* (Ben, 26 Nov 2026: a load page's single tap, once 0.3 s passed) */
     enc_hold = 0;                                       /* (panel.c: every knob readable again this pass) */
     if (pressed || notes)
         ui_input_ms = fm1_ms;
