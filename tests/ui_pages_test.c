@@ -1089,6 +1089,8 @@ int main(int argc, char **argv)
     open_family(FAM_FX); ui.force = 1; frame(); ppm("page-fx");
     open_family(FAM_SEQ); ui.force = 1; frame(); ppm("page-pattern");
     open_family(FAM_GLO); ui.force = 1; frame(); ppm("page-global");
+    check(px_count(100, Y_GRAPH + 2 + 13, 128, 3, TE_G2) == 0u && px_count(150, Y_GRAPH + 2 + 7, 78, 13, C_WHITE) > 10u,
+          "V3: GLO rows: no bar, the value printed right-aligned in its row");
     {   /* review 16b (Ben, 21 Nov: "Fix all"): a page every voice shares is neutral: the tag "ALL" in grey, no voice colour
          * in the header, no character, the knobs grey */
         uint32_t k, voice = 0;
@@ -1178,6 +1180,8 @@ int main(int argc, char **argv)
     tap(B_FX); check(cur_cat() == CT_SLICER, "FX again: SLICER");
     tap(B_FX); check(cur_cat() == CT_MIX && !strcmp(PAGES[ui.page].title, "DELAY"), "FX again: MIX, the whole mix's DELAY");
     ui.force = 1; frame(); ppm("page-fx-delay");
+    check(px_count(8, Y_GRAPH + 10, 4, 80, C_WHITE) > 200u && px_count(100, Y_GRAPH + 2 + 13, 128, 3, TE_G2) == 0u,
+          "V3: MIX > DELAY: a picture (the dry hit, the taps), not the numbered bar list");
     check(px_count(0, 0, 50, 20, TE_COL[0]) == 0u && px_count(0, 0, 240, 240, TE_COL[0]) < 600u,
           "MIX pages drawn white and grey (the voice's colour only in the tab row's voice side and the strip)");
     tap(B_SCL); ui.force = 1; frame(); ppm("page-fx-revcho");

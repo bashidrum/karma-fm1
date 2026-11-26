@@ -340,6 +340,8 @@ static uint32_t graph_signature(void)
         h ^= (ui.frame / 2u + 1u) * 40503u;
     if (pg->graph == GR_SLCR && t->p[P_SLCR])        /* the SLICER's step playing */
         h ^= (sl[song.sel].idx + 1u) * 2654435761u;
+    if (pg->fam == FAM_MFX && pg->id[0] == G_DUST)  /* (review V3) MASTER's meter runs */
+        h ^= (ui.frame / 2u + 1u) * 40503u;
     if (pg->graph == GR_PROJ)                        /* (the bank) the two summaries, the live state */
         h ^= projpg_sig() * 2654435761u;
     if (pg->graph == GR_SLOTS)                       /* (a checksum over each slot) */
@@ -748,30 +750,113 @@ static int menu_page(const page_t *pg)
 {
     return pg->scope == SC_GLOBAL && pg->graph == GR_NONE && (pg->fam == FAM_GLO || pg->fam == FAM_SAVE || pg->fam == FAM_MFX);
 }
+static int dev_restart(uint32_t id);                    /* (ui_menu.c) */
+/* (review V3, Ben 26 Nov 2026: "plain rows on GLO") each knob a row: its number in a chip, its name, its value printed
+ * right-aligned (no bar: the dials under give the rest); COLOUR shows the palette's colours, USB and SERIAL say RESTART
+ * while the change waits for the next start */
 static void graph_menu(const track_t *t)
 {
     uint32_t c;
     (void)t;
     for (c = 0; c < 4u; c++) {
-        int32_t y = 2 + (int32_t)c * 26, x, lw, vw, uw;   /* (wave 9: 26 px rows, the tab row under) */
-        uint16_t vc = ui.big_c[c] == C_DIM ? C_DIM : ui.big_c[c] == C_WHITE && knob_tint[c] >= TINT_NEUTRAL ? C_WHITE : tint_col(c, 0);   /* (the page's tint; dim: does nothing now; a voice's touched: its colour, review 16e) */
-        char n[2] = {(char)('1' + c), 0};
+        int32_t y = 2 + (int32_t)c * 26, xv;
+        uint32_t id = cur_page()->id[c];
+        uint16_t vc = ui.big_c[c] == C_DIM ? C_DIM : C_WHITE;
+        char n[2] = {(char)('1' + c), 0}, v[16];
         if (!ui.big_l[c][0])
             continue;
         cv_rect(4, y + 6, 12, 18, tint_col(c, 0));      /* the knob: its number, in the page's tint */
         cv_text(6, y + 7, &FONT_S, n, C_BLACK);
-        lw = cv_text(22, y + 7, &FONT_S, ui.big_l[c], tint_col(c, 0));
-        (void)vc, (void)vw, (void)uw, (void)x;
-        if (opk.ratio[c] >= 0) {                        /* (PHEBUS wave 4: the value once, in the dials under; here where
-                                                         * the knob sits) */
-            int32_t gx = lw + 10 > 100 ? lw + 10 : 100, gw = 228 - gx;
-            cv_rect(gx, y + 13, gw, 3, TE_G2);
-            cv_rect(gx, y + 13, opk.ratio[c] * gw / 1000, 3, ui.big_c[c] == C_DIM ? C_DIM : tint_col(c, 0));
+        cv_text(22, y + 7, &FONT_S, ui.big_l[c], tint_col(c, 0));
+        str_cpy(v, ui.big_v[c], sizeof v);
+        if (ui.big_u[c][0] && str_len(v) + str_len(ui.big_u[c]) + 1u < sizeof v) {
+            if (ui.big_u[c][0] != '%')
+                str_cpy(v + str_len(v), " ", 2);
+            str_cpy(v + str_len(v), ui.big_u[c], sizeof v - str_len(v));
+        }
+        xv = 228 - text_w(&FONT_S, v);
+        cv_text(xv, y + 7, &FONT_S, v, vc);
+        if (id == V_COLOR) {                            /* the palette's colours, left of its name */
+            uint32_t q;
+            for (q = 0; q < 5u; q++)
+                cv_rect(xv - 8 - (5 - (int32_t)q) * 12, y + 10, 9, 9, pal[q]);
+        } else if (id >= V_DEV0 && id <= V_DEVN && dev_restart(id)) {
+            cv_text(xv - 8 - text_w(&FONT_S, "RESTART"), y + 7, &FONT_S, "RESTART", C_AMB);
         }
         cv_rect(22, y + 25, 206, 1, C_LINE);
     }
 }
 
+/* (review V3, Ben 26 Nov 2026: "Pictures on MIX") the whole mix's pages draw what their knobs do, white and grey as the
+ * whole mix is, as a voice's pages do: DELAY its taps (spaced by TIME, falling by FDBK, as loud as MIX, duller by COLOUR),
+ * REV/CHO the reverb's tail (as long as SIZE, darker sooner with DAMP) over the chorus's wave (RATE, DEPTH), MASTER the
+ * output's meter, the DUCK's dip on each beat and the DUST */
+static void graph_mix(const page_t *pg)
+{
+    int32_t base = 98, top = 10, i;
+    cv_rect(6, base + 1, 228, 1, TE_G2);
+    if (pg->id[0] == G_DTIME) {
+        static const uint8_t Q[9] = {72, 36, 18, 9, 24, 12, 54, 27, 108};   /* (N_DLY: px a tap, a quarter = 72) */
+        int32_t dx = Q[clamp(song.g[G_DTIME], 0, 8)], h = (base - top) * song.g[G_DMIX] / 127, x = 10 + dx;
+        int32_t fb = clamp(song.g[G_DFDBK], 0, 120), dull = 127 - song.g[G_DCOLOR];
+        cv_rect(8, top, 4, base - top + 1, C_WHITE);    /* the dry hit */
+        cv_text(16, top - 8, &FONT_S, "DRY", TE_G3);
+        for (i = 0; x < 232 && h > 0; i++, x += dx) {
+            int32_t g = i * dull / 40;
+            cv_rect(x - 1, base + 1 - h, 3, h, g > 2 ? TE_G3 : g > 0 ? TE_G4 : C_WHITE);
+            h = fb >= 100 ? h : h * fb / 100;
+        }
+    } else if (pg->id[0] == G_RSIZE) {
+        int32_t len = 40 + song.g[G_RSIZE] * 150 / 127, damp = song.g[G_RDAMP], wy = 84;
+        int32_t amp = 2 + song.g[G_CDEPTH] * 10 / 127, cyc = 1 + song.g[G_CRATE] * 7 / 127, py = wy;
+        uint32_t r = 0x2545F491u;
+        for (i = 0; i < len; i += 2) {                  /* the tail: dense lines, falling to nothing at SIZE's end */
+            int32_t e = (len - i) * 1000 / len, eh, h;
+            e = e * e / 1000;
+            r = r * 1664525u + 1013904223u;
+            eh = (wy - 6 - top) * e / 1000;
+            h = eh / 2 + (int32_t)((r >> 24) * (uint32_t)eh / 512u);
+            cv_rect(12 + i, wy - 6 - h, 1, h, i * 127 / len > 127 - damp ? TE_G3 : TE_G4);
+        }
+        cv_rect(8, top, 2, wy - 6 - top, C_WHITE);      /* the hit */
+        for (i = 0; i <= 224; i += 2) {                 /* the chorus: its wave, RATE's cycles, DEPTH high */
+            int32_t y = wy - SINE[(uint32_t)(i * cyc * 1024 / 224) & 1023u] * amp / 32767;
+            if (i)
+                cv_line(6 + i - 2, py, 6 + i, y, TE_G4);
+            py = y;
+        }
+    } else {                                            /* MASTER: the output, the duck, the dust */
+        int32_t pk = drums.peak, m, w, x;
+        uint32_t r = 0x9E3779B9u, k;
+        for (k = 0; k < NPART; k++)
+            pk = trk[k].peak > pk ? trk[k].peak : pk;
+        for (k = 0; k < NPART; k++)
+            trk[k].peak = 0;
+        drums.peak = 0;
+        m = meter_px(pk) * 228 / (TS_H - 2);
+        op_lvl = m > op_lvl - 6 ? m : op_lvl - 6;       /* (falls, as the voices' meters) */
+        cv_text(6, 0, &FONT_S, "OUT", TE_G3);
+        for (x = 0; x < 57; x++)                        /* 57 segments of 4 px */
+            cv_rect(6 + x * 4, 16, 3, 12, x * 4 < op_lvl ? (x >= 52 ? C_WHITE : TE_G4) : TE_G2);
+        cv_text(6, 34, &FONT_S, "DUCK", TE_G3);
+        w = song.g[G_DUCK] * 22 / 127;                  /* a beat's dip: down by DUCK, back up over the beat */
+        for (k = 0; k < 4u; k++) {
+            int32_t x0 = 6 + (int32_t)k * 57, j, py = 52;
+            for (j = 0; j < 57; j += 3) {
+                int32_t y = 52 + w - w * j / 56;
+                if (j)
+                    cv_line(x0 + j - 3, py, x0 + j, y, song.g[G_DUCK] ? C_WHITE : TE_G3);
+                py = y;
+            }
+        }
+        cv_text(6, 78, &FONT_S, "DUST", TE_G3);
+        for (k = 0; k < (uint32_t)song.g[G_DUST] * 2u; k++) {
+            r = r * 1664525u + 1013904223u;
+            cv_rect(50 + (int32_t)((r >> 8) % 182u), 80 + (int32_t)((r >> 20) % 16u), 1, 1, TE_G4);
+        }
+        (void)base;
+    }
+}
 static uint32_t key_strip_c;                            /* (wave 10: the KEY page's chord strip, drawn: draw_foot) */
 static void draw_graph(void)
 {
@@ -845,7 +930,9 @@ static void draw_graph(void)
         default:
             if (big_page(pg)) {
                 cv_oy = 0;
-                if (menu_page(pg)) {
+                if (pg->fam == FAM_MFX) {
+                    graph_mix(pg);
+                } else if (menu_page(pg)) {
                     graph_menu(t);
                 } else if (fam_stage(pg->fam) >= 0) {        /* a sound page: what its knobs do, big (review 8) */
                     op_sound(t, pg);
