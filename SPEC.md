@@ -510,3 +510,12 @@ On SELECT's order through the drum sounds: "It should follow the Rytm order"
 So, over the one picture he typed:
 - The mixer's drum mutes keep his order from 21:10: columns, top to bottom (keys 1 to 4 HAT, PEDAL, KICK 2, KICK; 5 to 8 OP HAT, CONGA, LO TOM, RIM; 9 to 12 RIDE, C-BELL, HI TOM, SNARE 2; 13 to 16 CRASH, SHAKER, CLAP, SNARE). The 22:45 answer does not apply to the mixer.
 - Playing the drum sounds by hand, retrig, and SELECT's order follow the Rytm order: bottom row first (KICK, RIM, SNARE 2, SNARE; KICK 2, LO TOM, HI TOM, CLAP; PEDAL, CONGA, C-BELL, SHAKER; HAT, OP HAT, RIDE, CRASH).
+
+### 26 Nov 2026, 08:53: the FM-1 has arrived, in Ben's words
+
+"My FM1 has arrived. Can I install this firmware?" and "Oh maybe finish the drum order job and the other things that were outstanding"
+
+By picker, 09:05:
+- The storage driver (hal, fm1_flash.h): "Yes, make that change". Ben's permission for this ONE change to the hal: the erase and page-write waits long enough for the newer, slower flash chip (UC25HQ80, JEDEC 0xB36014; ChoralRoot 0.32 uses 2 s and 50 ms) and a clean restart instead of carrying on if the chip is still busy. Nothing else in the hal.
+- His chip: "Idk. Not opening it. But it does have the M-VAVE logo beneath the screen which I think means it has the newer chip". Treat it as the newer chip.
+- The first install: "Walk me through it live".
