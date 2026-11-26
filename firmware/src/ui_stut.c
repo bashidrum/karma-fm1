@@ -328,15 +328,18 @@ static void stl_draw(void)
             cv_text(4, 0, &FONT_S, !stl.act ? "OFF: KEPT, SILENT" : c >= 4u ? "THE STEPS REPLAY" : "LIT STEPS REPEAT",
                     stl.act ? TE_G4 : TE_G3);
         }
-        {   /* (wave 6) the recorded pads over the page's steps: a bar a span, named, two rows (more: "+n"); the ones
-             * playing now light, the ones over a held step white (OCT- erases them) */
-            uint32_t rows[2] = {0, 0}, more = 0, i, any = 0;   /* (wave 10: two rows, the tab row under them) */
+        {   /* (wave 6) the recorded pads; (review V7, Ben: "Same columns as the steps") in the same two rows of 8 as the steps,
+             * under the same columns: steps 1 to 8 the first row, 9 to 16 the second, a bar a span, named; a pad over one
+             * already drawn in its row counts in "+n"; the ones playing now light, the ones over a held step white. The line's
+             * right says PADS and how many */
+            uint32_t rows[2] = {0, 0}, more = 0, i, any = 0, np = 0;
             for (i = 0; i < PEV_N; i++) {
                 const pev_t *e = &stl.ev[i];
-                uint32_t m = 0, r, w, held = 0;
+                uint32_t m = 0, r, w, held = 0, clash = 0;
                 if (!e->fx)
                     continue;
                 any = 1;
+                np++;
                 for (w = 0; w < 16u; w++)
                     if (pev_covers(e, stl_pg * 16u + w)) {
                         m |= 1u << w;
@@ -344,38 +347,42 @@ static void stl_draw(void)
                     }
                 if (!m)
                     continue;
-                for (r = 0; r < 2u && (rows[r] & m); r++)
-                    ;
-                if (r == 2u) {
+                for (r = 0; r < 2u; r++)
+                    clash |= (rows[r] >> (r * 8u)) & (m >> (r * 8u)) & 0xFFu;
+                if (clash) {
                     more++;
                     continue;
                 }
-                rows[r] |= m;
-                for (w = 0; w < 16u; w++) {             /* each run of steps it covers */
+                rows[0] |= m & 0xFFu, rows[1] |= m & 0xFF00u;
+                for (w = 0; w < 16u; w++) {             /* each run of steps it covers, broken at the row's end */
                     uint32_t e0 = w, p = (e->fx & 31u) - 1u, now;
-                    int32_t x, wd;
+                    int32_t x, wd, y;
                     uint16_t bg, fg;
                     if (!((m >> w) & 1u))
                         continue;
-                    while (w + 1u < 16u && (m >> (w + 1u)) & 1u)
+                    while (w + 1u < 16u && (w + 1u) % 8u && (m >> (w + 1u)) & 1u)
                         w++;
-                    x = (int32_t)e0 * 15, wd = (int32_t)(w - e0 + 1u) * 15 - 1;
+                    x = 4 + (int32_t)(e0 % 8u) * 29, wd = (int32_t)(w - e0 + 1u) * 29 - 2, y = 82 + (int32_t)(e0 / 8u) * 14;
                     now = song.playing && stl.act && pev_covers(e, stl_pos);
                     bg = held ? C_WHITE : now ? TE_G4 : TE_G2, fg = held || now ? C_BLACK : C_WHITE;
-                    cv_rect(x, 81 + (int32_t)r * 14, wd, 13, bg);
+                    cv_rect(x, y, wd, 12, bg);
                     {   /* (wave 13: the lane's own repeats by their length) */
                         const char *nm = p == PF_LSTUT ? LST_NAME[clamp(e->kv, 0, (int32_t)LST_N - 1)] : p < PF_NPAD ? PFD[p].pad : "";
                         if ((int32_t)text_w(&FONT_S, nm) + 3 <= wd)
-                            cv_text(x + 2, 79 + (int32_t)r * 14, &FONT_S, nm, fg);
+                            cv_text(x + 2, y - 2, &FONT_S, nm, fg);
                     }
                 }
             }
-            if (hs >= NSTEP) {                          /* (the line's right: the length new steps take, or how many more
-                                                         * pads there are than three rows show) */
-                t[0] = '+';
-                fmt_int(t + 1, (int32_t)more);
-                str_cpy(t + str_len(t), " MORE", 6);
-                if (!more) {
+            if (hs >= NSTEP || np) {                    /* (the line's right: the pads, how many, and how many more than the
+                                                         * rows show; none yet: the length new steps take) */
+                if (np) {
+                    str_cpy(t, "PADS ", 16);
+                    fmt_int(t + 5, (int32_t)np);
+                    if (more) {
+                        str_cpy(t + str_len(t), " +", 3);
+                        fmt_int(t + str_len(t), (int32_t)more);
+                    }
+                } else {
                     str_cpy(t, "NEW ", 16);
                     str_cpy(t + 4, STL_LEN[c % 6u], 6);
                 }

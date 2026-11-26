@@ -3297,8 +3297,8 @@ int main(int argc, char **argv)
         stl.ev[3] = (pev_t){PF_MTOPS + 1u, 0, 16, 0};
         lane_set_ui(12, 0), lane_set_ui(13, 0);
         ui.force = 1; frame(); ppm("stut-fx");
-        check(px_count(4 * 15, 22 + 77, 2 * 15 - 1, 14, TE_G2) + px_count(4 * 15, 22 + 93, 2 * 15 - 1, 14, TE_G2) > 200u,
-              "STUTTER lane: a recorded pad drawn as a span over its steps (1/8 on 5-6)");
+        check(px_count(4 + 4 * 29, 22 + 82, 2 * 29 - 2, 12, TE_G2) > 300u && px_count(4, 22 + 82, 4 * 29 - 2, 12, TE_G2) == 0u,
+              "V7: STUTTER lane: a recorded pad drawn under its steps' columns, the same rows of 8 (1/8 on 5-6: row 1, columns 5-6)");
         check(pev_count() == 4u && px_count(120, OP_KNOB_Y + 26, 54, 26, TE_G4) > 20u,
               "STUTTER lane: KNOB 3 says how many are recorded (FX 4)");
         fm1_in.notes |= 1u << key_of_white(9); frame();
