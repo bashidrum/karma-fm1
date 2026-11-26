@@ -1,14 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-# PHEBUS waves 9 to 11: the one-page button map, drawn for a phone: python3 tools/button_map.py review/wave11/button-map.png (needs
-# Pillow and the Inter font). Wave 10: per button its one idea, categories, SEL pages, hold, -/+ while held, MASTER's pair, SELECT.
-# Wave 11: hold LFO / ENV to map; what lights under a hold; DISCO; SAVE > PATTERNS; the drums teal (Ben's colour code, 11:33)
-# Wave 12: SAVE > KITS; PRESETS on the drums (the slot's sound / the whole kit); hold LFO maps on the drums; QUIET dims the screen
-# The drum effects under FX: EDIT SRC FLTR KIT FLT; FX INS SENDS SLICER as a synth voice (SENDS the sound's, with KIT FX)
-# Wave 13: the PERFORM set (effects on the white keys, mutes and four extras on the black); the mixer as one map (OCT+ + key
-# solos, OCT- clears, SEL the pans); the STUTTER lane's black keys repeat
-# Wave 14: the STUTTER lane is FX's last category, STUT, after MIX (Ben, 23 Nov 2026, 15:55: "Both on FX"); PERFORM hold FX only;
-# ALGORITHM the four voices only
+# PHEBUS: the one-page button map, drawn for a phone: python3 tools/button_map.py review/map/button-map.png (needs Pillow and the
+# Inter font). Per button: its one idea, categories (tab labels), SEL pages, hold, -/+ while held, MASTER's pair, SELECT.
+# Drums teal (Ben's colour code); the whole mix white. Kept in step with GUIDE.md section 2 and firmware/src/ui_nav.c.
 from PIL import Image, ImageDraw, ImageFont
 import sys
 
@@ -18,7 +12,7 @@ def font(w, s): return ImageFont.truetype(F + {"b": "Inter-Bold.otf", "s": "Inte
 
 BG = (11, 11, 14); CARD = (22, 22, 28); LINE = (44, 44, 54)
 WHITE = (240, 240, 244); GREY = (150, 150, 162); DIM = (95, 95, 108)
-PUR = (140, 118, 240); PUR_D = (48, 40, 82); COR = (20, 196, 170); COR_D = (7, 67, 58)   # (COR: the drum voice's, teal since wave 11)
+PUR = (140, 118, 240); PUR_D = (48, 40, 82); COR = (20, 196, 170); COR_D = (7, 67, 58)   # (COR: the drum voice's, teal)
 MIXC = (235, 235, 240)
 
 f_title = font("b", 64); f_sub = font("m", 30); f_h = font("b", 34); f_lab = font("s", 22)
@@ -26,7 +20,7 @@ f_txt = font("r", 28); f_txtb = font("s", 28); f_pill = font("s", 26); f_key = f
 
 # each button: name, idea, synth categories [(name, pages)], drum categories or None, hold, -/+ held, MASTER pair, select
 MIX = "MIX"
-STUT = "STUT"                                   # (wave 14) the STUTTER lane, the whole mix's too: after MIX, no divider
+STUT = "STUT"                                   # the STUTTER lane, the whole mix's too: after MIX, no divider
 B = [
     ("EDIT", "sound", [("OSC", "1 to 4"), ("FILT", "1 to 2")], [("SRC", "1 to 3"), ("FLTR", "1 to 2"), ("KIT FLT", "the kit's")],
      "MASTER's pair only", "- CLEAR the voice (then hold SAVE)", "LEVEL", "synth: OSC the oscillator Type, FILT the filter TYPE"),
@@ -37,21 +31,22 @@ B = [
      "on a synth sound page: MAP the LFO last shown (SEL the other); on a drum sound page: MAP its LFO (one DEST a sound); wiggle a knob. Elsewhere MASTER's pair only",
      "- REMOVE this LFO's mappings here", "MOD DEPTH (drums: LFO DEPTH)", "synth: the LFO's WAVE"),
     ("FX", "effects", [("INS", "FX 1 2 3"), ("SENDS", ""), ("SLICER", ""), (MIX, "3 pages"), (STUT, "the lane")],
-     [("INS", "kit, 1 to 2"), ("SENDS", "the sound's"), ("SLICER", "kit"), (MIX, "3 pages"), (STUT, "the lane")],
-     "PERFORM (hold only, never a tap): white keys the effects (1/1 1/2 1/4 1/8 / 1/16 HALF ECHO VERB / ISO LO MID HI, MOTION / CRUSH PHASER JET VOWEL); black: mute V1 V2 V3, KICKS TOPS SH+CL HT+SN, REVERSE STOP SWP DN SWP UP",
+     [("INS", "kit, 1 page"), ("SENDS", "the sound's"), ("SLICER", "kit"), (MIX, "3 pages"), (STUT, "the lane")],
+     "PERFORM (hold only, never a tap): white keys the effects (1/1 1/2 1/4 1/8 / 1/16 HALF ECHO VERB / ISO LO MID HI, MOTION / CRUSH PHASER JET VOWEL); black, one row: 1 2 3 KIK TOP S+C H+S (the mutes) REV STP DN UP",
      "- latches off, + LATCH", "FX MIX (0: dry)",
-     "synth: the insert TYPE, the SLICER's mode; drums: the sound on SENDS, nothing on the kit's pages"),
+     "synth: the insert TYPE, the SLICER's mode; drums: the same on the kit's INS and SLICER, the sound on SENDS"),
     ("SEQ", "rhythm", [("TRIG", "1 to 2"), ("PATTERN", "1 to 2"), ("A-D", "")], [("TRIG", "1 to 2"), ("PATTERN", "1 to 2"), ("A-D", "")],
-     "white keys ROLL (drums RETRIG); F#3-C#4 play A-D, D#4 fill bar; PLAY: FILL (+ latches); K1 RATE K2 SHIFT K3 SWING K4 STEPS",
+     "white keys ROLL (drums RETRIG); F#3-C#4 play A-D, D#4 fill bar; PLAY: FILL (+ latches); K1 RATE K2 SHIFT K3 GATE (synth) K4 STEPS",
      "- HALVE (asks), + DOUBLE", "SWING", "nothing on TRIG, PATTERN, A-D"),
-    ("ARP", "notes", [("ARP", "1 to 2"), ("KEY", "1 to 2")], [("CHROMATIC", ""), ("OFF", "keys: steps")],
+    ("ARP", "notes", [("ARP", "1 to 2"), ("KEY", "1 to 2")], [("CHRM", "again: off")],
      "-/+ and MASTER only", "- / + the pattern a SEMITONE", "TRANSP", "nothing"),
-    ("GLO", "global", [("GLOBAL", ""), ("SYSTEM", ""), ("MIDI", "1 to 3"), ("DEVICE", "menu")], None,
+    ("GLO", "global", [("GLOB", ""), ("SYS", ""), ("MIDI", "2 to 3"), ("DEVICE", "4 pages")], None,
      "the MIXER, one map: white keys the 16 drum sounds, F#3-C#4 the voices; tap: mute; SEL: the pans",
      "- CLEAR every mute and solo, + held with a key: SOLO", "TEMPO", "nothing"),
-    ("SAVE", "keep, confirm", [("PRESETS", ""), ("USER", ""), ("KITS", "MY KIT 1-6"), ("PATT", "A-D"), ("TOOLS", "")], None,
+    ("SAVE", "keep, confirm", [("PROJ", "live + bank"), ("PRST", ""), ("USER", ""), ("KITS", "MY KIT 1-6"), ("PATT", "A-D"), ("TOOL", "")],
+     [("PROJ", ""), ("KITS", ""), ("PATT", ""), ("TOOL", "")],
      "keys 1-4 store A-D; a question showing: the confirm's ring", "- UNDO, + REDO", "", "nothing"),
-    ("HOME", "home", [("HOME", ""), ("SAVER", "4 kinds")], None, "", "", "", "nothing"),
+    ("HOME", "home", [("HOME", ""), ("SAVR", "5 kinds")], None, "", "", "", "nothing"),
 ]
 SHARED = {"GLO", "SAVE", "HOME"}
 
@@ -87,7 +82,7 @@ def pill(d, x, y, name, sub, col, dark, mix=False, first=False, pad=32):
 def chain(d, x, y, cats, col, dark, maxx):
     """the categories in press order, an arrow between, a return arrow at the end; MIX after a divider"""
     x0 = x
-    tight = len(cats) >= 6                       # (wave 14: the drums' FX, six categories, in the card's width)
+    tight = len(cats) >= 6                       # (six categories or more, in the card width)
     for i, (n, sub) in enumerate(cats):
         mix = n in (MIX, STUT)
         if i:
@@ -143,7 +138,7 @@ def draw(out):
         rows = [("HOLD", hold or "nothing"), ("-/+ HELD", pm or "nothing"), ("MASTER", mp or "nothing")]
         wr = [(k, wrap(d, v, f_txt, RW - 150)) for k, v in rows]
         sl_syn = wrap(d, sel, f_txt, RW - 150)
-        sel_d = "the sound (1 of 16)" if drum else None
+        sel_d = None if (not drum or name == "SAVE") else "the sound (1 of 16)"
         hh = 22 + 96 + (112 if drum else 0) + 8 + sum(36 * len(l) for _, l in wr) + 36 * len(sl_syn) + (36 if sel_d else 0) + 18
         d.rounded_rectangle((LX - 16, y, W - 44, y + hh), 18, fill=CARD)
         d.rounded_rectangle((LX, y + 22, LX + 150, y + 22 + 74), 14, fill=(205, 205, 212))
@@ -181,15 +176,15 @@ def draw(out):
     # SEL and the lock
     for title, body, c in (
         ("SEL  (PAGE)", "Tap: the next page of the category shown, round to the first. A category of one page: nothing. Held: nothing. The tab row names the button's categories; \"2/4\" at its right is the page SEL is on.", WHITE),
-        ("OCT-  OCT+  (MINUS, PLUS)", "A tap is the screen's minus and plus, said by the legend at the tab row's right: the page of steps, the pattern, the step, the sound, the preset, or the knob last touched one fine step. Twice within 0.3 s: the octave (the one double press). With something held, minus removes it: a step, a key's note or sound from the pattern, the locks.", WHITE),
-        ("SAVE  (KEEP, CONFIRM)", "A white bar says HOLD SAVE: ...? Hold SAVE until the ring fills (red: something goes; white: it only keeps). Hold SAVE + OCT- undo, + OCT+ redo. REC only records.", WHITE),
+        ("OCT-  OCT+  (MINUS, PLUS)", "A tap is the screen's minus and plus, said by the legend at the tab row's right: the page of steps, the pattern, the step, the sound, the preset, or the knob last touched one fine step. Twice within 0.3 s: the octave (the one double press; on a load page a single tap waits 0.3 s). With something held, minus removes it: a step, a key's note or sound from the pattern, the locks.", WHITE),
+        ("SAVE  (KEEP, CONFIRM)", "A white bar says HOLD SAVE: ...? Hold SAVE until the ring fills (red: something goes; white: it only keeps). Hold SAVE + OCT- undo, + OCT+ redo. A kit saved or erased while playing asks THIS WILL STOP THE AUDIO. REC only records.", WHITE),
         ("MASTER WITH A BUTTON HELD", "Turn MASTER while holding FX (FX MIX), SEQ (SWING), ARP (TRANSP), EDIT (LEVEL), ENV (ENV LENGTH), LFO (MOD DEPTH), GLO (TEMPO). Relative: nothing jumps; the volume stays and follows again, without a jump, once MASTER is turned with nothing held.", WHITE),
         ("BLACK KEYS", "A black key does something only where the screen draws it, in the strip under the header: PERFORM's mutes and extras, the STUTTER lane's repeats (1/1 1/2 1/4 1/8 1/16, 1/4T 1/8T 1/16T, 1/8D 1/16D, 1/32), hold SEQ's A B C D BAR, the mixer's four voices, the KEY pages' chord changes. Elsewhere: a note, or nothing, and then its light stays dark.", WHITE),
         ("THE MIXER (HOLD GLO)", "The same whichever voice is selected: the 16 white keys are the 16 drum sounds, F#3 G#3 A#3 C#4 voice 1, 2, 3 and the drums. Tap a key: mute (yellow M). Hold OCT+ and tap: solo (ice-blue S); a solo anywhere leaves only what is soloed. OCT-: all off. SEL: the pans. PERFORM's mutes are separate and never change these.", WHITE),
         ("HOLD TO MAP", "On a synth voice's sound page hold LFO (or ENV): the page stays, the dials become that source's amounts, boxed. Turn right +, left -, back to 0: gone. The header says MAP LFO 1; SEL flips to the other LFO (envelope); OCT- removes them on this page. Each one is a cell of the MATRIX. Outside the hold a small wave under a dial: something moves that knob. On a drum sound page hold LFO the same way: the knob you wiggle becomes the sound's one LFO destination (LFO > CUT (WAS DECAY)); hold ENV there is MASTER's pair.", WHITE),
         ("THE LIGHTS", "Hold any button, a step, a key or a pad: what works with it lights, the rest goes dark. A question waiting: SAVE alone. GLO > DEVICE > LIGHTS > DISCO: QUIET (dim, nothing moves, the screen dimmed: for a night flight), NORMAL, SHOW (the keys dance: for filming).", WHITE),
-        ("PRESETS ON THE DRUMS", "On the drum screen: the selected slot's SOUND (SOUND 808 SNARE): INIT HEX, INIT CLASSIC, then its kind from every kit, then all; heard as you turn; turn back: what you had; SAVE + OCT-: undo. On HOME: the whole KIT (16 slots); asks HOLD SAVE only over a kit you changed (CUSTOM). Your kits: SAVE > KITS. Ghost and hard hits: TRIG's velocity (KNOB 1, nothing held).", COR),
-        ("THE STUTTER LANE (FX, STUT)", "Tap FX until STUT lights: after INS, SENDS, SLICER (drums FILTER first) and MIX. The whole mix's stutter sequence, white: tag MIX, title STUTTER, whichever voice is selected (it stays selected; ALGORITHM picks 1, 2, 3, DRUM only and the lane stays). White keys its steps, black keys hand-played stutters, K1 LEN K2 ON K3 PADS K4 STEPS, -/+ its pages. REC here records the lane alone (no voice armed; stopped: PLAY starts it). HOME says FX>STUT; HOME's K3 STUT turns it on and off.", WHITE),
+        ("PRESETS ON THE DRUMS", "On the drum screen: the selected slot's SOUND, a six-row list (808 SNARE, then 808 · 6/41): INIT HEX, INIT CLASSIC, then its kind from every kit, then all; heard as you turn; turn back: what you had; SAVE + OCT-: undo. On HOME: the whole KIT (16 slots), the only place factory kits load; asks HOLD SAVE only over a kit you changed (CUSTOM). Your kits: SAVE > KITS. Ghost and hard hits: TRIG's velocity (KNOB 1, nothing held).", COR),
+        ("THE STUTTER LANE (FX, STUT)", "Tap FX until STUT lights: after INS, SENDS, SLICER and MIX (the same on the drums). The whole mix's stutter sequence, white: tag MIX, title STUTTER, whichever voice is selected (it stays selected; ALGORITHM picks 1, 2, 3, DRUM only and the lane stays). White keys its steps, black keys hand-played stutters, K1 LEN K2 ON K3 PADS K4 STEPS, -/+ its pages. REC here records the lane alone (no voice armed; stopped: PLAY starts it). HOME says FX>STUT; HOME's K3 STUT turns it on and off.", WHITE),
         ("A LOCK ON ANY PAGE", "The steps show only on SEQ. Hold the step, press the page's button (and SEL): its knobs come under the steps, LOCK: in the tab row; turn a knob. Let go: the plain steps again. Nothing held, the button opens its real page.", WHITE)):
         lines = wrap(d, body, f_txt, W - 160)
         hh = 70 + 38 * len(lines) + 10
@@ -197,7 +192,7 @@ def draw(out):
         d.text((LX + 4, y + 20), title, font=f_h, fill=c)
         for j, l in enumerate(lines): d.text((LX + 4, y + 70 + j * 38), l, font=f_txt, fill=GREY)
         y += hh + 18
-    d.text((W / 2, y + 30), "PHEBUS wave 14  ·  23 Nov 2026  ·  the guide: GUIDE.md section 2", font=f_small, fill=DIM, anchor="mm")
+    d.text((W / 2, y + 30), "PHEBUS  ·  26 Nov 2026  ·  the guide: GUIDE.md section 2", font=f_small, fill=DIM, anchor="mm")
     im = im.crop((0, 0, W, int(y + 70)))
     im.save(out)
     print(out, im.size)
