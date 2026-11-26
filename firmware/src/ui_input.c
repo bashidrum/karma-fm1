@@ -341,9 +341,7 @@ static void edit_param_pg(const page_t *pg, uint32_t slot, int32_t steps)   /* (
         return;
     }
     if (pg->graph == GR_BROWSE) {                         /* KNOB 1: one preset, KNOB 2: the next / previous engine */
-        if (slot == 0u && is_drum(TSEL)) {                /* (wave 12) the drums: the whole kit */
-            kit_browse(steps);
-        } else if (slot == 0u && !is_drum(TSEL)) {
+        if (slot == 0u && !is_drum(TSEL)) {               /* (the drums never have this page: KITS, ui.c page_fix) */
             uint32_t total, cur = preset_pos(&total);
             if (total)
                 preset_go((uint32_t)(((int32_t)cur + steps % (int32_t)total + (int32_t)total) % (int32_t)total));
@@ -378,7 +376,6 @@ static void edit_param_pg(const page_t *pg, uint32_t slot, int32_t steps)   /* (
         static const char *const UP_GO[3] = {"LOAD", "ERASE", "SAVE"};
         if (slot == 0u) {
             ui.uslot = (uint8_t)clamp((int32_t)ui.uslot + steps, 0, UP_SLOTS - 1);
-            ui.arm = 0;
             return;
         }
         if (steps <= 0)
@@ -1226,7 +1223,7 @@ static void pm_words(const char **m, const char **p)
     if (ui.home || vis_shown() || pg->scope == SC_TRK || (is_drum(TSEL) && !page_for_drum(pg)))
         return;
     if (pg->graph == GR_BROWSE || pg->graph == GR_USER || pg->graph == GR_UKIT) {
-        if (pg->graph == GR_UKIT || (is_drum(TSEL) && pg->graph == GR_BROWSE))
+        if (pg->graph == GR_UKIT)
             *m = *p = "KIT";
         else if (!is_drum(TSEL))
             *m = *p = pg->graph == GR_BROWSE ? "SOUND" : "SLOT";

@@ -358,29 +358,6 @@ static void graph_browse(void)
 {
     uint32_t total, cur, e, k;
     int32_t row;
-    if (is_drum(TSEL)) {                                 /* (wave 12) the drums: the whole kits, the one loaded teal (CUSTOM:
-                                                         * a kit changed from it, first) */
-        int32_t p = kit_changed() ? -1 : kit_pos(pkit.base);
-        uint32_t n = kit_src_n();
-        for (row = -3; row <= 3; row++) {
-            int32_t y = 4 + (row + 3) * 17, q = (p < 0 ? 0 : p) + row;
-            char nm[13];
-            int sel = row == 0;
-            if (p < 0 && row == 0) {
-                str_cpy(nm, "CUSTOM", sizeof nm);
-            } else {
-                if (p < 0 && row > 0)
-                    q--;
-                q = (q % (int32_t)n + (int32_t)n) % (int32_t)n;
-                kit_name_of(kit_src((uint32_t)q), nm, sizeof nm);
-            }
-            if (sel)
-                cv_rect(4, y + 6, 3, 3, C_WHITE);
-            cv_text(14, y, &FONT_S, p < 0 && sel ? "" : kit_src((uint32_t)q) < DRUM_SAMPLED ? "HEX" : kit_src((uint32_t)q) < DRUM_USR ? "CLS" : "MY", sel ? C_GRAY : C_DIM);
-            cv_text(54, y, &FONT_S, nm, sel ? TE_DRUM : C_GRAY);
-        }
-        return;
-    }
     cur = preset_pos(&total);
     if (!total)
         return;
@@ -1077,21 +1054,6 @@ static void draw_columns_set(void)
         draw_column(3, "SAVE", "--", "", C_HI, -1, ICON_AUTO);
         return;
     }
-    if (cur_page()->graph == GR_BROWSE && is_drum(TSEL)) {   /* (wave 12) the drums: the whole kit's place in the list */
-        int32_t p = kit_changed() ? -1 : kit_pos(pkit.base);
-        char u[8];
-        if (p < 0)
-            str_cpy(val, "--", 12);
-        else
-            fmt_int(val, p + 1);
-        str_cpy(u, "/", 8);
-        fmt_int(u + 1, (int32_t)kit_src_n());
-        draw_column(0, "KIT", val, u, VAL(0u), -1, ICON_NONE);
-        draw_column(1, "", "", "", C_HI, -1, ICON_AUTO);
-        draw_column(2, "", "", "", C_HI, -1, ICON_AUTO);
-        draw_column(3, "", "", "", C_HI, -1, ICON_AUTO);
-        return;
-    }
     if (cur_page()->graph == GR_BROWSE) {
         uint32_t total, cur = preset_pos(&total);
         char u[8];
@@ -1187,8 +1149,6 @@ static void ui_timers(void)
         ui.msg_t--;
     if (ui.bpm_t)
         ui.bpm_t--;
-    if (ui.arm_t && !--ui.arm_t)
-        ui.arm = 0;
     if (ui.hot_t)
         ui.hot_t--;
     if (sel_t)
@@ -1206,6 +1166,9 @@ static void ui_draw(void)
     ui.frame++;
     if (boot_draw())                                    /* (KARMA 3.0: the boot animation first) */
         return;
+    page_fix();                                         /* (a voice changed after ui_input's own page_fix, by ALGORITHM or a
+                                                         * load: never one frame of a page that voice has not got, e.g. the
+                                                         * drums on SAVE > PRESETS: their place is KITS) */
     pads_tick();
     knob_tint_all(song.sel & 3u);                       /* (wave 7) the graphs' tints are the selected voice's unless a
                                                          * screen says otherwise (HOME, the layers and the lane no longer

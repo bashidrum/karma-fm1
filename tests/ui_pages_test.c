@@ -5493,6 +5493,24 @@ int main(int argc, char **argv)
                 track_select(0); frames(2); nav_go(CT_USER, 0); frames(2); okk &= cur_cat() == CT_USER;
                 track_select(TRK_DRUM); frames(2); okk &= cur_cat() == CT_KITS;
                 check(!pres && okk, "U6: the drums' SAVE: PROJECT KITS PATTERNS TOOLS; PRESETS points to KITS (from a synth voice's PRESETS or USER too)");
+                {   /* (Ben, 26 Nov 2026, "Back to PRESETS on the synth": the synth returns to the page you left it on) */
+                    uint32_t okb = 1, pu = NPAGES;
+                    for (j3 = 0; j3 < NPAGES; j3++) if (PAGES[j3].cat == CT_USER) pu = j3;
+                    track_select(0); frames(2); okb &= ui.page == pu;                        /* (from USER above) */
+                    track_select(TRK_DRUM); frames(2); okb &= cur_cat() == CT_KITS;
+                    track_select(1); frames(2); okb &= ui.page == pu;                        /* (any synth voice) */
+                    nav_go(CT_PRESETS, 0); frames(2);
+                    track_select(TRK_DRUM); frames(2); okb &= cur_cat() == CT_KITS;
+                    encs[panel.enc[EN_ALGO]] = -1; frame();                                 /* (by ALGORITHM: the same frame) */
+                    okb &= song.sel == 2u && ui.page == pp;
+                    track_select(TRK_DRUM); frames(2);
+                    tap(B_SAVE); frames(2); okb &= cur_cat() != CT_KITS;                   /* (moved on: forgotten) */
+                    nav_go(CT_KITS, 0); frames(2);
+                    track_select(0); frames(2); okb &= cur_cat() == CT_KITS;                 /* (KITS chosen: stays) */
+                    track_select(TRK_DRUM); frames(2);
+                    check(okb, "U6: a synth voice selected again on the KITS the drums were taken to: back to its PRESETS or USER; "
+                               "KITS reached any other way stays KITS");
+                }
             }
         }
         ui.force = 1; frame(); ppm("w12-save-kits");
