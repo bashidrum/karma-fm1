@@ -576,3 +576,13 @@ Agent choices confirmed (26 Nov, after the drum and look work):
 - Look details (MTRX KFLT CHRM SAVR; NS LVL, NS FRQ, T ENV, F CUT, E SYNC, DEPTH; USB AUDIO MIX; KEYS OFF/C/WHITE/ALL; "PLAY: GO, REC: CANCEL"; "LET GO TO CANCEL"; PADS n; FILL where the beat lights are; MIX and voice pictures): "Accept all".
 - Drum voice MIX page steps: "Make it follow" (the step page follows the playhead, as on the drum screen).
 - Empty kit INSERT hides MIX on KNOB 4; the synth returns to PRESETS/USER only when KITS came from a voice switch: "Accept both".
+
+### 26 Nov 2026, 14:42: the name
+
+"One last thing can you make sure there's no mention of karma or previous builds anywhere that I see them or the public"
+
+By picker:
+- Credits: "Brand gone, credits stay" (PHEBUS everywhere you look; KARMA named only in the ABOUT credits list, one Credits section in the README and the licence file).
+- Repo and site address: "Rename to phebus".
+- Version: "PHEBUS 1.0" (screen shows PHEBUS 1.0; file phebus-1.0.<build>.fwsc).
+- The working record (SPEC, DECISIONS, REVIEW, review folder): "Move it to a private branch".
