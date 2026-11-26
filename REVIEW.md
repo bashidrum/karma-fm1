@@ -1,185 +1,95 @@
-# PHEBUS direction review, 21 November 2026
+# PHEBUS polish review, 26 Nov 2026
 
-**What was reviewed:** every feature, page, layer and gesture in PHEBUS against Ben's new direction (SPEC.md, 21 Nov 15:32): MiniFreak for the melodic voices, Analog Rytm MKII for drums, MPC for performance, and nothing else.
-**Depth:** read-only. The code, the guide's gesture table, every screen rendered, and sourced research on the three devices. No long test runs.
-**Overall state:** about half of PHEBUS already points the right way. The other half is either the old firmware's extras or the right job done the wrong way. The biggest gaps are not on the screen: they are in how drum steps and voice parameters are stored.
-**Decisions waiting:** 24, put to Ben as pickers.
+Reviewed: the whole instrument on branch `ben` (8381c63) after waves 1 to 14 and the 23 to 26 Nov work. Depth: standard (asked in passing; no long test runs). Three read-only reviewers: visual design (393 screens rendered and looked at), using it (nine journeys driven through the real UI code, every on-screen string, the guide against the build) and engine and code (every fast test, sanitisers, a flash and RAM read). Each finding below was checked by Claude against a screenshot or the code. Screenshots: `review/polish-2026-11-26/`.
 
-(At the time of this review nothing had been built for this direction; see the status at the end: all seven waves are now built.)
+Overall: the instrument works end to end. Every button walks its categories, SELECT never changes page, every journey (first ten minutes, 808 snare into the 606, hold-to-map, mixer, patterns and fill, the bank, the stutter lane, DISCO) did what the guide says. All fast tests pass. What is left: four engine faults that matter on the real unit, a drum side that does not yet mirror the synths in three places, uneven words and tab labels, and docs that lag the build. 18 decisions are waiting.
 
-Detail: `review/direction/INVENTORY.md` (every item, limits, routes), `VISUAL.md` (screens and mock-ups), `RESEARCH-devices.md` (how the three devices work, with sources). Yesterday's finished review is `review/REVIEW-2026-11-21-polish.md`.
+The previous review (the 22 Nov direction review) is in `review/REVIEW-2026-11-22-direction.md`.
 
----
+## Before the first install (engine)
 
-## A. Keep, change, cut
+E1. **A long save can trip the watchdog on the slower chip.** `felucca.c` `st_erase` never feeds the ~8 s watchdog; `ota_erase` was given a feed on 26 Nov but saves were not. KEEP makes about 22 erases in one pass, NEW about 10, a stop with four changed patterns 9 or more. On a chip averaging over ~360 ms per erase, KEEP restarts the FM-1 every time (no work lost, KEEP just never finishes) and the reset lands mid-erase. Fix: one line, `fm1_wdt_feed()` at the top of `st_erase`. Small.
 
-### Already feels like its reference: KEEP
-- **MiniFreak:** the OSC > FILT > ENV > FX > MOD strip in signal order; graphs that draw the wave, filter and envelope as you turn; presets by kind; plain INIT starts; the arpeggiator; key, chord and scale; chords on a step; step-record (held build), which is how the MiniFreak takes notes.
-- **Rytm:** 16 keys as 16 steps; tap to place; hold a step for its detail; several steps at once; page slots; nudge; fill; undo; live record then refine.
-- **MPC:** held effects on the keys; quarter, eighth, sixteenth and thirty-second loops; reverse, tape stop, half speed; filter sweeps and kills; note repeat (hold ARP); the mixer with mute and solo; echo and reverb throws.
-- **Shared:** the colour rule, the bold knob row, autosave and the unsaved dot, MIDI and sync to the MPC, rescue and install, the simulator.
+E2. **A backup can hold the bank's project instead of the live one.** `editor.c:263` captures the live project into `proj_tmp`; listing the bank's objects then calls `bank_scan`, which loads the bank's project into the same `proj_tmp` (`project.c:1807`) before the checksum is taken. Reproduced: after a power cycle with something in the bank, the backup's object 0 is byte-identical to the bank. Restoring that backup replaces the live sketch with the bank's. Fix: `bank_scan` reads only the header, tempo and kit name into small locals, never `proj_tmp`. Small.
 
-### Right job, wrong feel: CHANGE
-| What | Today | What the reference does |
-|---|---|---|
-| Sound pages | Different knobs on every engine, 14 pages | MiniFreak: the same sections on every voice, four knobs each: Type + three macros; cutoff, resonance, envelope amount, type; A D S R; FX slot; matrix |
-| Oscillator choice | Engines fixed to tracks | One Type list on every voice; the three macro knobs rename themselves per type |
-| Filter | Plucked and alternate engines have a one-knob filter with no resonance | Cutoff, resonance, envelope amount and type on every voice |
-| Filter envelope | One shared ADSR | The filter follows the amp envelope through one knob; "its own envelope" is a second envelope routed to cutoff in the matrix |
-| Modulation | Fixed routes on two pages, one LFO | A visible grid of sources against destinations, last in the chain |
-| FX | Sends, an insert, a chorus and a slicer on separate pages | Three slots, each Type, Time, Intensity, Amount |
-| Parameter locks | Hold a step, press a button, then turn | Rytm: hold a step and turn whatever knob is on screen. No extra press |
-| Locked values | Locked bright, the rest dim | Rytm: the locked value is drawn inverted |
-| GRID knobs | Note, cursor, hit, velocity | Rytm: the knobs are always the sound page; step settings live on a TRIG page |
-| Drum sound pages | "OSC FILT ENV FX MOD", and a placeholder on most kits | Rytm: SRC, FLTR, AMP, LFO for the selected sound, always shown |
-| Drum steps | Level in four steps; condition and nudge shared by all sounds on a step | Rytm: velocity, condition, nudge and retrig per trig, per sound |
-| Drum locks | A lock changes the whole drum mix | Rytm: a lock changes one sound |
-| Retrig | Ratchet x1 to x4 | Rate, length and a velocity fade per trig |
-| Drum mute | Hidden gesture, shown in red | A visible mute mode on the keys |
-| Chromatic | None | Play the selected sound across the keys |
-| Performance effects | 27 labels in a keyboard-shaped list, no latch shown | MPC: a pad map, latch, and knobs that tweak the held effect |
-| SEQ and SAVE buttons | Cycle through several screens | One job each |
+E3. **User kits are written to flash while playing.** `ui_kit.c:285` and `:298` call `ukit_put` with no playing check; every other writer refuses. One erase and 15 pages with interrupts off: a ~50 ms hole in the sound on the old chip, up to 2.75 s of silence (sequencer, MIDI clock and USB frozen) on the slow one. Fix: refuse with STOP PLAYING FIRST, as KEEP does. Alternative: queue it until stopped, as patterns are. Small.
 
-### Serves none of the three: CUT (each is a picker)
-Song mode and the SONG screen; the SONGS bank; chains; the pattern generators (GEN, ACID GEN, HARMONY, DRUM GEN, PLAY); CLOUD and TEXTURE; the SLICER page; user sample kits; free take; the screen reader; most of the web editor; nine novelty punch effects; the hidden lock gesture.
-Ben's own additions that are not one of the three, so his call: the characters, the snake view, the four screensavers, the HOME flow band.
+E4. **A double tap of OCT on SAVE > PRESETS loses an edited sound.** The first tap loads the next preset at once (`ui_input.c:1093`), overwriting the voice; the second tap reverts to the previous preset by list position, not to the edited sound. Sound edits are not in undo. Likely the same on SEQ > A-D while stopped (edits made while stopped are not kept in the pattern). Fix: on pages where a tap loads something, wait out the 0.3 s double-tap window before acting. Alternative: keep a 192 B copy of the voice (RAM is very tight). Small.
 
-### Unsure
-- Whether sections A to D are "arranging" (cut) or the Rytm's pattern select (keep).
-- Whether the stutter lane is un-MPC (stutters are played) or the thing the MPC cannot do. The research found the MPC Sample cannot record its pad effects into patterns.
-- Whether ACID GEN is worth keeping as a MiniFreak-style "Dice".
-- How much processor the real FM-1 has spare. Never measured.
+E5. **The FX 1 to 3 pages read past the parameter array** (`ui_synth.c:421`: `t->p[pg->id[0]]` with id 246 since wave 9; ASan stops here). The PHASER and FLANGER slot pictures do not animate. Fix: `t->p[P_XS(pg_slot(pg), 0)]`, as line 495 does. Small.
 
-### A bug found on the way
-On the ACID engine, the envelope-to-filter and LFO-to-filter knobs do nothing. The engine never reads them. Verified in the code.
+Also from the engine pass, for the device checks after install (no decision): the CPU's heaviest case is every PERFORM pad stacked (x1.5 of the plain mix on the host); CPU1's mix frame grew from 192 B to 768 B (stack 3,968 B); the web tests (`node web/test_web.mjs`, long) are the one test worth running before using the web installer.
 
----
+## Using it, consistency and the spec
 
-## B. Where the FM-1 cannot match, and the honest substitute
+U1. **The drums' MIX pages are drawn as the drum screen** (tag DRUM in teal, the selected sound large, the kit grid, "THE WHOLE MIX"), where a synth voice shows the one white MIX screen. Breaks the colour rule and "mirror the synths". Fix: one MIX screen whichever voice is selected, as STUT already does. Small. `v03`, `u-j603`.
 
-| Reference has | FM-1 has | Closest honest substitute |
-|---|---|---|
-| A knob per function (MiniFreak), eight per page (Rytm) | Four knobs | One section per page of four. For the Rytm's eight, draw all eight and light the live four |
-| Velocity and pressure pads | Keys that are plain switches. Verified: no velocity in the hardware driver | OCT held for ghost and hard hits; velocity per trig by knob; play PHEBUS from the MPC's pads over MIDI, which works today |
-| Pad pressure for effect depth | None | A knob while the key is held |
-| Trig lights in colours | One colour per key, two brightness levels | Trig states by brightness on the keys, colour on the screen |
-| Analogue filter | Digital models. ACID and JUNO are faithful ladder models; the other two engines have a plain filter | A resonant filter on every voice. On chords it filters the whole voice, not each note |
-| Six-voice poly with a filter per note | Eight notes shared by three voices | Stated plainly as the limit |
-| Full-quality stereo stutter | 0.74 s, mono, low resolution | Cutting CLOUD doubles the resolution for free; cutting the slicer lengthens it to about 1.1 s; long stutters replay the steps |
-| Touch strips and macros pads | None | Macros on the knobs of a page |
+U2. **The drum kit's INS and SLICER put the type on KNOB 1; the synths put it on SELECT.** Kit INS: K1 "INSERT", K2 to K4 named "-" but showing 50 76 76 in full colour (and lockable); no "EMPTY: SELECT PICKS A TYPE". Kit SLICER: K1 SLCR, then PAT RATE DEPTH, where a synth has the mode on SELECT and PAT RATE DEPTH on K1 to K3. SELECT does nothing on kit pages, so it is free. Fix: SELECT turns the kit insert's type and the slicer's mode, values move to the synth positions, the empty state matches. Medium. `v20`, `u-j600`.
 
-Space: 23 KB of 581 KB is free today. The cuts on the table free roughly 90 to 100 KB (estimate, could be 30% either way).
+U3. **The drum sound pages show the same picture on every page** (the decay graph on SRC, FLTR, AMP and LFO, mostly an empty box for short sounds) and a giant word on INS and SENDS, where synth pages draw the page's own picture. Fix: reuse the synth drawings in teal: filter curve on FLTR, wave on LFO, the insert tiles on INS, the send thumbnails on SENDS; keep the decay on SRC and AMP with its time axis scaled to the sound. Large. `v04`, `v04b`.
 
----
+U4. **SEQ's A-D page does not show the patterns.** The body is still the steps and KNOB 1 reads "--"; you find an empty slot only by turning to it. Fix: four tiles, PATTERN A to D, STORED / PLAYING / QUEUED / EMPTY, as hold SAVE and HOME already draw them. Small to medium. `v09`.
 
-## C. Edit or rebuild
+U5. **GLO > DEVICE (the old menu) is outside the frame and the flow.** Header MENU not GLO, no tab row or strip, a third value font, "K1 COLOR" labels, two footers worded differently, a second SYSTEM beside GLO's SYSTEM with other contents, MIDI LEARN CLEAR there while LEARN is on MIDI 3, and OCT- "BACK" lands on HOME (so the next HOME press opens a screensaver). Fix: draw its four pages in the standard GLO frame (DISCO LIGHTS KEYS NOTES as dials etc.), rename its SYSTEM (TOOLS), move LEARN CLEAR beside LEARN, one footer, OCT- returns to GLO. Medium to large. `v08`.
 
-**The finding that matters:** most of the distance to the Rytm and MiniFreak is not in the screens. It is in how things are stored: drum steps need per-sound velocity, conditions, retrig and locks; voices need a second envelope, a matrix, a filter and FX slots; and the saved project is full to the byte (verified: exactly 3,840 bytes, one flash object). That work is the same size whichever way the screens are done.
+U6. **The same setting in two places** (Ben, 22 Nov). GLO > SYSTEM repeats MIDI 2's OUT and IN; hold SEQ shows SWING on KNOB 3 and on MASTER on the same screen, and STEPS and SHIFT repeat the PATTERN page; whole kits load from HOME PRESETS, SAVE > PRESETS and SAVE > KITS. Fix: drop OUT / IN from SYSTEM; hold SEQ's KNOB 3 gets no second swing (leave it empty or give it GATE); on the drums SAVE > PRESETS points to KITS. Small each.
 
-Sizes are in build waves, where one wave is roughly one of today's subagent builds.
+U7. **SAVE > USER on the drum voice is a dead end** that names screens which no longer exist ("DRUM TRACK / SEQ TRACKS GLO DRUMS", `ui_draw.c:792`). Fix: skip USER in SAVE's walk on the drums. Alternative: one plain line, "USER PRESETS ARE FOR VOICES 1-3. YOUR KITS: SAVE > KITS". Small. `u-j415`.
 
-| Route | Size | What it means | Lost |
-|---|---|---|---|
-| Keep editing | 20 to 28 waves | Every change fights the old firmware's hidden gestures. The result keeps its shape | Least up front |
-| Rebuild the interface from blank | 28 to 36 waves | Clean, but rebuilds plumbing that works: lights, messages, menus, rescue screens | About 480 interface tests, the guide |
-| **Hybrid (recommended)** | 22 to 28 waves | Keep the drawing helpers, header, knob row, strip, graphs, menus and rescue screens. Replace the page table with one uniform layout, replace the step editor with a Rytm-model one, replace screens one module at a time. Delete whole modules for the cuts | The tests and guide for replaced screens |
+## Visual design
 
-Why hybrid: the screens are not tangled into the sequencer or the engines (the sequencer calls no screen code), so they can be swapped one at a time with the simulator running at every step.
+V1. **Tab labels shorten differently on every page and some touch** ("PRO PRE USE ... TOO", "GLOBA", "DEVIC", "SENDSSLI", "MIXSTUT"). Fix: one fixed short label per category used everywhere (PROJ PRST USER KITS PATT TOOL; GLOB SYS MIDI DEV; INS SEND SLIC | MIX STUT), a fixed 6 px gap; when room runs out the legend drops its word first, then the page count. Medium. `v02`.
 
-Lost on every route: projects saved by PHEBUS will no longer load on stock KARMA, because a new save format is unavoidable. Old projects can still be read.
-Kept on every route: the engines, sequencer core, drivers, storage, MIDI and USB, install and rescue, the simulator and the build pipeline.
+V2. **Words: one spelling and plain forms.** DETUNE / DTUNE, BRIGHT / BRIT, PHASR / PHASER and FLANG / FLANGER on one screen, LP24 / LP 24, FX1 / FX 1, LFO 1 / LFO1, KICK 2 / SNARE2, COLOR (US) against COLOUR, the LFO 1 page titled "LFO"; cryptic SUSTN RELEAS N.HOLD N.DEC P.AMT P.DEC SCL QNT INTENS ESYNC STRC CLRSQ SLCR and the cut "ELEME"; "VOICE" and "TRACK" both used for a voice ("NOT ON THIS TRACK", "MIDI PLAYS TRACK 2", "LOCKS FULL: 24 A TRACK"). Fix: one dictionary, six characters or fewer, applied everywhere (DETUNE, BRIGHT, PHASER, FLANGE, LP 24, FX 1, LFO 1, SNARE 2, COLOUR, SUS, REL, NS HLD / NS DEC, P AMT / P DEC, SCALE, QUANT, DEPTH, STRUCT, ELEMNT, CLEAR, SLICE, VOICE). Small to medium. `v05`.
 
-Not knowable from here: real processor headroom, real drawing speed, and whether one Type list on every voice fits the processor.
+V3. **MIX and GLO pages show every value twice**: a numbered list with a bar per parameter in the body, the same four dials below, and slider bars on settings that are not ranges (SYNC INT, OUT SEQ). Fix: MIX pages get a picture like the voice pages (delay taps, reverb tail, a master meter); GLO pages drop the bars and print the value right-aligned in each row. Alternative: keep the list and drop the dials' values. Medium. `v07`.
 
----
+V4. **Said twice on one screen** (Ben: "too dense"): hold SAVE's header "SAVE SAVE"; hold ENV / LFO's white bar repeating the big MASTER readout; the AMP / FILT chips repeating the tab row on ENV; the drum screen naming the sound three times (chip, title, "SOUND 606 SNARE") and the browse readout repeating the body. Fix: title PATTERNS on hold SAVE, no bar while the MASTER readout shows, drop the AMP / FILT chips, the drum line becomes "606 · 8/41". Small. `v15`.
 
-## D. Visual review
+V5. **Small visual faults, one bundle** (each verified on a capture):
+- Drum kit INSERT with a step held: "THE KIT: 16 OF 16 SOUNDS" and the lock line drawn on top of each other (`v01`).
+- List pages show the top of a seventh row above the tab rule (`v06`).
+- Mixer M / S badges clipped by the tile edge, "SNARE2" running into its M (`v10`).
+- REC screen line "PLAY STARTS, REC CANCEL" runs to the last pixel (`v11`).
+- Long header titles touch the tempo ("JUNO BRAS127", "PATTERN B120") (`v12`).
+- The red record disc touches the beat lights and nearly the battery (`v23`).
+- PERFORM's and the mixer's right-hand tiles run to the screen edge; pad text fills its tile (`v24`).
+- ABOUT: lines 1 to 2 px apart, the last on the bottom edge (`v25`).
+- Hold SEQ: an empty second row of boxes under A B C D BAR, SHIFT drawn as a lone "‹ ›" (`v22`).
+- The screensaver caption is unreadable over FLOW and THIRD EYE (`v19`).
+- Storing over a used pattern: the line "KEEP A COPY: SAVE > PROJECT" stays half-drawn above the divider, and the ask reads "LET GO: NO" (`u-j100`).
+- The mixer puts its messages in the header title, cut to "MUTES AND" (`u-j304`).
+- While a fill is on, "FILL" replaces the header chip (the drum sound, or MASTER's SWING) (`u-j412`).
+Fix: each as described in the screenshots' notes in this report's source list. Small.
 
-Sketches are in `review/direction/mock-*.png`.
+V6. **Envelope times have no units and three scales** (AMP 1.0 / 1.0 / 100 / 2.1; FILT own 21 / 21 / 33 / 21; FILT linked 4.3 / 18 / 55 / 8.8). Fix: one format on both envelopes, ms under a second then "1.2S", sustain in %. Small. `v13`.
 
-**Reads as its reference already:** the signal-order strip; the wave, filter and envelope graphs; the full drum grid; the 4 by 4 kit tiles; the mixer; white and grey for shared effects.
+V7. **The STUTTER lane's recorded pads are on a different time axis from its steps** (one 16-step line at 15 px a step under two rows of 8 at 30 px), so a span from step 5 sits under step 2. Fix: draw spans in the same two rows of 8 under the same columns, with a PADS label. Medium. `v14`.
 
-**Does not, with the fix:**
-1. **Knob values collide and change size** on several sound pages ("-34%-34%-34%33%"). Fixed columns, one size always, long values abbreviated.
-2. **The oscillator Type is the smallest thing on its page.** Make it the largest, with the waveform beside it (`mock-synth-osc-A`).
-3. **Four pages show empty boxes with a line.** Show the knob being touched, large, with a level meter, as the MiniFreak does (`mock-synth-osc-B`).
-4. **FX is four pictures, not slots.** Three slot boxes (`mock-synth-fx-A`).
-5. **No matrix.** A grid, dot size for amount (`mock-synth-mod-A`), or a list (`-B`).
-6. **Locks are shown backwards.** Invert the locked value.
-7. **Drum pages:** selected sound's name large, tabs SRC FLTR AMP LFO, a trig row with marks for locks and retrigs. Two layouts: eight dials in two rows (`mock-drum-A`) or four dials over the four knobs (`mock-drum-B`).
-8. **Performance:** a 4 by 4 pad map with held and latched states (`mock-perf-A`), or a keyboard-true map (`-B`).
-9. **Stutter lane:** show lengths as spans across the steps they cover, not numbers.
-10. **HOME:** voice lanes plus the stutter lane with a playhead (`mock-home-A`), or three zones, one per pillar (`-B`).
-11. **Shared list pages** still show the same four values twice.
+V8. **Pictures that do not match their page or the colour rule:** the MATRIX grid drawn white and grey on a voice page (`v18`); FOLD's wave 80 px wide where others span 228 px, and OSC 3/4 and 4/4 repeating page 1's wave (`v21`); ARP > KEY's keyboard drawn as thin bars where CHROMATIC draws a real piano (`v17`). Fix: matrix labels and cursor in the voice colour (dim when idle); every wave full width, OSC 3/4 and 4/4 show voices / unison dots; KEY reuses the CHROMATIC piano in the voice colour. Small.
 
-**Identity:** the boot wordmark is the strongest piece and costs little. The characters work as heads in the strip and figures in the mixer; on sound pages they say which voice it is for a third time. That is Ben's call, not a finding.
+## Options (taste, not defects)
 
----
+O1. **HOME gives the three synth voices the least room**: their steps are 2 px dashes while DRUM and PERFORM get 14 px boxes. Option: put SYNTH inline and give each voice a 4 px step bar. `v16`.
 
-## Clashes with earlier decisions
+O2. **Drum sounds browse differently from synth sounds**: a single big name against the synths' six-row list. Option: the same six-row list on the drums, same-kind first. `v26`.
 
-Each is asked in the pickers.
-- Song insert and delete, built this morning, against "never needs to arrange".
-- The 606 start kit against Rytm sound pages: the 606 cannot be edited today.
-- The snake view, the four screensavers, the HOME flow band and the characters against "nothing else".
-- JUNO on track 2 and fixed engines against "the same layout on every voice".
-- The stutter lane and the HOME stutter knob against MPC-style played stutters.
-- "EDIT walks the chain" for locks becomes unnecessary once hold-and-turn locks whatever is on screen.
-- "Keep the one-knob pages, name them" against one uniform layout.
-- CLOUD, moved to GLO this morning, against cutting it.
+## Docs
 
----
+D1. **The docs lag the build**: GUIDE line 5 and the cheat sheet still say "Do not flash until your FM-1 has arrived and its chip revision has been checked"; GUIDE says the loader still has the short waits (changed 26 Nov) and step 8 contradicts itself; drum FX order, the tab example, the drum lock walkthrough, PERFORM's black row (one row, not 7 + 4), ENV 2/2, CHROMATIC's ends, the glossary's TRACK, the missing STUT and GATE are out of date; the button map is missing PROJECT, says four screensavers and "wave 14"; about 27 "wave n" history notes remain in the guide and cheat sheet; DECISIONS' "For Ben to confirm" still asks about things long settled (hold REC confirm, SEL + key, the 7 + 4 strip, "lowest key is HAT", the flash permission). Fix: bring all of it to today's build and prune "For Ben to confirm" to what is open. Medium, docs only.
 
-## Ben's decisions (21 Nov, evening, by picker)
+## For Ben to reconsider (his own decisions, with evidence)
 
-| Decision | Choice |
-|---|---|
-| Route | Hybrid |
-| Save format | New format accepted |
-| Drum model | Per-sound trigs on one track |
-| Drum sounds | 16 |
-| Oscillator types | Same layout now, ACID and JUNO everywhere, the big list after a device check |
-| Filter envelope | Its own ADSR page with a LINK switch |
-| Mod matrix | Grid |
-| Locks | Rytm way: hold a step and turn, shown inverted |
-| Song and sections | A to D as patterns only; song, chains and songs bank cut |
-| Generators | All cut; MiniFreak-style Spice and Dice added |
-| Stutter lane | Kept; played effects record into it |
-| CLOUD, TEXTURE, SLICER | CLOUD and TEXTURE cut; SLICER kept |
-| Characters | Heads in the strip only |
-| Snake view | Dropped |
-| Screensavers and HOME band | Both kept |
-| Sample kits, free take, screen reader, web editor editing | All cut (web editor keeps backup and install) |
-| Drum pages | Four dials over the knobs |
-| Drum kits | Every kit editable; 606 start kept |
-| Performance | Pad map, trimmed set |
-| HOME | Three zones, with cutoff, decay, stutter, level |
-| OSC page | Type + three macros |
-| Held build | Merged |
-| Order | Cuts and save format, then drums, then melodic, then performance |
+R1. **Drum FX order.** SPEC.md 21:40's applied reading says SENDS first, then the kit's INS and SLICER; his 21:41 "mirror the synths" led the build to INS, SENDS, SLICER (`ui_nav.c:31`). SPEC and build disagree; one should win and the other be corrected.
 
-Taken as read, not asked: the visual fixes that follow from the new screens (one value size in fixed columns, the touched knob shown large on pages with no graph, stutter lengths drawn as spans, shared list pages showing values once).
+R2. **Three reading orders of the 16 white keys on 4 x 4 grids:** the mixer and PERFORM down the columns from the top; hand play, RETRIG and SELECT along the rows from the bottom (both Ben's choices); and hold SEQ's roll tiles on a synth voice in plain rows from the top, which nobody specified. Lining the last one up with one of the others is cheap.
 
-## Status: built, waves 1 to 7 done (22 Nov 2026)
+R3. **ARP on the drums** is the only button whose second press is not its next category (CHROMATIC, then off).
 
-Nothing has been run on a real FM-1. Do not flash until the unit has arrived and its chip revision is checked.
+## Came up clean
 
-| Wave | Built |
-| --- | --- |
-| 1 | The cuts: song mode, chains, the songs bank, the generators, CLOUD and TEXTURE, sample kits, free take, the screen reader, the web editor's editing (backup and install kept). The held f-play build merged (step record, HOME knobs, ACID bass, long stutters, LFO PATT, the HOME band). A to D kept as patterns |
-| 2 | Drum trigs per sound (velocity, condition, chance, nudge, the Rytm's retrig, sound locks) and project format 8 (FUN8), reading every older format |
-| 3 | The Rytm drum screens: SRC FLTR AMP LFO on every sound, every kit editable (your copy), an LFO per sound, MUTE, CHROMATIC, live RETRIG, FILL, hold a step and turn to lock |
-| 4 | The MiniFreak voices, part one: 31 Types on every voice, Type + three macros, one resonant filter with LINK / OWN envelope, the synth GRID with the drum screen's tabs and locks |
-| 5 | Part two: three FX slots, the mod matrix grid, LFO 2, Spice and Dice, GATE on hold SEQ |
-| 6 | PERFORM: 22 pads on the keys, latch, knobs on the last pad, recorded into the STUTTER lane |
-| 7 | HOME as three zones (SYNTH, DRUM, PERFORM); one frame on every screen (header, line or tabs, dials, strip) including the layers, PERFORM, REC and the lane; one value size; stutter lengths as spans; one word for one thing; the colour rule checked pixel by pixel; 32-bit arithmetic where the device has no 64-bit divide; GUIDE.md rewritten as the manual, the cheat sheet and README updated |
+Navigation (every button's categories, SEL's pages, SELECT never changing page); the synth SEQ grid and lock view; hold-to-map; PERFORM's columns and one-row black keys; the confirm rings; SAVE > PROJECT and the plain-words hold SAVE; the drum grid picture and both key orders; the colour code everywhere; red only for record and erase; the artwork (black eye, no outlines, DESERT, BEACH, EYES); STEP REC; QUIET dim; all fast tests; no new 64-bit divide; no floating point on the audio path; the simulator compiles; the flash A/B design and the bank's power-cut safety; MASTER's relative scaling; no em dashes in the docs.
 
-### Open compromises for Ben
+## Not seen
 
-The full list, one line each, is at the end of DECISIONS.md under "For Ben to confirm". The main ones:
-
-- **PHEBUS_ARENA_T12**: on the device, six Types (6-OP A, B, C, STRING, SPEECH, PARTICLE) play on track 3 only, to keep the pool's 8 KiB spare.
-- **CPU** is unmeasured on the FM-1: if it runs short, the compromises to offer are a limit of four PERFORM pads at once and fewer heavy Types at once.
-- **RAM** is nearly full: .data+.bss about 96.3 KB of 98.3 KB, the pool about 200 B above the 8 KiB rule.
-- **Old projects** convert with a few lossy cases (sends past three effects, an INSERT's fourth value, old LFO / ENV to the timbre on PLAITS and ELEMENTS).
-- **Calls the spec did not cover** (GATE on hold SEQ, the PERFORM pad map's changes from the mock, latch on OCT+, the HOME zones' contents and others).
+No capture exists for the synth ARP pages, the drums' KIT FLT, kit SLICER and INSERT 2, the HEX engine's AMP and LFO, SAVE > TOOLS and a drum sound list.
