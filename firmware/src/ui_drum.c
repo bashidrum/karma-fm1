@@ -349,7 +349,7 @@ static uint32_t drum_trig_sig(uint32_t l, uint32_t bank)
  * (a locked one inverted); the touched knob's label inverted and its value underlined. Each knob a 60 px column: the ring
  * at its left, the value in the 40 px after it (DIAL_VX .. + DIAL_VW). Five letters there take a narrower step (7 px, the
  * others 8), so no value reaches the next column's ring (wave 3 had "PITCH" against it, Ben's drum LFO page); longer
- * ones are cut to five (dval_fit). dial_over counts any drawn past its column (tests/ui_pages_test.c) */
+ * ones are cut to six, set a pixel closer (dval_fit, review V2). dial_over counts any drawn past its column (tests/ui_pages_test.c) */
 #define DIAL_VX 17                                      /* the value's start in its column */
 #define DIAL_VW 40                                      /* its room */
 static uint32_t dial_over;                              /* values drawn past their column (0, always) */
@@ -358,6 +358,10 @@ static const uint16_t *dial_tint;                       /* (wave 7) a colour a k
 static uint8_t dial_mark;                               /* (wave 11) a bit a knob: something is mapped onto it (ui_map.c) */
 static int32_t dial_adv(const char *s) { return str_len(s) >= 5u ? 7 : 8; }
 static int32_t dial_w(const char *s) { return (int32_t)str_len(s) * dial_adv(s); }
+/* (review V2: the dictionary's words have six letters at most) six letters start 2 px nearer the ring and keep 4 px clear of
+ * the next one; fewer keep the old 7 */
+static int32_t dial_vx(const char *s) { return str_len(s) >= 6u ? DIAL_VX - 2 : DIAL_VX; }
+static int dial_wide(const char *s) { return dial_vx(s) + dial_w(s) > (str_len(s) >= 6u ? 57 : DIAL_VX + DIAL_VW - 3); }
 static int32_t cv_text_tall_n(int32_t x, int32_t y, const char *s, uint16_t c, int32_t adv)   /* FONT_S x2 tall, adv a letter */
 {
     const felucca_font_t *f = &FONT_S;
@@ -373,6 +377,30 @@ static int32_t cv_text_tall_n(int32_t x, int32_t y, const char *s, uint16_t c, i
         x += adv;
     }
     return x;
+}
+/* the 27 keys as a piano (CHROMATIC's; review V8: ARP > KEY's too): white 15 px, black over them; the keys in on lit in col,
+ * the unlit white ones grey; a dot on the keys in dot (CHROMATIC: the sound's own pitch; KEY: the root) */
+static void piano_draw(int32_t y0, int32_t wh, int32_t bh, uint32_t on, uint32_t dot, uint16_t col, uint16_t off)
+{
+    static const int8_t W[12] = {0, -1, 1, -1, 2, -1, 3, 4, -1, 5, -1, 6};
+    uint32_t k;
+    for (k = 0; k < 27u; k++)
+        if (W[k % 12u] >= 0) {
+            int32_t x = ((int32_t)(k / 12u) * 7 + W[k % 12u]) * 15;
+            uint32_t o = (on >> k) & 1u;
+            cv_rect(x + 1, y0, 13, wh, o ? col : off);
+            if ((dot >> k) & 1u)
+                te_disc(x + 7, y0 + wh - 6, 2, o ? C_BLACK : col);
+        }
+    for (k = 0; k < 27u; k++)
+        if (W[k % 12u] < 0) {
+            int32_t x = ((int32_t)(k / 12u) * 7 + W[(k - 1u) % 12u]) * 15 + 10;
+            uint32_t o = (on >> k) & 1u;
+            cv_rect(x, y0, 10, bh, o ? col : C_BLACK);
+            op_box(x, y0, 10, bh, off);
+            if ((dot >> k) & 1u)
+                te_disc(x + 5, y0 + bh - 5, 2, o ? C_BLACK : col);
+        }
 }
 static void op_dials(const char *const lab[4], const char *const val[4], const int32_t ratio[4], uint32_t locked,
                      uint32_t dim, uint16_t col, uint32_t sig, uint32_t *cache)
@@ -402,7 +430,7 @@ static void op_dials(const char *const lab[4], const char *const val[4], const i
         return;
     }
     for (k = 0; k < 4u; k++) {
-        int32_t x0 = 2 + 60 * (int32_t)k, vx = x0 + DIAL_VX, vw;
+        int32_t x0 = 2 + 60 * (int32_t)k, vx = x0 + dial_vx(val[k]), vw;
         uint32_t hot = ui.hot_t && ui.hot_col == k, lk = (locked >> k) & 1u;
         uint16_t c = (dim >> k) & 1u ? TE_G3 : (dim >> (4u + k)) & 1u ? TE_G4 : dial_tint ? dial_tint[k] : col;   /* (wave 5: dim bits 4..7, a shared
                                                          * value on a voice's page: white-grey, not the voice's colour) */
@@ -420,7 +448,7 @@ static void op_dials(const char *const lab[4], const char *const val[4], const i
             cv_rect(x0 + 11, 49, 2, 2, c);
         }
         vw = dial_w(val[k]);
-        dial_over += vw > DIAL_VW - 3;                  /* (its ink and a clear gap: wave 3's 40 px "PITCH" touched the next ring) */
+        dial_over += dial_wide(val[k]);                 /* (its ink and a clear gap: wave 3's 40 px "PITCH" touched the next ring) */
         if (lk) {                                       /* locked on the trig held: inverted (the Rytm's way) */
             cv_rect(vx - 3, 21, vw + 5, 34, c);
             cv_text_tall_n(vx, 22, val[k], C_BLACK, dial_adv(val[k]));
@@ -437,10 +465,10 @@ static void drum_dials(const char *const lab[4], const char *const val[4], const
 {
     op_dials(lab, val, ratio, locked, dim, TE_DRUM, sig, cache);
 }
-/* a value made to fit its column (40 px: five letters of the tall face, narrower) */
+/* a value made to fit its column (40 px: six letters of the tall face at most, narrower) */
 static void dval_fit(char *b)
 {
-    while (str_len(b) > 5u)
+    while (str_len(b) > 6u)
         b[str_len(b) - 1u] = 0;
 }
 
@@ -537,12 +565,6 @@ static void snd_picture(const dslot_t *sl, int32_t x0, int32_t y0, int32_t h)
         str_cpy(lb + str_len(lb), ".0S", 4);
     }
     cv_text(x0 + SP_W - 3 - text_w(&FONT_S, lb), y0, &FONT_S, lb, TE_G3);
-}
-static int snd_pic_fits(uint32_t l, const char *pos)   /* SOUND <name> and its place side by side on one line */
-{
-    char a[28] = "SOUND ";
-    slot_name(&pkit.s[l & 15u], a + 6, sizeof a - 6u);
-    return 4 + text_w(&FONT_S, a) + 8 + text_w(&FONT_S, pos) <= 236;
 }
 static uint32_t snd_pic_sig(const dslot_t *sl)
 {
@@ -677,23 +699,7 @@ static void drum_main_draw(void)
         cv_begin(240, 55, C_BLACK);
         if (chrom) {                                    /* the 27 keys: white 15 px, black over them; the sound's own pitch
                                                          * dotted; a key down lit */
-            static const int8_t W[12] = {0, -1, 1, -1, 2, -1, 3, 4, -1, 5, -1, 6};
-            uint32_t k;
-            for (k = 0; k < 27u; k++)
-                if (W[k % 12u] >= 0) {
-                    int32_t x = ((int32_t)(k / 12u) * 7 + W[k % 12u]) * 15;
-                    uint32_t on = (fm1_in.notes >> k) & 1u;
-                    cv_rect(x + 1, 0, 13, 28, on ? TE_DRUM : TE_G3);
-                    if (k == CHR_KEY0)
-                        te_disc(x + 7, 22, 2, on ? C_BLACK : TE_DRUM);
-                }
-            for (k = 0; k < 27u; k++)
-                if (W[k % 12u] < 0) {
-                    int32_t x = ((int32_t)(k / 12u) * 7 + W[(k - 1u) % 12u]) * 15 + 10;
-                    uint32_t on = (fm1_in.notes >> k) & 1u;
-                    cv_rect(x, 0, 10, 17, on ? TE_DRUM : C_BLACK);
-                    op_box(x, 0, 10, 17, TE_G3);
-                }
+            piano_draw(0, 28, 17, fm1_in.notes, 1u << CHR_KEY0, TE_DRUM, TE_G3);
             cv_text(4, 36, &FONT_S, info, TE_G3);
         } else if (dpg_bus()) {                         /* the FX tab: the kit's own pages, their pictures (review 26 Nov,
                                                          * U3: the INSERT's tile and curve, the SLICER's pattern, the kit
@@ -770,26 +776,27 @@ static void drum_main_draw(void)
                 cv_text(4, 20, &FONT_S, a, TE_G4);
                 cv_text(4, 38, &FONT_S, "HOLD A STEP FOR ITS VALUES", TE_G3);
             }
-        } else {                                        /* a sound page (and the sound's SENDS): SOUND 606 SNARE, its
-                                                         * place, its picture */
+        } else {                                        /* a sound page: (review V4, "say each once": the title names the
+                                                         * sound) where it comes from and its place, "606 \xB7 8/41", its picture */
             char a[28], g[12];
             int32_t p = snd_pos_of(l, 1);
             if (first >= 0) {                           /* (a step held: its locks; the line above says which step) */
                 cv_text(4, 0, &FONT_S, info, TE_DRUM);
             } else {
-                str_cpy(a, "SOUND ", sizeof a);
-                slot_name(&pkit.s[l], a + 6, sizeof a - 6u);
-                cv_text(4, 0, &FONT_S, a, TE_DRUM);
+                const dslot_t *sd = &pkit.s[l];
+                if (sd->src == DSRC_INIT)
+                    str_cpy(a, "INIT", sizeof a);
+                else
+                    kit_name_of(sd->src, a, 13);
                 if (p >= 0) {
                     uint32_t i2, sz;
                     snd_group(l, (uint32_t)p, g, sizeof g, &i2, &sz);
-                    fmt_int(a, (int32_t)i2);
+                    str_cpy(a + str_len(a), " \xB7 ", 4);
+                    fmt_int(a + str_len(a), (int32_t)i2);
                     str_cpy(a + str_len(a), "/", 2);
                     fmt_int(a + str_len(a), (int32_t)sz);
-                    if (4 + text_w(&FONT_S, "SOUND ") + 8 * 18 + 6 + text_w(&FONT_S, a) <= 236 ||
-                        snd_pic_fits(l, a))                 /* (a long name: its place only where both fit) */
-                        cv_text(236 - text_w(&FONT_S, a), 0, &FONT_S, a, TE_G3);
                 }
+                cv_text(4, 0, &FONT_S, a, TE_DRUM);
             }
             if (dpg_sends())                            /* (review 26 Nov, U3, "Each page its own picture") */
                 dpic_sends(l);

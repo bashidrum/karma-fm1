@@ -18,7 +18,7 @@ static const char *const N_ELEM_MODEL[EM_COUNT] = {"BOUNC", "PICK", "BOW", "BLOW
 /* OMIN: its knobs (E1..E7) */
 static const param_desc_t OMIN_D[7] = {
     {"RATIO", F_PCT, 0, 127, 64, 0, 0}, {"FM", F_PCT, 0, 127, 64, 0, 0}, {"FDBK", F_PCT, 0, 127, 40, 0, 0},
-    {"DTUNE", F_PCT, 0, 127, 30, 0, 0}, {"BRIT", F_PCT, 0, 127, 64, 0, 0}, {"SHAPE", F_PCT, 0, 127, 40, 0, 0},
+    {W_DETUNE, F_PCT, 0, 127, 30, 0, 0}, {W_BRIGHT, F_PCT, 0, 127, 64, 0, 0}, {"SHAPE", F_PCT, 0, 127, 40, 0, 0},
     {"SPACE", F_PCT, 0, 127, 50, 0, 0}};
 static const param_desc_t *omin_desc(uint32_t k) { return k >= 1u && k <= 7u ? &OMIN_D[k - 1u] : 0; }
 
@@ -121,8 +121,8 @@ static const engine_t ENG_ELEM = {
     .page_title = {"BODY", "EXCT"},
     .edit = {
         {"MODEL", F_ENUM, 0, EM_COUNT - 1, 0, N_ELEM_MODEL, 0},
-        {"STRC", F_PCT, 0, 127, 64, 0, 0},
-        {"BRIT", F_PCT, 0, 127, 80, 0, 0},
+        {W_STRUCT, F_PCT, 0, 127, 64, 0, 0},
+        {W_BRIGHT, F_PCT, 0, 127, 80, 0, 0},
         {"DAMP", F_PCT, 0, 127, 80, 0, 0},
         {"POS", F_PCT, 0, 127, 20, 0, 0},
         {"ACC", F_PCT, 0, 127, 90, 0, 0},

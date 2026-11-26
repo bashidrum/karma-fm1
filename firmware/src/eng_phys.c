@@ -409,8 +409,8 @@ static const engine_t ENG_PHYS = {
     .page_title = {"BODY", "EXCT"},
     .edit = {
         {"MODEL", F_ENUM, 0, PM_ELEM - 1, 0, N_PHYS_MODEL, 0},
-        {"STRC", F_PCT, 0, 127, 64, 0, 0},
-        {"BRIT", F_PCT, 0, 127, 80, 0, 0},
+        {W_STRUCT, F_PCT, 0, 127, 64, 0, 0},
+        {W_BRIGHT, F_PCT, 0, 127, 80, 0, 0},
         {"DAMP", F_PCT, 0, 127, 80, 0, 0},
         {"POS", F_PCT, 0, 127, 20, 0, 0},
         {"ACC", F_PCT, 0, 127, 90, 0, 0},

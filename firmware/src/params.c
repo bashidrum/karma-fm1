@@ -14,7 +14,7 @@ static const char *const N_MCH[] = {"OFF", "1", "2", "3", "4", "5", "6", "7", "8
 static const char *const N_MOTH[] = {"SEL", "OFF"};
 /* (PHEBUS wave 4) the voice filter's TYPE (vfilt.c VF_*; P_FTYPE was ANALOG's, an engine gone): the ladder's 24 dB and
  * 12 dB low-pass, its band-pass, its 12 dB high-pass. LP24 on ACID and JUNO is their own ladder (the 303's, the IR3109) */
-static const char *const N_FTYPE[] = {"LP24", "LP12", "BP", "HP"};
+static const char *const N_FTYPE[] = {W_LP24, W_LP12, "BP", "HP"};
 _Static_assert(sizeof N_FTYPE / sizeof N_FTYPE[0] == VF_NTYPE, "a name a filter type");
 static const char *const N_FLINK[] = {"AMP", "OWN"};   /* the filter's envelope: LINK to the amp ENV, or its OWN ADSR */
 /* ENV SYNC (voice.c): ATK DEC REL as note values of the tempo, shortest first. 0..127 split evenly over these 25
@@ -28,7 +28,7 @@ static const uint16_t ESYNC_UNITS[ESYNC_N] = {0, 4, 6, 8, 9, 12, 16, 18, 24, 32,
                                               96, 128, 144, 192, 256, 288, 384, 576, 768, 1152, 1536};
 static uint32_t esync_idx(int32_t v) { return (uint32_t)(v & 127) * ESYNC_N >> 7; }   /* (param_format's split) */
 /* the INSERT's types (fx.c IT_*; append-only: stored). Its three values A B C mean what the type says (ins_desc) */
-static const char *const N_ITYPE[] = {"OFF", "SOFT", "HARD", "FOLD", "FUZZ", "CRUSH", "PHASR", "FLANG", "CHOR"};
+static const char *const N_ITYPE[] = {"OFF", "SOFT", "HARD", "FOLD", "FUZZ", "CRUSH", W_PHASER, W_FLANGE, W_CHORUS};
 /* CRUSH: BITS 1..16 and RATE (the held sample's rate) over the range in 16 even parts (0-terminated) */
 static const char *const N_IBITS[] = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15",
                                       "16", 0};
@@ -36,14 +36,14 @@ static const char *const N_IRATE[] = {"689", "919", "1.1k", "1.4k", "1.8k", "2.2
                                       "7.4k", "8.8k", "11k", "15k", "22k", "44k", 0};
 /* (PHEBUS wave 5) the FX slots' types (core.h XT_*; stored, append-only): on the TYPE knob (five letters) and in the slot's
  * box (fx-A, large) */
-static const char *const N_XTYPE[] = {"OFF", "CHOR", "PHASR", "FLANG", "REVRB", "DELAY", "DIST", "SOFT", "HARD", "FOLD",
+static const char *const N_XTYPE[] = {"OFF", W_CHORUS, W_PHASER, W_FLANGE, W_REVERB, "DELAY", "DIST", "SOFT", "HARD", "FOLD",
                                       "FUZZ", "CRUSH", "EQ"};
-static const char *const N_XBIG[] = {"OFF", "CHORUS", "PHASER", "FLANGER", "REVERB", "DELAY", "DIST", "SOFT", "HARD", "FOLD",
+static const char *const N_XBIG[] = {"OFF", W_CHORUS, W_PHASER, W_FLANGE, W_REVERB, "DELAY", "DIST", "SOFT", "HARD", "FOLD",
                                      "FUZZ", "CRUSH", "EQ"};
 _Static_assert(sizeof N_XTYPE / sizeof N_XTYPE[0] == XT_N && sizeof N_XBIG / sizeof N_XBIG[0] == XT_N, "a name an FX type");
 /* the mod matrix's rows and columns (core.h MS_*, MD_*): short in the grid, long on the knobs */
-static const char *const N_MSRC[] = {"LFO1", "LFO2", "AENV", "FENV", "PENV", "VEL", "KEY"};
-static const char *const N_MDST[] = {"PIT", "M1", "M2", "M3", "CUT", "RES", "LVL", "PAN", "FX1", "FX2", "FX3"};
+static const char *const N_MSRC[] = {W_LFO1, W_LFO2, "AENV", "FENV", "PENV", "VEL", "KEY"};
+static const char *const N_MDST[] = {"PIT", "M1", "M2", "M3", "CUT", "RES", "LVL", "PAN", W_FX1, W_FX2, W_FX3};
 _Static_assert(sizeof N_MSRC / sizeof N_MSRC[0] == MS_N && sizeof N_MDST / sizeof N_MDST[0] == MD_NFIX, "the grid's names");
 static const char *const N_AMODE[] = {"OFF", "UP", "DN", "UPDN", "RND", "ORD"};
 static const char *const N_MOUT[] = {"KEYS", "SEQ"};
@@ -98,8 +98,8 @@ static const param_desc_t TP[P_COUNT] = {
     [P_LEVEL] = PD("LVL", F_DB, 0, 127, 104),
     [P_ATK] = PD("ATTACK", F_TIME, 0, 127, 10),   /* (wave 4: the ENV page's names, mock-synth-env-A) */
     [P_DEC] = PD("DECAY", F_TIME, 0, 127, 70),
-    [P_SUS] = PD("SUSTN", F_PCT, 0, 127, 90),
-    [P_REL] = PD("RELEAS", F_TIME, 0, 127, 60),
+    [P_SUS] = PD(W_SUS, F_PCT, 0, 127, 90),
+    [P_REL] = PD(W_REL, F_TIME, 0, 127, 60),
     [P_ED_FLT] = PD("ENV", F_BIPCT, -64, 63, 0),  /* (wave 4) the voice filter's ENV amount: +-64 a full sweep (voice.c) */
     [P_ED_PIT] = PD("PIT", F_BIPCT, -64, 63, 0),
     [P_ED_SHP] = PD("SHP", F_BIPCT, -64, 63, 0),
@@ -121,8 +121,8 @@ static const param_desc_t TP[P_COUNT] = {
     [P_AHOLD] = PE("HOLD", N_ONOFF, 0),
     [P_AORDER] = PE("ORD", N_ORDER, 0),
     [P_ROOT] = PD("ROOT", F_NOTE, 0, 11, 0),
-    [P_SCALE] = PE("SCL", N_SCALE, 0),
-    [P_QUANT] = PE("QNT", N_QUANT, 0),
+    [P_SCALE] = PE(W_SCALE, N_SCALE, 0),
+    [P_QUANT] = PE(W_QUANT, N_QUANT, 0),
     [P_TRANS] = PD("TRN", F_SEMI, -24, 24, 0),
     [P_SLEN] = PD("STEPS", F_STEPS, 1, NSTEP, 16),
     [P_SDIV] = PE("DIV", N_SDIV, 2),
@@ -137,10 +137,10 @@ static const param_desc_t TP[P_COUNT] = {
     [P_GLMODE] = PE("GLMODE", N_GLMODE, 0),
     [P_PRIO] = PE("PRIOR", N_PRIO, 0),
     [P_ALLOC] = PE("ALLOC", N_ALLOC, 0),
-    [P_DETUNE] = PD("DTUNE", F_INT, 0, 127, 40),
+    [P_DETUNE] = PD(W_DETUNE, F_INT, 0, 127, 40),
     [P_PAN] = PD("PAN", F_BIPCT, -64, 63, 0),
     [P_MUTE] = PE("MUTE", N_ONOFF, 0),
-    [P_SLCR] = PE("SLCR", N_SLCR, 0),
+    [P_SLCR] = PE(W_SLICE, N_SLCR, 0),
     [P_SLPAT] = PD("PAT", F_INT, 1, 16, 1),        /* SL_PAT[] */
     [P_SLRATE] = PE("RATE", N_SLDIV, 1),
     [P_SLDEPTH] = PD("DEPTH", F_PCT, 0, 127, 127),
@@ -156,7 +156,7 @@ static const param_desc_t TP[P_COUNT] = {
     [P_IC] = PD("INS C", F_PCT, 0, 127, 96),
     [P_IMIX] = PD("MIX", F_PCT, 0, 127, 127),
     [P_FTYPE] = PE("TYPE", N_FTYPE, 0),           /* (wave 4) the voice filter's type (vfilt.c) */
-    [P_ESYNC] = PE("ESYNC", N_ONOFF, 0),          /* OFF = ATK DEC REL in ms, as before (voice.c) */
+    [P_ESYNC] = PE(W_ESYNC, N_ONOFF, 0),          /* OFF = ATK DEC REL in ms, as before (voice.c) */
     [P_LSYNC] = PE("SYNC", N_LSYNC, 0),           /* LFO 2: OFF = RATE, as before */
     [P_LTRIG] = PE("TRIG", N_LTRIG, 0),
     [P_LPOL] = PE("POL", N_LPOL, 0),
@@ -169,18 +169,18 @@ static const param_desc_t TP[P_COUNT] = {
     [P_FLINK] = PE("LINK", N_FLINK, 0),
     [P_FATK] = PD("ATTACK", F_TIME, 0, 127, 10),
     [P_FDEC] = PD("DECAY", F_TIME, 0, 127, 70),
-    [P_FSUS] = PD("SUSTN", F_PCT, 0, 127, 90),
-    [P_FREL] = PD("RELEAS", F_TIME, 0, 127, 60),
+    [P_FSUS] = PD(W_SUS, F_PCT, 0, 127, 90),
+    [P_FREL] = PD(W_REL, F_TIME, 0, 127, 60),
     [P_OCT] = {"OCT", F_SIGN, -3, 3, 0, 0, 0},
     [P_TUNE] = {"TUNE", F_SIGN, -99, 99, 0, 0, "ct"},
     /* (PHEBUS wave 5) the FX slots: OFF to start (Ben, 21 Nov 2026: "I don't like having fx on by default"); a TYPE picked
      * sets its three knobs to that type's start (xs_defaults). What TIME INTENS AMOUNT mean: xs_desc */
     [P_X1TYPE] = PE("TYPE", N_XTYPE, 0), [P_X1TIME] = PD("TIME", F_PCT, 0, 127, 0),
-    [P_X1INT] = PD("INTENS", F_PCT, 0, 127, 0), [P_X1AMT] = PD("AMOUNT", F_PCT, 0, 127, 0),
+    [P_X1INT] = PD(W_DEPTH, F_PCT, 0, 127, 0), [P_X1AMT] = PD("AMOUNT", F_PCT, 0, 127, 0),
     [P_X2TYPE] = PE("TYPE", N_XTYPE, 0), [P_X2TIME] = PD("TIME", F_PCT, 0, 127, 0),
-    [P_X2INT] = PD("INTENS", F_PCT, 0, 127, 0), [P_X2AMT] = PD("AMOUNT", F_PCT, 0, 127, 0),
+    [P_X2INT] = PD(W_DEPTH, F_PCT, 0, 127, 0), [P_X2AMT] = PD("AMOUNT", F_PCT, 0, 127, 0),
     [P_X3TYPE] = PE("TYPE", N_XTYPE, 0), [P_X3TIME] = PD("TIME", F_PCT, 0, 127, 0),
-    [P_X3INT] = PD("INTENS", F_PCT, 0, 127, 0), [P_X3AMT] = PD("AMOUNT", F_PCT, 0, 127, 0),
+    [P_X3INT] = PD(W_DEPTH, F_PCT, 0, 127, 0), [P_X3AMT] = PD("AMOUNT", F_PCT, 0, 127, 0),
     /* the second LFO (modmx.c): free running from the start */
     [P_L2RATE] = PD("RATE", F_LFOHZ, 0, 127, 50),
     [P_L2WAVE] = PE("WAVE", N_LWAVE, 0),
@@ -227,7 +227,7 @@ static const param_desc_t GP[G_COUNT] = {
     [G_TUNE] = PD("TUNE", F_INT, -50, 50, 0),
     [G_DTIME] = PE("TIME", N_DLY, 1),
     [G_DFDBK] = PD("FDBK", F_PCT, 0, 120, 60),   /* (wave 8: one spelling, FDBK) */
-    [G_DCOLOR] = PD("COLOR", F_PCT, 0, 127, 70),
+    [G_DCOLOR] = PD(W_COLOUR, F_PCT, 0, 127, 70),
     [G_DMIX] = PD("MIX", F_PCT, 0, 127, 90),
     [G_RSIZE] = PD("SIZE", F_PCT, 0, 127, 90),
     [G_RDAMP] = PD("DAMP", F_PCT, 0, 127, 60),
@@ -244,7 +244,7 @@ static const param_desc_t GP[G_COUNT] = {
     [G_SAVE] = PE("SAVE", N_GO, 0),
     [G_ENGSEL] = PE("ENG", N_ENGNAME, 0),
     [G_ENGGO] = PE("SET", N_GO, 0),
-    [G_CLRSEQ] = PE("CLRSQ", N_GO, 0),
+    [G_CLRSEQ] = PE(W_CLEAR, N_GO, 0),
     [G_INITSND] = PE("INIT", N_GO, 0),
     [G_DRCH] = PE("CH4", N_MCH, 10),                  /* GM drum part (track 4) MIDI channel, 0 = OFF (2.6: as GLO > MIDI's CH1..3) */
     [G_DRLVL] = PD("LVL", F_INT, 0, 127, 100),
@@ -267,8 +267,8 @@ static const param_desc_t GP[G_COUNT] = {
     [G_HXDEC] = PD("DEC", F_INT, 0, 127, 30),
     [G_HXSLOPE] = PD("SLOPE", F_INT, 0, 127, 40),
     [G_HXLVL] = PD("LEVEL", F_INT, 0, 127, 110),
-    [G_HXPAMT] = PD("P.AMT", F_INT, 0, 127, 0),
-    [G_HXPDEC] = PD("P.DEC", F_INT, 0, 127, 30),
+    [G_HXPAMT] = PD(W_PAMT, F_INT, 0, 127, 0),
+    [G_HXPDEC] = PD(W_PDEC, F_INT, 0, 127, 30),
     [G_HXRATIO] = PD("M.PIT", F_INT, 0, 127, 48),
     [G_HXFM] = PD("FM", F_INT, 0, 127, 0),
     [G_HXCLICK] = PE("TRANS", N_HXCLICK, 0),
@@ -308,7 +308,7 @@ static const param_desc_t *ins_desc(int32_t type, uint32_t k)
 static const param_desc_t ESYNC_DESC[3] = {   /* ATK DEC REL with ENV SYNC on: the range and defaults as ever */
     {"ATTACK", F_INT, 0, 127, 10, ESYNC_NAMES, 0},
     {"DECAY", F_INT, 0, 127, 70, ESYNC_NAMES, 0},
-    {"RELEAS", F_INT, 0, 127, 60, ESYNC_NAMES, 0},
+    {W_REL, F_INT, 0, 127, 60, ESYNC_NAMES, 0},
 };
 
 static const param_desc_t *track_desc(const track_t *t, uint32_t id)
@@ -471,7 +471,7 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
         *unit = "st";
         break;
     case F_ENUM:
-        str_cpy(val, d->names[v < d->min ? d->min : v > d->max ? d->max : v], 6);
+        str_cpy(val, d->names[v < d->min ? d->min : v > d->max ? d->max : v], 7);   /* (review V2: six letters) */
         if (d->unit)
             *unit = d->unit;
         break;
@@ -567,6 +567,12 @@ enum { V_TYPE = 0xF0, V_M1, V_M2, V_M3, V_M4, V_M5,
        V_XA, V_XB, V_XC, V_L2SYNC, V_L2TRIG, V_MSRC, V_MDST, V_MAMT, V_MK4 };
 #define V_LEARN 0xEEu          /* (wave 9) GLO > MIDI 3: MIDI LEARN on / off (it was GLO + F#3); 0xFF is an empty knob */
 _Static_assert(P_COUNT < V_LEARN && G_COUNT < V_LEARN, "V_LEARN above every parameter");
+/* (review U5, Ben 26 Nov 2026: "Redraw in the GLO frame") GLO > DEVICE's settings as knobs of normal GLO pages: the FM-1's own
+ * settings (kept with the settings, not a project: ui_menu.c dev_desc, dev_edit); and (MIDI 3) LEARN's CLEAR beside LEARN */
+enum { V_COLOR = 0xD0, V_ZOOM, V_DISCO, V_LIGHTS, V_KEYS, V_NOTES, V_LOWCUT, V_USB, V_SERIAL, V_CALIB, V_ABOUT, V_LCLEAR };
+#define V_DEV0 V_COLOR
+#define V_DEVN V_LCLEAR
+_Static_assert(P_COUNT < V_DEV0 && G_COUNT < V_DEV0 && V_DEVN < 0xE8u, "the DEVICE ids above every parameter, below 0xE8");
 _Static_assert(P_COUNT <= V_TYPE, "the virtual knob ids above every parameter");
 
 static const page_t PAGES[] = {
@@ -597,7 +603,7 @@ static const page_t PAGES[] = {
     {"SLICER", FAM_FX, SC_TRACK, GR_SLCR, {P_SLPAT, P_SLRATE, P_SLDEPTH, 0xFF}, P_SLCR, CT_SLICER},   /* drum track too (its FX tab) */
     /* MOD: the LFO (RATE WAVE PHASE FADE; SYNC TRIG POL, and ENV SYNC), the second LFO, then the matrix (mock-synth-mod-A:
      * the grid, Ben's pick). Where the LFO and the envelopes go is the matrix's (the old LFO DEST and ENV DEST are cells) */
-    {"LFO", FAM_MOD, SC_TRACK, GR_LFO, {P_LRATE, P_LPHASE, P_LFADE, P_LPOL}, P_LWAVE, CT_LFO1},
+    {"LFO 1", FAM_MOD, SC_TRACK, GR_LFO, {P_LRATE, P_LPHASE, P_LFADE, P_LPOL}, P_LWAVE, CT_LFO1},
     {"LFO SYNC", FAM_MOD, SC_TRACK, GR_LFO, {P_LSYNC, P_LTRIG, P_ESYNC, 0xFF}, P_LWAVE, CT_LFO1},   /* SYNC TRIG POL, ENV SYNC */
     {"LFO 2", FAM_MOD, SC_TRACK, GR_LFO2, {P_L2RATE, V_L2SYNC, V_L2TRIG, 0xFF}, P_L2WAVE, CT_LFO2},
     {"MATRIX", FAM_MOD, SC_TRACK, GR_MATRIX, {V_MSRC, V_MDST, V_MAMT, V_MK4}, SEL_NONE, CT_MATRIX},
@@ -618,12 +624,13 @@ static const page_t PAGES[] = {
     /* (wave 8) GLO is the settings (and, held, the mixer): the tempo lives here and only here (Ben: "tempo in one place");
      * the swing is the pattern's (hold SEQ), the effects the FX button's, the drums' level the mixer's */
     {"GLOBAL", FAM_GLO, SC_GLOBAL, GR_NONE, {G_BPM, G_CLOCK, G_TUNE, 0xFF}, SEL_NONE, CT_GLOBAL},
-    {"SYSTEM", FAM_GLO, SC_GLOBAL, GR_NONE, {G_MIDI, G_SYNC, G_ROUTE, G_INFO}, SEL_NONE, CT_SYSTEM},
+    {"SYSTEM", FAM_GLO, SC_GLOBAL, GR_NONE, {G_SYNC, G_INFO, 0xFF, 0xFF}, SEL_NONE, CT_SYSTEM},   /* (review U6, Ben: "One home
+                                                         * each": OUT and IN are MIDI 2's only) */
     {"MIDI", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CH1, G_CH2, G_CH3, G_DRCH}, SEL_NONE, CT_MIDI},   /* 2.6: each track's channel, the drums' too */
     {"MIDI 2", FAM_GLO, SC_GLOBAL, GR_NONE, {G_ROUTE, G_CHOTH, G_MIDI, G_BEND}, SEL_NONE, CT_MIDI},   /* 2.6: IN, OTHER, OUT, BEND: every MIDI
-                                                                           * setting in these two pages (IN and OUT on
-                                                                           * SYSTEM too) */
-    {"MIDI 3", FAM_GLO, SC_GLOBAL, GR_NONE, {G_KNOBS, V_LEARN, 0xFF, 0xFF}, SEL_NONE, CT_MIDI},   /* a controller's knobs (2026-10-20) */
+                                                                           * setting in these pages */
+    {"MIDI 3", FAM_GLO, SC_GLOBAL, GR_NONE, {G_KNOBS, V_LEARN, V_LCLEAR, 0xFF}, SEL_NONE, CT_MIDI},   /* a controller's knobs (2026-10-20);
+                                                         * (review U5) LEARN's CLEAR beside it */
     /* (wave 8) the FX button: the whole mix's effects, white and grey. The delay, the reverb and chorus every voice sends to
      * (each voice's SENDS page; PERFORM's ECHO and VERB throw into them), the master bus (DUST, DUCK) */
     {"DELAY", FAM_MFX, SC_GLOBAL, GR_NONE, {G_DTIME, G_DFDBK, G_DCOLOR, G_DMIX}, SEL_NONE, CT_MIX},
@@ -647,6 +654,12 @@ static const page_t PAGES[] = {
      * bank, KEEP (KNOB 1), SWAP (KNOB 2), NEW (KNOB 4): ui_draw.c graph_proj, project.c bank_op. (Last in the list so no page
      * moves its index; SAVE's order is ui_nav.c's) */
     {"PROJECT", FAM_SAVE, SC_GLOBAL, GR_PROJ, {0xFF, 0xFF, 0xFF, 0xFF}, SEL_NONE, CT_PROJ},
+    /* (review U5) GLO > DEVICE: the FM-1's settings, four GLO pages (they were the old menu's sections; last, so no
+     * page before moves its index) */
+    {"SCREEN", FAM_GLO, SC_GLOBAL, GR_NONE, {V_COLOR, V_ZOOM, 0xFF, 0xFF}, SEL_NONE, CT_DEVICE},
+    {"LIGHTS", FAM_GLO, SC_GLOBAL, GR_NONE, {V_DISCO, V_LIGHTS, V_KEYS, V_NOTES}, SEL_NONE, CT_DEVICE},
+    {"AUDIO", FAM_GLO, SC_GLOBAL, GR_NONE, {V_LOWCUT, V_USB, V_SERIAL, 0xFF}, SEL_NONE, CT_DEVICE},
+    {"TOOLS", FAM_GLO, SC_GLOBAL, GR_NONE, {V_CALIB, V_ABOUT, 0xFF, 0xFF}, SEL_NONE, CT_DEVICE},
 };
 #define NPAGES (sizeof(PAGES) / sizeof(PAGES[0]))
 
@@ -766,9 +779,12 @@ static uint32_t pg_id(const page_t *pg, uint32_t k)
 static uint8_t learn_shown;                             /* (wave 9: MIDI LEARN on, for GLO > MIDI 3: ui.c ml_toggle sets it) */
 static const param_desc_t VTYPE_DESC = {"TYPE", F_INT, 0, NVTYPE - 1u, 0, 0, 0};   /* (formatted by vtype_fmt) */
 static int16_t vtype_shown;                            /* (TYPE's value, as page_desc hands it out: vtype_of) */
+static const param_desc_t *dev_desc(uint32_t id, int16_t **valp);   /* (review U5: ui_menu.c) */
 static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **valp)
 {
     uint32_t id = pg_id(pg, slot);
+    if (id >= V_DEV0 && id <= V_DEVN)
+        return dev_desc(id, valp);
     if (id == V_TYPE && !is_drum(TSEL)) {
         vtype_shown = (int16_t)vtype_of(TSEL);
         *valp = &vtype_shown;

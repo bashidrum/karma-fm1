@@ -22,9 +22,10 @@
 #define PF_BK_Y 1                                       /* the black keys' row: chips 14 high */
 #define PF_BK_H 14
 #define PF_HEAD_Y 18                                    /* the column headings (the text's top; its letters 20..29) */
-#define PF_PAD_W 57                                     /* the pads: 57 x 18, four columns 4 px apart, rows 1 px apart */
+#define PF_PAD_W 56                                     /* the pads: 56 x 18, four columns 4 px apart, 2 px clear of the
+                                                         * screen's edges (review V5), rows 1 px apart */
 #define PF_PAD_H 18
-#define PF_COL_X(c) ((int32_t)(c) * 61)
+#define PF_COL_X(c) (2 + (int32_t)(c) * 60)
 #define PF_PAD_X(i) PF_COL_X((i) / 4u)                  /* white key i+1: column i / 4, row i % 4 (top to bottom) */
 #define PF_PAD_Y(i) (33 + (int32_t)((i) % 4u) * 19)
 static const char *const PF_HEAD[4] = {"REPEAT", "TIME", "FILTER", "COLOUR"};
@@ -129,7 +130,12 @@ static uint32_t perf_shown_sig(void)
 }
 static void pf_text(int32_t x, int32_t w, int32_t y, const char *n, uint16_t c)   /* its letters centred in x..x+w */
 {
-    cv_text(x + (w - text_w(&FONT_S, n) + 1) / 2, y, &FONT_S, n, c);
+    int32_t tw = text_w(&FONT_S, n);
+    if (tw > w - 4) {                                   /* (review V5: a long name, ISO MID, set tight, clear of its edges) */
+        cv_text_tight(x + (w - cv_text_tight(0, 0, n, 0, 0) + 1) / 2, y, n, c, 1);
+        return;
+    }
+    cv_text(x + (w - tw + 1) / 2, y, &FONT_S, n, c);
 }
 /* a pad or a chip: its state's fill, its label, a dot when latched, a bar when the lane plays it. col: its family (white: an
  * effect on the whole mix; a voice's colour: a mute of that voice). A chip (a black key): black till pressed, a line under it;

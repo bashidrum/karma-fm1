@@ -21,6 +21,65 @@
 /* ---- the values */
 static void syn_fmt_type(char *b, uint32_t ty) { str_cpy(b, ty < NVTYPE ? VTYPES[ty].name : "--", 8); }
 /* page pg's four knobs on the selected synth track: labels, values (a step held, first: its lock, inverted), dials */
+/* (review V8, Ben: "Fix all three") OSC 3/4 and 4/4: the voice's voices, not page 1's wave again: POLY eight dots, the ones
+ * sounding filled; UNISON the eight stacked on one note, fanned out as far as DETUNE spreads them; MONO and LEGATO one; the
+ * line under says how they are taken (PRIOR on 3/4, ALLOC on 4/4: ROT goes round, REUSE takes the first free) */
+static void syn_voices(const track_t *t, uint16_t c, uint16_t cd)
+{
+    int32_t vm = clamp(t->p[P_VOICE], 0, 3), i, cy = 76, spread = t->p[P_DETUNE] * 24 / 127;
+    char b[28];
+    for (i = 0; i < NVOICE; i++) {
+        int on = t->v[i].active != 0, x;
+        if (vm == V_UNISON) {
+            x = 120 + (2 * i - (NVOICE - 1)) * spread / 2;
+            cv_rect(x - 1, cy - 12, 3, 24, on ? c : cd);
+        } else if (vm == V_POLY) {
+            x = 22 + i * 28;
+            if (on)
+                te_disc(x, cy, 7, c);
+            else
+                op_box(x - 7, cy - 7, 15, 15, cd);
+        } else if (!i) {
+            if (on)
+                te_disc(120, cy, 9, c);
+            else
+                op_box(111, cy - 9, 19, 19, cd);
+        }
+    }
+    str_cpy(b, vm == V_POLY ? "POLY: 8 VOICES" : vm == V_UNISON ? "UNISON: 8 ON ONE NOTE" : vm == V_MONO ? "MONO: ONE VOICE"
+                                                                                                    : "LEGATO: ONE VOICE", sizeof b);
+    cv_text(4, 94, &FONT_S, b, TE_G3);
+    str_cpy(b, t->p[P_ALLOC] ? "REUSE" : "ROT", 8);
+    cv_text(236 - text_w(&FONT_S, b), 94, &FONT_S, b, TE_G3);
+}
+/* (review V6, Ben: "One format with units") an envelope's value on its dial, both envelopes alike: a time in ms under a second
+ * ("340MS"), then seconds ("1.2S", "12S"); the sustain in % ("80%"). 0: not an envelope's time or level */
+static int env_fmt(uint32_t id, const param_desc_t *d, int32_t x, char *v)
+{
+    int env = (id >= P_ATK && id <= P_REL) || (id >= P_FATK && id <= P_FREL);
+    if (!env)
+        return 0;
+    if (d->fmt == F_TIME) {
+        uint32_t ms10 = TIME_MS_X10[x & 127];
+        if (ms10 < 9995u) {
+            fmt_int(v, (int32_t)((ms10 + 5u) / 10u));
+            str_cpy(v + str_len(v), "MS", 3);
+        } else {
+            if (ms10 < 99500u)
+                fmt_fix(v, (int32_t)((ms10 + 50u) / 100u), 1);
+            else
+                fmt_int(v, (int32_t)((ms10 + 5000u) / 10000u));
+            str_cpy(v + str_len(v), "S", 2);
+        }
+        return 1;
+    }
+    if (d->fmt == F_PCT) {
+        fmt_int(v, d->max > 0 ? (x * 100 + d->max / 2) / d->max : x);
+        str_cpy(v + str_len(v), "%", 2);
+        return 1;
+    }
+    return 0;                                           /* (ENV SYNC on: the note values, as they are) */
+}
 static void syn_vals(const page_t *pg, int32_t first, const char *lab[4], char v[4][12], int32_t ratio[4], uint32_t *locked,
                      uint32_t *dim)
 {
@@ -85,7 +144,8 @@ static void syn_vals(const page_t *pg, int32_t first, const char *lab[4], char v
             if (!p_lockable(id))
                 *dim |= 1u << k;
         }
-        param_format(d, x, v[k], &u);
+        if (!env_fmt(id, d, x, v[k]))
+            param_format(d, x, v[k], &u);
         dval_fit(v[k]);
         ratio[k] = d->max > d->min ? (x - d->min) * 1000 / (d->max - d->min) : -1;
     }
@@ -273,7 +333,7 @@ static void syn_fx_slots(const track_t *t, uint32_t cur, uint16_t c, uint16_t cd
         int32_t x = 2 + (int32_t)k * 79, ty = clamp(t->p[P_XS(k, 0)], 0, XT_N - 1);
         if (xt_send(ty))
             ty = XT_OFF;                                /* (wave 8: no slot type: shown as it plays, OFF) */
-        char lb[4] = {'F', 'X', (char)('1' + k), 0};
+        char lb[5] = {'F', 'X', ' ', (char)('1' + k), 0};   /* (review V2: FX 1) */
         uint16_t fg = ty ? (k == cur ? C_WHITE : c) : TE_G3;
         if (k == cur)
             cv_rect(x, 2, 77, 40, cd);
@@ -378,20 +438,21 @@ static void syn_matrix(const track_t *t, uint16_t c)
     uint8_t cols[MD_N];
     uint32_t ti = (uint32_t)(t - trk) % NPART, r, j, n = mx_vis(ti, cols), cp = mx_vis_pos(ti, (uint32_t)mx_col);
     uint32_t j0 = (uint32_t)clamp((int32_t)cp - 5, 0, (int32_t)n - 6);
+    uint16_t cm = TE_MID[song.sel & 3u];                /* (review V8) the voice's colour, dim: the heads not at the cursor */
     char nm[8];
     for (j = j0; j < j0 + 6u && j < n; j++) {           /* (wave 11: an assignable column is named by its parameter, white-grey
                                                          * as every head; "+" the empty one that makes another) */
         mx_col_name(ti, cols[j], nm);
-        cv_text(38 + (int32_t)(j - j0) * 32 + (32 - text_w(&FONT_S, nm)) / 2, 0, &FONT_S, nm,
-                j == cp ? C_WHITE : cols[j] >= MD_AS1 ? TE_G4 : TE_G3);
+        cv_text_tight(38 + (int32_t)(j - j0) * 32 + (32 - cv_text_tight(0, 0, nm, 0, 0)) / 2, 0, nm,
+                      j == cp ? c : cm, 1);   /* (review V8: the voice's colour, the cursor's bright, the rest dim) */
     }
     if (j0)                                             /* (more columns either side: the cursor slides the view) */
-        cv_text(31, 0, &FONT_S, "<", TE_G2);
+        cv_text(31, 0, &FONT_S, "<", cm);
     if (j0 + 6u < n)
-        cv_text(232, 0, &FONT_S, ">", TE_G2);
+        cv_text(232, 0, &FONT_S, ">", cm);
     for (r = 0; r < MS_N; r++) {
         int32_t y = 16 + (int32_t)r * 13;
-        cv_text(2, y - 2, &FONT_S, N_MSRC[r], r == (uint32_t)mx_row ? C_WHITE : TE_G4);
+        cv_text_tight(2, y - 2, N_MSRC[r], r == (uint32_t)mx_row ? c : cm, 1);
         for (j = j0; j < j0 + 6u && j < n; j++) {
             uint32_t d = cols[j];
             int32_t x = 38 + (int32_t)(j - j0) * 32 + 16, a = mx_get(ti, r, d), cy = y + 5, rad;
@@ -405,7 +466,7 @@ static void syn_matrix(const track_t *t, uint16_t c)
             else
                 op_box(x - rad, cy - rad, 2 * rad + 1, 2 * rad + 1, c);
             if (r == (uint32_t)mx_row && j == cp)
-                op_box(x - 13, y - 1, 27, 13, C_WHITE);
+                op_box(x - 13, y - 1, 27, 13, c);
         }
     }
 }
@@ -566,7 +627,7 @@ static void syn_body(track_t *t, const page_t *pg, uint32_t half, uint32_t *cach
         fmt_int(sub + str_len(sub), (int32_t)NVTYPE);
         if (ty < NVTYPE && VTYPES[ty].eng == ENGI_PRISM && prism_model(t) >= PRM_PLX &&
             plx_stride(prism_model(t) - PRM_PLX) > eng_arena_size(t))
-            str_cpy(sub + str_len(sub), "  NOT ON THIS TRACK", 20);   /* (the device build's limit: engines.c) */
+            str_cpy(sub + str_len(sub), "  NOT ON THIS VOICE", 20);   /* (the device build's limit: engines.c) */
         if (half == 1u) {                               /* OCT TUNE GLIDE VOICE: the pitch on a scale of +-3 octaves, the
                                                          * voice's ways */
             int32_t px = 120 + (t->p[P_OCT] * 1200 + t->p[P_TUNE]) * 108 / 3600, o;
@@ -576,8 +637,14 @@ static void syn_body(track_t *t, const page_t *pg, uint32_t half, uint32_t *cach
             cv_rect(px - 2, SP_T - 9, 5, 7, c);
             gp_voice(t, c);
         }
+        else if (half >= 2u)                            /* (review V8) OSC 3/4 and 4/4: the voices, not page 1's wave again */
+            syn_voices(t, c, TE_DIM[v]);
+        else if (t->eng_req % NENGINES == ENGI_PRISM && (prism_model(t) == PRM_FOLD || prism_model(t) == PRM_WAVE ||
+                                                         prism_model(t) == PRM_HARM))
+            op_prism_panel(t, 6, SP_T - 6, 0);          /* (FOLD, WAVE, HARM: the model's own picture, across the width as
+                                                         * every wave, review V8) */
         else if (t->eng_req % NENGINES == ENGI_PRISM && prism_model(t) < PRM_PLX)
-            op_prism_panel(t, 80, SP_T - 6, 1);         /* (FOLD, SWARM, WAVE, HARM, CHORD: the model's own picture) */
+            op_prism_panel(t, 80, SP_T - 6, 1);         /* (SWARM, CHORD: the model's own picture) */
         else
             gp_osc(t, c);
         break;
@@ -597,18 +664,7 @@ static void syn_body(track_t *t, const page_t *pg, uint32_t half, uint32_t *cach
         str_cpy(big, filt ? "FILTER" : "AMP", 16);
         str_cpy(sub, filt ? (link ? "LINKED TO THE AMP ENV" : "ITS OWN ADSR") : (link ? "THE FILTER FOLLOWS IT" : "THE VOICE'S LEVEL"),
                 40);
-        x = 236 - text_w(&FONT_S, "FILT") - 6;          /* AMP | FILT, the one shown filled */
-        if (filt) {
-            op_box(x - text_w(&FONT_S, "AMP") - 12, 4, text_w(&FONT_S, "AMP") + 8, 18, TE_G3);
-            cv_text(x - text_w(&FONT_S, "AMP") - 8, 5, &FONT_S, "AMP", TE_G3);
-            cv_rect(x, 4, text_w(&FONT_S, "FILT") + 6, 18, c);
-            cv_text(x + 3, 5, &FONT_S, "FILT", C_BLACK);
-        } else {
-            cv_rect(x - text_w(&FONT_S, "AMP") - 12, 4, text_w(&FONT_S, "AMP") + 8, 18, c);
-            cv_text(x - text_w(&FONT_S, "AMP") - 8, 5, &FONT_S, "AMP", C_BLACK);
-            op_box(x, 4, text_w(&FONT_S, "FILT") + 6, 18, TE_G3);
-            cv_text(x + 3, 5, &FONT_S, "FILT", TE_G3);
-        }
+        (void)x;                                        /* (review V4: no AMP | FILT chips: the tab row says it) */
         cv_rect(0, SP_B + 1, 240, 1, TE_G1);
         if (filt && !link)                              /* the other envelope faint behind (both shapes) */
             syn_adsr(t, P_ATK, SP_L, SP_R, SP_T, SP_B, TE_DIM[v], 0);
@@ -655,7 +711,7 @@ static void syn_body(track_t *t, const page_t *pg, uint32_t half, uint32_t *cach
             cv_blit(0, 22);
             return;
         }
-        str_cpy(big, pg->graph == GR_LFO2 ? "LFO 2" : "LFO", 16);
+        str_cpy(big, pg->graph == GR_LFO2 ? "LFO 2" : W_LFO1, 16);   /* (review V2: LFO 1) */
         if (pg->graph == GR_LFO2) {                     /* (wave 5) the second LFO, running */
             const mxt_t *m = &mxt[song.sel % NPART];
             int32_t x, py = SP_M, ny = SP_M, a;

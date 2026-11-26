@@ -312,7 +312,7 @@ static void up_ui(uint32_t op, uint32_t k)     /* 0 load, 1 erase, 2 save */
     int rc;
     up_slot_label(l, k);
     if (op != 1u && is_drum(TSEL)) {
-        ui_message("DRUM TRACK: NO SOUND");
+        ui_message("DRUM VOICE: NO SOUND");
         return;
     }
     if (op < 2u && !up_used(k)) {
