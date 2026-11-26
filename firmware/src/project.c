@@ -1662,8 +1662,13 @@ static void sections_write(void)                        /* the dirty sections an
 #if FELUCCA_FLASH
     if (flash_ok)
         for (i = 0; i < 4u; i++)
-            if (((sec_dirty >> i) & 1u) && st_save_big(OBJ_PRJ0 + i, PSLOT(i), sizeof *PSLOT(i), 0) == 0)
-                sec_dirty &= (uint8_t)~(1u << i);       /* (a failed write stays dirty: tried again later) */
+            if ((sec_dirty >> i) & 1u) {
+                if (st_save_big(OBJ_PRJ0 + i, PSLOT(i), sizeof *PSLOT(i), 0))
+                    break;                              /* (a failed write stays dirty: tried again later; the rest wait
+                                                         * too: a timed-out erase may still run in the chip, and the next
+                                                         * object's copy is chosen by reading flash) */
+                sec_dirty &= (uint8_t)~(1u << i);
+            }
     if (!flash_ok)
 #endif
         sec_dirty = 0;
