@@ -5320,13 +5320,25 @@ int main(int argc, char **argv)
               "w12: drum screen, PRESETS +1: the SNARE slot takes the next snare at once (SOUND 80S SNARE), nothing asked");
         check(str_eq(brw_l2, "SNARE 9/41"), "w12: the readout says the group and the place in it (SNARE 9/41)");
         ui.force = 1; frame(); ppm("w12-drum-sound-browse");
-        px = px_count(0, SG_KNOB_Y + 4, 240, 34, TE_DRUM);
-        ok = px > 200u;
-        for (k = 0; k < 240u * 50u; k++) {               /* the readout: the drums' teal, grey, white, black only */
-            uint16_t c = swap16(screen[(SG_KNOB_Y + 2u + k / 240u) * 240u + k % 240u]);
-            ok &= c == TE_DRUM || c == TE_G4 || c == C_WHITE || c == C_BLACK || c == TE_G1;
+        {   /* (review 26 Nov, O2, Ben's picker "Six-row list on drums too") PRESETS turning on the drum screen: the slot's
+             * sounds as six rows over the body, as a synth's PRESETS list; the one taken fourth, teal, a white dot; same kind
+             * first (the snares round it); the dials stay (no readout saying it again) */
+            uint32_t r, oth = 0, o;
+            char nb[28];
+            px = px_count(54, SG_BODY_Y + 4u + 3u * 17u, 180, 16, TE_DRUM);
+            ok = px > 100u && px_count(4, SG_BODY_Y + 4u + 3u * 17u + 6u, 3, 3, C_WHITE) == 9u;
+            for (r = 0; r < 6u; r++)
+                if (r != 3u) oth += px_count(0, SG_BODY_Y + 4u + r * 17u, 240, 16, TE_DRUM);
+            for (o = 0; o < NPART; o++) oth += px_count(0, 0, 240, OP_BAR_Y, TE_COL[o]);
+            ok &= !oth && px_count(0, SG_BODY_Y + 106u, 240, 3, C_GRAY) == 0u;   /* (six rows: nothing of a seventh) */
+            for (r = 0; r < 6u; r++) {                   /* (each row a snare: same kind first) */
+                snd_name_at(2, (brw.pos + r + brw.n - 3u) % brw.n, nb, sizeof nb);
+                ok &= strstr(nb, "SNARE") != 0;
+            }
+            ok &= !brw_draw() && px_count(0, SG_KNOB_Y + 4, 240, 34, TE_DRUM) > 100u;   /* (the dials, teal) */
+            check(ok, "O2: drum screen, PRESETS turning: a six-row list over the body (the synth PRESETS list's), the sound taken teal, "
+                      "same kind first; the dials stay");
         }
-        check(ok, "w12: the readout in the dials' band in the drums' teal (the slot's sound), grey and white only");
         check(str_len(brw_l1) * 8u + 4u <= 236u, "w12: the readout's name fits the screen (the longest: SOUND HEX GLITCH SNARE 2)");
         encs[panel.enc[EN_PRESET]] = -1; frame();
         check(!memcmp(&pkit.s[2], &s606, sizeof s606) && !kit_changed(), "w12: PRESETS back one: the 606 SNARE again, the kit unchanged");

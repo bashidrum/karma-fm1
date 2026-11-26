@@ -36,6 +36,9 @@ static const char *nav_map_hint;
 static const char *hdr_mchip;                          /* (ui_op.c) */
 static void map_chip(uint32_t l);
 static void dmap_dials(uint32_t *cache);                /* (ui_kit.c) */
+static int dsnd_list_on(void);                          /* (review 26 Nov, O2: ui_kit.c, the six-row sound list) */
+static uint32_t dsnd_list_sig(void);
+static void dsnd_list(void);
 static void dpic_filter(uint32_t l);                    /* (review 26 Nov, U3: ui_synth.c, the synth pages' drawings in teal) */
 static void dpic_lfo(uint32_t l);
 static void dpic_sends(uint32_t l);
@@ -555,7 +558,7 @@ static void drum_main_draw(void)
     static uint32_t head, sa, sb, sc, foot, bar;
     uint32_t l = drum_lane & 15u, len = trk_len(TDRUM), bank = sg_page(), model = drum_model(), i, sig;
     int32_t first = sg_held ? sg_first() : -1;
-    int chrom = drum_keys == DK_CHROM;
+    int chrom = drum_keys == DK_CHROM, lst;
     char sub[28], info[32];
     if (map_lyr && map_vis) {                           /* (wave 12) HOLD LFO: the header says LFO with MASTER's chip */
         map_chip(map_lyr);
@@ -564,6 +567,13 @@ static void drum_main_draw(void)
     } else {
         op_header("DRUM", TE_DRUM, dpg_kit() ? "KIT" : "", &head);   /* (the title place is SELECT's chip: the slot; the
                                                          * kit's pages: KIT, no chip, SELECT does nothing) */
+    }
+    lst = dsnd_list_on();
+    if (lst && (ui.force || dsnd_list_sig() != sa)) {   /* (O2) PRESETS turning: the list over the body, as a synth's PRESETS */
+        sa = dsnd_list_sig(), sb = sa + 1u;
+        cv_begin(240, 109, C_BLACK);
+        dsnd_list();
+        cv_blit(0, SG_BODY_Y);
     }
     /* the name, what is held, the map */
     if (first >= 0) {
@@ -593,7 +603,7 @@ static void drum_main_draw(void)
     }
     sig = studio_hash(drum_map_sig() * 31u + l, sub) + ((drum_mute >> l) & 1u) * 7u + ((drum_solo >> l) & 1u) * 11u +
           (uint32_t)dpg_kit() * 977u;
-    if (ui.force || sig != sa) {
+    if (!lst && (ui.force || sig != sa)) {
         sa = sig;
         cv_begin(240, 54, C_BLACK);
         {
@@ -662,7 +672,7 @@ static void drum_main_draw(void)
                       (first >= 0 ? drum_trig_sig(l, bank) : 0u), info) + (uint32_t)chrom * 99991u + pkit_gen * 3u + l +
           dpg_half() * 7919u + pkit.s[l].send * 131u + pkit.s[l].rsv * 337u + kfx_count() * 17u + dpic_sig(l) +
           (!drum_pg ? patt_tiles_sig() * 40503u : 0u);
-    if (ui.force || sig != sb) {
+    if (!lst && (ui.force || sig != sb)) {
         sb = sig;
         cv_begin(240, 55, C_BLACK);
         if (chrom) {                                    /* the 27 keys: white 15 px, black over them; the sound's own pitch
