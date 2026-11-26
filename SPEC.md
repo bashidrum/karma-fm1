@@ -539,3 +539,27 @@ Box 2:
 - Kit INSERT and SLICER: "Type on SELECT, as synths" (SELECT turns the kit insert's type and the slicer's mode; values in the synth positions; "EMPTY: SELECT PICKS A TYPE" when off).
 - Drum sound page pictures: "Each page its own picture" (filter curve on FLTR, LFO wave on LFO, insert tiles on INS, send thumbnails on SENDS, in teal; decay on SRC and AMP, scaled to the sound).
 - SEQ A-D page: "Four pattern tiles" (PATTERN A to D, each STORED, PLAYING, QUEUED or EMPTY, as hold SAVE and HOME draw them).
+
+Box 3:
+- GLO > DEVICE: "Redraw in the GLO frame" (its four pages as normal GLO pages with dials; its SYSTEM renamed TOOLS; LEARN CLEAR beside LEARN; one footer; OCT- returns to GLO).
+- Same setting in two places: "One home each" (drop OUT/IN from GLO > SYSTEM; hold SEQ KNOB 3 becomes GATE; on the drums SAVE > PRESETS points to KITS).
+- SAVE > USER on the drums: "Skip USER on drums" (SAVE's walk on the drum voice leaves USER out).
+- Tab labels: "One fixed label each" (PROJ PRST USER KITS PATT TOOL; GLOB SYS MIDI DEV; INS SEND SLIC | MIX STUT; fixed 6 px gap).
+
+Box 4:
+- Words: "One dictionary everywhere. Prefer UK english where space allows for it" (six characters or fewer; always VOICE, never TRACK).
+- MIX and GLO pages: "Pictures on MIX, plain rows on GLO" (MIX pages get delay taps, reverb tail, master meter; GLO rows print the value right-aligned, no bars).
+- Said twice: "Say each once" (hold SAVE titled PATTERNS; no bar while the MASTER readout shows; drop the AMP/FILT chips; drum line becomes "606 · 8/41").
+- Small visual faults: "Fix all 13" (REVIEW.md V5).
+
+Box 5:
+- Envelope times: "One format with units" (both envelopes: ms under a second, then "1.2S"; sustain in %).
+- STUTTER lane: "Same columns as the steps" (pad spans in the same two rows of 8, with a PADS label).
+- Pictures: "Fix all three" (matrix in the voice colour; every wave full width, OSC 3/4 and 4/4 show voices/unison; ARP > KEY reuses the CHROMATIC piano).
+- HOME synths: "Give synths a 4 px step bar".
+
+Box 6:
+- Drum sound browsing: "Six-row list on drums too" (same as synths, same kind first).
+- Drum FX order: "INS, SENDS, SLICER (as built)". This replaces the 21:40 applied reading of SENDS first.
+- Hold SEQ roll tiles on a synth voice: "Rows from the bottom" (same as hand play, RETRIG and SELECT).
+- ARP on the drums: "Leave as is" (CHROMATIC, then off).
