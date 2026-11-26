@@ -584,8 +584,10 @@ static void layer_screen_draw(void)
     case LY_SEQ: {                                      /* (wave 10) the rhythm: the keys ROLL (drums RETRIG), lit = held */
         uint32_t held = fm1_in.notes;
         str_cpy(sub, fill_now ? "fill on" : "play: fill", sizeof sub);
-        for (i = 0; i < 16u; i++) {                     /* (the drums: tile i is the grid's place i, and its sound's key) */
-            uint32_t l = DRUM_GRID[i], k = is_drum(t) ? key_of_lane(l) : key_of_white(i), down = (held >> k) & 1u, present = 0, j;
+        for (i = 0; i < 16u; i++) {                     /* (the drums: tile i is the grid's place i, and its sound's key; review
+                                                         * R2, Ben: "Rows from the bottom": a synth voice's white keys read as hand
+                                                         * play, RETRIG and SELECT, the bottom row first) */
+            uint32_t l = DRUM_GRID[i], k = is_drum(t) ? key_of_lane(l) : key_of_white(dgrid_of_white_o(i, DG_ROWS)), down = (held >> k) & 1u, present = 0, j;
             if (is_drum(t)) {
                 str_cpy(tl[i].lab, LANE_SHORT[l], 8);
                 for (j = 0; j < trk_len(t); j++)

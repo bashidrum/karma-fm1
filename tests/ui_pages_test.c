@@ -1287,6 +1287,10 @@ int main(int argc, char **argv)
         press(B_SEQ); frames(10);
         encs[panel.enc[EN_K3]] = 10; frames(2);
         check(trk[0].p[P_SGATE] > g0 && trk[0].p[P_SSWING] == w0, "U6: SEQ held + KNOB 3 (a synth voice): GATE up, no second swing");
+        fm1_in.notes = 1u << key_of_white(0); frames(2); ui.force = 1; frame();   /* (review R2) the lowest white key held */
+        check(px_count(2, LY_STILES_Y + 3 * LY_STILE_H + 2, 56, 10, C_WHITE) > 100u && px_count(2, LY_STILES_Y + 2, 56, 10, C_WHITE) < 20u,
+              "R2: hold SEQ on a synth voice: the tiles read the keys in rows from the bottom (the lowest key bottom left)");
+        fm1_in.notes = 0; frames(2);
         ui.force = 1; frame(); ppm("layer-steps-gate");
         release(B_SEQ); frames(2);
         trk[0].p[P_SGATE] = g0;
