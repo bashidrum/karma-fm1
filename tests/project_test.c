@@ -621,7 +621,7 @@ int main(void)
     bad += check("save on stop: at most every 5 s (flash wear); else waits",
                  !autosave_due(1, 1, 1, 1000, AUTOSAVE_STOP_GAP - 1u));
     bad += check("no stop: as before, 2.5 s untouched and 20 s apart (a tail does not block it)",
-                 !autosave_due(0, 1, 1, 1000, 99999) && !autosave_due(0, 1, 1, 9999, 10000) &&
+                 !autosave_due(0, 1, 1, 1000, 99999) && !autosave_due(0, 1, 1, 9999, AUTOSAVE_GAP - 1u) &&
                  autosave_due(0, 0, 1, AUTOSAVE_IDLE, AUTOSAVE_GAP) && autosave_due(1, 0, 1, AUTOSAVE_IDLE, AUTOSAVE_GAP));
     {   /* PHEBUS wave 4: the voice filter, its envelope, OCT and TUNE (P_FCUT ..., in format 8's room) and the Type round
          * trip; a core of wave 3 (rsv[0] 0, those ids zero) is mapped onto the voice filter as it sounded */

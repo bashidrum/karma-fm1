@@ -113,7 +113,7 @@ static void mixer_audio(void)
         w13_setup();
         song.sel = TRK_DRUM; studio_open(SC_DRUM); frames(3);
         press(B_GLO); frames(12);
-        press(B_OCTUP); key(key_of_lane(2)); release(B_OCTUP);
+        press(B_OCTUP); key(key_of_mixlane(2)); release(B_OCTUP);
         release(B_GLO); frames(3);
         w13_render(r_a, &hits_a[0]);
         _exit(drum_solo == 1u << 2 ? 0 : 1);
@@ -128,7 +128,7 @@ static void mixer_audio(void)
         w13_setup();
         song.sel = 0; go_home(); frames(3);
         press(B_GLO); frames(12);
-        key(key_of_lane(0)); key(key_of_lane(4)); key(PUNCH_BLACK[0]);
+        key(key_of_mixlane(0)); key(key_of_mixlane(4)); key(PUNCH_BLACK[0]);
         release(B_GLO); frames(3);
         w13_render(r_a, &hits_a[0]);
         _exit(drum_mute == (1u << 0 | 1u << 4) && trk[0].p[P_MUTE] ? 0 : 1);
@@ -145,7 +145,7 @@ static void mixer_audio(void)
         song.sel = TRK_DRUM; go_home(); frames(3);
         press(B_GLO); frames(45); release(B_GLO); frames(2);
         if (ly_lock != LY_GLO) _exit(2);
-        press(B_OCTUP); key(key_of_lane(2)); release(B_OCTUP);
+        press(B_OCTUP); key(key_of_mixlane(2)); release(B_OCTUP);
         tap(B_GLO); frames(2);
         w13_render(r_a, &hits_a[0]);
         _exit(drum_solo == 1u << 2 ? 0 : 1);
@@ -175,8 +175,8 @@ static void mixer_screen(void)
     w13_setup();
     song.sel = 0; go_home(); frames(3);
     press(B_GLO); frames(12);
-    key(key_of_lane(5));                              /* OP HAT muted */
-    press(B_OCTUP); key(key_of_lane(0)); release(B_OCTUP);   /* KICK soloed */
+    key(key_of_mixlane(5));                              /* OP HAT muted */
+    press(B_OCTUP); key(key_of_mixlane(0)); release(B_OCTUP);   /* KICK soloed */
     key(PUNCH_BLACK[2]);                              /* voice 3 muted */
     ui.force = 1; frame(); ppm("w13-mixer");
     /* (the drum grid: OP HAT top row, second column; KICK bottom left; SNARE bottom right) */

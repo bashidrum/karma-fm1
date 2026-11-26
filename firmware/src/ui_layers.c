@@ -289,8 +289,8 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
                                                          * drums. A key tapped: mute (again: unmute); with OCT+ held: solo
                                                          * ("plus = only this"; again: off). Performance state */
         uint32_t plus = (fm1_in.buttons >> panel.btn[B_OCTUP]) & 1u;
-        if (w >= 0 && w < 16) {                         /* (the drum grid: key w is the grid's sound, down the columns) */
-            uint32_t l = lane_of_white((uint32_t)w);
+        if (w >= 0 && w < 16) {                         /* (the drum grid: key w is the grid's sound in the mixer's order, DG_MIX) */
+            uint32_t l = lane_of_mixkey((uint32_t)w);
             if (plus)
                 drum_solo ^= (uint16_t)(1u << l);
             else
@@ -503,6 +503,46 @@ static void pair_body_draw(uint32_t l, uint32_t *cache)
     cv_blit(0, LY_TILES_Y);
 }
 
+/* (Ben, 23 Nov 2026, 22:31: "I tried to save a little sketch I'd made and was met with a screen that mentioned saving keys and
+ * I had no idea what that was about"; picker "Plain words") THE HOLD-SAVE BODY, whole-instrument (white and grey):
+ *   PRESS KEY 1-4: STORE PATTERN          what the keys do, as an instruction
+ *   [A STORED] [B PLAYING] [C EMPTY] ...  the four patterns, as SAVE > PATTERNS shows them (the one playing: a white bar and
+ *                                         PLAYING; the one a question is about: red, the confirm's colour)
+ *   PROJECT: SAVED                        the unsaved dot in words (NOT SAVED YET in white: it is at risk)
+ *   IT SAVES ITSELF WHEN YOU STOP         what "saving" is here
+ *   KEEP A COPY: SAVE > PROJECT           where the bank is
+ * The keys' rows 2 to 4 do nothing here and are not drawn */
+static void save_body_draw(uint32_t *cache)
+{
+    uint32_t i, ready = arrangement_ready();
+    int32_t pl = patt_shown();
+    const char *st = proj_live_state();
+    uint32_t sig = studio_hash(ready * 131u + (uint32_t)(pl + 1) * 7u + (ui.ask == ASK_STORE ? ui.ask_arg + 1u : 0u) * 977u +
+                               proj_unsaved * 40503u, st);
+    char ps[32];
+    if (!ui.force && sig == *cache)
+        return;
+    *cache = sig;
+    cv_begin(240, OP_KNOB_Y - LY_TILES_Y, C_BLACK);
+    cv_text(4, 0, &FONT_S, "PRESS KEY 1-4: STORE PATTERN", TE_G4);
+    for (i = 0; i < 4u; i++) {
+        int32_t x = 1 + (int32_t)i * 60, asked = ui.ask == ASK_STORE && ui.ask_arg == i, used = (ready >> i) & 1u,
+                play = pl == (int32_t)i;
+        char b[2] = {(char)('A' + i), 0};
+        uint16_t bg = asked ? TE_RED : used ? TE_G2 : TE_G1, fg = asked ? C_BLACK : used ? C_WHITE : TE_G4;
+        cv_rect(x, 18, 58, 34, bg);
+        if (play && !asked)
+            cv_rect(x, 18, 58, 3, C_WHITE);
+        te_text_c(x + 29, 21, b, fg);
+        te_text_c(x + 29, 36, play ? "PLAYING" : used ? "STORED" : "EMPTY", fg);
+    }
+    str_cpy(ps, "PROJECT: ", sizeof ps);
+    str_cpy(ps + 9, st, sizeof ps - 9u);
+    cv_text(4, 60, &FONT_S, ps, proj_unsaved ? C_WHITE : TE_G4);
+    cv_text(4, 76, &FONT_S, "IT SAVES ITSELF WHEN YOU STOP", TE_G3);
+    cv_text(4, 94, &FONT_S, "KEEP A COPY: SAVE > PROJECT", TE_G3);
+    cv_blit(0, LY_TILES_Y);
+}
 #include "ui_perf.c"                                    /* (wave 6) PERFORM, the FX layer */
 static uint8_t layer_shown;                              /* the screen holds a layer (or a hold) */
 static const char *layer_sub_shown = "";                 /* the sub line last drawn (the host tests read it) */
@@ -580,24 +620,11 @@ static void layer_screen_draw(void)
         ratio[3] = (t->p[P_SLEN] - 1) * 1000 / 63;
         break;
     }
-    case LY_SAVE: {                                     /* (wave 10) store into A..D; the undo, the redo */
-        uint32_t ready = arrangement_ready();
+    case LY_SAVE:                                       /* (wave 10) store into A..D; the undo, the redo. (Ben 22:45, "Plain
+                                                         * words": the body says it, save_body_draw; the line under the
+                                                         * header keeps only the -/+ legend and LOCK) */
         col = C_WHITE;
-        str_cpy(sub, "keys: store", sizeof sub);
-        for (i = 0; i < 4u; i++) {
-            int asked = ui.ask == ASK_STORE && ui.ask_arg == i;
-            str_cpy(tl[i].lab, "save A", 8);           /* (six letters: the tile's width with room) */
-            tl[i].lab[5] = (char)('A' + i);
-            tl[i].bg = asked ? TE_RED : (ready >> i) & 1u ? TE_G2 : TE_G1;
-            tl[i].fg = asked ? C_BLACK : (ready >> i) & 1u ? C_WHITE : TE_G4;
-            tl[i].top = live_sec == (int8_t)i ? C_WHITE : 0;
-        }
-        for (i = 4; i < 16u; i++) {                     /* (keys 5..16 do nothing here: their rows left out) */
-            tl[i].lab[0] = 0;
-            tl[i].bg = tl[i].fg = C_BLACK;
-        }
         break;
-    }
     case LY_ARP:
         str_cpy(sub, is_drum(t) ? "" : "pattern", sizeof sub);
         break;
@@ -648,7 +675,7 @@ static void layer_screen_draw(void)
         bk_shown = 0x1Fu;
         tiles_draw(tl, 1, &tiles);
     } else if (layer == LY_SAVE) {
-        tiles_draw(tl, 0, &tiles);
+        save_body_draw(&tiles);
     } else {
         pair_body_draw(layer, &tiles);
     }

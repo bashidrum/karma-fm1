@@ -15,9 +15,10 @@ enum { ED_INFO = 1, ED_PING = 25, ED_BK_LIST = 34, ED_BK_GET = 35, ED_BK_PUT = 3
        ED_STAT = 90,                                                            /* (3.0.4) the load and the USB, read only */
        ED_PCOST = 91, ED_PVAR = 92, ED_CRASH = 93,                              /* (3.0.5) KARMA_PCOST builds: the stages' time */
        ED_PROF = 94 };                                                          /* (3.1.3) where mix_block's time goes, read only */
-#define ED_PROTO 13u                                   /* the protocol version INFO ends with (backup: 6 and later; 12, PHEBUS
+#define ED_PROTO 14u                                   /* the protocol version INFO ends with (backup: 6 and later; 12, PHEBUS
                                                         * wave 2: the projects are format 8, "FUN8", 6,768 / 5,744 bytes; 13, PHEBUS
-                                                        * wave 13: backup object 11, the user drum kits) */
+                                                        * wave 13: backup object 11, the user drum kits; 14, the bank (Ben 22:45):
+                                                        * objects 12..16, the project kept in the bank) */
 
 static uint8_t ed_out[600];
 static uint32_t ed_n;
@@ -80,7 +81,8 @@ static uint8_t ed_unpack_buf[256] __attribute__((aligned(4)));   /* (a backup PU
  * (colours, calibration, the lights, SYNC), 2..5 the projects A..D, 6..7 the user preset
  * banks, 8 the FM6 patch bank (v9), 9 the SYN drum kits (v10), 10 the MIDI part (2.6), 11 the user drum kits MY KIT 1 .. 6
  * (PHEBUS wave 13: ukit_flash.c's object as flash has it, 3,564 bytes; listed only once one was ever stored, read from
- * flash 256 bytes at a time, never mirrored in RAM). (32..35 were the user sample
+ * flash 256 bytes at a time, never mirrored in RAM), 12..15 the bank's patterns A..D and 16 the bank's working project
+ * (protocol 14, the bank: listed only while the bank holds a project; read from flash too). (32..35 were the user sample
  * slots: cut, PHEBUS wave 1; no longer listed, and a restore of them is refused with rc 1.)
  * LIST takes a snapshot of the working project and the settings; GET reads 1..256 bytes of an object.
  * PUT stages one object in RAM (begin: id, length, CRC-32; data; commit), checks it as a load would,
@@ -142,10 +144,24 @@ static const uint8_t *ed_bk_obj(uint32_t id, uint32_t *len)   /* 0 = no such obj
             *len = UK_LEN;
         return ed_unpack_buf;
     }
+    if (id >= 12u && id <= 16u) {                         /* (the bank) in flash, as object 11; an empty bank: not listed */
+        uint32_t c;
+        (void)bank_obj(id - 12u, len, &c);
+        return ed_unpack_buf;
+    }
     return 0;
 }
-static const uint8_t ED_BK_IDS[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};   /* 9: SYN kits (2.5), 10: MIDI LEARN (2.6),
-                                                                              * 11: the user drum kits (PHEBUS wave 13) */
+static int ed_bk_listed(uint32_t id, uint32_t *len)   /* (objects 10..16 are named only while they hold something) */
+{
+    uint32_t c;
+    const uint8_t *p = ed_bk_obj(id, len);
+    if (id >= 12u && id <= 16u)
+        return bank_obj(id - 12u, len, &c);
+    return p && (id < 10u || *len);
+}
+static const uint8_t ED_BK_IDS[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};   /* 9: SYN kits (2.5), 10: MIDI
+                                                                              * LEARN (2.6), 11: the user drum kits (PHEBUS wave
+                                                                              * 13), 12..16: the bank */
 static uint32_t ed_bk_ukcrc(void)                     /* object 11's CRC-32: its commit record's (the payload's, as st_save) */
 {
     st_hdr_t h;
@@ -198,6 +214,8 @@ static uint32_t ed_bk_commit(void)
         persist_saved = p;
         return 0;
     }
+    if (id >= 12u && id <= 16u)                           /* (the bank) checked as a load checks it, written as KEEP writes */
+        return bank_restore(id - 12u, raw, n);
     if (id == 11u) {                                      /* (PHEBUS wave 13) the user drum kits: the object whole, each stored
                                                          * kit checked as a load checks it */
         const uk_head_t *hd = (const uk_head_t *)(const void *)raw;
@@ -249,15 +267,22 @@ static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)   /* 1: a back
             ed_bk_put = 0;
         }
         ed_b(rc);
-        ed_b(rc ? 0u : (uint32_t)sizeof ED_BK_IDS - (ed_bk_obj(10u, &len) && !len ? 1u : 0u) -
-                           (ed_bk_obj(11u, &len) && !len ? 1u : 0u));
+        {
+            uint32_t cnt = 0;
+            for (i = 0; !rc && i < sizeof ED_BK_IDS; i++)
+                cnt += (uint32_t)ed_bk_listed(ED_BK_IDS[i], &len);
+            ed_b(cnt);
+        }
         for (i = 0; !rc && i < sizeof ED_BK_IDS; i++) {
+            uint32_t bc = 0;
             p = ed_bk_obj(ED_BK_IDS[i], &len);
-            if ((ED_BK_IDS[i] == 10u || ED_BK_IDS[i] == 11u) && !len)
-                continue;                                 /* (nothing learned / no user kit: not in the list) */
+            if (!ed_bk_listed(ED_BK_IDS[i], &len))
+                continue;                                 /* (nothing learned / no user kit / an empty bank: not in the list) */
+            if (ED_BK_IDS[i] >= 12u)
+                (void)bank_obj(ED_BK_IDS[i] - 12u, &len, &bc);
             ed_b(ED_BK_IDS[i]);
             ed_bk_u32(len);
-            ed_bk_u32(ED_BK_IDS[i] == 11u ? ed_bk_ukcrc() : st_crc32(p, len));
+            ed_bk_u32(ED_BK_IDS[i] == 11u ? ed_bk_ukcrc() : ED_BK_IDS[i] >= 12u ? bc : st_crc32(p, len));
             fm1_wdt_feed();
         }
         return 1;
@@ -269,13 +294,15 @@ static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)   /* 1: a back
              : !ed_bk_valid || (a[0] == 0u && ed_bk_put) ? 5u : 0u;   /* 5: LIST first (the snapshot is gone) */
         if (!rc && a[0] == 11u && !uk_read(off, ed_unpack_buf, count))   /* (wave 13: the user kits, read from flash) */
             rc = 4u;
+        if (!rc && a[0] >= 12u && bank_obj_read(a[0] - 12u, off, ed_unpack_buf, count))   /* (the bank: from flash) */
+            rc = 4u;
         ed_b(na ? a[0] : 127u);
         ed_b(rc);
         ed_bk_u32(off);
         ed_b(rc ? 0u : count & 127u);
         ed_b(rc ? 0u : count >> 7);
         if (!rc)
-            ed_pack7(a[0] == 11u ? ed_unpack_buf : p + off, count);
+            ed_pack7(a[0] >= 11u ? ed_unpack_buf : p + off, count);
         return 1;
     }
     if (cmd == ED_BK_PUT) {                               /* op, id, ... -> op, id, rc */
@@ -283,7 +310,7 @@ static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)   /* 1: a back
         rc = 1;
         if (!flash_ok) {
             rc = 4;
-        } else if (op == 0u && na == 12u && (id <= 11u)) {  /* begin: id, length (5), CRC-32 (5) (11: wave 13) */
+        } else if (op == 0u && na == 12u && (id <= 16u)) {  /* begin: id, length (5), CRC-32 (5) (11: wave 13; 12..16: the bank) */
             len = ed_bk_r32(a + 2);
             if (id >= 2u || len) {                        /* (the working project and the settings are never empty) */
                 if (len <= sizeof proj_tmp) {

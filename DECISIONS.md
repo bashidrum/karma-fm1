@@ -784,6 +784,49 @@ Ben: "Group them by type into columns as much as possible. With the exception of
 - GUIDE's mixer chapter says its tiles run "as PERFORM's pads" (keys 1 to 4 the top row); the mixer still runs in rows, PERFORM now in columns. Left for the mixer's own pass.
 - RAM: none added (the names and positions are constants). Not measured on a stand-in build.
 
+## Kick first, the save screen, the bank (23 to 26 Nov): calls made that Ben did not specify
+Ben's words: SPEC.md "23 Nov 2026, 22:31: kick first, and the save screen", his 22:45 answers ("Rytm order: bottom row first", "Plain words", "Just enough so that I can keep one in the bank. So one live one and one dead one. Or even just the option of turning the device off and on again without having lost what I was working on") and "22:46 and 22:48" (the mixer keeps his order; SELECT follows the Rytm's).
+
+Two key orders over the one picture (drums.c)
+- One table of places (DRUM_GRID, unchanged: the picture as he typed it) and two orders over it, each a named one-line choice: DG_ROWS (the Rytm's, bottom row first) and DG_COLS (down the columns). DG_PLAY = DG_ROWS (the keys played by hand on HOME and in live recording, a sound's key held + OCT- erase, hold SEQ's RETRIG keys and tiles, the key lights for hits); DG_SEL = DG_ROWS (SELECT's walk, CHROMATIC's -/+ step); DG_MIX = DG_COLS (the mixer's mutes and solos). The comment quotes why they differ. No RAM; each order its own inverse.
+- Side by side:
+
+| Key | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| played, RETRIG, SELECT | KICK | RIM | SNARE 2 | SNARE | KICK 2 | LO TOM | HI TOM | CLAP | PEDAL | CONGA | C-BELL | SHAKER | HAT | OP HAT | RIDE | CRASH |
+| the mixer | HAT | PEDAL | KICK 2 | KICK | OP HAT | CONGA | LO TOM | RIM | RIDE | C-BELL | HI TOM | SNARE 2 | CRASH | SHAKER | CLAP | SNARE |
+
+- PERFORM's pads count down columns (22:07); so does the mixer; the hand-played drum keys count along the rows from the bottom. Not changed: PERFORM, the slots, the format, kits, MIDI, trigs, locks, PERFORM's mutes; old projects render as before (kit12, dfx, w13 tests).
+- Tests: grid_test pins both (mixer: key 4 only KICK, key 16 only SNARE, key 1 only HAT, heard sample for sample; by hand: key 1 KICK, key 4 SNARE, key 13 HAT, key 16 CRASH; SELECT's walk round from CRASH to KICK; CHROMATIC stops at KICK and CRASH). dfxui_test now lets the sound SELECT auditions ring out before its KIT FX renders (SELECT from SNARE now reaches KICK 2, a long one, where it reached HAT before): a test timing fix, no behaviour changed.
+- GUIDE's mixer chapter: the "as PERFORM's pads" wording is no longer on this branch (PERFORM in columns rewrote that sentence); the chapter now says plainly that the mixer and PERFORM count down columns and playing by hand counts the other way.
+
+The save screen in plain words (Ben: "Plain words")
+- Hold SAVE: the line under the header keeps only the -/+ legend (UNDO, REDO) and LOCK; the body says PRESS KEY 1-4: STORE PATTERN, four tiles (a letter, then STORED, PLAYING or EMPTY; the one playing with a white bar; the one a question is about red), PROJECT: SAVED / NOT SAVED YET (white) / STOP TO SAVE, IT SAVES ITSELF WHEN YOU STOP, KEEP A COPY: SAVE > PROJECT. White and grey only.
+- Every telegraphic hint rewritten (before -> after): "KEYS: STORE" -> "PRESS KEY 1-4: STORE PATTERN"; drum TRIG's "NEW HITS, KEYS: VEL 100" -> "NEW HITS AT VELOCITY 100"; the old drum MUTE screen's "KEYS: MUTE" -> "TAP A KEY: MUTE"; the menu's foot "SEL: SECTION  GLO: GLOBAL" -> "SEL: NEXT SECTION  OCT-: BACK", "K1-K3 SET  OCT+ OK  OCT- OUT" -> "KNOBS 1-3 SET ROWS  OCT+: OK", "K1-K4 SET  SEL: SECTION" -> "KNOBS 1-4 SET ROWS  SEL: NEXT"; the REC screen's "stutters, pads: lane" -> "pads go into the lane", "play: go  rec: cancel" -> "play starts, rec cancels", "rec: cancel" -> "rec cancels"; the lane's "REC + PERFORM PADS: HERE" -> "PADS YOU RECORD SHOW HERE". Kept as they are (a labelled button, then a plain action): hold SEQ's "play: fill" (the plain "hold play: fill" does not fit beside HALVE / DOUBLE), the screensaver's "SEL: NEXT", the mixer's "TAP A KEY: MUTE". SAVE's pages have no hint line of their own; their knob names (KEEP SWAP NEW, PATT STORE, KIT LOAD ERASE SAVE, SLOT LOAD ERASE SAVE) read plainly.
+
+What survives switching off (Ben: "turning the device off and on again without having lost what I was working on")
+- Found in the code: the working project is written only while stopped and silent (0.3 s after a stop once under -60 dB; a change made while stopped 2.5 s after the last touch, but then at most every 20 s); patterns stored while playing wait in RAM until stopped (1.5 s untouched); nothing is written while playing (a write stalls the audio ~50 ms: the code silences the audio for it); the power switch is not seen by the firmware (the hal exposes no event for it). So: switching off while playing loses everything since the last stop; switching off within 20 s of an edit made while stopped could lose it.
+- Fixed within the rules: a change made while stopped is now written at most 5 s apart (AUTOSAVE_GAP 20 s -> 5 s, as the stop's own gap). Wear: only a changed project is written; worst case one save every 5 s of edit-and-pause (each save erases each of one copy's two sectors). The unsaved dot drawn a size bigger (radius 3); hold SAVE and SAVE > PROJECT say it in words. A write while playing is not possible without a dropout: not done.
+- A failed write now stops the patterns' writing at the first failure (it went on to the next pattern, choosing its copy by reading a chip that may still be busy after a timeout); KEEP likewise.
+
+The bank (one project kept, "one live one and one dead one")
+- Flash: the pointer OBJ_BANKP at 0xB6000 / 0xB7000; the second project area (four patterns, a working project, big objects as the first) at 0xB8000..0xCBFFF; 0xCC000..0xDBFFF stays free. No RAM copy (16 B: the pointer's flip and two generations, and the bank's summary for the screen).
+- Live and bank are names, not places: the two areas swap roles through OBJ_BANKP's flip. SWAP is one write of that 16-byte object (its A/B commit): at every instant both projects are whole in flash, nothing is copied (so no three-step swap through a spare area is needed). KEEP writes the five objects into the bank's area under a new generation (each header's rsv[0]; a copy of another generation is not read), each into the copy that does not hold the bank's current one, then commits the generation in OBJ_BANKP: cut anywhere, the old bank or the new, whole. Headers written before carry 0xFFFFFFFF there, which is the starting generation, so every project saved before reads as before.
+- Actions: KEEP (KNOB 1; into an empty bank at once; over a kept one: HOLD SAVE: REPLACE THE BANK, red), SWAP (KNOB 2; HOLD SAVE: SWAP WITH THE BANK, a WHITE ring: nothing is lost), NEW (KNOB 4; HOLD SAVE: NEW, BANK KEPT, red). No LOAD: SWAP covers it without losing the live one (to load over: SWAP, then KEEP).
+- NEW also empties patterns A to D (a fresh project; TOOLS > NEW kept them): the live project is the four patterns too, and KEEP exists to save them first. NEW moved from TOOLS to PROJECT (G_NEWPRJ keeps its id; TOOLS has CLRSQ and INIT).
+- PROJECT is SAVE's first category ("save my sketch" is what Ben reached for); PRESETS is now the second press. Tests that counted SAVE presses were updated to the new order (no behaviour of theirs changed).
+- Refused while playing (STOP PLAYING FIRST), as every other flash write of the panel. SWAP into an empty bank: THE BANK IS EMPTY: KEEP FIRST.
+- The summaries: "n PATTERNS  BPM" and "KIT: name" (the kit's name, or CUSTOM once a slot differs), LIVE with SAVED / NOT SAVED YET / STOP TO SAVE. No names (Ben: "just enough").
+- After SWAP the undo history is cleared (it belonged to the other project).
+- Backup (protocol 14): objects 12..15 the bank's patterns, 16 its working project, read from flash, listed only while the bank holds a project; the page restores 16 last. A backup without them leaves the bank as it is (as wave 13 did for kits).
+- The simulator: the bank is kept in the page's memory (KEEP, SWAP, NEW on the working project); a reload empties it, as the simulator keeps nothing; its patterns A to D are the harness's stand-in, so the bank there holds the working project only.
+
+Cost (rv32 -Os stand-in, the inline asm emptied, against 4a27c2c): code and constants +6.0 KB (about 564.6 of 581.6 KB on the device if the stand-in's difference holds, about 17 KB left), .data+.bss +24 B (about 97,052 of 98,304), the pool and .noinit unchanged. No 64-bit divide added. Over the brief's "about 5 KB" by about 1 KB.
+
+Tests: bank_test (new: project.c's real flash code on a simulated NOR under the real UI): power off and on (bit for bit; patterns; a pattern stored while playing lost before a stop, kept after one; the write within 1.55 s of a stop; an edit while stopped within 5 s), KEEP then NEW then SWAP bit for bit and by ear, SWAP twice, a power cut after every write of SWAP (3) and KEEP (114), a cut KEEP then a full one, refusals; ui_pages_test (the hold-SAVE body, SAVE > PROJECT's states and colours, every new line fits). The long tests were not run.
+
+Not checked: no device build. The flash driver's waits on the newer chip (below, "For Ben to confirm").
+
 ## For Ben to confirm
 Every call waves 2 to 7 made that the spec did not cover, and every device-only limit or lossy conversion, one line each. The detail is in each wave's section above.
 
@@ -961,3 +1004,12 @@ PERFORM in columns (23 Nov 2026, 22:07)
 - The grid: REPEAT, TIME, FILTER, COLOUR as four columns, keys top to bottom; no pad moved.
 - The black row's short names 1 2 3 KIK TOP S+C H+S REV STP DN UP (V1 V2 V3 did not fit with room between them).
 - Black keys drawn black till pressed, a line under each name.
+Kick first, the save screen, the bank (23 to 26 Nov)
+- THE TWO KEY ORDERS, a known difference Ben chose: playing by hand, RETRIG and SELECT count the Rytm's way (key 1 KICK, key 4 SNARE, key 13 HAT, key 16 CRASH); the mixer counts down the columns (key 1 HAT, key 4 KICK, key 16 SNARE), as PERFORM's pads do.
+- SAVE > PROJECT is SAVE's first category; PRESETS is the second press.
+- NEW lives on PROJECT (not TOOLS) and empties patterns A to D too; the bank is untouched.
+- SWAP asks with a white ring (nothing is lost); there is no LOAD.
+- Edits made while stopped are written at most 5 s apart (was 20 s): more flash writes, fewer lost edits.
+- Switching off while playing still loses everything since the last stop: nothing can be written while playing without a dropout, and the power switch is not seen by the firmware.
+- THE FLASH CHIP (device-only, needs a hal change, for Ben's permission): fm1_flash.h waits 500 ms for an erase and 10 ms for a page; ChoralRoot 0.32 found these too short for the newer FM-1's UC25HQ80 (JEDEC 0xB36014, accepted by fm1_flash_id.h). On a timeout the driver turns XIP back on while the chip may still be busy: the app may crash (the watchdog restarts it) or the save fails. Each project copy stays safe (A/B), as with a power cut at that write; KEEP and the patterns' writing now stop at a failure. The update loader runs from RAM and verifies every sector, so a timeout there fails the update (retry), it does not leave a wrong image silently.
+- User kits (SAVE > KITS) are written at once even while playing (a ~50 ms gap in the sound), unlike everything else: left as wave 12 built it.

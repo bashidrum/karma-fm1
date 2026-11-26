@@ -10,6 +10,8 @@ static void panel_setup(void);
 static void project_load(uint32_t slot);
 static void project_erase(uint32_t slot);        /* SAVE > PROJECT > ERASE (2.6) */
 static int project_used(uint32_t slot);
+static int bank_op(uint32_t op);                 /* (the bank, project.c) 0 KEEP, 1 SWAP, 2 NEW: 0 done, else why not */
+static int bank_summary(uint32_t *npat, int32_t *bpm, char *kit);   /* (the bank) 0 empty; its patterns, tempo, kit */
 static int up_used(uint32_t k);              /* user presets: upreset.c */
 static int up_load(uint32_t k);
 static int up_load_to(track_t *t, uint32_t k);
@@ -88,7 +90,7 @@ static struct {
 } ui;
 
 static const page_t *cur_page(void) { return &PAGES[ui.page]; }
-enum { ASK_NONE, ASK_GO, ASK_UP, ASK_KIT, ASK_PADS, ASK_STORE, ASK_HALVE, ASK_CLEAR, ASK_UKIT };
+enum { ASK_NONE, ASK_GO, ASK_UP, ASK_KIT, ASK_PADS, ASK_STORE, ASK_HALVE, ASK_CLEAR, ASK_UKIT, ASK_BANK };
 static void ask_set(uint32_t kind, uint32_t arg, const char *what);   /* (ui_input.c, wave 8: the one confirm) */
 static int32_t accel(uint32_t role, int32_t s, int32_t range);   /* ui_input.c */
 static void layer_screen_draw(void);                            /* ui_layers.c */

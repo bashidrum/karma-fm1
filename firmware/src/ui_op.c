@@ -201,7 +201,7 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
     if (song.rec || sr_on)                              /* (recording, or STEP REC: ui_grid.c) */
         te_disc(209, 10, 4, TE_RED);
     else if (proj_unsaved)                             /* (saved again at the next stop: project.c autosave_tick) */
-        te_disc(209, 10, 2, C_WHITE);
+        te_disc(209, 10, 3, C_WHITE);                  /* (the bank: a size bigger, harder to miss: work not yet in flash) */
     {   /* battery, 3 bars (filling in turn while a USB host charges it) */
         int32_t lvl = batt_shown(), i;
         op_box(217, 5, 17, 10, TE_G3);

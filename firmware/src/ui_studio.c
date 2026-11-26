@@ -509,8 +509,8 @@ static void rec_screen_draw(void)
     sig = 2000003u + rec_count * 13u + count * 17u + ci_beat * 19u + blink * 31u + rec_lane * 37u;
     if (ui.force || sig != body) {
         static const char *const L1[3] = {"play a note", "press play", "press play"};
-        static const char *const L2[3] = {"it starts the loop", "4 clicks, then rec", "stutters, pads: lane"};
-        static const char *const L3[3] = {"play: go  rec: cancel", "rec: cancel", "play: go  rec: cancel"};
+        static const char *const L2[3] = {"it starts the loop", "4 clicks, then rec", "pads go into the lane"};
+        static const char *const L3[3] = {"play starts, rec cancels", "rec cancels", "play starts, rec cancels"};
         uint32_t m = rec_count ? 1u : rec_lane ? 2u : 0u;   /* (wave 14: the lane's take, NOTE: no note starts it) */
         body = sig;
         cv_begin(240, 56, C_BLACK);

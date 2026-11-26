@@ -239,11 +239,14 @@ function b64dec(s) {
   return out.subarray(0, o);
 }
 /* object ids (firmware editor.c ED_BK_IDS): 0 the working project, 1 the settings, 2..5 projects A..D,
-   6..7 the user preset banks, 8 the FM6 patch bank, 9 the MY HEX kits, 10 the MIDI part, 11 the user drum kits MY KIT 1 .. 6
+   6..7 the user preset banks, 8 the FM6 patch bank, 9 the MY HEX kits, 10 the MIDI part, 11 the user drum kits MY KIT 1 .. 6,
+   12..15 the bank's patterns A..D, 16 the bank's working project (the bank, protocol 14)
    (PHEBUS wave 13: in a backup once one was ever stored; a backup without it leaves the FM-1's kits as they are) */
 /* RESTORE: the objects in the order they are written back (banks first; 8 = the FM6 patch bank, firmware v9: a
    file without it restores fine, a v8 device gets no object 8 sent; 9 = the drum synth kits (MY HEX), firmware v10, likewise) */
-const BK = { FORMAT: "sloop-backup", VERSION: 1, SAMPLES: [32, 33, 34, 35], RESTORE: [6, 7, 8, 9, 10, 11, 2, 3, 4, 5, 0, 1] };   /* 10: MIDI LEARN (2.6); 11: the user drum kits (PHEBUS wave 13);
+const BK = { FORMAT: "sloop-backup", VERSION: 1, SAMPLES: [32, 33, 34, 35], RESTORE: [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 2, 3, 4, 5, 0, 1] };   /* 10: MIDI LEARN (2.6); 11: the user drum kits (PHEBUS wave 13);
+   12..15 the bank's patterns A..D, 16 the bank's working project (protocol 14, the bank: in a backup while the bank holds a
+   project; a backup without them leaves the FM-1's bank as it is; the working project last, it is what fills the bank);
    SAMPLES: KARMA's user sample slots, still read from an older backup file, not written back (PHEBUS has none) */
 class BackupError extends Error { constructor(code, msg) { super(msg); this.code = code; } }
 /* read everything; progress(done, total bytes) */
@@ -302,7 +305,7 @@ async function backupRestore(rq, file, progress = () => {}) {
   /* (2.6) projects newer than the device reads (a 2.6 backup into 2.5): stop before anything is written (it stopped at
      the first project, the preset banks already replaced) */
   const info = parse[CMD.INFO](await rq(req.info(), { timeout: 1000, retries: 2 }));
-  const newest = Math.max(0, ...[0, 2, 3, 4, 5].filter((id) => m.has(id)).map((id) => bkProjFormat(m.get(id))));
+  const newest = Math.max(0, ...[0, 2, 3, 4, 5, 12, 13, 14, 15, 16].filter((id) => m.has(id)).map((id) => bkProjFormat(m.get(id))));
   if (newest > bkDevFormat(info)) throw new BackupError("bkNewer", `${file.firmware || "?"} > ${info.version}`);
   /* (2.6) a backup of a 2.6 FM-1 without object 10 had the MIDI settings at their defaults (nothing learned, channels
      1 2 3, drums 10, OTHER SEL, BEND 2): restored as such, not left as the device has them now */
@@ -321,7 +324,7 @@ async function backupRestore(rq, file, progress = () => {}) {
     if (!m.has(id)) continue;
     const d = m.get(id);
     let r = parse[CMD.BK_PUT](await rq(req.bkBegin(id, d.length, crc32(d)), { timeout: 1500, retries: 1 }));
-    if ((r.rc === 1 || r.rc === 5) && (id === 8 || id === 9 || id === 10 || id === 11)) continue;   /* a device without the FM6 bank (v8) /
+    if ((r.rc === 1 || r.rc === 5) && (id === 8 || id === 9 || id === 10 || id >= 11)) continue;   /* a device without the FM6 bank (v8) /
                                                        * the SYN kits (v9) / MIDI LEARN (2.6) / the user drum kits (PHEBUS before
                                                        * wave 13): skipped (its BK_PUT answers an unknown id's begin with 1 or 5) */
     if (r.rc) throw new BackupError("bkWrite", `begin ${id} rc ${r.rc}`);

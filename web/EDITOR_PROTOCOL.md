@@ -28,11 +28,11 @@ Requests it does not know get no reply. Every data byte is 7 bit.
 
 | cmd | Request args | Reply args |
 | --- | --- | --- |
-| 1 INFO | — | version string ("FELUCCA KARMA x.y.z"), NENGINES, P_COUNT, G_COUNT, NSTEP, P_E0, then NENGINES engine-name strings, NTRK (4), then the protocol version (11) |
+| 1 INFO | — | version string ("FELUCCA KARMA x.y.z"), NENGINES, P_COUNT, G_COUNT, NSTEP, P_E0, then NENGINES engine-name strings, NTRK (4), then the protocol version (14) |
 | 25 PING | — | 0 |
 | 34 BK_LIST | — | rc (0 ok, 4 no flash), count, then per object: id, length u35, CRC-32 u35 (zlib). Takes a snapshot of the working project and the settings for GET |
 | 35 BK_GET | id, offset u35, count (2 × 7 bit, 1..256) | id, rc (0 ok, 1 arguments, 4 flash (object 11 is read from flash), 5 the snapshot is gone: LIST again), offset u35, count, pack7 data |
-| 36 BK_PUT | op 0 begin: id 0..11, length u35, CRC-32 u35 · op 1 data: id, offset u35, pack7 (≤ 256 bytes, in order) · op 2 commit: id · op 3 abort: id | op, id, rc: 0 ok, 1 arguments, 2 not a valid object (CRC, magic, sizes, ranges), 3 stop the sequencer first, 4 flash, 5 no begin for this object (or more than 15 s ago) |
+| 36 BK_PUT | op 0 begin: id 0..16, length u35, CRC-32 u35 · op 1 data: id, offset u35, pack7 (≤ 256 bytes, in order) · op 2 commit: id · op 3 abort: id | op, id, rc: 0 ok, 1 arguments, 2 not a valid object (CRC, magic, sizes, ranges), 3 stop the sequencer first, 4 flash, 5 no begin for this object (or more than 15 s ago) |
 | 90 STAT | — | the load and the USB, u35 numbers (`tools/karma_stat.py`) |
 | 91 PCOST | — | KARMA_PCOST builds only: per DSP stage its time (us) and calls, then cleared (`tools/karma_pcost.py`) |
 | 92 PVAR | [variant] | KARMA_PCOST builds only: which variant of a stage runs |
@@ -49,7 +49,12 @@ not the default), **11** (PHEBUS wave 13, protocol 13) the user drum kits MY KIT
 bytes: a 12-byte head "UKT1" with the six kits' states, then the six kits, `pkit_t`, 592 bytes each; BK_LIST names it
 only once a kit was ever stored; GET reads it from flash, as it is then; the commit checks the head and every stored
 kit as a load does). A backup without object 11 (older, or an FM-1 with no user kit) leaves the FM-1's user kits as
-they are; a device before protocol 13 answers its begin with rc 1 and the page skips it.
+they are; a device before protocol 13 answers its begin with rc 1 and the page skips it. **12..15** the bank's patterns
+A to D and **16** the bank's working project (protocol 14, the bank: SAVE > PROJECT's KEEP keeps one project there; 5,744
+bytes a pattern, 0 = empty, and 6,768 for the working project, as objects 2..5 and 0); BK_LIST names them only while the
+bank holds a project; GET reads them from flash; the commit checks each as a load does; the page writes 12..15 before 16
+(the working project is what makes the bank hold a project). A backup without them (older, or an empty bank) leaves the
+FM-1's bank as it is; a device before protocol 14 answers their begin with rc 1 and the page skips them.
 
 A restore stages one object in RAM, checks it at the commit as a load checks it (projects: magic, size and
 sum, older formats converted; banks: magic, record size, slot count; settings: magic, palette, a permutation

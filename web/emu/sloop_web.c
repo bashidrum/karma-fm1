@@ -78,6 +78,7 @@ EXPORT uint32_t web_nor_size(void) { return sizeof nor; }
 EXPORT void web_nor_erase(void) { memset(nor, 0xFF, sizeof nor); }
 EXPORT uint32_t web_flash_writes_count(void) { return 0; }
 
+static int sim_bank_hook(uint32_t op);                /* (the bank, below) */
 /* power on: the factory sounds on the three synth tracks, the default kit, empty patterns, TRACKS */
 EXPORT void web_boot(void)
 {
@@ -102,6 +103,7 @@ EXPORT void web_boot(void)
     go_home();
     ui.force = 1;
     boot_t = 0;                                       /* (KARMA 3.0: the boot animation) */
+    bank_hook = sim_bank_hook;                        /* (the bank: in this page's memory) */
     web_booted = 1;
 }
 
@@ -132,6 +134,42 @@ EXPORT uint32_t web_proj_put(uint32_t n)
         trk[i].engine = trk[i].eng_req;
     ui.force = 1;
     return 1;
+}
+
+/* (the bank, Ben 22:45) SAVE > PROJECT in the simulator: the bank is a project kept in this page's memory (as project.c keeps
+ * one in flash): KEEP copies what plays into it, SWAP exchanges the two, NEW starts afresh. A reload of the page empties it
+ * (the simulator keeps nothing, as before). The patterns A to D are the harness's stand-in here (A and B always "stored"),
+ * so the bank keeps the working project only */
+static project_t sim_bank, sim_live;
+static void sim_bank_sum(void)
+{
+    uint32_t r = arrangement_ready();
+    for (bank_np = 0; r; r &= r - 1u)
+        bank_np++;
+    bank_bpm = sim_bank.c.g[G_BPM];
+}
+static int sim_bank_hook(uint32_t op)
+{
+    if (op == 0u) {
+        proj_capture(&sim_bank);
+        drum_kit_name(bank_kit, sizeof bank_kit);
+        bank_has = 1;
+        sim_bank_sum();
+    } else if (op == 1u) {
+        char k[9];
+        drum_kit_name(k, sizeof k);
+        proj_capture(&sim_live);
+        memcpy(&web_proj, &sim_bank, sizeof web_proj);
+        if (!web_proj_put(sizeof web_proj))
+            return -3;
+        transport_req = 2;
+        sim_bank = sim_live;
+        str_cpy(bank_kit, k, sizeof bank_kit);
+        sim_bank_sum();
+    } else {
+        project_new();
+    }
+    return 0;
 }
 
 /* a short pattern on the four tracks, to hear and to look at (the page's DEMO button); PLAY is the page's */

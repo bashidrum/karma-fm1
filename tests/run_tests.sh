@@ -90,13 +90,15 @@ $CC -O1 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/kitmix_tes
 run "PHEBUS wave 12: a slot of the other machine, a mixed kit, chokes, the sound and kit lists, INIT, locks across machines, user kits" "$OUT/kitmix_test"
 $CC -O1 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/ukit_test" tests/ukit_test.c $PLX -lm
 run "PHEBUS wave 12: the user drum kits in flash (stored, read, a power cut, erased)" "$OUT/ukit_test"
+$CC -O1 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/bank_test" tests/bank_test.c $PLX -lm
+run "the bank (Ben 22:45): what survives power off and on; KEEP, NEW, SWAP bit for bit; a power cut at every write of KEEP and SWAP" "$OUT/bank_test" "$OUT"
 run "PHEBUS wave 8: the sends a voice's own (no slot), inserts independent, wave 5 to 7 projects converted, CC 74 the voice filter" "$OUT/fx8_test"
 run "PHEBUS wave 4: every Type on every track, the voice filter moves (CUTOFF RESO ENV LFO TYPE) on every engine family, LINK / OWN, OCT / TUNE" "$OUT/voice4_test"
 
 $CC -O1 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/w13_test" tests/w13_test.c $PLX -lm
 run "PHEBUS wave 13: the mixer's solo and mute heard through the keys (the snare alone, sample for sample), its screen, the lane's black keys" "$OUT/w13_test" "$OUT"
 $CC -O1 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/grid_test" tests/grid_test.c $PLX -lm
-run "the drum grid, Rytm style: the 16 places, the mixer's keys in column order (heard, sample for sample), the drum map, SELECT's order, the keys elsewhere" "$OUT/grid_test" "$OUT"
+run "the drum grid, Rytm style: the 16 places, the mixer's keys in the Rytm's order, bottom row first (heard, sample for sample), the drum map, SELECT's order, the keys elsewhere" "$OUT/grid_test" "$OUT"
 $CC -O1 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/dfx_test" tests/dfx_test.c $PLX -lm
 run "the drum effects under FX: wave 14 projects with kit-wide drum sends sound the same (tests/dfx_ref, by tests/dfx_ref.sh), KIT FX saved" "$OUT/dfx_test" tests/dfx_ref
 $CC -O1 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/dfxui_test" tests/dfxui_test.c $PLX -lm

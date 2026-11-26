@@ -20,18 +20,43 @@
  * (upreset.c); the FM6 patch bank's object number (unused since FM6 went). PHEBUS wave 2 (the new project format, project.c
  * "FUN8"): the projects are "big" objects (below), each copy two neighbouring sectors, all in 0xA0000..0xB3FFF (where KARMA's
  * user sample slots were, cut in PHEBUS wave 1): the four project slots (sections A..D) 0xA0000..0xAFFFF, the working
- * project (autosave) 0xB0000..0xB3FFF. (Wave 12) the user drum kits 0xB4000 / 0xB5000 (OBJ_UKIT). 0xB6000..0xDBFFF is free.
+ * project (autosave) 0xB0000..0xB3FFF. (Wave 12) the user drum kits 0xB4000 / 0xB5000 (OBJ_UKIT). (The bank, Ben 22:45:
+ * "one live one and one dead one") its pointer 0xB6000 / 0xB7000 (OBJ_BANKP), the second project area 0xB8000..0xCBFFF
+ * (OBJ_BPRJ0..OBJ_BWORK: four patterns and a working project, as the first). 0xCC000..0xDBFFF is free.
  * The objects of the old format (FUN7 and older) stay where they were, read once to convert and never written again: the
  * slots 0x97000..0x9EFFF, the working project's copy A 0x9F000, copy B 0xFE000. (KARMA 3.0.5's saved songs, one sector
  * each at 0xE5000, 0xE6000, 0xFB000, are released: PHEBUS wave 1 cut the songs, wave 2 drops their objects) */
 /* object numbers are stored in each header (h.type): never renumber one. 9..11 were the songs (released) */
 enum { OBJ_SETTINGS, OBJ_PROJECT0, OBJ_UPRESET0 = OBJ_PROJECT0 + 4, OBJ_AUTOSAVE = OBJ_UPRESET0 + 2, OBJ_FM6BANK,
-       OBJ_PRJ0 = OBJ_FM6BANK + 4, OBJ_WORK = OBJ_PRJ0 + 4, OBJ_UKIT, OBJ_COUNT };   /* (wave 12: OBJ_UKIT, the user drum
-                                                * kits, ukit_flash.c: a plain object at 0xB4000 / 0xB5000) */
+       OBJ_PRJ0 = OBJ_FM6BANK + 4, OBJ_WORK = OBJ_PRJ0 + 4, OBJ_UKIT, OBJ_BPRJ0, OBJ_BWORK = OBJ_BPRJ0 + 4, OBJ_BANKP,
+       OBJ_COUNT };   /* (wave 12: OBJ_UKIT, the user drum kits, ukit_flash.c: a plain object at 0xB4000 / 0xB5000; the bank:
+                       * OBJ_BPRJ0..OBJ_BWORK the second project area, OBJ_BANKP its pointer, below) */
 #define ST_BIG_BASE 0xA0000u                   /* the big objects, 4 sectors each (2 copies of 2) */
 #define ST_BIG_MAX (2u * ST_SECTOR - ST_PAYLOAD_OFF)   /* a big object's payload: offset 256 of its first sector to the end
                                                         * of its second, 7936 bytes */
-static int st_big(uint32_t obj) { return obj >= OBJ_PRJ0 && obj <= OBJ_WORK; }
+static int st_big(uint32_t obj) { return (obj >= OBJ_PRJ0 && obj <= OBJ_WORK) || (obj >= OBJ_BPRJ0 && obj <= OBJ_BWORK); }
+/* THE BANK (Ben, 23 Nov 2026, 22:45: "Just enough so that I can keep one in the bank. So one live one and one dead one").
+ * Two project areas, each four patterns and a working project: area 0 the objects OBJ_PRJ0..OBJ_WORK (0xA0000, where the
+ * projects always were), area 1 OBJ_BPRJ0..OBJ_BWORK (0xB8000). Callers name the LIVE project by OBJ_PRJ0..OBJ_WORK and the
+ * BANK by OBJ_BPRJ0..OBJ_BWORK; st_phys turns that into an area: st_flip 1 swaps them. The flip and each area's generation
+ * live in one small object, OBJ_BANKP (project.c bank_*), so that:
+ *   SWAP is one write: OBJ_BANKP with the flip turned (the A/B commit: before its header, the old flip; after, the new). Both
+ *        projects stay where they are, whole, at every instant.
+ *   KEEP writes the live project into the bank's area under a NEW generation, each object into its copy that does not hold
+ *        the bank's current one, then commits the generation in OBJ_BANKP. A copy is valid only with its area's generation
+ *        (the header's rsv[0]), so until that commit the old bank is read, whole; after it, the new one, whole.
+ * Generations start at 0xFFFFFFFF (what every header written before had in rsv[0]), so a project saved before reads as it
+ * did, and an FM-1 with no OBJ_BANKP is flip 0, both areas 0xFFFFFFFF */
+static uint8_t st_flip;                                /* 1: the live project is in area 1 */
+static uint32_t st_gen[2] = {0xFFFFFFFFu, 0xFFFFFFFFu};   /* each area's generation (OBJ_BANKP) */
+static int st_area(uint32_t obj) { return obj >= OBJ_PRJ0 && obj <= OBJ_WORK ? 0 : obj >= OBJ_BPRJ0 && obj <= OBJ_BWORK ? 1 : -1; }
+static uint32_t st_phys(uint32_t obj)                  /* a live / bank name -> the area object it is now */
+{
+    int a = st_area(obj);
+    if (a < 0 || !st_flip)
+        return obj;
+    return a == 0 ? obj - OBJ_PRJ0 + OBJ_BPRJ0 : obj - OBJ_BPRJ0 + OBJ_PRJ0;
+}
 static int st_gone(uint32_t obj) { return obj > OBJ_FM6BANK && obj < OBJ_PRJ0; }   /* (the songs' numbers: no object) */
 static uint32_t st_max(uint32_t obj) { return st_big(obj) ? ST_BIG_MAX : ST_PAYLOAD_MAX; }
 
@@ -69,10 +94,14 @@ static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy 
         return copy ? 0xFE000u : 0x9F000u;
     if (obj == OBJ_FM6BANK)                           /* (unused since FM6 went) */
         return 0xE5000u + copy * ST_SECTOR;
+    if (obj >= OBJ_BPRJ0 && obj <= OBJ_BWORK)
+        return 0xB8000u + (obj - OBJ_BPRJ0) * 4u * ST_SECTOR + copy * 2u * ST_SECTOR;
     if (st_big(obj))
         return ST_BIG_BASE + (obj - OBJ_PRJ0) * 4u * ST_SECTOR + copy * 2u * ST_SECTOR;
     if (obj == OBJ_UKIT)
         return 0xB4000u + copy * ST_SECTOR;
+    if (obj == OBJ_BANKP)
+        return 0xB6000u + copy * ST_SECTOR;
     if (obj >= OBJ_UPRESET0 && obj < OBJ_AUTOSAVE)
         return 0xDC000u + (obj - OBJ_UPRESET0) * 2u * ST_SECTOR + copy * ST_SECTOR;
     return 0x97000u + (obj - OBJ_PROJECT0) * 2u * ST_SECTOR + copy * ST_SECTOR;
@@ -89,6 +118,8 @@ static int st_head(uint32_t obj, uint32_t copy, st_hdr_t *h)   /* commit record 
     if (h->magic != ST_MAGIC || h->type != obj || h->slot != copy || h->len > st_max(obj) ||   /* (slot: the copy
                                                      * it was written to; after Felucca 1.0) */
         h->hcrc != st_crc32(h, sizeof *h - 4u))
+        return -1;
+    if (st_area(obj) >= 0 && h->rsv[0] != st_gen[st_area(obj)])   /* (the bank: a copy of another generation) */
         return -1;
     return 0;
 }
@@ -115,7 +146,7 @@ static int st_body(uint32_t obj, uint32_t copy, const st_hdr_t *h)   /* payload 
 /* the current copy: the valid one with the highest seq (A on a tie), -1 when
  * neither is valid. Headers first, so only the winner's payload is read (it
  * is left in st_buf, but a big object's); *h gets its header. */
-static int st_current(uint32_t obj, st_hdr_t *h)
+static int st_current_p(uint32_t obj, st_hdr_t *h)    /* (obj: an area object as it is, st_phys done) */
 {
     st_hdr_t a, b;
     int va = st_head(obj, 0, &a) == 0, vb = st_head(obj, 1, &b) == 0;
@@ -137,13 +168,16 @@ static int st_current(uint32_t obj, st_hdr_t *h)
     return -1;
 }
 
+static int st_current(uint32_t obj, st_hdr_t *h) { return st_current_p(st_phys(obj), h); }
+
 /* load object into dst (up to max bytes); returns the length, or -1 */
 static int st_load(uint32_t obj, void *dst, uint32_t max)
 {
     uint32_t i;
     st_hdr_t h;
     int cur;
-    if ((cur = st_current(obj, &h)) < 0)
+    obj = st_phys(obj);
+    if ((cur = st_current_p(obj, &h)) < 0)
         return -1;
     if (h.len > max)
         h.len = max;
@@ -164,7 +198,7 @@ static int st_save3(uint32_t obj, const void *src, uint32_t len, const void *src
     st_hdr_t h;
     if (obj >= OBJ_COUNT || st_gone(obj) || st_big(obj) || len + len2 + len3 > ST_PAYLOAD_MAX)
         return -1;
-    cur = st_current(obj, &h);
+    cur = st_current_p(obj, &h);
     seq = cur < 0 ? 0u : h.seq;
     base = st_sector(obj, cur == 0 ? 1u : 0u);       /* write the other copy */
     for (off = 0; off < len; off++)
@@ -211,11 +245,13 @@ static int st_save(uint32_t obj, const void *src, uint32_t len) { return st_save
  * same A/B commit as the others: both sectors of the copy that is not the current one erased, the payload programmed,
  * the header last, then everything read back */
 /* (PHEBUS wave 3) len bytes of src, then tlen of tail (0: none), then zt zeros: one object */
-static int st_save_big2(uint32_t obj, const void *src, uint32_t len, const void *tail, uint32_t tlen, uint32_t zt)
+/* (the bank) into copy c of area object obj (st_phys done), its header seq and its area's generation as st_gen has it now */
+static int st_save_big_at(uint32_t obj, uint32_t c, uint32_t seq, const void *src, uint32_t len, const void *tail,
+                          uint32_t tlen, uint32_t zt)
 {
-    uint32_t seq, base, off, c, crc, all, head = len;
+    uint32_t base, off, crc, all, head = len;
     uint8_t z[256];
-    int cur, rc;
+    int rc;
     st_hdr_t h;
     if (!tail)
         tlen = 0;
@@ -223,9 +259,6 @@ static int st_save_big2(uint32_t obj, const void *src, uint32_t len, const void 
     all = len + zt;
     if (!st_big(obj) || len > ST_BIG_MAX || zt > ST_BIG_MAX - len)
         return -1;
-    cur = st_current(obj, &h);
-    seq = cur < 0 ? 0u : h.seq;
-    c = cur == 0 ? 1u : 0u;                           /* write the other copy */
     base = st_sector(obj, c);
     if ((rc = st_erase(base)) != 0 || (rc = st_erase(base + ST_SECTOR)) != 0)
         return rc;
@@ -251,6 +284,8 @@ static int st_save_big2(uint32_t obj, const void *src, uint32_t len, const void 
     h.len = all;
     h.crc = ~crc;
     h.rsv[0] = h.rsv[1] = 0xFFFFFFFFu;
+    if (st_area(obj) >= 0)
+        h.rsv[0] = st_gen[st_area(obj)];              /* (the bank: the area's generation) */
     h.hcrc = st_crc32(&h, sizeof h - 4u);
     if ((rc = st_prog(base, &h, sizeof h)) != 0)       /* the commit record, last */
         return rc;
@@ -261,4 +296,30 @@ static int st_save_big2(uint32_t obj, const void *src, uint32_t len, const void 
     }
     return 0;
 }
+static int st_save_big2(uint32_t obj, const void *src, uint32_t len, const void *tail, uint32_t tlen, uint32_t zt)
+{
+    st_hdr_t h;
+    int cur;
+    obj = st_phys(obj);
+    if (!st_big(obj))
+        return -1;
+    cur = st_current_p(obj, &h);
+    return st_save_big_at(obj, cur == 0 ? 1u : 0u, cur < 0 ? 0u : h.seq, src, len, tail, tlen, zt);   /* the other copy */
+}
 static int st_save_big(uint32_t obj, const void *src, uint32_t len, uint32_t zt) { return st_save_big2(obj, src, len, 0, 0, zt); }
+/* (the bank, KEEP) obj (a bank name) written under generation g, into its copy that does not hold the bank's current one;
+ * the bank's generation is left as it was (the caller commits g in OBJ_BANKP once every object is written) */
+static int st_save_big_gen(uint32_t obj, uint32_t g, const void *src, uint32_t len, const void *tail, uint32_t tlen, uint32_t zt)
+{
+    st_hdr_t h;
+    uint32_t p = st_phys(obj), was;
+    int cur, rc, a = st_area(p);
+    if (a < 0)
+        return -1;
+    cur = st_current_p(p, &h);                         /* (under the bank's generation now) */
+    was = st_gen[a];
+    st_gen[a] = g;                                     /* (the header and its read-back: the new generation) */
+    rc = st_save_big_at(p, cur == 0 ? 1u : 0u, cur < 0 ? 0u : h.seq, src, len, tail, tlen, zt);
+    st_gen[a] = was;
+    return rc;
+}

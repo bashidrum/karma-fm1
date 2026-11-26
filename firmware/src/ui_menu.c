@@ -152,10 +152,10 @@ static void draw_menu(void)
                     cv_text(xv + 8, y + 30, &FONT_S, "RESTART", C_AMB);   /* (usb.c: at the next start) */
             }
             if (dy == MI_DY) {
-                cv_text(4, MI_Y0 + 3 * MI_DY + 6, &FONT_S, "SEL: SECTION  GLO: GLOBAL", C_DIM);
-                cv_text(4, MI_Y0 + 3 * MI_DY + 22, &FONT_S, "K1-K3 SET  OCT+ OK  OCT- OUT", C_DIM);   /* (rows .. 218) */
+                cv_text(4, MI_Y0 + 3 * MI_DY + 6, &FONT_S, "SEL: NEXT SECTION  OCT-: BACK", C_DIM);
+                cv_text(4, MI_Y0 + 3 * MI_DY + 22, &FONT_S, "KNOBS 1-3 SET ROWS  OCT+: OK", C_DIM);   /* (rows .. 218) */
             } else {
-                cv_text(4, MI_Y0 + 4 * MI_DY4 + 2, &FONT_S, "K1-K4 SET  SEL: SECTION", C_DIM);   /* (rows .. 218) */
+                cv_text(4, MI_Y0 + 4 * MI_DY4 + 2, &FONT_S, "KNOBS 1-4 SET ROWS  SEL: NEXT", C_DIM);   /* (rows .. 218) */
             }
         }
         cv_oy = 0;

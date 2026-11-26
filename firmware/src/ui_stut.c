@@ -382,7 +382,7 @@ static void stl_draw(void)
                 cv_text(236 - text_w(&FONT_S, t), 0, &FONT_S, t, TE_G4);
             }
             if (!any)
-                cv_text(4, 84, &FONT_S, "REC + PERFORM PADS: HERE", TE_G3);
+                cv_text(4, 84, &FONT_S, "PADS YOU RECORD SHOW HERE", TE_G3);
         }
         cv_h = 131 - SG_BODY_Y;                        /* (wave 10: down to the tab row) */
         cv_blit(0, SG_BODY_Y);

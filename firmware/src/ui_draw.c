@@ -4,6 +4,7 @@
  * footer (steps + engine / preset / page). */
 static void draw_menu(void);
 static uint32_t str_hash(uint32_t h, const char *s);
+static uint32_t projpg_sig(void);                       /* (the bank: SAVE > PROJECT, below) */
 /* (the knob band shows no icon: the look-ups by label, icons.c, are not built in) */
 #define param_icon(d, v) ICON_NONE
 #define engine_icon(n) ICON_NONE
@@ -56,7 +57,8 @@ static void draw_head(void)
     const char *title = ui.home ? "HOME" : pg->scope == SC_ENGINE && !is_drum(TSEL) ? e->page_title[pg->id[0] != P_E0] : pg->title;
     if (mlu.on)                                       /* MIDI LEARN on (2.6, GLO + F#3) */
         title = "LEARN";
-    if (pg->graph == GR_SPATT && !ui.home)              /* (wave 11) SAVE > PATTERNS: the whole project's, no voice's tag */
+    if ((pg->graph == GR_SPATT || pg->graph == GR_PROJ) && !ui.home)   /* (wave 11) SAVE > PATTERNS (the bank: SAVE >
+                                                         * PROJECT): the whole project's, no voice's tag */
         op_header("SAVE", TE_G4, title, &ui.head_sig);
     else if (pg->graph == GR_UKIT && !ui.home)          /* (wave 12) SAVE > KITS: the drum voice's kit, whichever is selected */
         op_header("DRUM", TE_DRUM, title, &ui.head_sig);
@@ -337,6 +339,8 @@ static uint32_t graph_signature(void)
         h ^= (ui.frame / 2u + 1u) * 40503u;
     if (pg->graph == GR_SLCR && t->p[P_SLCR])        /* the SLICER's step playing */
         h ^= (sl[song.sel].idx + 1u) * 2654435761u;
+    if (pg->graph == GR_PROJ)                        /* (the bank) the two summaries, the live state */
+        h ^= projpg_sig() * 2654435761u;
     if (pg->graph == GR_SLOTS)                       /* (a checksum over each slot) */
         for (i = 0; i < 4u; i++)
             h ^= (uint32_t)project_used(i) << (20u + i);
@@ -435,6 +439,71 @@ static void graph_spatt(void)
         cv_text(40, y, &FONT_S, used ? "STORED" : "EMPTY", used ? (sel ? C_WHITE : C_HI) : C_DIM);
         if (pl == (int32_t)i)
             cv_text(130, y, &FONT_S, "PLAYING", TE_G4);
+    }
+}
+/* (the bank, Ben 22:45) SAVE > PROJECT: what the live project and the bank hold, in plain words, so the two can be told
+ * apart (no names: Ben asked for "just enough"); whole-instrument, white and grey. A pattern count, the tempo, the kit:
+ *   LIVE                 SAVED          (or NOT SAVED YET: the unsaved dot's state; playing: STOP TO SAVE)
+ *   4 PATTERNS  92 BPM
+ *   KIT: CUSTOM
+ *   BANK
+ *   EMPTY: NOTHING KEPT YET             (or as LIVE's two lines)
+ * The knobs: KEEP, SWAP, NEW (a turn right; the question that follows says HOLD SAVE) */
+static void proj_text(char *a, char *b, uint32_t np, int32_t bpm, const char *kit)
+{
+    if (!np)
+        str_cpy(a, "NO PATTERNS", 24);
+    else {
+        fmt_int(a, (int32_t)np);
+        str_cpy(a + str_len(a), np == 1u ? " PATTERN" : " PATTERNS", 12);
+    }
+    str_cpy(a + str_len(a), "  ", 3);
+    fmt_int(a + str_len(a), bpm);
+    str_cpy(a + str_len(a), " BPM", 5);
+    str_cpy(b, "KIT: ", 6);
+    str_cpy(b + 5, kit[0] ? kit : "?", 10);
+}
+static uint32_t proj_live_npat(void)
+{
+    uint32_t r = arrangement_ready(), n = 0;
+    for (; r; r &= r - 1u)
+        n++;
+    return n;
+}
+static const char *proj_live_state(void)               /* the live project against flash, in words (the unsaved dot) */
+{
+    return !proj_unsaved ? "SAVED" : song.playing ? "STOP TO SAVE" : "NOT SAVED YET";
+}
+static uint32_t projpg_sig(void)
+{
+    uint32_t np;
+    int32_t bpm;
+    char kit[9], k2[12];
+    uint32_t h = bank_summary(&np, &bpm, kit) * 7u + np * 31u + (uint32_t)bpm * 977u;
+    drum_kit_name(k2, sizeof k2);
+    return str_hash(str_hash(h + proj_live_npat() * 13u + (uint32_t)song.g[G_BPM] * 7919u + proj_unsaved * 104729u +
+                             (uint32_t)song.playing * 3u, kit), k2);
+}
+static void graph_proj(void)
+{
+    char a[24], b[24], kit[12];
+    uint32_t np;
+    int32_t bpm;
+    const char *st = proj_live_state();
+    cv_text(4, 0, &FONT_S, "LIVE", C_WHITE);
+    cv_text(236 - text_w(&FONT_S, st), 0, &FONT_S, st, proj_unsaved ? C_WHITE : TE_G4);
+    drum_kit_name(kit, sizeof kit);
+    proj_text(a, b, proj_live_npat(), song.g[G_BPM], kit);
+    cv_text(4, 16, &FONT_S, a, C_HI);
+    cv_text(4, 32, &FONT_S, b, C_HI);
+    cv_rect(4, 50, 232, 1, C_LINE);
+    cv_text(4, 53, &FONT_S, "BANK", C_WHITE);
+    if (bank_summary(&np, &bpm, kit)) {
+        proj_text(a, b, np, bpm, kit);
+        cv_text(4, 69, &FONT_S, a, C_HI);
+        cv_text(4, 85, &FONT_S, b, C_HI);
+    } else {
+        cv_text(4, 69, &FONT_S, "EMPTY: NOTHING KEPT YET", C_DIM);
     }
 }
 /* the song's parts A..D (SAVE > PARTS): used / empty, the selected one in white */
@@ -768,6 +837,10 @@ static void draw_graph(void)
             cv_oy = 0;
             graph_ukit();
             break;
+        case GR_PROJ:
+            cv_oy = 0;
+            graph_proj();
+            break;
         default:
             if (big_page(pg)) {
                 cv_oy = 0;
@@ -785,12 +858,12 @@ static void draw_graph(void)
         }
     }
     if (!ui.home && !drum_note && !is_drum(t) && !big_page(pg) && pg->graph != GR_BROWSE && pg->graph != GR_SLOTS &&
-        pg->graph != GR_USER && pg->graph != GR_SPATT && pg->graph != GR_UKIT) {                      /* over a graph (they keep to the lower rows): the track's sound */
+        pg->graph != GR_USER && pg->graph != GR_SPATT && pg->graph != GR_UKIT && pg->graph != GR_PROJ) {                      /* over a graph (they keep to the lower rows): the track's sound */
         cv_oy = 0;
         op_names(t);
     }
     top = !ui.home && !drum_note && (pg->graph == GR_BROWSE || pg->graph == GR_SLOTS || pg->graph == GR_USER || pg->graph == GR_SPATT || pg->graph == GR_UKIT ||
-                                     big_page(pg));   /* these draw from the top */
+                                     pg->graph == GR_PROJ || big_page(pg));   /* these draw from the top */
     cv_oy = 0;
     if (ui.hot_t && settings.zoom && !(top && big_page(pg) && !drum_note)) {   /* (the big values show it already) */                 /* focus (menu ZOOM): the touched value, large and white */
         int32_t x;
@@ -941,6 +1014,17 @@ static void draw_columns_set(void)
         draw_column(1, "ENG", ENGINES[TSEL->eng_req]->name, "", VAL(1u), -1, engine_icon(ENGINES[TSEL->eng_req]->name));
         draw_column(2, "", "", "", C_HI, -1, ICON_AUTO);
         draw_column(3, "", "", "", C_HI, -1, ICON_AUTO);
+        return;
+    }
+    if (cur_page()->graph == GR_PROJ) {                  /* (the bank) KEEP, SWAP, -, NEW: GO knobs */
+        uint32_t np;
+        int32_t bpm;
+        char kit[9];
+        int full = bank_summary(&np, &bpm, kit);
+        draw_column(0, "KEEP", "--", "", C_HI, -1, ICON_AUTO);
+        draw_column(1, "SWAP", "--", "", full ? C_HI : C_DIM, -1, ICON_AUTO);
+        draw_column(2, "", "", "", C_HI, -1, ICON_AUTO);
+        draw_column(3, "NEW", "--", "", C_HI, -1, ICON_AUTO);
         return;
     }
     if (cur_page()->graph == GR_SPATT) {                 /* (wave 11) PATT, then STORE (a GO) */
