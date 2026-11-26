@@ -4653,7 +4653,19 @@ int main(int argc, char **argv)
                     uint16_t c = swap16(screen[y * 240u + x]);
                     col += c == TE_COL[0] || c == TE_COL[1] || c == TE_COL[2];
                 }
-            check(nav_tabs_fit, "w10: the drum FX tab row fits beside the legend (names shortened, none run over)");
+            check(nav_tabs_fit, "w10: the drum FX tab row fits beside the legend (fixed labels, none run over)");
+            {   /* (review V1, Ben 26 Nov 2026) one fixed short label a category, the spec's words */
+                static const struct { uint8_t c; const char *n; } FL[] = {{CT_PROJ, "PROJ"}, {CT_PRESETS, "PRST"}, {CT_USER, "USER"},
+                    {CT_KITS, "KITS"}, {CT_SPATT, "PATT"}, {CT_TOOLS, "TOOL"}, {CT_GLOBAL, "GLOB"}, {CT_SYSTEM, "SYS"},
+                    {CT_MIDI, "MIDI"}, {CT_DEVICE, "DEV"}, {CT_INS, "INS"}, {CT_SENDS, "SEND"}, {CT_SLICER, "SLIC"},
+                    {CT_MIX, "MIX"}, {CT_STUT, "STUT"}};
+                uint32_t q, okl = 1;
+                for (q = 0; q < sizeof FL / sizeof FL[0]; q++)
+                    okl &= CT_NAME[FL[q].c] && !strcmp(CT_NAME[FL[q].c], FL[q].n);
+                for (q = 0; q < CT_N; q++)
+                    okl &= !CT_NAME[q] || strlen(CT_NAME[q]) <= 5u;
+                check(okl, "V1: tab labels fixed: PROJ PRST USER KITS PATT TOOL; GLOB SYS MIDI DEV; INS SEND SLIC | MIX STUT");
+            }
             check(!col, "w10: colour rule: the -/+ legend has no voice colour");
             for (j = 0; j < 4u; j++) {
                 track_select(j); go_home(); frames(2);
@@ -5361,7 +5373,7 @@ int main(int argc, char **argv)
             ui.force = 1; frames(2);
             for (o = 0; o < NTRK; o++)
                 bad += px_count(0, 0, 240, OP_BAR_Y, TE_COL[o]) + px_count(0, 0, 240, OP_BAR_Y, TE_MID[o]) + px_count(0, 0, 240, OP_BAR_Y, TE_DIM[o]);
-            ok &= song.sel == v && px_count(0, OP_BAR_Y + 24, 240, 3, TE_COL[v]) > 100u && nav_tabs_fit && !nav_tabs_bare;
+            ok &= song.sel == v && px_count(0, OP_BAR_Y + 24, 240, 3, TE_COL[v]) > 100u && nav_tabs_fit;   /* (review V1: the legend may drop its word) */
             ok &= px_count(2, 1, 46, 18, TE_G4) > 40u;    /* (the tag MIX, white-grey) */
             snprintf(nm, sizeof nm, "w14-stut-v%u", (unsigned)v + 1u);
             ppm(nm);
@@ -5385,7 +5397,7 @@ int main(int argc, char **argv)
                 }
                 encs[panel.enc[EN_K3]] = -6; frames(2);
             }
-            check(ok2, "w14: every FX category's tab row on every voice fits (names shortened to three letters, STUT kept whole)");
+            check(ok2, "w14: every FX category's tab row on every voice fits (V1: fixed labels, the legend drops its word first)");
             printf("ui:   (the legend kept its boxes, not its word, on %u of 24 FX rows: the drums' six categories)\n", (unsigned)wb);
         }
         /* its keys, black keys, dials, lights, on voice 1 */
