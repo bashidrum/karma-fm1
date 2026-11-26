@@ -563,3 +563,5 @@ Box 6:
 - Drum FX order: "INS, SENDS, SLICER (as built)". This replaces the 21:40 applied reading of SENDS first.
 - Hold SEQ roll tiles on a synth voice: "Rows from the bottom" (same as hand play, RETRIG and SELECT).
 - ARP on the drums: "Leave as is" (CHROMATIC, then off).
+
+Safety fixes, agent choices confirmed (26 Nov): bar "HOLD SAVE: STOPS THE AUDIO" with "THIS WILL STOP THE AUDIO" on the hold screen: "Yes, ship it". ERASE of a user kit asks the same while playing; red ring over a stored kit or erase, white into an empty kit: "Yes, both".
