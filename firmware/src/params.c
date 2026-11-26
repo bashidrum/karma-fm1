@@ -672,6 +672,9 @@ static int page_shown(const page_t *pg)
     if (fam_stage(pg->fam) >= 0)                     /* (wave 8) the chain is the synth voices'; the drum voice's pages are
                                                          * the drum screen's (SRC FLTR AMP LFO FX: ui_drum.c) */
         return !is_drum(TSEL);
+    if (is_drum(TSEL) && (pg->graph == GR_BROWSE || pg->graph == GR_USER))
+        return 0;                                    /* (review 26 Nov, "One home each", "Skip USER on drums": the drums'
+                                                         * SAVE > PRESETS is KITS, no USER; ui.c page_fix lands on KITS) */
     return pg->fam != FAM_DRM;                       /* (the drum screen's FX tab only: no button opens them) */
 }
 /* (wave 4) knob k's parameter id on page pg for the selected track: the OSC page's macros M1 .. M5 (vtype.c) as the

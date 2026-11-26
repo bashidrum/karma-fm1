@@ -35,9 +35,11 @@ static const uint8_t NAV_DRUM[NB][6] = {               /* the drum voice, parall
     [B_SEQ] = {CT_TRIG, CT_PATT, CT_PATTS},             /* (wave 10, Ben: "in charge of patterns") */
     [B_ARP] = {CT_CHROM},
     [B_GLO] = {CT_GLOBAL, CT_SYSTEM, CT_MIDI, CT_DEVICE},
-    [B_SAVE] = {CT_PROJ, CT_PRESETS, CT_KITS, CT_SPATT, CT_TOOLS},   /* (wave 12: KITS; the bank: PROJECT first. Review 26
-                                                         * Nov, Ben's picker "Skip USER on drums": user presets are the synth
-                                                         * voices', the drums' walk leaves USER out) */
+    [B_SAVE] = {CT_PROJ, CT_KITS, CT_SPATT, CT_TOOLS},  /* (wave 12: KITS; the bank: PROJECT first. Review 26 Nov, Ben's
+                                                         * pickers "Skip USER on drums": user presets are the synth voices', the
+                                                         * drums' walk leaves USER out; "One home each": on the drums SAVE >
+                                                         * PRESETS points to KITS, whole kits load from one place under SAVE,
+                                                         * besides HOME's PRESETS knob) */
     [B_HOME] = {CT_HOME, CT_SAVER},
 };
 static const char *const CT_NAME[CT_N] = {
@@ -164,6 +166,8 @@ static void nav_go(uint32_t c, uint32_t k)
     if (c != CT_STUT)
         stl_leave();                                    /* (wave 14: another category: the lane's screen goes, as any page) */
     grid = nav_grid();
+    if (drum && (c == CT_PRESETS || c == CT_USER))      /* (review 26 Nov) the drums' PRESETS is KITS; no USER */
+        c = CT_KITS, k = 0;
     if (c != CT_SAVER)
         vis_on = 0;
     if (drum && c != CT_CHROM && drum_keys == DK_CHROM)
