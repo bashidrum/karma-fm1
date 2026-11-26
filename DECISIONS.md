@@ -1051,3 +1051,10 @@ Kick first, the save screen, the bank (23 to 26 Nov)
 - Switching off while playing still loses everything since the last stop: nothing can be written while playing without a dropout, and the power switch is not seen by the firmware.
 - THE FLASH CHIP (device-only, needs a hal change, for Ben's permission): fm1_flash.h waits 500 ms for an erase and 10 ms for a page; ChoralRoot 0.32 found these too short for the newer FM-1's UC25HQ80 (JEDEC 0xB36014, accepted by fm1_flash_id.h). On a timeout the driver turns XIP back on while the chip may still be busy: the app may crash (the watchdog restarts it) or the save fails. Each project copy stays safe (A/B), as with a power cut at that write; KEEP and the patterns' writing now stop at a failure. The update loader runs from RAM and verifies every sector, so a timeout there fails the update (retry), it does not leave a wrong image silently.
 - User kits (SAVE > KITS) are written at once even while playing (a ~50 ms gap in the sound), unlike everything else: left as wave 12 built it.
+
+
+### The loader's waits and the watchdog (Ben, 26 Nov 2026, 09:40)
+
+- The update loader now waits 2 s for an erase and 50 ms for a page, like the app, so the first install copes with the slower UC25HQ80. Waits only, as Ben allowed: it still returns -4 past them (the update record stays, Install can be pressed again) and never restarts. The installer waits up to 180 s for the loader's next request, so a 2 s erase does not stall it. The loader's own watchdog (~8 s) is fed between sectors.
+- felucca.c ota_erase feeds the watchdog before each erase when PHEBUS stages an update of itself (after ChoralRoot 0.32).
+- tests/flash_hal_test.c's loader build now checks the slow chip succeeds, and -4 past 2 s / 50 ms.

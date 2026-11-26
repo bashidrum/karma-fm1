@@ -158,6 +158,8 @@ static int ota_erase(uint32_t off)
     uint32_t took;
     if (!ota_in_area(off, 0x1000u) || (off & 0xFFFu))
         return -8;
+    fm1_wdt_feed();                       /* (Ben, 26 Nov 2026, after ChoralRoot 0.32: five erases in a row on the slower
+                                           * chip could outlast the ~8 s watchdog while an update is staged) */
     return fl_erase4k_quiet(off, &took);
 }
 static int ota_prog(uint32_t off, const void *p, uint32_t n)
