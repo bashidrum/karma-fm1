@@ -827,6 +827,7 @@ Tests: bank_test (new: project.c's real flash code on a simulated NOR under the 
 
 Not checked: no device build. The flash driver's waits on the newer chip (below, "For Ben to confirm").
 ## The flash driver and the slower chip (26 Nov 2026)
+Later the same day (09:40) Ben allowed the loader's waits to change too: see "The loader's waits and the watchdog" at the end. Where this section says the loader keeps its old waits, that was true when it was written and is not now.
 Ben, by picker: "Yes, make that change" (SPEC.md, 26 Nov 2026, 08:53): the storage driver's waits long enough for the newer, slower flash chip, and a clean restart instead of carrying on if the chip is still busy. It is the only change to the hal he has allowed; everything below is in `firmware/hal/fm1_flash.h`, nothing else in the hal changed.
 
 Where it comes from
@@ -838,7 +839,7 @@ What changed (the app only)
 - Done after the old limits (500 ms / 10 ms): counted. Two words of RAM, the number since power-on and the longest, plus one for the chip's id (12 bytes in all).
 - Still busy at 2 s / 50 ms: the driver never returns and never switches XIP back on. From RAM, interrupts already off: CPU1 held (as `fm1_core_reset` does first); CS low, 0x66 (Enable Reset), CS high; CS low, 0x99 (Reset), CS high; 20 ms for the chip to recover; SPI0 back to its saved setting and the pins back to the flash controller, with XIP left off; then PWR_CON bit 4, the core reset that the update commit and the update loader already restart with. The FM-1 starts again with an idle chip.
 - Before: a part still busy at 500 ms / 10 ms got -4 and the driver switched XIP back on while it was still busy, so the next instructions could be fetched as garbage (a crash), and the save reported a failure.
-- Where to see it: the USB serial console's `status` (MENU > AUDIO > USB SERIAL on, from the next start) prints `FLASH: UC25HQ80 LATE 0 (max 0 ms)` after `flash`. The ABOUT page has no free row (its credits fill it), so it was not added there.
+- Where to see it: the USB serial console's `status` (GLO > DEVICE > AUDIO > USB SERIAL on, from the next start) prints `FLASH: UC25HQ80 LATE 0 (max 0 ms)` after `flash`. The ABOUT page has no free row (its credits fill it), so it was not added there.
 
 Calls made that Ben did not specify
 - The restart is the PWR_CON core reset (as the update commit, the update loader and ChoralRoot), not the P33 chip reset of the crash screen: one register write, safe to do from RAM. Option: the P33 chip reset (resets more of the chip, but needs the P33 serial sequence copied into RAM code).
@@ -864,196 +865,68 @@ Not checked
 - No device build (no JieLi toolchain here), so the .ram_text size of the new code (one small RAM function and a few instructions in each wait) is not measured; build.py's check that RAM code makes no calls into XIP still has to pass on the real build.
 - Not run on an FM-1; the slow chip's real times are unknown. If `status` ever shows LATE above 0, that is the slow chip at work.
 
-## For Ben to confirm
-Every call waves 2 to 7 made that the spec did not cover, and every device-only limit or lossy conversion, one line each. The detail is in each wave's section above.
+## Open for Ben
 
-Device-only limits
-- PHEBUS_ARENA_T12 = 9152: on the FM-1, 6-OP A, B, C, STRING, SPEECH and PARTICLE play on track 3 only (NOT ON THIS TRACK on 1 and 2); the simulator and host have no limit.
-- CPU on the FM-1 is unmeasured: stacking PERFORM pads is the only new cost of wave 6; the compromise to offer is a limit of four at once (the MPC's).
+Only two questions are still waiting for an answer. Everything else is settled (below) or built as the wave sections above describe.
+
+- **Kits per pattern.** Patterns A to D share the project's one kit. Options: (a) keep one kit for the project (as built); (b) a kit number per pattern; (c) full kits per pattern (2.4 KB of RAM); (d) kits kept in flash.
+- **Synth step tiles.** Whether the synth voices' step tiles keep showing note names and chords (as built) or not. Ben's remark that the sequence is "like having the step sequencer in view twice" may apply there.
+
+## Settled
+
+Dates are the day Ben decided, by picker or in his words (SPEC.md has the words).
+
+26 Nov 2026
+- The flash driver waits for the slower UC25HQ80 (2 s an erase, 50 ms a page) and restarts cleanly if the chip is still busy (08:53). The update loader waits the same, waits only (09:40). The watchdog is fed before each erase when PHEBUS saves or stages an update. The first install: "Walk me through it live".
+- Engine safety: the watchdog fed during long saves, a backup cannot record the bank's sketch as the live project, the FX 1 to 3 pages read in range (11:40).
+- A kit saved or erased while playing asks first: HOLD SAVE: STOPS THE AUDIO, THIS WILL STOP THE AUDIO on the hold screen; red ring over a stored kit or an erase, white into an empty kit.
+- OCT's double tap on load pages: the single tap waits 0.3 s.
+- Docs: "Update and prune" (this change).
+- The drum voice's MIX pages: one white MIX screen on every voice; its keys stay steps and the step page follows the playhead.
+- Kit INSERT and SLICER: type on SELECT, as a synth; the insert is one page (TYPE on SELECT, values on K1 to K3, MIX on K4; empty hides MIX); SLICER's mode on SELECT.
+- Drum sound pages: each page its own picture, in teal; SENDS mini kit map, decay span labels, static LFO picture, HEX / CLS / MY tags.
+- SEQ's A-D page: four pattern tiles.
+- GLO > DEVICE redrawn in the GLO frame (SCREEN, LIGHTS, AUDIO, TOOLS); LEARN CLEAR on MIDI 3, confirmed with the hold ring.
+- One home each: OUT / IN only on MIDI 2; hold SEQ's KNOB 3 is GATE; on the drums SAVE > PRESETS points to KITS and SAVE's walk leaves USER out (PROJECT, KITS, PATT, TOOLS). Factory kits load only from HOME's PRESETS knob. A synth returns to the page you left it on in SAVE.
+- Tab labels fixed: PROJ PRST USER KITS PATT TOOL, GLOB SYS MIDI DEV, INS SEND SLIC | MIX STUT, with the look details (MTRX, KFLT, CHRM, SAVR; NS LVL, NS FRQ, T ENV, F CUT, E SYNC, DEPTH; USB AUDIO MIX; KEYS OFF / C / WHITE / ALL).
+- One dictionary: six characters or fewer, UK English where space allows, always VOICE, never TRACK. SNARE2 in tiles, SNARE 2 in full.
+- MIX pages carry pictures (delay taps, reverb tail, master meter); GLO pages print plain rows. Each thing said once (hold SAVE titled PATTERNS). All 13 small visual faults fixed.
+- Envelope times in one format with units; the STUTTER lane's pads in the steps' columns with a PADS label; matrix in the voice colour; wave pictures full width; ARP > KEY reuses the CHROMATIC piano; HOME gives synths a 4 px step bar.
+- Drum sound browsing: a six-row list, as on synths. Drum FX order: INS, SENDS, SLICER | MIX, STUT (as built). Hold SEQ's roll tiles on a synth voice run from the bottom. ARP on the drums stays CHROMATIC then off.
+
+23 Nov 2026 (the layout and key orders, 22:46 and 22:48)
+- Two key orders over one drum grid: playing, RETRIG, SELECT and CHROMATIC count the Rytm's way (bottom row first: key 1 KICK, key 4 SNARE, key 16 CRASH); the mixer counts down the columns (key 1 HAT, key 4 KICK, key 16 SNARE), as PERFORM's pads do. The MIDI notes in and out stay General MIDI.
+- SAVE > PROJECT is SAVE's first category; NEW lives on it and empties A to D too, the bank untouched; SWAP asks with a white ring; there is no LOAD.
+- PERFORM in columns, the black row one row (1 2 3 KIK TOP S+C H+S REV STP DN UP); the drum grid like the Rytm's; the drum effects under FX in a synth voice's order; filter, filter envelope and sends where the synths have them.
+- Edits made while stopped are written at most 5 s apart; switching off while playing loses everything since the last stop (the power switch is not seen by the firmware).
+
+Left as built (Ben has played the simulator since and asked for no change)
+- The calls of waves 2 to 14 and the screensavers' and artwork lines are as the wave sections above describe; none is waiting for an answer. If one of them should change, it is a new decision, not an open one.
+
+## Device-only limits
+
+- PHEBUS_ARENA_T12 = 9152: on the FM-1, 6-OP A, B, C, STRING, SPEECH and PARTICLE play on voice 3 only (NOT ON THIS VOICE on 1 and 2); the simulator and host have no limit.
+- The FM-1's CPU is unmeasured: stacking PERFORM pads is the new cost; the compromise to offer is a limit of four at once (the MPC's). Every colour effect stacked costs about 2.3 x the default mix on the host. The voice filter's cost is estimated from the host (about 0.45 of a JUNO voice a voice).
 - RAM: .data+.bss about 96.3 of 98.3 KB and the pool about 200 B above the 8 KiB rule; the extras and lock pools (128 B a copy, 7 copies) and PHEBUS_UP_MX=0 (1,472 B) are the reserves if needed.
 - The STUTTER lane and PERFORM's time effects are mono, 0.74 s, 16-bit with 12 dB of headroom; below about 84 BPM a quarter loop is cut to 0.72 s.
-- The voice filter's cost on the FM-1 is estimated from the host (about 0.45 of a JUNO voice a voice).
-- Section D lives in main RAM and C too (not .noinit): after a crash, a pattern stored while playing and not yet written is lost.
-- The flash driver (26 Nov): a chip still busy after 2 s (an erase) or 50 ms (a page) restarts the FM-1 (what was only in RAM is lost); the update loader keeps its old 500 ms / 10 ms, so a very slow chip can stop an install half-way (install again resumes). Whether to change the loader too is Ben's call. Option: the P33 chip reset instead of the core reset.
-Lossy conversions of older projects and presets
+- Section D lives in main RAM, and C too (not .noinit): after a crash, a pattern stored while playing and not yet written is lost.
+- The flash chip: a chip still busy after 2 s (an erase) or 50 ms (a page) restarts the FM-1 (what was only in RAM is lost). The update loader waits the same and returns -4 past it (the install can be repeated). Real times of the slow chip are unmeasured; `status` on the serial console counts late operations.
+- A kit saved to flash holds the sound, sequencer, MIDI clock and USB for as long as the flash takes (up to about 2.75 s on the slower chip); it asks first while playing.
+
+## Lossy conversions of older projects
+
 - Format 7 drum levels become velocities 42 / 72 / 100 / 127; ratchets become one-step retrigs at the nearest rate (on 1/32 steps x3 and x4 become 1/80).
 - Past 64 trigs with extras when converting, the rest play with no condition or nudge.
 - PLAITS / ELEMENTS: old ENV > FLT and LFO > FLT moved the timbre; now they move the filter (ENV > FLT on PLAITS goes to T.ENV, positive only). Eight PLAITS factory sounds now wobble the filter, not the timbre.
 - Old LFO > SHP and ENV > SHP become matrix cells; on ELEMENTS an assignable column at half the amount (approximate).
-- Old DIST, INSERT and sends become FX slots: past three effects the smallest sends go; an INSERT's fourth value (LEVEL into the trim, exact at MIX 100 %; CRUSH LPF and PHASER / FLANGER DEPTH reset to default).
-- The old track FILT (DJ LP / HP) on a synth voice is moved onto the voice filter when loaded.
-- A record 2 user preset slot shows as empty on firmware before wave 4; a wave 5 bank as empty on firmware before wave 5; stock KARMA cannot read PHEBUS projects.
-Drums (waves 2 and 3)
-- A new trig plays at velocity 100; TRIG's KNOB 1 with nothing held sets it (not saved).
-- 64 trigs with extras and 128 sound locks a pattern (refused with a message when full).
-- CHANCE counts only with COND CHNC; a CHNC trig starts at 50 %; synth steps keep a fixed 50 % CHNC.
-- RETRIG: rate 1/1 to 1/80 of a bar, length 1/8 step to 16 steps or INF, curve -128 to 127; the next trig ends it.
-- Synthesised kits keep their own model (not converted to the HEX machine); every sound gets an LFO (SPEED DEPTH DEST WAVE, SYNC FADE PHASE MODE).
-- (Replaced in wave 12: the kit is 16 slots, every one the project's; whole kits stored under SAVE > KITS.)
-- MODEL and TYPE cannot be locked (as the Rytm's machine).
-- Sound pick: hold SEL + key; MUTE mode: tap SEL; CHROMATIC: tap ARP; live RETRIG: hold ARP + key, the black keys the rate; FILL: F#5 held, OCT+ to latch (wave 8).
-- Hold a step + OCT-: the last-turned lock, then every lock; on TRIG everything the trig holds.
-- The KIT page is gone (sound: SEL + key; kit: PRESETS; sends: AMP 2/2).
-Melodic voices (waves 4 and 5)
-- 31 Types in one list, plain ones first; OSC has four halves (Type + macros; OCT TUNE GLIDE VOICE; the Type's 4th and 5th, DTUNE PRIOR; GLMODE ALLOC).
-- Macro names per Type from the Plaits manual; some ELEMENTS / OMINOUS controls have no knob and keep the sound's value.
-- Turning TYPE keeps the rest of the sound; another engine's macros start at plain defaults; JUNO's chorus moved to OSC 3/4.
-- One ladder filter on every voice (LP24, LP12, BP, HP); ACID's and JUNO's own ladders are their LP24.
-- LINK is the default; the first turn of a filter envelope knob makes it OWN from the amp's values; ESYNC applies to both.
-- The synth GRID has the drum screen's tabs; SELECT walks the tabs (the tempo is on HOME and the pages).
-- FX slot types and their knobs; one FLANGER a voice (wave 8: the sends are the SENDS page, not slots).
-- Matrix: 7 sources x 13 destinations, 19 cells besides the six fixed ones; LVL only reduces; PAN, FX and AS follow the last note.
-- LFO 2 starts FREE; its sample-and-hold uses its own random numbers.
-- Spice and Dice on TRIG 2/2 with nothing held; a roll's ranges (30 % left out, 25 % octave, 20 % ratchet, velocity +-48, length x0.25 to x1.75).
-- GATE on hold SEQ, KNOB 1 (wave 5: a call for Ben).
-PERFORM and the STUTTER lane (wave 6)
-- The pad map changed from mock-perf-A: ECHO moved to row 4 beside VERB; DUST and WOW are not pads; -DRM -BAS LCUT FLNG on black keys 1 to 4, 8T and 16T on C#5 and D#5.
-- Gone from the old 27: STUTTER (now 16T), PHONE, ALIAS, WOBBLE, KILL MID / HIGH, REWIND, OCT UP, AUTO-PAN, FREEZE, MONO, FADE OUT.
-- -BAS kills voice 1 (KNOB 1 picks); kills keep the notes playing unheard.
-- One time effect at a time with every colour effect, throw and kill on top; no limit of four.
-- In and out: hold FX; held 0.7 s untouched and let go, it stays (every layer, wave 8). Latch: OCT+ with a pad (a double tap was not used). OCT- unlatches all; STOP ends latches; latches play on outside PERFORM.
-- The header says PERF and how many (not FX).
-- Each pad's knobs and start values; knob settings are not saved; the lane's own lit steps always play at the start settings.
-- Recording: spans to the nearest 1/16 with the last knob turned; a pad over its own span replaces it, others overdub; 31 at most.
-- EDIT + OCT- undoes a take's pads; a pattern change drops an open span.
-- The lane's KNOB 3 PADS asks to clear (hold REC, wave 8); hold a step + OCT- erases its pads.
-HOME, the screens and the words (wave 7)
-- HOME's three zones and their contents as listed in wave 7 above; the selected voice shown inverted instead of a "VOICE 1" line.
-- The layers', PERFORM's and the REC screen's frame (header tag the button held, a line under it, the pages' dials, the strip).
-- The words: STEP (a key), trig (what is on it), RETRIG, PADS (the lane's), PATTERN (A to D), GLO (the shared tag).
-- Stutter lengths as spans: runs of one length drawn as one bar, named once.
-- Gesture exceptions kept: SELECT is the cursor in STEP REC; OCT+ on the lane's last page goes round (no page added); SEL and ARP do other jobs on the drum voice. (Wave 8 removed: SELECT as tempo, the FILL double press, the GLO / FX-only keep-open.)
-Wave 8, the layout logic
-- SLICER: kept as each voice's last FX page and the drum FX tab's. To decide (Ben said "decided separately"): keep it there, cut its STUT mode only (stutter is PERFORM's and the lane's), or cut the page. Recommended: keep the page, cut STUT (it then is a per-voice trance gate, which PERFORM's whole-mix GATE pad cannot do).
-- FX stage reached by EDIT (ENV then EDIT: one press from ENV) and SELECT; no button jumps to it any more. Alternative if it feels far: SEL held + ENV, or ENV pressed past FILT ENV into FX.
-- Confirm = hold REC (the ring from the press). Storing over a used pattern needs SAVE kept held (or kept open) while REC is held.
-- The drum voice's own pages are a sixth tab, FX, on the drum screen (Rytm-style FX track); GLO > DRUMS removed (its REVERB and DELAY are the FX tab's SENDS).
-- No tap tempo (it was a second place for the tempo). Say if you want it back as a key on GLO > GLOBAL.
-- No send columns in the matrix (an assignable column takes a send).
-- ECHO and VERB pads keep only their own knobs; VERB has AMOUNT only.
-- Hold a step + OCT- still removes the last-turned lock, then every lock on a second press in the same hold (not timed).
-- The screensavers are HOME's pages (SELECT right); the hint is a ">" after the deck's FLOW band (the band was narrowed 12 px).
-- GLO > SYSTEM still shows OUT and IN, which MIDI 2 shows too (left as built; pages-unique would drop them from SYSTEM).
-- Lossy: a wave 5 to 7 matrix cell on a send slot when both assignable columns are used; a project's MASTER FILT; GLOBAL SWING for an old section loaded after a reboot with a newer project. User preset records 4 read as empty on older firmware.
-Wave 9, how to move around
-- The CLASH: the synth FILT is CUTOFF RESO ENV DRIVE with TYPE on SELECT; the drum FLTR stays CUTOFF RESO ENV TYPE (DRIVE on 2/2) because the drum screen's SELECT picks the sound. Choose: keep it so; or put the synth FILT's TYPE back on KNOB 4 as well (SELECT and KNOB 4 both turn it, DRIVE back to 2/2); or move the drum FLTR's TYPE to its 2/2 so KNOB 4 is DRIVE on both.
-- The re-planned OSC pages: M1 M2 M3 M4 / OCT TUNE GLIDE GLMODE / M5 VOICE DTUNE PRIOR / ALLOC.
-- FX 1 to 3 on KNOB 1 to 3 (KNOB 4 empty); the SLICER's knobs moved left a place.
-- SEQ always opens TRIG (no longer the GRID on the sound page's own tab).
-- A category opens on its first page (no memory of the last page anywhere).
-- ARP's MODE and KEY's SCALE are not SELECT types (no page has a single type there).
-- The mixer, drums selected: SOLO FILL BAR PAN on F#3 G#3 A#3 C#4; the voices' mutes off the keys meanwhile.
-- The SEL layer's quick key pick (SEL held + a key) is gone, not given a performance home; say if you want it back on a layer.
-- Halving clears the dropped half (the old DOUBLE knob kept it hidden); STEP REC's SEQ with keys held writes them then a rest.
-- The header shows the type (or the drum sound) instead of the sound's name on typed pages; the drum kit's name moved under the sound.
-- MIDI LEARN is GLO > MIDI 3 KNOB 2; the HOME screensaver is HOME pressed again (wave 8's "no second meaning" call reversed by the new rule).
-Wave 10, one idea per control
-- Proposed by Claude from Ben's words, not objected to: FILL is hold SEQ + PLAY (not ARP); playing a pattern moved to SEQ (A-D, hold SEQ + black keys 1 to 4) while storing stays with SAVE (hold SAVE + keys 1 to 4); the confirm is hold SAVE with the ring; REC only records; clearing a voice is EDIT + OCT-, then the confirm; erase is OCT- with the thing held; MASTER acts relatively (value scaling) so the volume never jumps; the settings menu moved from hold HOME into GLO (DEVICE only; hold HOME is free).
-- The double tap's window: 0.3 s, the first tap acting at once and the second taking it back.
-- What -/+ do on each screen (GUIDE section 12's table); a page with nothing touched does nothing; the legend's look and place (the tab row's right end; the drums' FX names cut to three letters to make room).
-- The steps only on SEQ (Ben, 10:33, Claude's reading): applied to the synth voices. THE DRUM SCREEN: its sound pages (SRC FLTR AMP LFO FX) keep the step row on top, as Ben chose in wave 3 ("B: four dials over the knobs", the Rytm's way); with nothing held a page button stays on the drum screen and changes the dials; the keys stay steps. Choose: keep it so (the Rytm way, as decided); or make the drums like the synths (a sound page without the steps, the keys playing the 16 sounds, the steps back only on SEQ and while a step is held); or a middle way (the drum screen's step row stays, but only SEQ makes the keys steps; on SRC FLTR AMP LFO FX the keys play the sounds).
-- Hold SEQ: KNOB 1 RATE, 2 SHIFT, 3 SWING, 4 STEPS (GATE and DIV only on the PATTERN page); synth rolls on the white keys only.
-- MASTER pairs on the drums: LEVEL the drum voice's, ENV the selected sound's decay, LFO its LFO DEPTH, ARP nothing.
-- FX MIX is a return level (0 dry, 100 as before), not a dry/wet crossfade; FX MIX, ENV LENGTH, MOD DEPTH are not saved with the project.
-- MOD DEPTH leaves the VEL and KEY rows alone (they are playing, not modulation).
-- The chord modifiers live only on ARP's KEY pages (drawn there); play chords elsewhere without them.
-- The drum voice's black keys no longer play the sound of the white key below them.
-- A key held + OCT- erases (a ghost hit is OCT- first): on the drums, holding a long kick and pressing OCT- for a ghost snare would erase the kicks (SAVE + OCT- undoes). Say if the erase should need something more.
-- The mixer: PAN on G#3 for both mixers (key 11 gone); a synth voice's mixer still solos on keys 5 to 8.
-- No SAVE page for storing a pattern (a hold only, as Ben's words suggest); say if one is wanted.
-- The white ring: only SAVE into an empty user preset slot.
-Wave 11, mapping and lights
-- THE DRUMS AND HOLD TO MAP: not built; holding LFO / ENV on the drum screen is MASTER's pair. Choose: leave it so; or hold LFO + turn a knob sets the selected sound's LFO DEST to that knob's parameter and DEPTH by the turn (where that destination exists; one destination a sound, so it replaces the last); or hold ENV likewise onto a per-sound envelope destination (none exists today: it would need one).
-- THE DRUMS' ERASE AND GHOST (from wave 10): on a screen where the keys play the drum sounds, a sound's key held and then OCT- erases that sound's hits from the pattern (playing: as the playhead passes; stopped: every step); OCT- held first and then a key is a ghost hit. So holding a long kick and pressing OCT- for a ghost snare erases the kicks (SAVE + OCT- brings them back). Choose: keep it; or the erase needs the key held 0.5 s before OCT- counts (a quick OCT- under a key is a ghost on the next key instead); or erase moves to hold EDIT + key (the old way, a second place for minus); or the ghost moves to the left of the keyboard only (keys 1 to 8 ghost while OCT- is held, never erase).
-- The hold's view is shown on a voice's sound pages only, not on HOME or the steps.
-- TUNE maps to the pitch column (+-12 semitones, per note) rather than moving the cents of TUNE.
-- A layer button pressed while another layer is held now does nothing (it used to switch the hold to it); with a step held, GLO, SAVE, ARP do nothing (they used to leave the steps).
-- The map banner outlined, amounts boxed, refusals dark grey "--"; the mark a small wave under the ring.
-- DISCO: QUIET's hints at the backlight level (very dim: right for a dark cabin, faint in daylight); SHOW's dance and its screensaver after a minute.
-- THE SCREEN'S BRIGHTNESS is not part of DISCO. Should QUIET also dim the screen (the LCD backlight is the bigger battery cost)?
-- VOICE 3 CORAL AND RECORD RED: coral (255,128,108) and the record red (255,44,52) are close. Where they now sit side by side with voice 3 selected or recording (review/wave11: w11-v3-rec-armed, w11-v3-home-rec, w11-v3-filt-rec): the REC screen's armed row is a red frame around voice 3's coral row; the strip shows voice 3's coral head and number with the red recording dot right after; HOME shows voice 3's coral name inverted with the red dot beside it; a voice 3 header's coral tag sits left of the red beat light and red recording disc. The confirm ring is red with no coral near it (fine). Nothing changed; options: keep; or make the recording dot white with a red ring; or move voice 3 to a less red coral.
-Wave 12, drum sounds per slot
-- Patterns A to D share the project's kit (wave 11 switched to a pattern's own kit number): per-pattern kits would cost 2.4 KB of RAM.
-- One kit question only: loading a whole kit over a changed one (PRESETS on HOME, SAVE > PRESETS, SAVE > KITS LOAD, MIDI Program Change). SAVE > KITS ERASE and SAVE over a kit ask too (they replace a stored kit).
-- A sound keeps its name when edited; HOME says CUSTOM once any slot differs from the kit loaded.
-- Locks on a machine change: carried to the same-named knob at the same share of its range, others dropped and counted; back in the same turn: all back.
-- The sound list: INIT HEX and INIT CLASSIC first, the slot's kind, then all kinds; the group's place shown (SNARE 6/41). The clave each kit holds is not listed.
-- The INITs suit the slot's family (thump, snare, noise burst).
-- The machines named HEX and CLASSIC.
-- SAVE > KITS: six places, places 1 to 4 the old MY HEX until saved over; SAVE into an empty place does not ask.
+- Old DIST, INSERT and sends become FX slots: past three effects the smallest sends go; an INSERT's fourth value (LEVEL into the trim, exact at MIX 100 %; CRUSH LPF and PHASER / FLANGE DEPTH reset to default).
+- The old voice FILT (DJ LP / HP) on a synth voice is moved onto the voice filter when loaded.
+- Old projects with the drum SLICER on and kit-wide sends: close, not exact (16.6 dB under on the test).
 - An old project's copy of a kit it was not playing is kept as MY KIT 5 or 6 (lost when both are used).
-- The user kits are not in the backup page's backup yet.
-- The drum screen: the chip stays the slot; the sound's name on the line under it. No step row on any drum tab, SEQ's TRIG included (Ben confirmed). The synth SEQ screen: unchanged, a question for Ben.
-- Ghost notes: the keys play at TRIG's new-hit velocity (it was a fixed 100); three moves to record a ghost live.
-- Hold LFO on the drums: HEX moves the knob as it rings, CLASSIC at each hit's start (except PITCH CUT RESO LEVEL).
-- QUIET dims the screen in software (9/16); the backlight itself cannot be dimmed without a hal change; no battery saved.
+- Old STUTTER lanes: LP, HP, KILL DRUMS, KILL BASS, FLNG, 1/32, 8T and 16T become the pads they are now; GATE, DROP and LCUT are dropped and counted.
+- A record 2 user preset slot shows as empty on older firmware; stock KARMA cannot read PHEBUS projects.
 
-The screensavers' lines (23 Nov 2026, 14:22)
-- The white line was FLOW's morph wipe: two full-width white rows going down the screen every 15 s (also across THIRD EYE's sky). Gone; the kinds dissolve into each other in soft blobs over 3 s instead.
-- FLOW's "torn sideways" kind is now rows swaying in slow smooth waves; the boot's FLOW the same. The kick no longer tears rows: it swells FLOW's bands softly.
-- One glitch is left, vis_tear (FLOW, DESERT, THIRD EYE): 8 rows nudged 2 to 12 pixels for 160 ms. Idle: one in each 32.8 s slot, 10 to 22 s in (never closer than 20 s). Playing: a kick starts one 1 time in 128, never within 8 s of the last; never two bands at once. HOME's strip has none (it stands still when stopped).
-- Random pick: HOME on HOME opens a different one than the last shown; SEL still walks. The boot picks one of the four from a seed (clock, battery, MASTER pot) and never repeats the last one shown (vis_style, kept when settings next save). The first key press stirs the dice for the first screensaver.
-- Caption "n/4 NAME   SEL: NEXT": grey, black edge, about 2.5 s, fading; no bar.
-- Found on the way: a voice level below 12 never sank to 0 (integer division), so HOME's strip never stopped after playing. Fixed in vis_step.
-- RAM: about 5 bytes more (random state, last picture, the boot's picture, a kick tear's time).
-Wave 13, the PERFORM set and the mixer
-- The black-key layout: V1 V2 V3 on F#3 G#3 A#3, the drum mutes on C#4 D#4 F#4 G#4, REVERSE STOP SWP DN SWP UP on A#4 C#5 D#5 F#5; the strip split 7 + 4 on PERFORM.
-- Snare is SNARE and SNARE 2, RIM is not; held drum mutes add up (heard: what all allow); a muted kick does not DUCK.
-- The isolator: an all-pass sum (within 0.1 dB, phase shifted near 220 Hz and 1.1 kHz), no SLOPE knob; AMOUNT kept; the three pads share their crossovers.
-- CRUSH's start: BITS 9, RATE 2, THIN 20 % (18 dB under the dry mix). MOTION: 150 Hz up to six octaves x DEPTH, a bar a sweep. JET: two bars, 80 % feedback. VOWEL: U O A E I, RATE OFF.
-- SWP UP is a high-pass rising; the sweeps return over 46 ms; SLOPE 24 dB to start.
-- The lane's black keys: the five straight lengths on the first octave, 1/4T 1/8T 1/16T 1/8D 1/16D 1/32 on the second; 1/1 and 1/2 replay the sequencer.
-- Old lanes: LP, HP, KILL DRUMS, KILL BASS, FLNG, 1/32, 8T, 16T converted as listed; GATE, DROP, LCUT dropped and counted.
-- The mixer: one map; OCT+ held with a key solos; OCT- clears all; SEL the pans; a solo anywhere silences everything not soloed (a voice solo silences the drums, a drum solo the voices).
-- Backup object 11 carries the user kits; a backup without it leaves the kits as they are.
-- Patterns A to D still share one kit (options above).
-- CPU on the FM-1 unmeasured: every colour effect stacked costs about 2.3 x the default mix on the host; the compromise to offer is four at once.
-Wave 14, the stutter sequence on FX
-- The header on the lane: tag MIX, title STUTTER (the same tag as FX's MIX pages), rather than STUT. The tab says STUT.
-- The tab row's last resort: when the names cannot fit even at three letters, the -/+ legend keeps its boxes and drops its word (the drums' FX rows; a synth MIX, SLICER or SENDS page after a knob was turned).
-- ALGORITHM on the lane changes the voice and the lane stays.
-- REC on the lane records the lane alone (no voice armed; stopped, only PLAY starts it); REC anywhere else as before.
-- Hold SEQ's halve / double refused on the lane; hold ARP, EDIT and the rest act on the selected voice.
-- A lane step held now blocks the page buttons until let go (as a step held on the steps), so the lights can say it.
-- HOME's PERFORM zone says FX>STUT while no pad is latched.
-The drum grid
-- Hand-played drum keys follow the grid as Ben chose ("Everywhere"): the lowest key is now HAT and the kick is key 4 (it was key 1, as on a General MIDI-like keyboard where the kick is lowest). Recommendation: keep it (one key, one sound on every screen); the MIDI notes in and out stay GM, so an external pad controller is unaffected.
-- SELECT goes round (SNARE to HAT); CHROMATIC's -/+ still stops at either end.
-- PRESETS' sound list keeps its kind order (KICK, KICK 2, SNARE ... COWBELL) after the slot's own kind. Recommendation: keep (it is a list, not a layout); say if it should follow the grid's key order instead.
-- The mixer's M / S tab moved a pixel right and lost a pixel of width so the six-letter names fit.
-The artwork (23 Nov 2026, 20:56): THIRD EYE, DESERT, BEACH
-- THIRD EYE: the eye's white line, its two black echoes and the thin black ring round the iris are gone. Without a line, a black eye vanished into the sky's black bands, so its white is a flat slate (40, 36, 56), a shade no voice colour takes at any level. The eye is 72 x 34 half (was 64 x 30; measured 143 x 68 px against 129 x 61, +11 %), the iris and pupil about 12 % larger, 2 px higher so its lower lid sits where it did. The gaze, the blink and the iris colours are as they were.
-- The dunes of both deserts are drawn by the one function: no bright crest line, no dark contour, only the lit and shaded faces. DESERT's sun is the old one magnified 32/29 (+10 %), rings with it; its outer ring now reaches 72 px over the horizon (was 66). Stars, sky and glow untouched.
-- BEACH, the fifth screensaver: the four characters as they were before the cut (git 9f29506^), 56 x 52 at 1x, IDLE, LEAN (mirrored for the other way) and UP; STRIKE left out. Their outer outline is taken off (flat shapes on the sand); their inner lines in their own dark shade stay. Run-length coded with one black palm (drawn twice, mirrored): 5,660 B of flash data, plus about 2 KB of code (host measure, -Os). RAM: about 58 bytes.
-- The scene: a night sky in flat bands with stars, a low coral sun, two palms swaying a little, the ocean in bands of the four voices (wider as each plays) that bow as they roll in to a shoreline lapping in and out every 5 s or so, darker wet sand, flat shadows under the feet. No outlines, no black between the ocean's bands. The bow is there for the screensavers' rule: no row of one bright colour across the screen (flat horizontal bands broke it).
-- The dance: each character dances on the beat while its own voice sounds (the crocodile with the drums), each a beat on from its neighbour (a ripple: never two side by side in the same pose); a note gives a 2 px hop; otherwise a sway of a pixel or two. QUIET: the whole beach stands still. The other four screensavers still move in QUIET (as before this change); making them stand still is a one-line change if Ben wants it.
-- The boot over BEACH shows the sea, sky and palms without the characters: they broke up the PHE / BUS letters.
-- Host frame time: BEACH about 0.09 ms against THIRD EYE's 0.12 to 0.13 (THIRD EYE was about 0.13 before, its echoes cost). Device speed unknown.
-- VIS_N is 5 in panel.c; the settings word's 4 bits hold it.
-Drum effects under FX
-- FX on the drums in a synth voice's order: INS (kit), SENDS (the sound's), SLICER (kit), MIX, STUT; the kit's FILTER is EDIT's third category KIT FLT.
-- Old projects with the drum SLICER on and kit-wide sends: close, not exact (16.6 dB under on the test). Options: (a) keep (recommended: simple, the sends now behave one way); (b) a hidden per-sound "send after the SLICER" flag set only by the conversion (exact, one more rule nobody can see).
-- The CLASSIC machine's AMP 2/2 is LEVEL alone; option: show its kit's crush there as CRUSH (as HEX has).
-- SELECT does nothing on the drum screen's MIX pages too (as on a synth voice's MIX pages).
-- MIDI CC 91 / 94 on the drum channel set the selected sound's sends.
-- The drum sends are 0..127 like a synth voice's (they were 0..15 and 0..7); an LFO on a send moves it more finely than before.
-- A pattern A to D stored with other kit sends than the project's: its locks fold with its own, its plain hits with the project's.
-PERFORM in columns (23 Nov 2026, 22:07)
-- The grid: REPEAT, TIME, FILTER, COLOUR as four columns, keys top to bottom; no pad moved.
-- The black row's short names 1 2 3 KIK TOP S+C H+S REV STP DN UP (V1 V2 V3 did not fit with room between them).
-- Black keys drawn black till pressed, a line under each name.
-Kick first, the save screen, the bank (23 to 26 Nov)
-- THE TWO KEY ORDERS, a known difference Ben chose: playing by hand, RETRIG and SELECT count the Rytm's way (key 1 KICK, key 4 SNARE, key 13 HAT, key 16 CRASH); the mixer counts down the columns (key 1 HAT, key 4 KICK, key 16 SNARE), as PERFORM's pads do.
-- SAVE > PROJECT is SAVE's first category; PRESETS is the second press.
-- NEW lives on PROJECT (not TOOLS) and empties patterns A to D too; the bank is untouched.
-- SWAP asks with a white ring (nothing is lost); there is no LOAD.
-- Edits made while stopped are written at most 5 s apart (was 20 s): more flash writes, fewer lost edits.
-- Switching off while playing still loses everything since the last stop: nothing can be written while playing without a dropout, and the power switch is not seen by the firmware.
-- THE FLASH CHIP (device-only, needs a hal change, for Ben's permission): fm1_flash.h waits 500 ms for an erase and 10 ms for a page; ChoralRoot 0.32 found these too short for the newer FM-1's UC25HQ80 (JEDEC 0xB36014, accepted by fm1_flash_id.h). On a timeout the driver turns XIP back on while the chip may still be busy: the app may crash (the watchdog restarts it) or the save fails. Each project copy stays safe (A/B), as with a power cut at that write; KEEP and the patterns' writing now stop at a failure. The update loader runs from RAM and verifies every sector, so a timeout there fails the update (retry), it does not leave a wrong image silently.
-- User kits (SAVE > KITS) are written at once even while playing (a ~50 ms gap in the sound), unlike everything else: left as wave 12 built it.
-
-
-### The loader's waits and the watchdog (Ben, 26 Nov 2026, 09:40)
+## The loader's waits and the watchdog (Ben, 26 Nov 2026, 09:40)
 
 - The update loader now waits 2 s for an erase and 50 ms for a page, like the app, so the first install copes with the slower UC25HQ80. Waits only, as Ben allowed: it still returns -4 past them (the update record stays, Install can be pressed again) and never restarts. The installer waits up to 180 s for the loader's next request, so a 2 s erase does not stall it. The loader's own watchdog (~8 s) is fed between sectors.
 - felucca.c ota_erase feeds the watchdog before each erase when PHEBUS stages an update of itself (after ChoralRoot 0.32).
