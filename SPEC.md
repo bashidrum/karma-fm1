@@ -586,3 +586,4 @@ By picker:
 - Repo and site address: "Rename to phebus".
 - Version: "PHEBUS 1.0" (screen shows PHEBUS 1.0; file phebus-1.0.<build>.fwsc).
 - The working record (SPEC, DECISIONS, REVIEW, review folder): "Move it to a private branch".
+- Hosting (corrected: the repo is a fork, so a rename keeps the "forked from" line, and a branch in a public repo is public): "New repo 'phebus', old one private".
