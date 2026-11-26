@@ -1096,7 +1096,11 @@ _Static_assert(sizeof(project_v7_t) <= sizeof(proj_core_t), "format 7 is made in
  * AUTOSAVE_STOP_GAP (the two sectors' wear); else, as before, AUTOSAVE_IDLE untouched and AUTOSAVE_GAP apart (the
  * output then need not be silent: a long tail may hold it). quiet: no voice sounds */
 #define AUTOSAVE_IDLE 2500u                    /* ms without input */
-#define AUTOSAVE_GAP 20000u                    /* ms between two saves at least */
+#define AUTOSAVE_GAP 5000u                     /* ms between two saves at least (the bank's job, Ben 22:45: "turning the device
+                                                * off and on again without having lost what I was working on": it was 20 s, so
+                                                * an edit made while stopped, soon after a save, waited up to 20 s; now as the
+                                                * stop's 5 s. Wear: only a changed project is written, at most one save every
+                                                * 5 s of edit-and-pause, each save one erase of each of a copy's 2 sectors) */
 #define AUTOSAVE_STOP_IDLE 300u                /* after a stop: ms without input (the STOP press itself is input) */
 #define AUTOSAVE_STOP_GAP 5000u                /* after a stop: ms since the last save at least */
 static int autosave_due(uint32_t stop, uint32_t stop_quiet, uint32_t quiet, uint32_t idle, uint32_t gap)

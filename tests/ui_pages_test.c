@@ -53,6 +53,7 @@ static int16_t scope_buf[SCOPE_N], scope_bufr[SCOPE_N];
 static uint32_t scope_w;
 #include "../firmware/src/panel.c"
 #include "../firmware/src/ui.c"
+#ifndef REAL_PROJECT                               /* (tests/bank_test.c: project.c itself, on a simulated NOR) */
 static uint32_t saves, loads, erases;
 static int project_used(uint32_t i) { return i < 2; }
 static void project_save(uint32_t i) { (void)i; saves++; ui_message("SAVED"); }
@@ -94,6 +95,7 @@ static int bank_summary(uint32_t *npat, int32_t *bpm, char *kit)
     str_cpy(kit, bank_kit, 9);
     return bank_has;
 }
+#endif
 static int up_used(uint32_t k) { return k < 2; }
 static int up_load(uint32_t k) { (void)k; return 0; }
 static int up_load_to(track_t *t, uint32_t k) { (void)t; (void)k; return 0; }
@@ -105,7 +107,9 @@ static void up_name(uint32_t k, char *b) { str_cpy(b, k ? "MY PAD" : "MY LEAD", 
 static void up_slot_label(char *b, uint32_t k) { fmt_int(b, (int32_t)k + 1); }
 static uint32_t up_ops[3];
 static void up_ui(uint32_t op, uint32_t k) { up_ops[op % 3u]++; (void)k; }
+#ifndef REAL_PROJECT
 static void settings_save(void) {}
+#endif
 #include "../firmware/src/ui_studio.c"
 #include "../firmware/src/ui_op.c"
 #include "../firmware/src/icons.c"
