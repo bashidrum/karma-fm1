@@ -12,8 +12,8 @@ Three things and nothing else: melodic voices that work like the Arturia MiniFre
 
 ---
 
-> **Status: unreleased, personal firmware.** Nothing in this repository has been run on a real FM-1 yet. Newer FM-1 units
-> have a changed chip and can be bricked by custom firmware: do not flash PHEBUS until the unit's chip revision is checked.
+> **Status: unreleased, personal firmware.** Nothing in this repository has been measured on a real FM-1 yet. Newer FM-1
+> units have a slower flash chip (UC25HQ80); PHEBUS and its update loader wait for it. Back up first (see GUIDE.md section 11).
 
 ## What PHEBUS is
 
