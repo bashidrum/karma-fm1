@@ -5364,8 +5364,22 @@ int main(int argc, char **argv)
         check(pkit.base == kit_src(8) && kit_changed() && pkit.s[2].snd[7] == 20u, "w12: SAVE + OCT-: the changed kit back, its edit in it");
         /* SAVE > KITS */
         frames(40);                                       /* (the knobs wait a moment after a layer: #39) */
-        tap(B_SAVE); tap(B_SAVE); tap(B_SAVE); tap(B_SAVE); frames(40);
-        check(cur_cat() == CT_KITS, "w12: SAVE four times: KITS (after PROJECT, PRESETS, USER)");
+        tap(B_SAVE); tap(B_SAVE); tap(B_SAVE); frames(40);
+        check(cur_cat() == CT_KITS, "w12: SAVE three times: KITS (after PROJECT, PRESETS; U7: no USER on the drums)");
+        {   /* (review 26 Nov, U7, Ben's picker "Skip USER on drums") SAVE's walk on the drum voice leaves USER out; a synth
+             * voice's keeps it */
+            uint32_t j2, user = 0, ng2;
+            nav_group(B_SAVE, &ng2);
+            for (j2 = 0; j2 < ng2 + 1u; j2++) { tap(B_SAVE); frames(2); user += cur_cat() == CT_USER; }
+            check(!user && is_drum(TSEL), "U7: SAVE round on the drum voice: never USER");
+            track_select(0); frames(2);
+            nav_group(B_SAVE, &ng2);
+            for (j2 = 0; j2 < ng2 + 1u; j2++) { tap(B_SAVE); frames(2); user += cur_cat() == CT_USER; }
+            check(user >= 1u, "U7: ... a synth voice's SAVE still has USER");
+            track_select(TRK_DRUM); frames(2);
+            go_home(); frames(40); tap(B_SAVE); tap(B_SAVE); tap(B_SAVE); frames(40);
+            ui.force = 1; frame(); ppm("u7-drum-save-kits");
+        }
         ui.force = 1; frame(); ppm("w12-save-kits");
         encs[panel.enc[EN_K4]] = 1; frame();
         check(ui.ask == ASK_UKIT && str_eq(ui.msg, "HOLD SAVE: SAVE OVER MY HEX 1"), "w12: SAVE over an old MY HEX kit asks");

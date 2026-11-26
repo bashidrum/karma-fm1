@@ -35,7 +35,9 @@ static const uint8_t NAV_DRUM[NB][6] = {               /* the drum voice, parall
     [B_SEQ] = {CT_TRIG, CT_PATT, CT_PATTS},             /* (wave 10, Ben: "in charge of patterns") */
     [B_ARP] = {CT_CHROM},
     [B_GLO] = {CT_GLOBAL, CT_SYSTEM, CT_MIDI, CT_DEVICE},
-    [B_SAVE] = {CT_PROJ, CT_PRESETS, CT_USER, CT_KITS, CT_SPATT, CT_TOOLS},   /* (wave 12: KITS; the bank: PROJECT first) */
+    [B_SAVE] = {CT_PROJ, CT_PRESETS, CT_KITS, CT_SPATT, CT_TOOLS},   /* (wave 12: KITS; the bank: PROJECT first. Review 26
+                                                         * Nov, Ben's picker "Skip USER on drums": user presets are the synth
+                                                         * voices', the drums' walk leaves USER out) */
     [B_HOME] = {CT_HOME, CT_SAVER},
 };
 static const char *const CT_NAME[CT_N] = {
