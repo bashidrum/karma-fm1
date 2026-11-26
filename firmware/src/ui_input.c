@@ -606,7 +606,7 @@ static void midi_entry(void)                              /* (top of ui_input: e
                                                          * take, and not when MIDI plays that track too: an external
                                                          * sequencer on the other tracks does not flash it) */
             char b[2] = {(char)('1' + tr), 0};
-            ui_say("MIDI PLAYS TRACK ", b);
+            ui_say("MIDI PLAYS VOICE ", b);
             rh_st = 2;
         } else if (rec_arm && tr == rec_trk) {
             rh_st = 2;

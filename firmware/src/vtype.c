@@ -15,13 +15,13 @@ typedef struct {
     const char *lab[5];          /* their names (0: the engine's) */
 } vtype_t;
 #define VT_PLX(k) ((uint8_t)(PRM_PLX + (k)))
-#define VT_PL(md, nm, bg, a, b, c) {ENGI_PRISM, md, nm, bg, {1, 2, 3, 4, 5}, {a, b, c, "T.ENV", "SUB"}}
+#define VT_PL(md, nm, bg, a, b, c) {ENGI_PRISM, md, nm, bg, {1, 2, 3, 4, 5}, {a, b, c, "T ENV", "SUB"}}
 #define VT_EL(md, nm, bg) {ENGI_ELEM, md, nm, bg, {1, 2, 3, 6, 4}, {0, 0, 0, 0, 0}}
 static const vtype_t VTYPES[] = {
     {ENGI_ACID, 0xFF, "ACID", "ACID 303", {0, 5, 7, 0xFF, 0xFF}, {"WAVE", "ACCENT", "SLIDE", 0, 0}},
     {ENGI_JUNO, 0xFF, "JUNO", "JUNO DCO", {0, 1, 2, 3, 7}, {"WAVE", "PW", "SUB", "NOISE", "CHORUS"}},
     VT_PL(VT_PLX(0), "VA", "VA", "DETUNE", "SQUARE", "SAW"),
-    VT_PL(VT_PLX(1), "VCF", "VA VCF", "F.RES", "F.CUT", "WAVE"),
+    VT_PL(VT_PLX(1), "VCF", "VA VCF", "F RES", "F CUT", "WAVE"),
     VT_PL(PRM_FOLD, "FOLD", "FOLD", "SHAPE", "FOLD", "SKEW"),
     VT_PL(VT_PLX(2), "PHDIS", "PHASE D", "FREQ", "AMOUNT", "ASYM"),
     VT_PL(VT_PLX(3), "FM", "2-OP FM", "RATIO", "INDEX", "FDBK"),

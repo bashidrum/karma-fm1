@@ -502,7 +502,7 @@ static void dmap_dials(uint32_t *cache)                  /* the four dials while
         return;
     }
     for (k = 0; k < 4u; k++) {
-        int32_t x0 = 2 + 60 * (int32_t)k, vx = x0 + DIAL_VX, vw = dial_w(v[k]);
+        int32_t x0 = 2 + 60 * (int32_t)k, vx = x0 + dial_vx(v[k]), vw = dial_w(v[k]);
         uint32_t hot = ui.hot_t && ui.hot_col == k;
         uint16_t lc = st[k] == 2u ? col : TE_G2, vc = st[k] == 2u ? (amt[k] ? col : TE_G3) : TE_G2;
         if (!st[k])
@@ -517,7 +517,7 @@ static void dmap_dials(uint32_t *cache)                  /* the four dials while
             map_ring(x0 + 7, 38, 6, amt[k], col, TE_G2);
         else
             te_dial(x0 + 7, 38, 6, -1, TE_G1, TE_G1);
-        dial_over += vw > DIAL_VW - 3;
+        dial_over += dial_wide(v[k]);
         if (st[k] == 2u && amt[k])
             op_box(vx - 3, 21, vw + 5, 34, col);
         cv_text_tall_n(vx, 22, v[k], vc, dial_adv(v[k]));

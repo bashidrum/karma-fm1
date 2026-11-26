@@ -435,7 +435,7 @@ static int locks_fit(const track_t *t, uint32_t pg, uint32_t held, uint32_t id)
         need += ((held >> w) & 1u) && pg * 16u + w < trk_len(t) && lock_find(t, pg * 16u + w, id, 0) < 0;
     if (need <= fr)
         return 1;
-    ui_message(fr ? "LOCKS FULL: HOLD FEWER STEPS" : "LOCKS FULL: 24 A TRACK");
+    ui_message(fr ? "LOCKS FULL: HOLD FEWER STEPS" : "LOCKS FULL: 24 A VOICE");
     return 0;
 }
 /* the steps held: a lock of id moved s (made at the track's value first) */

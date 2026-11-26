@@ -343,7 +343,7 @@ static void nav_tabs(uint16_t col, const char *banner, uint32_t *cache)
         }
         for (i = 0; i < ng; i++) {
             str_cpy(nm[i], CT_NAME[g[i]] ? CT_NAME[g[i]] : "", sizeof nm[i]);
-            tw += text_w(&FONT_S, nm[i]) + (i ? gap : 0) + (nav_div(g[i]) && i ? 8 : 0);
+            tw += cv_text_tight(0, 0, nm[i], 0, 0) + (i ? gap : 0) + (nav_div(g[i]) && i ? 8 : 0);
         }
         for (bare = 0; bare < 4u; bare++) {             /* 0 all; 1 the legend's word gone; 2 the page count too; 3 (SAVE's
                                                          * six) the legend too */
@@ -362,7 +362,7 @@ static void nav_tabs(uint16_t col, const char *banner, uint32_t *cache)
             cv_text(xr + 6, 5, &FONT_S, p, nav_mix_cat(c) ? C_WHITE : col == TE_G4 ? TE_G4 : col);
     }
     for (i = 0; i < ng; i++) {
-        int32_t w = text_w(&FONT_S, nm[i]);
+        int32_t w = cv_text_tight(0, 0, nm[i], 0, 0);   /* (V1: LFO 1 set tight, its space 3 px, the gap 6) */
         int mix = nav_mix_cat(g[i]);
         uint16_t cc = mix ? C_WHITE : col;
         if (i < 4u)
@@ -373,9 +373,9 @@ static void nav_tabs(uint16_t col, const char *banner, uint32_t *cache)
         }
         if (g[i] == c) {
             cv_rect(x - 2, 4, w + 4, 17, cc);
-            cv_text(x, 5, &FONT_S, nm[i], C_BLACK);
+            cv_text_tight(x, 5, nm[i], C_BLACK, 1);
         } else {
-            cv_text(x, 5, &FONT_S, nm[i], mix ? TE_G4 : col == TE_G4 ? TE_G3 : TE_MID[v]);
+            cv_text_tight(x, 5, nm[i], mix ? TE_G4 : col == TE_G4 ? TE_G3 : TE_MID[v], 1);
         }
         x += w + gap;
     }

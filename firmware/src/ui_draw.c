@@ -92,11 +92,11 @@ static void draw_column(uint32_t c, const char *label, const char *val, const ch
     char l[8], v[10], u[8];
     (void)icon;
     fit(l, label, &FONT_S, 54);
-    fit(v, val, &FONT_S, is_eng_name(val) ? 56 : 48);   /* engine names whole */
+    fit(v, val, &FONT_S, is_eng_name(val) ? 56 : 54);   /* engine names whole; (review V2) six letters */
     fit(u, unit, &FONT_S, 54 - text_w(&FONT_S, v) - 3);
     if (c < 4u) {                                       /* (the big values: their own fit) */
         str_cpy(ui.big_l[c], l, 8);
-        fit(ui.big_v[c], val, &FONT_L, 112 - (unit[0] ? 4 : 0));
+        fit(ui.big_v[c], val, &FONT_S, 112);            /* (review V3: printed in its row, small type) */
         str_cpy(ui.big_u[c], unit, 8);
         ui.big_c[c] = vc;
         str_cpy(opk.lab[c], l, 8);
@@ -875,7 +875,7 @@ static void draw_graph(void)
         graph_scope(c);
 #endif
     } else if (drum_note) {                          /* a page the drum track has no use for */
-        static const char *const L[2] = {"DRUM TRACK", "SEQ  TRACKS  GLO DRUMS"};
+        static const char *const L[2] = {"DRUM VOICE", "SEQ  TRACKS  GLO DRUMS"};
         cv_text((240 - text_w(&FONT_S, L[0])) / 2, 26, &FONT_S, L[0], C_HI);
         cv_text((240 - text_w(&FONT_S, L[1])) / 2, 52, &FONT_S, L[1], C_DIM);
     } else {
@@ -1051,7 +1051,7 @@ static void draw_columns_set(void)
         const track_t *t = TSEL;
         uint32_t lvl = trk_level(song.sel);
         fmt_int(val, (int32_t)song.sel + 1);
-        draw_column(0, "TRACK", val, "/4", VAL(0u), (int32_t)song.sel * 1000 / (NTRK - 1), ICON_AUTO);
+        draw_column(0, W_VOICE, val, "/4", VAL(0u), (int32_t)song.sel * 1000 / (NTRK - 1), ICON_AUTO);
         if (!lvl || t->p[P_MUTE]) {                    /* (MUTE: a turn of KNOB 2 unmutes, tracks_edit) */
             str_cpy(val, "MUTE", 12);
             unit = "";
@@ -1099,7 +1099,7 @@ static void draw_columns_set(void)
         str_cpy(u, "/", 8);
         fmt_int(u + 1, (int32_t)total);
         draw_column(0, "No.", val, u, VAL(0u), -1, ICON_NONE);
-        draw_column(1, "ENG", ENGINES[TSEL->eng_req]->name, "", VAL(1u), -1, engine_icon(ENGINES[TSEL->eng_req]->name));
+        draw_column(1, "ENG", word_short(ENGINES[TSEL->eng_req]->name), "", VAL(1u), -1, engine_icon(ENGINES[TSEL->eng_req]->name));
         draw_column(2, "", "", "", C_HI, -1, ICON_AUTO);
         draw_column(3, "", "", "", C_HI, -1, ICON_AUTO);
         return;

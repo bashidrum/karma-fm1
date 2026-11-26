@@ -265,7 +265,7 @@ static void syn_fx_slots(const track_t *t, uint32_t cur, uint16_t c, uint16_t cd
         int32_t x = 2 + (int32_t)k * 79, ty = clamp(t->p[P_XS(k, 0)], 0, XT_N - 1);
         if (xt_send(ty))
             ty = XT_OFF;                                /* (wave 8: no slot type: shown as it plays, OFF) */
-        char lb[4] = {'F', 'X', (char)('1' + k), 0};
+        char lb[5] = {'F', 'X', ' ', (char)('1' + k), 0};   /* (review V2: FX 1) */
         uint16_t fg = ty ? (k == cur ? C_WHITE : c) : TE_G3;
         if (k == cur)
             cv_rect(x, 2, 77, 40, cd);
@@ -362,6 +362,24 @@ static void syn_sends(const track_t *t, uint16_t c, uint16_t cd)
 }
 /* (wave 5) the grid (mock-synth-mod-A): the sources down, the destinations across (seven at a time, the cursor's half), a dot
  * a cell, as large as its amount, a ring when negative, the cursor framed white */
+/* (review V2) a name with a space (LFO 1, FX 1) set tight: the space 3 px, so a grid's column of 32 px keeps it whole and apart;
+ * draw 0: only its width */
+static int32_t cv_text_tight(int32_t x, int32_t y, const char *s, uint16_t c, int draw)
+{
+    int32_t x0 = x;
+    char b[2] = {0, 0};
+    for (; *s; s++) {
+        if (*s == ' ') {
+            x += 3;
+            continue;
+        }
+        b[0] = *s;
+        if (draw)
+            cv_text(x, y, &FONT_S, b, c);
+        x += text_w(&FONT_S, b);
+    }
+    return x - x0;
+}
 static void syn_matrix(const track_t *t, uint16_t c)
 {
     uint8_t cols[MD_N];
@@ -371,8 +389,8 @@ static void syn_matrix(const track_t *t, uint16_t c)
     for (j = j0; j < j0 + 6u && j < n; j++) {           /* (wave 11: an assignable column is named by its parameter, white-grey
                                                          * as every head; "+" the empty one that makes another) */
         mx_col_name(ti, cols[j], nm);
-        cv_text(38 + (int32_t)(j - j0) * 32 + (32 - text_w(&FONT_S, nm)) / 2, 0, &FONT_S, nm,
-                j == cp ? C_WHITE : cols[j] >= MD_AS1 ? TE_G4 : TE_G3);
+        cv_text_tight(38 + (int32_t)(j - j0) * 32 + (32 - cv_text_tight(0, 0, nm, 0, 0)) / 2, 0, nm,
+                      j == cp ? C_WHITE : cols[j] >= MD_AS1 ? TE_G4 : TE_G3, 1);
     }
     if (j0)                                             /* (more columns either side: the cursor slides the view) */
         cv_text(31, 0, &FONT_S, "<", TE_G2);
@@ -380,7 +398,7 @@ static void syn_matrix(const track_t *t, uint16_t c)
         cv_text(232, 0, &FONT_S, ">", TE_G2);
     for (r = 0; r < MS_N; r++) {
         int32_t y = 16 + (int32_t)r * 13;
-        cv_text(2, y - 2, &FONT_S, N_MSRC[r], r == (uint32_t)mx_row ? C_WHITE : TE_G4);
+        cv_text_tight(2, y - 2, N_MSRC[r], r == (uint32_t)mx_row ? C_WHITE : TE_G4, 1);
         for (j = j0; j < j0 + 6u && j < n; j++) {
             uint32_t d = cols[j];
             int32_t x = 38 + (int32_t)(j - j0) * 32 + 16, a = mx_get(ti, r, d), cy = y + 5, rad;
@@ -437,7 +455,7 @@ static void syn_body(track_t *t, const page_t *pg, uint32_t half, uint32_t *cach
         fmt_int(sub + str_len(sub), (int32_t)NVTYPE);
         if (ty < NVTYPE && VTYPES[ty].eng == ENGI_PRISM && prism_model(t) >= PRM_PLX &&
             plx_stride(prism_model(t) - PRM_PLX) > eng_arena_size(t))
-            str_cpy(sub + str_len(sub), "  NOT ON THIS TRACK", 20);   /* (the device build's limit: engines.c) */
+            str_cpy(sub + str_len(sub), "  NOT ON THIS VOICE", 20);   /* (the device build's limit: engines.c) */
         if (half == 1u) {                               /* OCT TUNE GLIDE VOICE: the pitch on a scale of +-3 octaves, the
                                                          * voice's ways */
             int32_t px = 120 + (t->p[P_OCT] * 1200 + t->p[P_TUNE]) * 108 / 3600, o;
@@ -526,7 +544,7 @@ static void syn_body(track_t *t, const page_t *pg, uint32_t half, uint32_t *cach
             cv_blit(0, 22);
             return;
         }
-        str_cpy(big, pg->graph == GR_LFO2 ? "LFO 2" : "LFO", 16);
+        str_cpy(big, pg->graph == GR_LFO2 ? "LFO 2" : W_LFO1, 16);   /* (review V2: LFO 1) */
         if (pg->graph == GR_LFO2) {                     /* (wave 5) the second LFO, running */
             const mxt_t *m = &mxt[song.sel % NPART];
             int32_t x, py = SP_M, ny = SP_M, a;

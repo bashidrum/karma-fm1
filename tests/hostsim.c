@@ -37,6 +37,9 @@ static void fm1_irq_on(void) {}
 #include "../firmware/src/engines.c"
 #include "../firmware/src/drums.c"
 #include "../firmware/src/params.c"
+#ifndef PHEBUS_UI                       /* (review U5) GLO > DEVICE's knobs are the UI's (ui_menu.c): none in a test without it */
+static const param_desc_t *dev_desc(uint32_t id, int16_t **valp) { (void)id; *valp = 0; return 0; }
+#endif
 #include "../firmware/src/voice.c"
 #include "../firmware/src/slicer.c"
 #include "../firmware/src/fx.c"

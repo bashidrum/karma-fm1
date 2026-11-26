@@ -18,6 +18,7 @@
  *   DRUMS   the grid: sound / step / hit / level knobs, GRID <-> KIT
  * then 20000 frames of random use: every draw stays on the screen. */
 #define FELUCCA_ARRANGER 1
+#define PHEBUS_UI 1                             /* (the UI is in: ui_menu.c's dev_desc) */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
@@ -1108,7 +1109,7 @@ int main(int argc, char **argv)
                     printf("ui:   page %s knob %u: global %u has no description\n", PAGES[pg].title, (unsigned)k + 1, (unsigned)PAGES[pg].id[k]);
                     ok = 0;
                 }
-        check(ok, "every global parameter on a page has a description (GLOBAL CLICK, TOOLS CLRSQ ...)");
+        check(ok, "every global parameter on a page has a description (GLOBAL CLICK, TOOLS CLEAR ...)");
     }
     open_family(FAM_GLO); ui.force = 1; frame(); ppm("page-master");
     open_family(FAM_SCL); ui.force = 1; frame(); ppm("page-scale");
@@ -1638,7 +1639,7 @@ int main(int argc, char **argv)
         }
         encs[panel.enc[EN_K4]] = 2; frame();                 /* N.DEC locked too */
         press(B_OCTDN); release(B_OCTDN);
-        check(dt_lk(4, 2, DSP_S0 + DS_NDEC) < 0 && dt_lk(4, 2, DSP_S0 + DS_DECAY) >= 0 && str_eq(ui.msg, "LOCK OFF: N.DEC"),
+        check(dt_lk(4, 2, DSP_S0 + DS_NDEC) < 0 && dt_lk(4, 2, DSP_S0 + DS_DECAY) >= 0 && str_eq(ui.msg, "LOCK OFF: NS DEC"),
               "drum lock: OCT- removes the lock of the knob last turned (N.DEC), the other stays");
         press(B_OCTDN); release(B_OCTDN);
         check(dt_lk_n(4, 2) == 0u && dt_has(4, 2), "drum lock: OCT- again: every lock of the trig goes (the trig stays)");
@@ -2451,7 +2452,7 @@ int main(int argc, char **argv)
         {   /* PHEBUS, 21 Nov 2026 (Ben: "Merge and move"): each voice's chain without the shared effects, LFO 2 named
              * LFO SYNC; DLY, REV/CHO under GLO, neutral; every parameter still on a page (CLOUD, TEXTURE: cut, wave 1) */
             /* (PHEBUS wave 4, Ben: "The same layout on every voice") the same chain on every synth engine */
-#define SYN_CHAIN "OSC|OSC 2|OSC 3|OSC 4|FILT|FILT 2|ENV|FILT ENV|FX 1|FX 2|FX 3|SENDS|SLICER|LFO|LFO SYNC|LFO 2|MATRIX"   /* (wave 8: SENDS) */
+#define SYN_CHAIN "OSC|OSC 2|OSC 3|OSC 4|FILT|FILT 2|ENV|FILT ENV|FX 1|FX 2|FX 3|SENDS|SLICER|LFO 1|LFO SYNC|LFO 2|MATRIX"   /* (wave 8: SENDS) */
             static const char *const WANT[5] = {SYN_CHAIN, SYN_CHAIN, SYN_CHAIN, SYN_CHAIN,
                 ""};   /* (wave 8: the drum voice's pages are its drum screen's, SRC FLTR AMP LFO FX) */
 #undef SYN_CHAIN
@@ -2523,20 +2524,20 @@ int main(int argc, char **argv)
         check(song.g[G_BPM] > bpm, "the tempo: GLO > GLOBAL, KNOB 1 BPM");
         song.g[G_BPM] = bpm; go_home(); frame();
         tap(B_LFO);
-        check(!strcmp(PT(), "LFO") && cur_cat() == CT_LFO1, "LFO opens its first category, LFO 1");
+        check(!strcmp(PT(), "LFO 1") && cur_cat() == CT_LFO1, "LFO opens its first category, LFO 1");
         {   int16_t w0 = trk[0].p[P_LWAVE];
             SEL(1);
-            check(!strcmp(PT(), "LFO") && trk[0].p[P_LWAVE] == w0 + 1 && song.g[G_BPM] == bpm,
+            check(!strcmp(PT(), "LFO 1") && trk[0].p[P_LWAVE] == w0 + 1 && song.g[G_BPM] == bpm,
                   "SELECT on LFO 1: its WAVE (the type), not a page, not the tempo");
             trk[0].p[P_LWAVE] = w0; }
         tap(B_SCL);
-        check(!strcmp(PT(), "LFO SYNC"), "SEL (PAGE) on LFO 1: its sync page, LFO SYNC");
+        check(!strcmp(PT(), "LFO SYNC"), "SEL (PAGE) on LFO 1: its sync page, LFO 1 SYNC");
         ui.force = 1; frame(); ppm("page-lfo-sync");
-        tap(B_SCL); check(!strcmp(PT(), "LFO"), "SEL again: round to LFO");
+        tap(B_SCL); check(!strcmp(PT(), "LFO 1"), "SEL again: round to LFO 1");
         tap(B_LFO); check(!strcmp(PT(), "LFO 2"), "LFO again: LFO 2 (the next category)");
         tap(B_SCL); check(!strcmp(PT(), "LFO 2"), "SEL on LFO 2 (one page): nothing");
         tap(B_LFO); check(!strcmp(PT(), "MATRIX"), "LFO again: MATRIX");
-        tap(B_LFO); check(!strcmp(PT(), "LFO"), "LFO again: round to LFO 1");
+        tap(B_LFO); check(!strcmp(PT(), "LFO 1"), "LFO again: round to LFO 1");
         go_home(); tap(B_FX); tap(B_FX);
         check(!strcmp(PT(), "SENDS") && PAGES[ui.page].id[0] == P_DLY && PAGES[ui.page].id[1] == P_REV && PAGES[ui.page].id[2] == P_CHOR,
               "FX, FX: the voice's SENDS (DELAY REVERB CHORUS: its own amounts)");
@@ -2870,7 +2871,7 @@ int main(int argc, char **argv)
         check(!vis_shown() && !vis_on, "visualiser: HOME closes it");
         encs[panel.enc[EN_SELECT]] = 1; frames(2);
         tap(B_LFO); frames(2);
-        check(!vis_shown() && !vis_on && !strcmp(PAGES[ui.page].title, "LFO"), "visualiser: a page button closes it and opens its page");
+        check(!vis_shown() && !vis_on && !strcmp(PAGES[ui.page].title, "LFO 1"), "visualiser: a page button closes it and opens its page");
         transport_req = 2; frames(4);
         for (j = 0; j < NTRK; j++) steps_clear(&trk[j]);
         vis_style = 0; song.sel = 0; go_home(); frames(20);
@@ -2922,7 +2923,7 @@ int main(int argc, char **argv)
             go_home(); frame();
             ui.msg[0] = 0; song.rec = 1;                  /* (2.6) recording track 1: a keyboard on track 2's channel */
             MIN(1, 60, 100); MIN(1, 60, 0); frame();
-            check(!strcmp(ui.msg, "MIDI PLAYS TRACK 2"), "REC on track 1, a MIDI note on CH 2: \"MIDI PLAYS TRACK 2\" (not recorded)");
+            check(!strcmp(ui.msg, "MIDI PLAYS VOICE 2"), "REC on voice 1, a MIDI note on CH 2: \"MIDI PLAYS VOICE 2\" (not recorded)");
             ui.msg[0] = 0;
             MIN(1, 62, 100); MIN(1, 62, 0); frame();
             check(!ui.msg[0], "  said once a take (an external sequencer on track 2 does not flash it)");
@@ -2942,8 +2943,8 @@ int main(int argc, char **argv)
             go_home(); frame();
             pc_req[1] = 1;                                /* PC 0 on track 2's channel: the first sound of the list */
             frame();
-            check(trk[1].eng_req == BANK[x0].e && trk[1].preset == bank_pi[x0] && !strncmp(ui.msg, "TRACK 2 PROG 0", 14),
-                  "MIDI Program Change 0: track 2 takes the first sound of its PRESETS list (TRACK 2 PROG 0)");
+            check(trk[1].eng_req == BANK[x0].e && trk[1].preset == bank_pi[x0] && !strncmp(ui.msg, "VOICE 2 PROG 0", 14),
+                  "MIDI Program Change 0: track 2 takes the first sound of its PRESETS list (VOICE 2 PROG 0)");
             pc_req[3] = 3;                                /* PC 2 on the drum channel: kit 2 (an unchanged kit: at once) */
             frame();
             check(pkit.base == 2u && !ui.ask, "MIDI Program Change on the drum channel: kit 2, all 16 slots (wave 12)");
@@ -3059,7 +3060,7 @@ int main(int argc, char **argv)
                       "GLO > MIDI: CH1 CH2 CH3 CH4 (the drums); MIDI 2: IN OTHER OUT BEND; CH4 0 reads OFF");
                 song.g[G_CH2] = 2, frame();
                 K(EN_K2, 1);                              /* CH2 2 -> 3: track 3's: on to 4 */
-                check(song.g[G_CH2] == 4 && !strcmp(ui.msg, "CH 3 = TRACK 3"), "GLO > MIDI: CH2 turned onto track 3's channel: on to 4, \"CH 3 = TRACK 3\"");
+                check(song.g[G_CH2] == 4 && !strcmp(ui.msg, "CH 3 = VOICE 3"), "GLO > MIDI: CH2 turned onto track 3's channel: on to 4, \"CH 3 = VOICE 3\"");
                 K(EN_K2, -1);                             /* back: 3 taken, on to 2 */
                 check(song.g[G_CH2] == 2, "  turned back: over 3 again, to 2");
                 K(EN_K4, -7);                             /* DR CH 10 -> 3: track 3's, then 2, 1 (taken): OFF */
@@ -3849,7 +3850,7 @@ int main(int argc, char **argv)
          * question (nothing recorded), REC held until the ring fills does it */
         static const struct { const char *page; uint8_t knob; const char *q; } AK[] = {
             {"USER", 1, "HOLD SAVE: LOAD 1"}, {"USER", 2, "HOLD SAVE: ERASE 1"}, {"USER", 3, "HOLD SAVE: SAVE 1"},
-            {"TOOLS", 0, "HOLD SAVE: CLRSQ"}, {"TOOLS", 1, "HOLD SAVE: INIT"}, {"PROJECT", 3, "HOLD SAVE: NEW, BANK KEPT"}};
+            {"TOOLS", 0, "HOLD SAVE: CLEAR"}, {"TOOLS", 1, "HOLD SAVE: INIT"}, {"PROJECT", 3, "HOLD SAVE: NEW, BANK KEPT"}};
         song.playing = 0; song.sel = 0; ui.uslot = 0;
         for (k = 0, ok = 1; k < NELEM(AK); k++) {
             uint32_t pg, before;
@@ -3871,8 +3872,8 @@ int main(int argc, char **argv)
             ok &= !ui.ask && !song.rec && !rec_wait;
         }
         check(ok && up_ops[0] == 1u && up_ops[1] == 1u && up_ops[2] == 1u,
-              "confirm: USER LOAD / ERASE / SAVE, TOOLS CLRSQ / INIT and PROJECT NEW ask, a second turn nothing, SAVE tap no, SAVE held yes");
-        check(!step_on(&trk[0].step[2]), "confirm: TOOLS CLRSQ, confirmed: the pattern cleared");
+              "confirm: USER LOAD / ERASE / SAVE, TOOLS CLEAR / INIT and PROJECT NEW ask, a second turn nothing, SAVE tap no, SAVE held yes");
+        check(!step_on(&trk[0].step[2]), "confirm: TOOLS CLEAR, confirmed: the pattern cleared");
         /* no action is reached by a second press: a GO turned twice in a row, quickly, does nothing */
         {
             uint32_t pg;
@@ -4832,7 +4833,7 @@ int main(int argc, char **argv)
         /* the one last shown */
         check(chain_goto(FAM_MOD, "LFO 2"), "w11: LFO 2 shown");
         check(chain_goto(FAM_FLT, "FILT") && map_lfo2 == 1, "w11: ... then FILT: LFO 2 is the one last shown");
-        check(chain_goto(FAM_MOD, "LFO"), "w11: LFO 1 shown");
+        check(chain_goto(FAM_MOD, "LFO 1"), "w11: LFO 1 shown");
         check(chain_goto(FAM_FLT, "FILT") && map_lfo2 == 0, "w11: ... then FILT: LFO 1");
         /* ENV: the amp envelope (last shown) cannot move its own times; the filter's can */
         check(chain_goto(FAM_ENV, "ENV"), "w11: ENV (AMP)");
@@ -4871,7 +4872,7 @@ int main(int argc, char **argv)
         {
             static const char *const TI[][2] = {{"OSC", 0}, {"OSC 2", 0}, {"OSC 3", 0}, {"OSC 4", 0}, {"FILT", 0}, {"FILT 2", 0},
                                                  {"ENV", 0}, {"FILT ENV", 0}, {"FX 1", 0}, {"FX 2", 0}, {"FX 3", 0}, {"SENDS", 0},
-                                                 {"SLICER", 0}, {"LFO", 0}, {"LFO SYNC", 0}, {"LFO 2", 0}, {"MATRIX", 0}};
+                                                 {"SLICER", 0}, {"LFO 1", 0}, {"LFO SYNC", 0}, {"LFO 2", 0}, {"MATRIX", 0}};
             static const uint8_t FA[] = {FAM_OSC, FAM_OSC, FAM_OSC, FAM_OSC, FAM_FLT, FAM_FLT, FAM_ENV, FAM_ENV, FAM_FX, FAM_FX,
                                          FAM_FX, FAM_FX, FAM_FX, FAM_MOD, FAM_MOD, FAM_MOD, FAM_MOD};
             uint32_t i;
@@ -5060,7 +5061,7 @@ int main(int argc, char **argv)
     }
     {   /* ---- wave 11: the new views keep in their columns and to the colour rule */
         uint32_t over0 = dial_over, bad = 0, v, i;
-        static const char *const PG[] = {"FILT", "ENV", "FX 1", "LFO", "OSC"};
+        static const char *const PG[] = {"FILT", "ENV", "FX 1", "LFO 1", "OSC"};
         static const uint8_t FA[] = {FAM_FLT, FAM_ENV, FAM_FX, FAM_MOD, FAM_OSC};
         for (v = 0; v < NPART; v++) {
             track_select(v); go_home(); frames(2);
@@ -5094,7 +5095,7 @@ int main(int argc, char **argv)
             for (j = 0; j < NELEM(IDS); j++) mx_map_set(0, MS_LFO2, IDS[j], 9);
             fm1_irq_on();
             n = mx_vis(0, cols);
-            for (j = 0; j < n; j++) { mx_col_name(0, cols[j], nm); wide += text_w(&FONT_S, nm) > 28; }
+            for (j = 0; j < n; j++) { mx_col_name(0, cols[j], nm); wide += cv_text_tight(0, 0, nm, 0, 0) > 28; }   /* (V2: FX 1 set tight) */
             chain_goto(FAM_MOD, "MATRIX"); mx_col = cols[n - 1u]; frames(2); ui.force = 1; frame(); ppm("w11-matrix-full");
             check(n == MD_NFIX + 19u && !wide && px_count(0, 0, 240, OP_BAR_Y, TE_COL[1]) + px_count(0, 0, 240, OP_BAR_Y, TE_COL[2]) == 0u,
                   "w11: MATRIX with 19 parameter columns: each name fits its column, the view scrolls to the last, voice 1's colours only");

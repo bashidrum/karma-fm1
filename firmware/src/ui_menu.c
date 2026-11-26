@@ -7,8 +7,7 @@
  * turns it. MIDI LEARN's CLEAR moved beside LEARN (GLO > MIDI 3). TOOLS: CALIB (the hardware calibration) and ABOUT, opened
  * by a turn right; ABOUT is a screen over the page (ui.menu = 2), OCT- back to TOOLS. The settings are kept with the
  * settings (settings_later: saved once quiet, as GLO > SYSTEM's) */
-static const char *const DISCO_NAME[DISCO_N] = {"QUIET", "NORM", "SHOW"};   /* (wave 11) how much the lights move (a dial
-                                                         * shows five characters: NORM) */
+static const char *const DISCO_NAME[DISCO_N] = {"QUIET", "NORMAL", "SHOW"};   /* (wave 11) how much the lights move */
 static const char *const LIGHTS_NAME[LIGHTS_N] = {"OFF", "LOW", "MID", "HIGH"};   /* every button lit, the labels readable */
 static const char *const KEYS_NAME[KEYS_N] = {"OFF", "C", "WHITE", "ALL"};   /* keys lit too, at the LIGHTS level (C: the C
                                                          * keys; review V2: six characters at most) */

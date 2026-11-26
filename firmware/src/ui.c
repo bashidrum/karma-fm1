@@ -181,7 +181,7 @@ static void midi_chan_fix(void)
             char b[8];
             str_cpy(b, "CH ", sizeof b);
             fmt_int(b + 3, song.g[ID[k]]);
-            ui_say(b, owner == 3 ? " = DRUM TRACK" : owner == 0 ? " = TRACK 1" : owner == 1 ? " = TRACK 2" : " = TRACK 3");
+            ui_say(b, owner == 3 ? " = DRUM VOICE" : owner == 0 ? " = VOICE 1" : owner == 1 ? " = VOICE 2" : " = VOICE 3");
             song.g[ID[k]] = (int16_t)v;
         }
         was[k] = (int16_t)v;
@@ -732,7 +732,7 @@ static void pc_poll(void)
         } else if (preset_go_to(&trk[i], n)) {
             continue;
         }
-        str_cpy(b, "TRACK 1 PROG ", sizeof b);         /* (tracks in words: TRACK 1, review 21) */
+        str_cpy(b, "VOICE 1 PROG ", sizeof b);         /* (voices in words: VOICE 1, review 21, V2) */
         b[6] = (char)('1' + i);
         fmt_int(b + 13, (int32_t)n);
         ui_message(b);
@@ -882,7 +882,7 @@ static void ml_poll(void)
     }
     str_cpy(a, "CC", 4);
     fmt_int(a + 2, (int32_t)cc);
-    str_cpy(a + str_len(a), " = TRACK ", 10);
+    str_cpy(a + str_len(a), " = VOICE ", 10);
     b[0] = (char)('1' + mlu.trk);
     b[1] = ' ';
     str_cpy(b + 2, track_desc(&trk[mlu.trk % NTRK], mlu.id)->label, 9);
