@@ -1,0 +1,466 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PHEBUS cheat sheet</title>
+<meta name="description" content="Where everything lives on PHEBUS, Ben's FM-1 firmware (a fork of KARMA), and how to reach it.">
+<style>
+/* DotGothic16 (SIL OFL 1.1, fonts/OFL.txt), cut to printable ASCII: the boxed pixel labels */
+@font-face { font-family: "DotGothic16"; src: url("fonts/DotGothic16-subset.woff") format("woff"); font-display: swap; }
+
+/* Layout: the landing page's grammar (boxed pixel labels, voice colours with meaning, the FM-1's black body),
+   sections as cards in a responsive grid; colour means voice: a voice's pages in its voice colour, shared pages neutral. */
+:root {
+  --bg: #0c0c11;
+  --panel: #14141b;
+  --inset: #1b1b24;
+  --line: #2a2a36;
+  --fg: #ecebf3;
+  --dim: #a09eb3;
+  --t1: #8c76f0;   /* voice 1 (robot) */
+  --t2: #28a0f5;   /* voice 2 (alien) */
+  --t3: #ff806c;   /* voice 3 (snake): coral (Ben's colour code) */
+  --t4: #14c4aa;   /* drums (crocodile): teal */
+  --all: #c4c4cc;  /* what every voice shares: neutral */
+  --lav: #8d82ec;  /* accents */
+  --scr: #000;     /* the FM-1 screen in the small diagrams */
+  --beat: .4839s;  /* one beat at 124 BPM */
+  --f-body: "Chivo", "Helvetica Neue", Arial, sans-serif;
+  --f-mono: "Chivo Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --f-pixel: "DotGothic16", "Chivo Mono", ui-monospace, monospace;
+  color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { background: var(--bg); -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 15px; line-height: 1.5; padding: 24px 16px 48px; overflow-x: hidden; }
+a { color: var(--lav); }
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 22px; }
+
+header { display: grid; gap: 10px; border-bottom: 1px solid var(--line); padding-bottom: 18px; padding-right: 96px; }
+.toprow { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.tag { display: inline-block; font-family: var(--f-pixel); font-size: .9rem; letter-spacing: .06em; line-height: 1; padding: .3em .45em .25em; border: 2px solid currentColor; text-transform: uppercase; }
+h1 { font-weight: 900; font-size: clamp(30px, 5vw, 46px); letter-spacing: -.01em; line-height: 1.05; margin: 0; text-wrap: balance; }
+h1 span { color: var(--lav); }
+header p { margin: 0; color: var(--dim); max-width: 72ch; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-family: var(--f-pixel); font-size: .78rem; letter-spacing: .05em; line-height: 1; padding: .35em .5em .3em; border: 2px solid currentColor; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-family: var(--f-mono); font-size: 12px; color: var(--dim); }
+.legend b { font-weight: 500; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; align-items: start; grid-auto-flow: row dense; }
+section { background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--line); border-radius: 10px; padding: 16px 18px; display: grid; gap: 10px; min-width: 0; }
+section.s1 { border-top-color: var(--t1); } section.s2 { border-top-color: var(--t2); } section.s3 { border-top-color: var(--t3); }
+section.s4 { border-top-color: var(--t4); } section.sl { border-top-color: var(--lav); }
+h2 { font-weight: 800; font-size: 19px; letter-spacing: .03em; text-transform: uppercase; margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+h2 small { font-weight: 400; font-size: 13px; color: var(--dim); text-transform: none; letter-spacing: 0; }
+h3 { font-family: var(--f-pixel); font-weight: 400; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--lav); margin: 6px 0 0; }
+ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+li { padding-left: 2px; }
+b, strong { font-weight: 600; }
+.how { font-family: var(--f-mono); font-size: 12.5px; color: var(--fg); background: var(--inset); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; }
+.btn { font-family: var(--f-mono); font-size: 12px; font-weight: 500; border: 1px solid #4a4858; border-radius: 4px; padding: 0 5px; white-space: nowrap; }
+.knobs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.knobs div { border-top: 2px solid currentColor; padding-top: 3px; font-weight: 800; font-size: 13.5px; letter-spacing: .03em; overflow-wrap: anywhere; }
+.knobs div span { display: block; font-weight: 400; font-size: 12px; color: var(--dim); letter-spacing: 0; }
+.c1 { color: var(--t1); } .c2 { color: var(--t2); } .c3 { color: var(--t3); } .c4 { color: var(--t4); } .cl { color: var(--lav); } .ca { color: var(--all); }
+.pg { font-family: var(--f-pixel); font-size: 12px; letter-spacing: .06em; color: var(--dim); margin-bottom: -4px; }
+.note { font-size: 13px; color: var(--dim); margin: 0; }
+p { margin: 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+table.mini { font-size: 10.5px; margin: 4px 0; } table.mini td { padding: 1px 2px; text-align: center; }
+td { border-top: 1px solid var(--line); padding: 5px 6px 5px 0; vertical-align: top; }
+td:first-child { font-family: var(--f-mono); font-size: 12px; white-space: nowrap; color: var(--fg); width: 1%; padding-right: 12px; }
+.wide { grid-column: 1 / -1; }
+.roles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.roles div { border-left: 3px solid currentColor; padding-left: 9px; }
+.roles b { display: block; font-family: var(--f-pixel); font-weight: 400; letter-spacing: .06em; font-size: 13px; }
+.roles span { display: block; color: var(--fg); font-size: 13px; }
+.prog { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 12px; font-size: 13px; }
+.prog div b { font-family: var(--f-mono); font-weight: 500; color: var(--lav); margin-right: 6px; }
+.pages { font-family: var(--f-mono); font-size: 11.5px; color: var(--dim); display: flex; flex-wrap: wrap; gap: 4px; }
+.pages span { border: 1px solid var(--line); border-radius: 3px; padding: 0 5px; }
+.pages span.on { color: var(--fg); border-color: var(--lav); }
+
+/* the small diagrams: an FM-1 screen strip */
+.dia { display: block; width: 100%; height: auto; background: var(--scr); border: 1px solid var(--line); border-radius: 6px; }
+.dia .grid-l { stroke: #23232c; stroke-width: 1; }
+.dia .off { fill: #2a2a36; }
+.dia .on1 { fill: var(--t1); } .dia .on2 { fill: var(--t2); } .dia .on3 { fill: var(--t3); } .dia .on4 { fill: var(--t4); } .dia .onl { fill: var(--lav); }
+.dia .ph { fill: #fff; opacity: .16; }
+.dia text { font-family: var(--f-pixel); fill: var(--dim); font-size: 11px; letter-spacing: .06em; }
+.dia text.big { fill: var(--fg); font-size: 18px; }
+.dia .wave { fill: none; stroke: var(--t3); stroke-width: 2; }
+.dia .ghost { fill: none; stroke: var(--t2); stroke-dasharray: 3 2; opacity: .7; }
+
+footer { color: var(--dim); font-family: var(--f-mono); font-size: 12px; border-top: 1px solid var(--line); padding-top: 14px; display: flex; flex-wrap: wrap; gap: 6px 18px; justify-content: space-between; }
+
+@media (max-width: 520px) {
+  header { padding-right: 0; padding-top: 34px; }
+  .roles { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 420px) { .knobs { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- motion: all of it off under prefers-reduced-motion, where every diagram shows a finished frame ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  /* cards rise in as they scroll into view (JS adds .rv only when it can watch them) */
+  .rv section { opacity: 0; transform: translateY(14px); transition: opacity .5s ease, transform .5s ease; }
+  .rv section.in { opacity: 1; transform: none; }
+  /* the four voice chips light one after another, a beat each, at 124 BPM */
+  .chip { animation: pulse calc(var(--beat) * 4) steps(1, end) infinite; opacity: .4; }
+  .chip:nth-child(2) { animation-delay: var(--beat); } .chip:nth-child(3) { animation-delay: calc(var(--beat) * 2); } .chip:nth-child(4) { animation-delay: calc(var(--beat) * 3); }
+  @keyframes pulse { 0% { opacity: 1; box-shadow: 0 0 10px -2px currentColor; } 25%, 100% { opacity: .4; box-shadow: none; } }
+  /* a playhead walks the 16 steps (one bar = 4 beats); the 2-bar ones take 8 */
+  .dia .ph { animation: walk calc(var(--beat) * 4) steps(16, end) infinite; }
+  .dia .ph2 { animation: walk2 calc(var(--beat) * 8) linear infinite; }
+  @keyframes walk { from { transform: translateX(0); } to { transform: translateX(var(--run, 304px)); } }
+  @keyframes walk2 { from { transform: translateX(0); } to { transform: translateX(var(--run, 304px)); } }
+  /* GEN: one note of the loop moves now and then (DRIFT), the shape stays */
+  .dia .drift { animation: drift calc(var(--beat) * 16) steps(1, end) infinite; }
+  @keyframes drift { 0% { transform: translateY(0); } 50% { transform: translateY(-24px); } }
+  .dia .ghost { animation: ghost calc(var(--beat) * 16) steps(1, end) infinite; }
+  @keyframes ghost { 0% { transform: translateY(0); } 50% { transform: translateY(24px); } }
+  /* HARMONY: the lit chord follows the playhead, i then bVII */
+  .dia .ch-a { animation: chA calc(var(--beat) * 8) steps(1, end) infinite; }
+  .dia .ch-b { animation: chA calc(var(--beat) * 8) steps(1, end) infinite; animation-delay: calc(var(--beat) * -4); }
+  @keyframes chA { 0% { opacity: 1; } 50%, 100% { opacity: .3; } }
+  /* LFO: the wave runs, the dot rides its current value */
+  .dia .lfo { animation: lfo 2.4s linear infinite; }
+  @keyframes lfo { to { transform: translateX(-120px); } }
+  .dia .dot { animation: dot 1.2s ease-in-out infinite alternate; }
+  @keyframes dot { from { transform: translateY(0); } to { transform: translateY(36px); } }
+}
+
+/* ---------- print: white paper, every card shown, nothing moving ---------- */
+@media print {
+  :root { --bg: #fff; --panel: #fff; --inset: #f3f3f6; --line: #c9c9d2; --fg: #000; --dim: #444; --t3: #c4503c; --t2: #1a72b0; --t1: #5b45c4; --t4: #0e8a78; --all: #555; --lav: #5a4fc4; --scr: #fff; }
+  @page { margin: 12mm; }
+  html, body { background: #fff !important; color: #000; }
+  body { padding: 0; font-size: 11.5px; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .rv section, section { opacity: 1 !important; transform: none !important; }
+  header { padding-right: 0; padding-top: 0; }
+  .grid { display: block; columns: 2; column-gap: 14px; }
+  section { break-inside: avoid; margin-bottom: 12px; border-radius: 4px; padding: 10px 12px; }
+  .chip { opacity: 1 !important; box-shadow: none !important; }
+  .dia .grid-l { stroke: #ddd; } .dia .off { fill: #ddd; } .dia .ph { opacity: .1; fill: #000; } .dia text.big { fill: #000; }
+  .dia .ch-a, .dia .ch-b { opacity: 1 !important; }
+  a { color: #000; }
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+<header>
+  <div class="toprow">
+    <span class="tag cl">PHEBUS</span>
+    <span class="chips" aria-label="The four voices and their colours"><span class="chip c1">1 ROBOT</span><span class="chip c2">2 ALIEN</span><span class="chip c3">3 SNAKE</span><span class="chip c4">DRUMS CROCODILE</span></span>
+  </div>
+  <h1>PHEBUS <span>cheat sheet</span></h1>
+  <p>Ben's FM-1 firmware, a fork of KARMA: MiniFreak-style synth voices, Rytm-style drums, MPC-style performance pads. One idea per control: EDIT the sound, ENV the envelopes, LFO the modulation, FX the effects, SEQ the rhythm and the patterns, ARP the notes, GLO everything global, SAVE keeps and confirms, REC only records, OCT- / OCT+ minus and plus. Four ways to move, in order: a labelled button opens its first category (again: the next category); SEL is PAGE, the next page inside it; SELECT is knob 5, the TYPE (on the drum screen: the sound); holds are shortcuts or performance layers. Hold a button and turn MASTER: that button's broad parameter. Unreleased: not yet run on a real FM-1. Back up first. The slower UC25HQ80 flash chip of newer FM-1s is handled (see Power-on and recovery).</p>
+  <div class="legend"><span>Colour = the voice it acts on:</span><b class="c1">1 purple</b><b class="c2">2 blue</b><b class="c3">3 coral</b><b class="c4">drums teal</b><span>shared (tag GLO, MIX, PERFORM): white / grey. Yellow M = mute, ice-blue S = solo, red = record / erase only</span></div>
+</header>
+
+<div class="grid">
+
+<section class="sl wide">
+  <h2>The button map <small>idea · tap · SEL · hold · -/+ held · MASTER held · SELECT</small></h2>
+  <table>
+    <tr><td>EDIT</td><td><b>sound</b> · OSC · FILT (drums: SRC · FLTR | KIT FLT, the kit's filter) · SEL: OSC 1-4, FILT 1-2 · hold: OCT- clears the voice (then hold SAVE) · MASTER: LEVEL · SELECT: OSC Type, FILT TYPE</td></tr>
+    <tr><td>ENV</td><td><b>envelopes</b> · AMP · FILT envelope (drums: AMP, SEL its 2/2) · MASTER: ENV LENGTH (every amp stage; drums: the sound's decay)</td></tr>
+    <tr><td>LFO</td><td><b>modulation</b> · LFO 1 (SEL: sync page) · LFO 2 · MATRIX (drums: LFO) · hold on a synth sound page: MAP (turn a knob) · MASTER: MOD DEPTH · SELECT: the WAVE</td></tr>
+    <tr><td>FX</td><td><b>effects</b> · INS (SEL: FX 1 2 3) · SENDS · SLICER | MIX · STUT, the STUTTER lane (white). Drums, the same order: INS (the kit's) · SENDS (the selected sound's: DELAY REVERB KIT FX) · SLICER (the kit's) | MIX · STUT · hold (only): PERFORM, OCT+ latch, OCT- latches off · MASTER: FX MIX · SELECT: insert TYPE, SLICER mode</td></tr>
+    <tr><td>SEQ</td><td><b>rhythm</b> · the steps on TRIG (SEL: TRIG 2/2) · PATTERN (GATE DIV SWING STEPS; SEL: SHIFT) · A-D (the patterns, four tiles) · hold: white keys ROLL (drums RETRIG), F#3-C#4 play A-D, D#4 fill bar, PLAY fill (OCT+ latches), K1 RATE K2 SHIFT K3 GATE (synth) K4 STEPS, OCT- halve, OCT+ double · MASTER: SWING</td></tr>
+    <tr><td>ARP</td><td><b>notes</b> · ARP (SEL: ARP 2) · KEY: ROOT SCALE QUANT CHORD (SEL: KEY 2). Drums: CHROMATIC (again: off) · hold: OCT- / OCT+ the pattern a semitone · MASTER: TRANSP</td></tr>
+    <tr><td>SEL</td><td>PAGE: the next page of the category shown (round). Held: nothing</td></tr>
+    <tr><td>GLO</td><td><b>global</b> · GLOBAL (K1 BPM) · SYSTEM (SYNC, USB, CPU) · MIDI (SEL: MIDI 2 with OUT / IN, MIDI 3 with LEARN and CLEAR) · DEVICE (SCREEN, LIGHTS, AUDIO, TOOLS) · hold: the mixer · MASTER: TEMPO</td></tr>
+    <tr><td>SAVE</td><td><b>keep, confirm</b> · PROJECT (live and bank: KEEP, SWAP, NEW) · PRESETS · USER · KITS (your drum kits) · PATTERNS (store A-D) · TOOLS (drums: PROJECT, KITS, PATTERNS, TOOLS) · hold: keys 1-4 store A-D, OCT- undo, OCT+ redo; a question showing: the ring</td></tr>
+    <tr><td>HOME</td><td>HOME · the screensaver (SEL: the next one) · hold: nothing</td></tr>
+    <tr><td>REC</td><td><b>record</b> only: tap to record or arm (a synth's steps, stopped: STEP REC). Held: nothing more</td></tr>
+    <tr><td>OCT- / OCT+</td><td><b>minus, plus</b> of the screen (the legend at the tab row's right says what). Twice quickly: the octave. With something held: minus removes it</td></tr>
+    <tr><td>SELECT</td><td>Knob 5: the TYPE of a synth page, named in the header's dark chip (no chip: nothing). Drum screen: the sound (1 of 16); on the kit's INS and SLICER pages the type, on KIT FLT nothing</td></tr>
+    <tr><td>a lock</td><td>Hold the step, press the page's button (and SEL): its knobs come under the steps (LOCK: in the tab row); turn. Let go: the steps again</td></tr>
+  </table>
+</section>
+
+<section class="sl">
+  <h2>Getting around</h2>
+  <table>
+    <tr><td>ALGORITHM</td><td>Voice: 1, 2, 3, DRUM, on every screen, nothing more (the STUTTER lane: FX's STUT)</td></tr>
+    <tr><td>PRESETS</td><td>The voice's sounds. Drums: on the drum screen the selected slot's SOUND; on HOME the whole KIT (asks only over a kit you changed)</td></tr>
+    <tr><td>OCT- / OCT+</td><td>Tap: the screen's minus / plus (steps page, pattern, step, sound, preset, or the knob last touched one fine step). Twice within 0.3 s: octave -3 to +3 (both: 0). On a load page (PRESETS, USER, kits) a single tap waits 0.3 s</td></tr>
+    <tr><td>- + legend</td><td>At the tab row's right: [-] WORD [+], what a tap does. None: a tap does nothing there</td></tr>
+    <tr><td>tab row</td><td>The categories of the button you pressed (the one shown filled) and the page inside ("2/4")</td></tr>
+    <tr><td>SAVE + OCT-</td><td>Undo. SAVE + OCT+: redo</td></tr>
+    <tr><td>keep open</td><td>Hold any layer button 0.7 s untouched, let go: it stays (LOCK). The same button or any other lets go</td></tr>
+    <tr><td>confirm</td><td>HOLD SAVE: ... in a white bar? Hold SAVE until the ring fills (red: something goes; white: it only keeps). Let go early, tap SAVE or press another button: nothing</td></tr>
+    <tr><td>MASTER</td><td>Nothing held: the volume. A button held: its pair (FX MIX, SWING, TRANSP, LEVEL, ENV LENGTH, MOD DEPTH, TEMPO), named in the header's chip. Relative: nothing jumps</td></tr>
+  </table>
+</section>
+
+<section class="sl wide">
+  <h2>HOME <small>three zones: SYNTH, DRUM, PERFORM</small></h2>
+  <div class="roles">
+    <div class="ca"><b>SYNTH</b><span>The three voices' sounds in their colours, the selected one inverted; M (yellow), S (ice blue), a red dot recording; each voice's 16 steps in view.</span></div>
+    <div class="c4"><b>DRUM</b><span>The kit's name (CUSTOM once a slot differs from it), the sounds muted or soloed on the mixer, the selected sound, the 16 steps: its hits teal, other sounds' dim.</span></div>
+    <div class="ca"><b>PERFORM</b><span>STUTTER lane ON / OFF, FX&gt;STUT (where it lives) or the latched pads by name, the lane's steps as spans.</span></div>
+  </div>
+  <div class="knobs"><div class="c1">CUTOFF<span>K1: the voice filter</span></div><div class="c1">DECAY<span>K2: the moving envelope</span></div><div class="ca">STUT<span>K3: lane on / off</span></div><div class="c1">LEVEL<span>K4: the voice</span></div></div>
+  <p class="note">Above the zones: the bar, the FLOW strip (Ben kept it), patterns A B C D (playing filled, next outlined). The header says PATTERN A to D while one plays; a white dot: unsaved. The &gt; after the strip: HOME again opens the screensaver (SEL: the next one).</p>
+</section>
+
+<section class="sl">
+  <h2>Hold a button <small>its layer</small></h2>
+  <table>
+    <tr><td>FX</td><td><b>PERFORM</b>: the keys are effect pads on the whole mix (below). MASTER: FX MIX</td></tr>
+    <tr><td>SEQ</td><td><b>RHYTHM</b>: white keys ROLL (drums RETRIG). Black keys F#3 G#3 A#3 C#4: play A B C D; D#4: fill next bar. PLAY: fill (OCT+ latches). K1 RATE, K2 SHIFT, K3 GATE (synth voices), K4 STEPS. OCT- halve (asks), OCT+ double. MASTER: SWING</td></tr>
+    <tr><td>ARP</td><td><b>NOTES</b>: OCT- / OCT+ the voice's pattern a semitone. MASTER: TRANSP</td></tr>
+    <tr><td>GLO</td><td><b>MIXER</b> (below). MASTER: TEMPO</td></tr>
+    <tr><td>SAVE</td><td>PRESS KEY 1-4: STORE PATTERN (A-D, stored / playing / empty). OCT- undo, OCT+ redo. It says PROJECT: SAVED or NOT SAVED YET. A question showing: the confirm's ring</td></tr>
+    <tr><td>EDIT</td><td>OCT-: clear the voice (asks; hold SAVE). MASTER: LEVEL</td></tr>
+    <tr><td>ENV, LFO</td><td>On a synth sound page: MAP. The page stays; turn a knob: the LFO (envelope) last shown moves it, right +, left -, 0 removes (boxed on the dial; a small wave under it afterwards). SEL: the other LFO (envelope). OCT-: remove them on this page. A cell of the MATRIX. Elsewhere, and always: MASTER is ENV LENGTH, MOD DEPTH</td></tr>
+    <tr><td>any hold</td><td>What works with it lights, the rest goes dark (and does nothing). A question waiting: SAVE alone. GLO &gt; DEVICE &gt; LIGHTS &gt; DISCO: QUIET (dim, still), NORMAL, SHOW (the keys dance)</td></tr>
+    <tr><td>SEL, HOME, REC</td><td>Nothing</td></tr>
+  </table>
+</section>
+
+<section class="sl wide">
+  <h2>The steps <small>tap SEQ, any voice</small></h2>
+  <div class="roles">
+    <div class="ca"><b>PLACE</b><span>Tap an empty step: set with the pen (last note or chord played, or K1), velocity 100. Tap a set step: cleared when the key comes up (unless a knob was turned).</span></div>
+    <div class="ca"><b>HOLD A STEP</b><span>Turn any knob: it locks what that knob shows on the step (shown inverted). On TRIG: K1 NOTE, K2 LEN (ties), K3 VEL, K4 COND; TRIG 2/2: FLAG, RETRIG, NUDGE. Several steps edit together.</span></div>
+    <div class="ca"><b>PAGES</b><span>OCT- / OCT+ tapped: the page before / after (OCT+ on the last adds one, a copy). Max 64. The view follows the playhead.</span></div>
+  </div>
+  <table>
+    <tr><td>buttons</td><td>Nothing held: EDIT, ENV, LFO, FX open their real pages (the steps go, the keys play notes). A step held: their knobs under the steps, a lock view (LOCK: in the tab row); let go: back to TRIG. SEQ: TRIG, PATTERN, A-D</td></tr>
+    <tr><td>nothing held</td><td>TRIG: K1 NOTE (pen), K2 STEP (cursor), K3 HIT (right sets, left clears), K4 VEL. PRESETS the sound</td></tr>
+    <tr><td>Spice and Dice</td><td>TRIG 2/2 (SEL on TRIG), nothing held: K1 SPICE (0: the pattern as written), K2 DICE (each click right a new roll, left the roll before). The tiles show the variation; the notes never change</td></tr>
+    <tr><td>step + OCT-</td><td>Minus removes: on TRIG the step itself; on a lock view the lock of the knob last turned, again every lock, again the step. 24 locks a voice</td></tr>
+  </table>
+</section>
+
+<section class="s4">
+  <h2>Drums <small>the Rytm's way</small></h2>
+  <div class="how">tap SEQ (or EDIT) with DRUM selected: the drum screen. The 16 keys are the selected sound's steps</div>
+  <div class="knobs"><div class="c4">PAGE<span>KNOB 1</span></div><div class="c4">PAGE<span>KNOB 2</span></div><div class="c4">PAGE<span>KNOB 3</span></div><div class="c4">PAGE<span>KNOB 4</span></div></div>
+  <ul>
+    <li>SELECT: the sound (1 of 16, heard while stopped; the header's chip names it), in the Rytm order: KICK, RIM, SNARE 2, SNARE, KICK 2 ... CRASH, round. A new project starts on KICK. On the kit's INS and SLICER pages SELECT is the type (the slicer's mode); on KIT FLT it does nothing. EDIT = SRC, again FLTR, again KIT FLT (the kit's filter). ENV = AMP. LFO = LFO. FX = INS, SENDS, SLICER | MIX, STUT (a synth voice's order). SEQ = TRIG, again PATTERN, again A-D. SEL: the page inside (SRC 1/3 .., AMP 2/2, TRIG 2/2).</li>
+    <li>The kit's INS is one page: TYPE on SELECT, its three values on K1 to K3, MIX on K4. SLICER: its mode on SELECT, PAT RATE DEPTH on K1 to K3. MIX is the shared white MIX page (DELAY, REV/CHO, MASTER): the 16 keys are its steps and follow the playhead.</li>
+    <li>The kit is 16 slots, the project's own; each holds any sound from any kit, HEX or CLASSIC. Nothing held: a knob edits the selected slot's sound at once.</li>
+    <li>PRESETS on the drum screen: the selected slot's sound, a six-row list with the one you are on under the marker (808 SNARE, then 808 · 6/41): INIT HEX, INIT CLASSIC, then its kind from every kit, then every other kind. Turn back: the sound you had. SAVE + OCT-: undo.</li>
+    <li>Hold a step + turn: a lock on that sound's hit (shown inverted). OCT-: that lock off; again: every lock; again (or on TRIG): the hit. On TRIG: VEL RETRIG NUDGE COND / CHANCE LENGTH CURVE NOTE.</li>
+    <li>Mutes and solos: hold GLO (the white keys mute the 16 sounds; OCT+ held with a key: solo; OCT-: all off). ARP tapped: CHROMATIC (keys play the sound at pitches; -/+ the sound, twice quickly the octave). SEQ held + key: RETRIG (K1 the rate).</li>
+    <li>FILL: hold SEQ and PLAY (OCT+ latches). A sound's key held + OCT- (where the keys play sounds): its hits erased. PRESETS on HOME loads a whole kit (power-on: 606); factory kits load there only. SAVE on the drums walks PROJECT, KITS, PATT, TOOL. FLTR: CUTOFF RESO ENV TYPE (2/2 DRIVE). No sends on AMP: they are FX &gt; SENDS. A whole kit over a changed one: HOLD SAVE. Your kits: SAVE > KITS (MY KIT 1-6: KIT, LOAD, ERASE, SAVE); saving or erasing one while playing asks THIS WILL STOP THE AUDIO.</li>
+    <li>FX &gt; SENDS is the selected sound's: DELAY, REVERB, KIT FX (ON: through the kit's FILTER, INSERT, SLICER; OFF: straight to the mix. Stutter the tops, leave the kick alone: KICK's KIT FX OFF, then the SLICER on). The kit's pages (INS, SLICER, KIT FLT) say KIT, SELECT does nothing there, and count the sounds through them (13 OF 16 SOUNDS). No kit-wide sends.</li>
+    <li>The drum grid (as the Rytm's pads): HAT OP HAT RIDE CRASH / PEDAL CONGA C-BELL SHAKER / KICK 2 LO TOM HI TOM CLAP / KICK RIM SNARE 2 SNARE. Two key orders over it (Ben, 22:45 to 22:48):<br>
+      <table class="mini"><tr><td>Key</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td><td>9</td><td>10</td><td>11</td><td>12</td><td>13</td><td>14</td><td>15</td><td>16</td></tr>
+      <tr><td>Played, RETRIG, SELECT (Rytm: bottom row first)</td><td>KICK</td><td>RIM</td><td>SNR2</td><td>SNARE</td><td>KICK2</td><td>LOTOM</td><td>HITOM</td><td>CLAP</td><td>PEDAL</td><td>CONGA</td><td>CBELL</td><td>SHAKR</td><td>HAT</td><td>OPHAT</td><td>RIDE</td><td>CRASH</td></tr>
+      <tr><td>Mixer (down the columns)</td><td>HAT</td><td>PEDAL</td><td>KICK2</td><td>KICK</td><td>OPHAT</td><td>CONGA</td><td>LOTOM</td><td>RIM</td><td>RIDE</td><td>CBELL</td><td>HITOM</td><td>SNR2</td><td>CRASH</td><td>SHAKR</td><td>CLAP</td><td>SNARE</td></tr>
+      <tr><td>Simulator key</td><td>Z</td><td>X</td><td>C</td><td>V</td><td>B</td><td>N</td><td>M</td><td>,</td><td>.</td><td>/</td><td>Q</td><td>W</td><td>R</td><td>Y</td><td>U</td><td>O</td></tr></table>
+      On the drum screen the keys are still the steps.</li>
+  </ul>
+</section>
+
+<section class="sl">
+  <h2>STUTTER lane <small>tap FX until STUT: after MIX</small></h2>
+  <ul>
+    <li>FX's last category, any voice (it stays selected; ALGORITHM changes it, the lane stays). Tag MIX, title STUTTER, white. FX again: the voice's INS. Hold FX: PERFORM, as anywhere.</li>
+    <li>Tap an unlit step: it lights (new steps 1/4). Tap a lit step: it goes out on release.</li>
+    <li>Hold a step + K1: its length 1/1, 1/2, 1/4, 1/8, 1/16, 1/32. Hold a step + OCT-: erase the recorded pads over it.</li>
+    <li>K1: length for new steps. K2: lane ON / OFF (steps and recorded pads kept; HOME K3 the same). K3 PADS: how many pads are recorded; turn, then hold SAVE to clear them. K4: lane length 1-64.</li>
+    <li>OCT- / OCT+ tapped: page. SAVE + OCT-: undo.</li>
+    <li>A lit step repeats the span just before it, the whole mix (1/2 and 1/1 replay the steps). Same-length steps in a row are one loop, drawn as one span.</li>
+    <li>PERFORM pads played while recording land here as named bars and play back with the pattern (31 at most).</li>
+    <li>REC here: the lane's own take, no voice armed (stopped: PLAY starts it). Hold SEQ, ARP, EDIT: the selected voice's layers (SEQ's halve / double: not here).</li>
+    <li>Black keys: hand-played repeats of the whole mix, F#3 1/1 · G#3 1/2 · A#3 1/4 · C#4 1/8 · D#4 1/16 · F#4 1/4T · G#4 1/8T · A#4 1/16T · C#5 1/8D · D#5 1/16D · F#5 1/32 (OCT+ held: latch; recorded into the lane while recording; a key held wins over the lit steps).</li>
+  </ul>
+</section>
+
+<section class="sl">
+  <h2>Sound pages <small>OSC > FILT > ENV > FX > MOD</small></h2>
+  <table>
+    <tr><td>OSC 1-4</td><td>SELECT: TYPE. 1: the Type's M1 M2 M3 M4. 2: OCT TUNE GLIDE GLMODE. 3: M5 VOICE DETUNE PRIOR. 4: ALLOC</td></tr>
+    <tr><td>FILT 1-2</td><td>SELECT: TYPE (LP 24 LP 12 BP HP). 1: CUTOFF RESO ENV DRIVE. 2: KEY LINK</td></tr>
+    <tr><td>ENV</td><td>AMP, then FILT (the filter's own; LINK AMP: turn one and it is OWN)</td></tr>
+    <tr><td>FX 1 2 3</td><td>SELECT: TYPE (PHASER FLANGE DIST SOFT HARD FOLD FUZZ CRUSH EQ), K1-K3 its three knobs. All OFF to start</td></tr>
+    <tr><td>SENDS</td><td>This voice's DELAY, REVERB, CHORUS to the whole mix's effects (their settings: FX's MIX, white, the same screen on every voice)</td></tr>
+    <tr><td>SLICER</td><td>SELECT: SLICE, its mode. K1 PAT, K2 RATE, K3 DEPTH</td></tr>
+    <tr><td>LFO 1</td><td>SELECT: WAVE. RATE PHASE FADE POL; SEL: SYNC TRIG E SYNC</td></tr>
+    <tr><td>LFO 2</td><td>SELECT: WAVE. RATE SYNC TRIG</td></tr>
+    <tr><td>MATRIX</td><td>K1 SOURCE (row), K2 DEST (column), K3 AMOUNT (+-), K4 CLEAR (on AS1 AS2: TARGET)</td></tr>
+  </table>
+  <div class="knobs"><div class="c1">M1</div><div class="c2">M2</div><div class="c3">M3</div><div class="c4">M4<span>OSC: names change with the Type; SELECT the Type</span></div></div>
+  <div class="knobs"><div class="c1">CUTOFF</div><div class="c2">RESO</div><div class="c3">ENV</div><div class="c4">DRIVE<span>FILT: SELECT the TYPE</span></div></div>
+  <p class="note">The same pages on every voice. The tab row names the button's categories (EDIT: OSC FILT) and "2/4" the page inside.</p>
+</section>
+
+<section class="sl">
+  <h2>Oscillator Types <small>OSC, SELECT: 31 on every voice</small></h2>
+  <table>
+    <tr><td>ACID, JUNO</td><td>The 303 (WAVE ACCENT SLIDE), the Juno DCO (WAVE PW SUB)</td></tr>
+    <tr><td>Plaits</td><td>VA, VCF, FOLD, PHASE D, 2-OP FM, 6-OP A B C, WAVETABLE, TERRAIN, ADDITIVE, CHORD, STR MACH, SWARM, FORMANT, CHIPTUNE, STRING, MODAL, NOISE, SPEECH, PARTICLE, KICK, SNARE, HI-HAT</td></tr>
+    <tr><td>Elements</td><td>BOUNCE, PLUCKED, BOWED, BLOWN, OMINOUS (STRUCT BRIGHT DAMP)</td></tr>
+  </table>
+  <p class="note">Plain starts, no effects: 1 ACID INIT bass, mono, octave down. 2 JUNO INIT chords, poly. 3 PLAITS VA saw lead, mono. Drums: 606.</p>
+</section>
+
+<section class="sl wide">
+  <h2>Hold FX: PERFORM <small>the effects on the white keys, the mutes and four extras on the black keys</small></h2>
+  <table>
+    <tr><td>screen</td><td>The black keys one row in key order, the white keys four columns of four under it, one type a column, keys top to bottom (column 1: keys 1 to 4). Every pad on the key it always had</td></tr>
+    <tr><td>black row</td><td>F#3 <kbd>S</kbd> <b class="c1">1</b> · G#3 <kbd>D</kbd> <b class="c2">2</b> · A#3 <kbd>F</kbd> <b class="c3">3</b>: mute voice 1, 2, 3 · C#4 <kbd>H</kbd> <b class="c4">KIK</b> KICKS (kicks, low tom) · D#4 <kbd>J</kbd> <b class="c4">TOP</b> TOPS (all but snares, clap, hats, shaker) · F#4 <kbd>L</kbd> <b class="c4">S+C</b> SH+CL (all but shaker, clap) · G#4 <kbd>;</kbd> <b class="c4">H+S</b> HT+SN (all but hats, snares) · A#4 <kbd>'</kbd> <b>REV</b> reverse · C#5 <kbd>E</kbd> <b>STP</b> tape stop · D#5 <kbd>T</kbd> <b>DN</b> sweep down · F#5 <kbd>I</kbd> <b>UP</b> sweep up</td></tr>
+    <tr><td>REPEAT</td><td>keys 1 to 4 <kbd>Z</kbd> <kbd>X</kbd> <kbd>C</kbd> <kbd>V</kbd>: <b>1/1</b> · <b>1/2</b> (replay the bar / half bar) · <b>1/4</b> · <b>1/8</b> (repeat)</td></tr>
+    <tr><td>TIME</td><td>keys 5 to 8 <kbd>B</kbd> <kbd>N</kbd> <kbd>M</kbd> <kbd>,</kbd>: <b>1/16</b> · <b>HALF</b> half time · <b>ECHO</b> throw · <b>VERB</b> throw</td></tr>
+    <tr><td>FILTER</td><td>keys 9 to 12 <kbd>.</kbd> <kbd>/</kbd> <kbd>Q</kbd> <kbd>W</kbd>: <b>ISO LO</b> (below 220 Hz) · <b>ISO MID</b> (220 Hz to 1.1 kHz) · <b>ISO HI</b> (above 1.1 kHz): hear only that band; two: both; three: the whole mix · <b>MOTION</b> a band-pass sweeping in tempo</td></tr>
+    <tr><td>COLOUR</td><td>keys 13 to 16 <kbd>R</kbd> <kbd>Y</kbd> <kbd>U</kbd> <kbd>O</kbd>: <b>CRUSH</b> subtle, thin and gritty · <b>PHASER</b> · <b>JET</b> jet flanger · <b>VOWEL</b> formant filter</td></tr>
+    <tr><td>knobs</td><td>The last pad pressed (a mute leaves them): K4 AMOUNT. Stutters: PITCH · DECAY · GATE. ISO (shared): LOW X 220 · HIGH X 1.1K. MOTION: RATE · DEPTH · RESO. CRUSH: BITS · RATE · THIN. PHASER: RATE · DEPTH · FDBK. JET: RATE · FDBK. VOWEL: VOWEL · RATE · RESO. Sweeps: LENGTH · RESO · RANGE · SLOPE. ECHO: K2 FDBK. HALF / REVERSE: LENGTH. STOP: TIME</td></tr>
+    <tr><td>OCT+</td><td>Latch: hold it and press a pad (a mute too), or press it with pads held. A latched pad pressed again: off</td></tr>
+    <tr><td>OCT-</td><td>Every latch off (STOP too). Latched pads play on outside PERFORM: the header says PF 2</td></tr>
+    <tr><td>MASTER</td><td>FX MIX: the whole mix's effect return, 0 to 100 % (0: dry exactly)</td></tr>
+    <tr><td>in / out</td><td>Hold FX: while held. Held 0.7 s untouched, let go: stays (LOCK); FX again or any page button: out</td></tr>
+  </table>
+  <p class="note">One time effect at a time (the last pressed: a repeat, HALF, REVERSE, STOP, JET), with every colour effect, the throws and the mutes on top. Drum mutes held together: you hear what all of them leave. PERFORM's mutes never touch the mixer's. A muted part plays on unheard and comes back in place. REC while playing records the pads into the STUTTER lane.</p>
+</section>
+
+<section class="sl">
+  <h2>Mixer <small>hold GLO, whichever voice is selected</small></h2>
+  <table>
+    <tr><td>White keys</td><td>The 16 drum sounds, drawn as the drum grid; on the mixer each key runs down a column, top to bottom, Ben's 21:10 order (playing by hand counts the Rytm's way instead: the drum section) (simulator keys in brackets):<br>
+      1-4: HAT (<kbd>Z</kbd>), PEDAL (<kbd>X</kbd>), KICK 2 (<kbd>C</kbd>), KICK (<kbd>V</kbd>)<br>
+      5-8: OP HAT (<kbd>B</kbd>), CONGA (<kbd>N</kbd>), LO TOM (<kbd>M</kbd>), RIM (<kbd>,</kbd>)<br>
+      9-12: RIDE (<kbd>.</kbd>), C-BELL (<kbd>/</kbd>), HI TOM (<kbd>Q</kbd>), SNARE 2 (<kbd>W</kbd>)<br>
+      13-16: CRASH (<kbd>R</kbd>), SHAKER (<kbd>Y</kbd>), CLAP (<kbd>U</kbd>), SNARE (<kbd>O</kbd>)</td></tr>
+    <tr><td>F#3 G#3 A#3 C#4</td><td>Voice 1, 2, 3, the drums</td></tr>
+    <tr><td>Tap a key</td><td>Mute (yellow M); again: unmute</td></tr>
+    <tr><td>OCT+ held + key</td><td>Solo (ice-blue S). A solo anywhere: only what is soloed is heard</td></tr>
+    <tr><td>OCT-</td><td>Every mute and solo off</td></tr>
+    <tr><td>SEL</td><td>The pans' page (again: the levels)</td></tr>
+    <tr><td>KNOB 1-4</td><td>Levels (pans) of 1, 2, 3, drums</td></tr>
+    <tr><td>MASTER</td><td>TEMPO</td></tr>
+  </table>
+  <p class="note">No fill here (SEQ + PLAY). Hold GLO 0.7 s untouched and let go: the mixer stays. MIDI LEARN: GLO &gt; MIDI 3 K2; K3 CLEAR forgets every learned CC (hold the ring).</p>
+</section>
+
+<section class="sl">
+  <h2>Patterns A to D <small>SEQ plays, SAVE stores</small></h2>
+  <table>
+    <tr><td>SEQ, SEQ, SEQ</td><td>A-D: K1 the pattern to play; -/+ the one before / after</td></tr>
+    <tr><td>hold SEQ</td><td>F#3 G#3 A#3 C#4: play A to D (playing: on the next bar). Stopped: load</td></tr>
+    <tr><td>SAVE &gt; PATTERNS</td><td>KNOB 1 the pattern, KNOB 2 STORE (a stored one asks: hold SAVE)</td></tr>
+    <tr><td>SAVE &gt; PROJECT</td><td>LIVE and BANK side by side (patterns, tempo, kit). K1 KEEP: the live project into the bank (a kept one: asks). K2 SWAP: live and bank change places (asks, white ring: nothing lost). K4 NEW: a fresh live project, the bank untouched (asks). Stopped only</td></tr>
+    <tr><td>hold SAVE</td><td>Keys 1-4: store into A to D (a used one asks: keep SAVE held, the ring fills)</td></tr>
+  </table>
+  <p class="note">A pattern holds all four voices' sounds and steps, the kit and the STUTTER lane.</p>
+</section>
+
+<section class="sl">
+  <h2>Record <small>REC</small></h2>
+  <table>
+    <tr><td>tap REC</td><td>Playing: records now (PERFORM pads go into the lane). Stopped: arms (on a synth GRID: STEP REC). On FX's STUT: the lane alone, no voice. Again: stop / cancel</td></tr>
+    <tr><td>hold REC</td><td>Nothing more: REC only records (clear a voice: EDIT + OCT-, then hold SAVE)</td></tr>
+    <tr><td>REC screen</td><td>K3 START (NOTE or COUNT); the length: SEQ's PATTERN K4</td></tr>
+    <tr><td>SAVE + OCT-</td><td>Undo: brings a cleared voice back</td></tr>
+  </table>
+</section>
+
+<section class="sl">
+  <h2>Key, scale, tempo</h2>
+  <table>
+    <tr><td>Tempo</td><td>GLO &gt; GLOBAL K1 BPM (its one place; every header shows it)</td></tr>
+    <tr><td>Tempo, live</td><td>Hold GLO and turn MASTER</td></tr>
+    <tr><td>Swing</td><td>SEQ, SEQ (PATTERN) K3, or hold SEQ + MASTER</td></tr>
+    <tr><td>Gate</td><td>SEQ's PATTERN K1, or hold SEQ + K3 (a synth voice's note length; the drums have none)</td></tr>
+    <tr><td>Key / scale</td><td>ARP, ARP (KEY): K1 ROOT, K2 SCALE (all three voices)</td></tr>
+    <tr><td>Chord</td><td>KEY K4 (OFF TRIAD 7TH 9TH SUS4 POWER). On the KEY pages the black keys change it while held (3RD 7TH SUS4 9TH INV, drawn in the strip)</td></tr>
+    <tr><td>Transpose</td><td>KEY 2 K1, hold ARP + MASTER; the pattern itself: hold ARP + OCT- / OCT+</td></tr>
+  </table>
+</section>
+
+<section class="sl">
+  <h2>Saving</h2>
+  <ul>
+    <li>White dot in the header: unsaved changes.</li>
+    <li>The working project saves itself after you stop (0.3 s, once silent) or 2.5 s after a change made while stopped, and comes back at power-on. Nothing is written while playing: <b>stop, wait a second, then switch off</b>. Switched off while playing: back to the last save.</li>
+    <li>Patterns A to D: stored at once in memory, written once stopped and untouched 1.5 s.</li>
+    <li>One more project in the bank: SAVE &gt; PROJECT, KEEP; SWAP brings it back.</li>
+    <li>User presets: SAVE > USER.</li>
+  </ul>
+</section>
+
+<section class="sl">
+  <h2>DEVICE <small>GLO's last category</small></h2>
+  <div class="how">GLO, GLO, GLO, GLO: DEVICE. SEL = page: SCREEN, LIGHTS, AUDIO, TOOLS · the knobs set its rows</div>
+  <table>
+    <tr><td>SCREEN</td><td>COLOUR (the palette), ZOOM</td></tr>
+    <tr><td>LIGHTS</td><td>DISCO, LIGHTS, KEYS, NOTES</td></tr>
+    <tr><td>AUDIO</td><td>LOWCUT, USB (MIX, FULL, or STEMS at the next start: six channels), SERIAL (next start)</td></tr>
+    <tr><td>TOOLS</td><td>CALIB (hardware calibration), ABOUT (OCT- goes back)</td></tr>
+  </table>
+</section>
+
+<section class="sl">
+  <h2>Power-on and recovery</h2>
+  <table>
+    <tr><td>OCT-</td><td>Hold while switching on: USB rescue</td></tr>
+    <tr><td>OCT- + OCT+</td><td>Hold while switching on: hardware calibration</td></tr>
+    <tr><td>OCT- + OCT+ 5 s</td><td>Stopped: update mode (UBOOT). Let go to cancel</td></tr>
+  </table>
+  <p class="note">Newer FM-1s (the M-VAVE logo under the screen) have a slower flash chip, the UC25HQ80. PHEBUS waits for it: up to 2 s an erase and 50 ms a page, and the sound stops for as long as a save takes. The update loader waits the same, and the watchdog is fed during long erases and saves. An install can be repeated. Fix follows ChoralRoot 0.32 (Quixotic7) and felucca-bsp #12 (Julius Vitkauskas).</p>
+</section>
+
+<section class="sl">
+  <h2>Words</h2>
+  <table>
+    <tr><td>step</td><td>A place in a pattern; a white key on the GRID. "STEP 5 HELD"</td></tr>
+    <tr><td>trig</td><td>What is on a step: a note or a hit. TRIG: the tab with the held step's values</td></tr>
+    <tr><td>lock</td><td>A value on one step: hold the step, turn. Drawn inverted</td></tr>
+    <tr><td>RETRIG</td><td>A step repeated: a drum hit at a rate, a synth step x1 to x4</td></tr>
+    <tr><td>PERFORM</td><td>The pads layer (hold FX only). Tapped, FX is this voice's effects, then MIX and STUT (the whole mix)</td></tr>
+    <tr><td>category</td><td>What a button opens, one a press (EDIT: OSC, FILT). SEL walks its pages</td></tr>
+    <tr><td>type</td><td>What SELECT turns: the Type, the filter's TYPE, an insert's TYPE, the LFO's WAVE, the SLICER's mode</td></tr>
+    <tr><td>SEND</td><td>A voice's share of the whole mix's delay, reverb or chorus (its SENDS page)</td></tr>
+    <tr><td>pattern</td><td>A to D: all four voices, the kit and the lane</td></tr>
+  </table>
+</section>
+
+<section class="sl">
+  <h2>Simulator</h2>
+  <table>
+    <tr><td>Double-click</td><td>Hold a button or a key down (blue outline); click again to let go. Shift-click does the same.</td></tr>
+    <tr><td>PERFORM</td><td>Hold <kbd>1</kbd> (FX) and press pads on Z X C V B N M , . / (white 1-10), Q W R Y U O (white 11-16); the black keys S D F (V1 V2 V3), H J L ; (KICKS TOPS SH+CL HT+SN), ' E T I (REVERSE STOP SWP DN SWP UP). Hold <kbd>]</kbd> to latch, <kbd>[</kbd> unlatches all</td></tr>
+    <tr><td>Mixer</td><td>Hold <kbd>6</kbd> (GLO), or double-click GLO. A drum sound: its white key (Z X C V ... O); a voice: S D F H. Solo: hold <kbd>]</kbd> too (or shift-click OCT+ so it stays down). <kbd>[</kbd> clears, <kbd>2</kbd> the pans</td></tr>
+    <tr><td>STUTTER lane</td><td>Tap <kbd>1</kbd> (FX) until STUT shows (from HOME on voice 1: five taps). Its black keys S D F H J (1/1 1/2 1/4 1/8 1/16), L ; ' (1/4T 1/8T 1/16T), E T (1/8D 1/16D), I (1/32)</td></tr>
+    <tr><td>1 2 3 4 5 6</td><td>FX · SEL (PAGE) · ENV · LFO · EDIT · GLO</td></tr>
+    <tr><td>7 8 9 0 - =</td><td>HOME · SAVE · ARP · SEQ · PLAY · REC</td></tr>
+    <tr><td>Z ... ' · Q ... O</td><td>The keyboard's notes</td></tr>
+    <tr><td>[ ]</td><td>OCT- / OCT+ (twice quickly: the octave)</td></tr>
+    <tr><td>PgUp PgDn, \ `</td><td>MASTER up / down (hold a button's key first: its pair)</td></tr>
+    <tr><td>Drum sends</td><td>Right (ALGORITHM) to DRUM, then <kbd>1</kbd> (FX) twice: SENDS. Up / Down picks the sound; KNOB 3 KIT FX. <kbd>5</kbd> (EDIT) three times: KIT FLT</td></tr>
+    <tr><td>Up Down / Left Right</td><td>SELECT (the type; drums: the slot) / ALGORITHM</td></tr>
+    <tr><td>Shift + Left Right</td><td>PRESETS (drums: the slot's sound on the drum screen, the whole kit on HOME)</td></tr>
+  </table>
+</section>
+
+</div>
+
+<footer><span>PHEBUS · Ben's fork of KARMA by Ariel Muchnik · GPL-3.0-only</span><span>Based on SLOOP (isod89) and Felucca (Leo Kuroshita, Hügelton Instruments). M-VAVE and FM-1 are trademarks of their owners; PHEBUS is not affiliated with them.</span></footer>
+</div>
+
+<script>
+/* cards rise in as they scroll into view; without JS, without IntersectionObserver or with reduced motion, they are simply there */
+(function () {
+  var mq = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)");
+  if ((mq && mq.matches) || !("IntersectionObserver" in window)) return;
+  var cards = document.querySelectorAll(".grid section");
+  var io = new IntersectionObserver(function (es) {
+    es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
+  }, { rootMargin: "0px 0px -8% 0px" });
+  cards.forEach(function (c) { io.observe(c); });
+  document.documentElement.classList.add("rv");
+  window.addEventListener("beforeprint", function () { cards.forEach(function (c) { c.classList.add("in"); }); });
+})();
+</script>
+</body>
+</html>
