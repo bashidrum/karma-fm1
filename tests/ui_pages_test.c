@@ -63,6 +63,37 @@ static void arrangement_apply(uint32_t s) { (void)s; }
 static uint32_t sec_stores, sec_loads;
 static void section_store(uint32_t s) { sec_stores++; live_sec = (int8_t)s; }
 static void section_load(uint32_t s) { sec_loads++; live_sec = (int8_t)s; }
+/* (the bank) a stand-in: the bank in RAM. The harness keeps a flag and the summary; the simulator (web/emu/sloop_web.c) sets
+ * bank_hook to keep and swap the real working project in RAM (project.c's capture and apply) */
+static uint32_t bank_ops[3];
+static uint8_t bank_has, bank_np;
+static int16_t bank_bpm;
+static char bank_kit[9];
+static int (*bank_hook)(uint32_t op);              /* (the simulator: does the action; 0 done) */
+static void project_new(void);                     /* (ui_input.c) */
+static int bank_op(uint32_t op)
+{
+    if (song.playing || transport_req)
+        return 2;
+    bank_ops[op % 3u]++;
+    if (op == 1u && !bank_has)
+        return 1;
+    if (bank_hook)
+        return bank_hook(op);
+    if (op == 0u) {
+        bank_has = 1, bank_np = 2, bank_bpm = song.g[G_BPM];
+        str_cpy(bank_kit, "CUSTOM", sizeof bank_kit);
+    } else if (op == 2u) {
+        project_new();
+    }
+    return 0;
+}
+static int bank_summary(uint32_t *npat, int32_t *bpm, char *kit)
+{
+    *npat = bank_np, *bpm = bank_bpm;
+    str_cpy(kit, bank_kit, 9);
+    return bank_has;
+}
 static int up_used(uint32_t k) { return k < 2; }
 static int up_load(uint32_t k) { (void)k; return 0; }
 static int up_load_to(track_t *t, uint32_t k) { (void)t; (void)k; return 0; }
@@ -1458,20 +1489,22 @@ int main(int argc, char **argv)
         key(key_of_white(12)); key(key_of_white(13)); key(key_of_white(15));
         check(sec_stores == st0 && sec_loads == ld0 && live_req == 1 && ui.page == pg0 && ui.layer == LY_SAVE,
               "SAVE held + keys 13, 14, 16: nothing (song mode, SONG REC and the song page are gone)");
-        check(str_eq(LAYER_NAME[LY_SAVE], "save") && str_eq(sub_line(), "keys: store"), "the layer reads \"save\": \"keys: store\"");
+        check(str_eq(LAYER_NAME[LY_SAVE], "save") && str_eq(sub_line(), ""), "the layer reads \"save\"; the line under the header only the -/+ legend");
     }
     release(B_SAVE); frames(2);
     check(live_req == 1 && saves == 0, "SAVE let go: B still asked for, nothing saved");
     live_req = -1; song.playing = 0;
     go_home(); frames(2);
     tap(B_SAVE); frames(2);
-    check(!ui.home && cur_page()->fam == FAM_SAVE && str_eq(cur_page()->title, "PRESETS"), "SAVE tapped on HOME: PRESETS (one job a button)");
+    check(!ui.home && cur_page()->fam == FAM_SAVE && str_eq(cur_page()->title, "PROJECT"), "SAVE tapped on HOME: PROJECT (the bank: first)");
+    tap(B_SAVE); frames(2);
+    check(cur_page()->fam == FAM_SAVE && str_eq(cur_page()->title, "PRESETS"), "SAVE tapped again: PRESETS");
     song.sel = 0; studio_open(SC_DRUM); frames(2);
     tap(B_SAVE); frames(2);
-    check(cur_page()->fam == FAM_SAVE && str_eq(cur_page()->title, "PRESETS"), "SAVE tapped on a synth GRID: PRESETS");
+    check(cur_page()->fam == FAM_SAVE && str_eq(cur_page()->title, "PROJECT"), "SAVE tapped on a synth GRID: PROJECT");
     song.sel = TRK_DRUM; studio_open(SC_DRUM); frames(2);
     tap(B_SAVE); frames(2);
-    check(cur_page()->fam == FAM_SAVE && str_eq(cur_page()->title, "PRESETS"), "SAVE tapped on the drum GRID: PRESETS");
+    check(cur_page()->fam == FAM_SAVE && str_eq(cur_page()->title, "PROJECT"), "SAVE tapped on the drum GRID: PROJECT");
     {   /* no page is the old SONG screen */
         uint32_t i, none = 1;
         for (i = 0; i < NPAGES; i++) none &= !str_eq(PAGES[i].title, "SONG");
@@ -3793,7 +3826,7 @@ int main(int argc, char **argv)
          * question (nothing recorded), REC held until the ring fills does it */
         static const struct { const char *page; uint8_t knob; const char *q; } AK[] = {
             {"USER", 1, "HOLD SAVE: LOAD 1"}, {"USER", 2, "HOLD SAVE: ERASE 1"}, {"USER", 3, "HOLD SAVE: SAVE 1"},
-            {"TOOLS", 0, "HOLD SAVE: CLRSQ"}, {"TOOLS", 1, "HOLD SAVE: INIT"}, {"TOOLS", 3, "HOLD SAVE: NEW"}};
+            {"TOOLS", 0, "HOLD SAVE: CLRSQ"}, {"TOOLS", 1, "HOLD SAVE: INIT"}, {"PROJECT", 3, "HOLD SAVE: NEW, BANK KEPT"}};
         song.playing = 0; song.sel = 0; ui.uslot = 0;
         for (k = 0, ok = 1; k < NELEM(AK); k++) {
             uint32_t pg, before;
@@ -3815,7 +3848,7 @@ int main(int argc, char **argv)
             ok &= !ui.ask && !song.rec && !rec_wait;
         }
         check(ok && up_ops[0] == 1u && up_ops[1] == 1u && up_ops[2] == 1u,
-              "confirm: USER LOAD / ERASE / SAVE and TOOLS CLRSQ / INIT / NEW ask, a second turn nothing, SAVE tap no, SAVE held yes");
+              "confirm: USER LOAD / ERASE / SAVE, TOOLS CLRSQ / INIT and PROJECT NEW ask, a second turn nothing, SAVE tap no, SAVE held yes");
         check(!step_on(&trk[0].step[2]), "confirm: TOOLS CLRSQ, confirmed: the pattern cleared");
         /* no action is reached by a second press: a GO turned twice in a row, quickly, does nothing */
         {
@@ -4231,7 +4264,7 @@ int main(int argc, char **argv)
         }
         {   /* SAVE > PRESETS: the sound before / after */
             uint32_t tot, p0;
-            go_home(); tap(B_SAVE); frames(2);
+            go_home(); tap(B_SAVE); tap(B_SAVE); frames(2);
             ui.force = 1; frame();
             check(cur_page()->graph == GR_BROWSE && pm_shown_m && str_eq(pm_shown_m, "SOUND"), "w10: SAVE > PRESETS: the legend says SOUND");
             p0 = preset_pos(&tot);
@@ -4375,10 +4408,10 @@ int main(int argc, char **argv)
             go_home(); frames(2);
         }
         {   /* the confirm is SAVE's everywhere: TOOLS NEW asks HOLD SAVE */
-            tap(B_SAVE); tap(B_SAVE); tap(B_SAVE); tap(B_SAVE); tap(B_SAVE); frames(2);
-            check(cur_page()->cat == CT_TOOLS, "w10: SAVE five times (wave 11: PATTERNS, wave 12: KITS before it): TOOLS");
+            tap(B_SAVE); frames(2);
+            check(cur_page()->cat == CT_PROJ, "w10: SAVE once: PROJECT (the bank: NEW moved here from TOOLS)");
             encs[panel.enc[EN_K4]] = 1; frame();
-            check(ui.ask == ASK_GO && !strncmp(ui.msg, "HOLD SAVE: NEW", 14), "w10: TOOLS NEW asks HOLD SAVE: NEW");
+            check(ui.ask == ASK_BANK && !strncmp(ui.msg, "HOLD SAVE: NEW", 14), "w10: PROJECT NEW asks HOLD SAVE: NEW, BANK KEPT");
             tap(B_SAVE); frames(2);
             check(!ui.ask, "w10: SAVE tapped: no (the question goes)");
             go_home(); frames(2);
@@ -5038,7 +5071,7 @@ int main(int argc, char **argv)
         uint32_t s0, j;
         song.sel = 0; go_home(); frames(4);
         for (j = 0; j < 6u && cur_cat() != CT_SPATT; j++) tap(B_SAVE);
-        check(cur_cat() == CT_SPATT && j == 4u, "w11: SAVE pressed four times: PRESETS, USER, KITS (wave 12), PATTERN");
+        check(cur_cat() == CT_SPATT && j == 5u, "w11: SAVE pressed five times: PROJECT, PRESETS, USER, KITS (wave 12), PATTERN");
         encs[panel.enc[EN_K1]] = 2; frames(3);
         check(spatt_sel == 2u, "w11: SAVE > PATTERN: KNOB 1 picks the pattern (C)");
         ui.force = 1; frame(); ppm("w11-save-pattern");
@@ -5233,8 +5266,8 @@ int main(int argc, char **argv)
         check(pkit.base == kit_src(8) && kit_changed() && pkit.s[2].snd[7] == 20u, "w12: SAVE + OCT-: the changed kit back, its edit in it");
         /* SAVE > KITS */
         frames(40);                                       /* (the knobs wait a moment after a layer: #39) */
-        tap(B_SAVE); tap(B_SAVE); tap(B_SAVE); frames(40);
-        check(cur_cat() == CT_KITS, "w12: SAVE three times: KITS (after PRESETS, USER)");
+        tap(B_SAVE); tap(B_SAVE); tap(B_SAVE); tap(B_SAVE); frames(40);
+        check(cur_cat() == CT_KITS, "w12: SAVE four times: KITS (after PROJECT, PRESETS, USER)");
         ui.force = 1; frame(); ppm("w12-save-kits");
         encs[panel.enc[EN_K4]] = 1; frame();
         check(ui.ask == ASK_UKIT && str_eq(ui.msg, "HOLD SAVE: SAVE OVER MY HEX 1"), "w12: SAVE over an old MY HEX kit asks");

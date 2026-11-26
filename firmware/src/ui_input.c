@@ -267,6 +267,7 @@ static void project_new(void)
     ui.force = 1;
 }
 
+static void bank_ask(uint32_t op);                        /* (the bank, below) */
 static void edit_param_pg(const page_t *pg, uint32_t slot, int32_t steps)   /* (wave 4: any page; the GRID's tabs) */
 {
     int16_t *vp;
@@ -354,6 +355,11 @@ static void edit_param_pg(const page_t *pg, uint32_t slot, int32_t steps)   /* (
                 select_engine(e);
         }
         }
+        return;
+    }
+    if (pg->graph == GR_PROJ) {                           /* (the bank) KNOB 1 KEEP, KNOB 2 SWAP, KNOB 4 NEW: turned right */
+        if (steps > 0 && slot != 2u)
+            bank_ask(slot == 3u ? 2u : slot);
         return;
     }
     if (pg->graph == GR_SPATT) {                          /* (wave 11) KNOB 1 the pattern; KNOB 2 STORE: right stores (over a
@@ -455,10 +461,45 @@ static void ask_set(uint32_t kind, uint32_t arg, const char *what)
 {
     ui.ask = (uint8_t)kind;
     ui.ask_arg = (uint8_t)arg;
-    ask_keeps = (uint8_t)(kind == ASK_UP && (arg & 3u) == 2u && !up_used(arg >> 2));   /* (SAVE into an empty slot) */
+    ask_keeps = (uint8_t)((kind == ASK_UP && (arg & 3u) == 2u && !up_used(arg >> 2)) ||   /* (SAVE into an empty slot) */
+                          (kind == ASK_BANK && arg == 1u));   /* (the bank's SWAP: nothing is lost, a white ring) */
     if (kind == ASK_KIT || kind == ASK_UKIT)            /* (wave 12: the readout gives way to the question) */
         brw_t = 0;
     ui_say("HOLD SAVE: ", what);
+}
+/* (the bank, Ben 22:45: "one live one and one dead one") SAVE > PROJECT's three actions, the standing way: a knob turned right,
+ * then hold SAVE with the ring where something could be lost. KEEP into an empty bank: at once (nothing is lost); over a kept
+ * project: it asks (red, the kept one is replaced). SWAP: asks with a white ring (nothing is lost: SWAP again goes back).
+ * NEW: asks (red: the live project goes; the bank is untouched). Stopped only: a flash write stalls the audio */
+static void bank_do(uint32_t op)
+{
+    static const char *const OK[3] = {"KEPT IN THE BANK", "SWAPPED WITH THE BANK", "NEW PROJECT, BANK KEPT"};
+    int rc = bank_op(op % 3u);
+    ui_message(rc == 0 ? OK[op % 3u] : rc == 1 ? "THE BANK IS EMPTY: KEEP FIRST" : rc == 2 ? "STOP PLAYING FIRST" :
+               rc == 3 ? "NO FLASH: NOTHING KEPT" : rc == -1 && op % 3u == 2u ? "NEW, NOT SAVED YET" :
+               rc == -2 ? "SAVE ERROR: BANK AS BEFORE" : "SAVE ERROR: NOTHING CHANGED");
+    ui.force = 1;
+}
+static void bank_ask(uint32_t op)
+{
+    uint32_t np;
+    int32_t bpm;
+    char kit[9];
+    int full = bank_summary(&np, &bpm, kit);
+    if (song.playing || transport_req) {
+        ui_message("STOP PLAYING FIRST");
+        return;
+    }
+    if (op == 0u && !full)
+        bank_do(0);
+    else if (op == 0u)
+        ask_set(ASK_BANK, 0, "REPLACE THE BANK");
+    else if (op == 1u && !full)
+        ui_message("THE BANK IS EMPTY: KEEP FIRST");
+    else if (op == 1u)
+        ask_set(ASK_BANK, 1, "SWAP WITH THE BANK");
+    else
+        ask_set(ASK_BANK, 2, "NEW, BANK KEPT");
 }
 /* (wave 10, Ben: "Holding - and edit should clear the whole voice") the voice cleared, its question confirmed: its pattern
  * (steps, locks, nudges, conditions) and its latched arp chord; one undo (SAVE + OCT-). It was REC held */
@@ -505,6 +546,9 @@ static void ask_do(void)
         break;
     case ASK_PADS:
         stl_pads_clear();
+        break;
+    case ASK_BANK:                                        /* (the bank) KEEP over a kept one, SWAP, NEW */
+        bank_do(a);
         break;
     case ASK_HALVE:                                       /* (wave 9) SEQ + OCT-: the second half dropped */
         seq_halve_do(a);
@@ -1057,6 +1101,8 @@ static void pm_page_tap(uint32_t up)
         pm_edit(0, d);
         return;
     }
+    if (pg->graph == GR_PROJ)                           /* (the bank: three actions, nothing to step) */
+        return;
     if (pm_touch == 0xFFu || pm_touch_pg != ui.page)
         return;
     if (pm_touch == 4u) {
@@ -1132,6 +1178,8 @@ static void pm_words(const char **m, const char **p)
         *m = *p = "PATT";
         return;
     }
+    if (pg->graph == GR_PROJ)
+        return;
     if (pm_touch == 0xFFu || pm_touch_pg != ui.page)
         return;
     if (pm_touch == 4u) {

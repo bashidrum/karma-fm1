@@ -90,7 +90,7 @@ static struct {
 } ui;
 
 static const page_t *cur_page(void) { return &PAGES[ui.page]; }
-enum { ASK_NONE, ASK_GO, ASK_UP, ASK_KIT, ASK_PADS, ASK_STORE, ASK_HALVE, ASK_CLEAR, ASK_UKIT };
+enum { ASK_NONE, ASK_GO, ASK_UP, ASK_KIT, ASK_PADS, ASK_STORE, ASK_HALVE, ASK_CLEAR, ASK_UKIT, ASK_BANK };
 static void ask_set(uint32_t kind, uint32_t arg, const char *what);   /* (ui_input.c, wave 8: the one confirm) */
 static int32_t accel(uint32_t role, int32_t s, int32_t range);   /* ui_input.c */
 static void layer_screen_draw(void);                            /* ui_layers.c */
