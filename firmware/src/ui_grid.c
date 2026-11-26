@@ -99,6 +99,7 @@ static void syn_go(uint32_t tab, uint32_t half)        /* tab 0: TRIG's page hal
 static void pattern_rotate(track_t *t, int32_t d);      /* (ui_layers.c) */
 static void patt_pick(int32_t w);                       /* (ui_layers.c: play pattern w, queued while playing) */
 static int32_t patt_shown(void);                        /* (ui_layers.c: the pattern playing or asked for, -1 none) */
+static void ad_tap(uint32_t up);                        /* (ui_input.c: SEQ > A-D's -/+, Ben 26 Nov 2026: "Wait 0.3 s on load pages") */
 static void patt_vals(const track_t *t, uint32_t h, const char *lab[4], char v[4][12], int32_t ratio[4], uint32_t *dim)
 {
     static const char *const L[4] = {"GATE", "DIV", "SWING", "STEPS"};
@@ -962,8 +963,7 @@ static void sg_synth_input(uint32_t pressed)
         if (sg_held) {
             syn_held_oct(up);
         } else if (!syn_tab && syn_hcur() == TH_AD) {   /* (wave 10) SEQ > A-D: the pattern before / after */
-            int32_t p = patt_shown();
-            patt_pick(clamp((p < 0 ? 0 : p) + (up ? 1 : -1), 0, 3));
+            ad_tap(up);                                 /* (stopped: once no second tap came, ui_input.c) */
         } else if (up && sg_page() + 1u == pages && pages < 4u) {
             sg_page_add(TSEL);                          /* past the last page: one added, a copy of it */
         } else {                                        /* the page of steps before / after (64 steps: round) */
