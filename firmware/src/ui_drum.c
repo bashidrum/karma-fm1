@@ -43,23 +43,24 @@ static const char *const DPG_NAME[DPG_TABS] = {"TRIG", "SRC", "FLTR", "AMP", "LF
 /* (wave 8) the FX tab's halves: the drum voice's own pages (params.c PAGES: INSERT, INSERT 2, FILTER of FAM_DRM, the SLICER
  * every voice has), by name once. (The drum effects under FX, Ben 23 Nov 2026, 21:30 to 21:45, "Just mirror the synths as
  * closely as possible") in a synth voice's FX order: INS (the kit's INSERT, INSERT 2), SENDS (the SELECTED SOUND's own:
- * DELAY, REVERB, KIT FX; a sound page, not a PAGES one), SLICER (the kit's), then the whole mix's DELAY, REV/CHO, MASTER.
- * The kit's FILTER is the last half: EDIT's third category (Ben 21:40, "FILTER should live under Edit"), not FX's. The
- * kit's pages say KIT in the header and SELECT does nothing there (it picks a sound they do not act on) */
-#define NDBUS 8u                                        /* (wave 9: then the whole mix's, the FX group's MIX) */
+ * DELAY, REVERB, KIT FX; a sound page, not a PAGES one), SLICER (the kit's). (Review 26 Nov, Ben's picker "One white MIX
+ * screen": the whole mix's MIX is the PAGES' DELAY, REV/CHO, MASTER, the same screen whichever voice is selected, as STUT
+ * is; no longer halves here.) The kit's FILTER is the last half: EDIT's third category (Ben 21:40, "FILTER should live
+ * under Edit"), not FX's. The kit's pages say KIT in the header; SELECT turns the kit INSERT's type and the SLICER's mode
+ * there, as on a synth voice's FX pages (review 26 Nov, "Type on SELECT, as synths") */
+#define NDBUS 5u
 #define DBH_SENDS 2u                                    /* the selected sound's SENDS */
-#define DBH_MIX 4u                                      /* the whole mix's first (DELAY) */
-#define DBH_FILTER 7u                                   /* the kit's FILTER (EDIT's KIT FLT) */
+#define DBH_SLICER 3u                                   /* the kit's SLICER */
+#define DBH_FILTER 4u                                   /* the kit's FILTER (EDIT's KIT FLT) */
 static uint8_t dbus_pg[NDBUS];
 static uint32_t dbus_page(uint32_t h)                   /* the FX tab's half h: its PAGES index (SENDS: none, 0) */
 {
-    static const char *const T[NDBUS] = {"INSERT", "INSERT 2", "", "SLICER", "DELAY", "REV/CHO", "MASTER", "FILTER"};
-    static const uint8_t F[NDBUS] = {FAM_DRM, FAM_DRM, FAM_DRM, FAM_DRM, FAM_MFX, FAM_MFX, FAM_MFX, FAM_DRM};
+    static const char *const T[NDBUS] = {"INSERT", "INSERT 2", "", "SLICER", "FILTER"};
     if (!dbus_pg[0] && !dbus_pg[1]) {
         uint32_t i, k;
         for (k = 0; k < NDBUS; k++)
             for (i = 0; i < NPAGES; i++)
-                if (PAGES[i].fam == F[k] && str_eq(PAGES[i].title, T[k]))
+                if (PAGES[i].fam == FAM_DRM && str_eq(PAGES[i].title, T[k]))
                     dbus_pg[k] = (uint8_t)i;
     }
     return dbus_pg[h % NDBUS];
@@ -78,7 +79,7 @@ static uint32_t dpg_half(void)
 static int dpg_sends(void) { return drum_pg == DPG_FX && dpg_half() == DBH_SENDS; }   /* the sound's SENDS (FX) */
 static int dpg_snd(void) { return (drum_pg && drum_pg < DPG_FX) || dpg_sends(); }    /* a page of the selected sound */
 static int dpg_bus(void) { return drum_pg == DPG_FX && dpg_half() != DBH_SENDS; }     /* a PAGES page: the kit's, the mix's */
-static int dpg_kit(void) { return dpg_bus() && (dpg_half() < DBH_MIX || dpg_half() == DBH_FILTER); }   /* the KIT's */
+static int dpg_kit(void) { return dpg_bus(); }          /* the KIT's (every PAGES half: INSERT, INSERT 2, SLICER, FILTER) */
 static uint32_t dpg_id(uint32_t k)
 {
     static const uint8_t SENDS[4] = {DSP_DEL, DSP_REV, DSP_KFX, 0xFF};   /* (a synth voice's SENDS: DELAY REVERB CHORUS) */
@@ -863,10 +864,7 @@ static void drum_main_draw(void)
             }
         }
         dial_mark = (uint8_t)(dpg_snd() ? dmap_marks() : 0u);   /* (wave 12: the knob the LFO moves) */
-        if (dpg_bus() && PAGES[dbus_page(dpg_half())].fam == FAM_MFX)   /* (the whole mix's: white-grey) */
-            op_dials(lab, val, ratio, locked, dim, TE_G4, drum_pg * 977u + dpg_half() * 31u + pkit_gen, &foot);
-        else
-            drum_dials(lab, val, ratio, locked, dim, drum_pg * 977u + dpg_half() * 31u + pkit_gen, &foot);
+        drum_dials(lab, val, ratio, locked, dim, drum_pg * 977u + dpg_half() * 31u + pkit_gen, &foot);
         dial_mark = 0;
     }
     op_trackbar(&bar);

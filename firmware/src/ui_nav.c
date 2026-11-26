@@ -48,9 +48,10 @@ static const char *const CT_NAME[CT_N] = {
     [CT_SAVER] = "SAVER", [CT_SPATT] = "PATT", [CT_KITS] = "KITS", [CT_STUT] = "STUT", [CT_PROJ] = "PROJECT",
 };
 /* the drum screen's FX tab: where each category starts among its halves (ui_drum.c dbus_page: INSERT, INSERT 2, SENDS,
- * SLICER, then the whole mix's DELAY, REV/CHO, MASTER, then the kit's FILTER, EDIT's) */
-static uint32_t dfx_first(uint32_t c) { return c == CT_DINS ? 0u : c == CT_DSENDS ? 2u : c == CT_DSLICER ? 3u : c == CT_DFILT ? 7u : 4u; }
-static uint32_t dfx_cat(uint32_t h) { return h < 2u ? CT_DINS : h < 3u ? CT_DSENDS : h < 4u ? CT_DSLICER : h < 7u ? CT_MIX : CT_DFILT; }
+ * SLICER, then the kit's FILTER, EDIT's). (Review 26 Nov, Ben's picker "One white MIX screen": the whole mix's MIX is the
+ * one MIX screen every voice shows, the PAGES' DELAY, REV/CHO, MASTER, no longer halves of the drum screen) */
+static uint32_t dfx_first(uint32_t c) { return c == CT_DINS ? 0u : c == CT_DSENDS ? 2u : c == CT_DSLICER ? 3u : 4u; }
+static uint32_t dfx_cat(uint32_t h) { return h < 2u ? CT_DINS : h < 3u ? CT_DSENDS : h < 4u ? CT_DSLICER : CT_DFILT; }
 static int nav_div(uint32_t c) { return c == CT_MIX || c == CT_DFILT; }   /* a divider before it: the voice | the mix; the
                                                          * sound | the kit (the drums' EDIT) */
 static int nav_grid(void) { return on_drum_page() && !stl_shown(); }   /* the GRID or the drum screen shown */
@@ -136,7 +137,7 @@ static uint32_t nav_cat(uint32_t *k, uint32_t *n)
             }
             c = dfx_cat(dpg_half());
             *k = dpg_half() - dfx_first(c);
-            *n = c == CT_DINS ? 2u : c == CT_MIX ? 3u : 1u;
+            *n = c == CT_DINS ? 2u : 1u;
             return c;
         }
     } else {
@@ -217,8 +218,9 @@ static void nav_go(uint32_t c, uint32_t k)
     default:
         break;
     }
-    if (drum && (c == CT_MIX || (c >= CT_DFILT && c <= CT_DSLICER))) {   /* the drum voice's FX group: its drum screen's FX tab */
-        uint32_t m = c == CT_DINS ? 2u : c == CT_MIX ? 3u : 1u;
+    if (drum && c >= CT_DFILT && c <= CT_DSLICER) {     /* the drum voice's FX group: its drum screen's FX tab (MIX: the one
+                                                         * white MIX screen, the PAGES', as on every voice; review 26 Nov) */
+        uint32_t m = c == CT_DINS ? 2u : 1u;
         drum_screen_open();
         dpg_go(DPG_FX, dfx_first(c) + k % m);
         return;

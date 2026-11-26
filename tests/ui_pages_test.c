@@ -1188,7 +1188,27 @@ int main(int argc, char **argv)
     tap(B_FX); check(cur_cat() == CT_INS && !strcmp(PAGES[ui.page].title, "FX 1") && !stl_view, "FX again: round to INS, FX 1");
     go_home(); frame(); track_select(TRK_DRUM); frame(); tap(B_FX); check(on_drum_page() && cur_cat() == CT_DINS, "FX on the drum voice: INS first, as a synth voice (the drum effects under FX)");
     tap(B_FX); tap(B_FX); tap(B_FX);
-    check(on_drum_page() && cur_cat() == CT_MIX && PAGES[dbus_page(dpg_half())].fam == FAM_MFX, "FX on the drum voice, then MIX");
+    check(!on_drum_page() && cur_cat() == CT_MIX && PAGES[ui.page].fam == FAM_MFX && song.sel == TRK_DRUM,
+          "FX on the drum voice, then MIX: the one white MIX screen (the PAGES' DELAY), as on a synth voice (review 26 Nov, U1)");
+    {   /* (U1, Ben's picker "One white MIX screen") the same MIX pages whichever voice is selected: pixel for pixel */
+        static uint16_t mixd[3][240 * OP_BAR_Y];
+        uint32_t i, same = 1;
+        for (i = 0; i < 3u; i++) {
+            ui.hot_t = 0; ui.msg_t = 0; ui.force = 1; frame(); memcpy(mixd[i], screen, sizeof mixd[i]);
+            same &= px_count(0, 0, 240, OP_BAR_Y, TE_DRUM) == 0u;
+            tap(B_SCL); frames(2);
+        }
+        check(same && cur_cat() == CT_MIX && !strcmp(PAGES[ui.page].title, "DELAY"),
+              "U1: MIX on the drum voice: SEL walks DELAY, REV/CHO, MASTER, round; no teal above the strip");
+        track_select(0); frame(); nav_go(CT_MIX, 0); frames(2);
+        for (i = 0; i < 3u; i++) {
+            ui.hot_t = 0; ui.msg_t = 0; ui.force = 1; frame();
+            same &= !memcmp(mixd[i], screen, sizeof mixd[i]);
+            tap(B_SCL); frames(2);
+        }
+        check(same, "U1: the drum voice's three MIX pages are the synth voice's, pixel for pixel above the strip");
+        track_select(TRK_DRUM); frame();
+    }
     track_select(0);
     go_home(); frame();
     press(B_FX); frames(12); check(ui.layer == LY_FX, "FX held: PERFORM shows (wave 6)");
@@ -1564,7 +1584,7 @@ int main(int argc, char **argv)
         tap(B_SCL); frames(2); ok &= cur_cat() == CT_DINS && dpg_half() == 1u;   /* INSERT 2 */
         tap(B_FX); frames(2); ok &= cur_cat() == CT_DSENDS && dpg_sends();
         tap(B_FX); frames(2); ok &= cur_cat() == CT_DSLICER;
-        tap(B_FX); frames(2); ok &= cur_cat() == CT_MIX;
+        tap(B_FX); frames(2); ok &= cur_cat() == CT_MIX && !on_drum_page() && PAGES[ui.page].fam == FAM_MFX;   /* (U1) */
         ui.force = 1; frame(); ppm("drum-fx-mix");
         tap(B_FX); frames(2); ok &= cur_cat() == CT_STUT && stl_shown() && song.sel == TRK_DRUM;
         tap(B_FX); frames(2); ok &= cur_cat() == CT_DINS && !stl_view;
@@ -1955,8 +1975,8 @@ int main(int argc, char **argv)
         }
         for (i = 0; i < 6u && cur_cat() != CT_MIX; i++) tap(B_FX);
         ui.force = 1; frames(2);
-        check(on_drum_page() && cur_cat() == CT_MIX && px_count(0, SG_KNOB_Y, 240, 58, TE_DRUM) == 0u,
-              "DRUM: FX, four more: MIX on the drum screen, its dials white-grey (no teal)");
+        check(!on_drum_page() && cur_cat() == CT_MIX && px_count(0, 0, 240, OP_BAR_Y, TE_DRUM) == 0u,
+              "DRUM: FX, four more: MIX, the one white MIX screen (U1), no teal above the strip");
         tap(B_SEQ); frames(2);
         check(on_drum_page() && drum_keys == DK_PLAY && grid_keys_on(), "DRUM: SEQ from them: back to the drum screen");
         encs[panel.enc[EN_ALGO]] = -1; frames(2);
@@ -3793,13 +3813,11 @@ int main(int argc, char **argv)
                 for (h = 0; h < NDBUS; h++) {
                     dpg_go(DPG_FX, h); ui.force = 1; frame();
                     for (o2 = 0; o2 < NPART; o2++) bad += px_count(0, 0, 240, OP_BAR_Y, TE_COL[o2]);
-                    if (h < DBH_MIX || h == DBH_FILTER)   /* (the kit's pages and the sound's SENDS: teal) */
-                        bad += px_count(0, SG_KNOB_Y, 240, 58, TE_DRUM) < 20u;
-                    else                                 /* (wave 9) MIX: the whole mix's, white-grey dials, no teal */
-                        bad += px_count(0, SG_KNOB_Y, 240, 58, TE_DRUM) != 0u;
+                    bad += px_count(0, SG_KNOB_Y, 240, 58, TE_DRUM) < 20u;   /* (the kit's pages and the sound's SENDS:
+                                                         * teal; MIX is the PAGES' white one now, U1) */
                 }
                 dpg_go(1, 0); go_home(); track_select(0); frames(2);
-                check(bad == 0u, "colour rule: the drum FX tab's own pages (kit INS, SENDS, SLICER, KIT FLT) in teal only, its three MIX pages in white-grey");
+                check(bad == 0u, "colour rule: the drum FX tab's own pages (kit INS, SENDS, SLICER, KIT FLT) in teal only");
             }
             for (v = 0; v < NPART; v++) {               /* each voice's every sound page: no other voice's colour, in any
                                                          * of its shades (wave 7 found voice 1's OSC drawing dim coral) */

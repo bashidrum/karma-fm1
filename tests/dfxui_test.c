@@ -93,7 +93,7 @@ static void pages(void)
     tap(B_FX); frames(2); ok &= cur_cat() == CT_DSENDS && dpg_sends() && nav_tabs_fit;
     tap(B_FX); frames(2); ok &= cur_cat() == CT_DSLICER && dpg_kit();
     ui.force = 1; frame(); ppm("dfx-kit-slicer");
-    tap(B_FX); frames(2); ok &= cur_cat() == CT_MIX && !dpg_kit();
+    tap(B_FX); frames(2); ok &= cur_cat() == CT_MIX && !on_drum_page();   /* (U1: the one white MIX screen) */
     tap(B_FX); frames(2); ok &= cur_cat() == CT_STUT;
     tap(B_FX); frames(2); ok &= cur_cat() == CT_DINS;
     check(ok, "D2: FX on the drums: INS (SEL: INSERT 2), SENDS, SLICER, MIX, STUT, round: a synth voice's order; no FILTER");
