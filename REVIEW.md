@@ -24,6 +24,8 @@ Also from the engine pass, for the device checks after install (no decision): th
 
 ## Using it, consistency and the spec
 
+Done 26 Nov (CI run 113 and after): U1 to U7, V1 to V8, O1, O2, R1 (build wins: INS, SENDS, SLICER), R2 (rows from the bottom), D1 docs. R3 left as is. Follow-ups as in SPEC.md "Agent choices confirmed".
+
 U1. **The drums' MIX pages are drawn as the drum screen** (tag DRUM in teal, the selected sound large, the kit grid, "THE WHOLE MIX"), where a synth voice shows the one white MIX screen. Breaks the colour rule and "mirror the synths". Fix: one MIX screen whichever voice is selected, as STUT already does. Small. `v03`, `u-j603`.
 
 U2. **The drum kit's INS and SLICER put the type on KNOB 1; the synths put it on SELECT.** Kit INS: K1 "INSERT", K2 to K4 named "-" but showing 50 76 76 in full colour (and lockable); no "EMPTY: SELECT PICKS A TYPE". Kit SLICER: K1 SLCR, then PAT RATE DEPTH, where a synth has the mode on SELECT and PAT RATE DEPTH on K1 to K3. SELECT does nothing on kit pages, so it is free. Fix: SELECT turns the kit insert's type and the slicer's mode, values move to the synth positions, the empty state matches. Medium. `v20`, `u-j600`.
