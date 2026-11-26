@@ -574,3 +574,5 @@ Agent choices confirmed (26 Nov, after the drum and look work):
 - Grid tile short name: "SNARE2 in tiles" (long name SNARE 2).
 - MIDI LEARN CLEAR on MIDI 3: "Hold ring".
 - Look details (MTRX KFLT CHRM SAVR; NS LVL, NS FRQ, T ENV, F CUT, E SYNC, DEPTH; USB AUDIO MIX; KEYS OFF/C/WHITE/ALL; "PLAY: GO, REC: CANCEL"; "LET GO TO CANCEL"; PADS n; FILL where the beat lights are; MIX and voice pictures): "Accept all".
+- Drum voice MIX page steps: "Make it follow" (the step page follows the playhead, as on the drum screen).
+- Empty kit INSERT hides MIX on KNOB 4; the synth returns to PRESETS/USER only when KITS came from a voice switch: "Accept both".
