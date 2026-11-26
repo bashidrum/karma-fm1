@@ -388,7 +388,13 @@ static void sg_follow(void)
 }
 /* the GRID shown, no layer held: its keys are steps (seq.c kb_grid). The drum track's MUTE and CHROMATIC modes: the
  * keys mute, play (PHEBUS wave 3) */
-static int grid_keys_on(void) { return on_drum_page() && (song.sel != TRK_DRUM || drum_keys == DK_PLAY) && !ui.menu; }
+/* (Ben, 26 Nov 2026, "Keep them as steps on drums") the drum voice's MIX pages (the one white MIX screen, review U1): the
+ * white keys stay the drum steps they were when MIX was the drum screen's; a synth voice's MIX: its keys play, unchanged */
+static int drum_mix_keys(void) { return !ui.home && song.sel == TRK_DRUM && cur_page()->cat == CT_MIX; }
+static int grid_keys_on(void)
+{
+    return (on_drum_page() || drum_mix_keys()) && (song.sel != TRK_DRUM || drum_keys == DK_PLAY) && !ui.menu;
+}
 /* a key of the GRID (seq.c lk_q KB_GRID), down or up: a white key is a step of the page shown, the first four
  * black keys pick the page (steps 1-16, 17-32, 33-48, 49-64). The cursor follows */
 static void grid_key(uint32_t k, uint32_t down)

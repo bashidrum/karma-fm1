@@ -1216,6 +1216,19 @@ int main(int argc, char **argv)
         check(same, "U1: the drum voice's three MIX pages are the synth voice's, pixel for pixel above the strip");
         track_select(TRK_DRUM); frame();
     }
+    {   /* (Ben, 26 Nov 2026, "Keep them as steps on drums") the drum voice's MIX: the white keys are its steps, as when MIX was
+         * the drum screen's; a synth voice's MIX: its keys play, as before */
+        uint32_t w = (uint32_t)punch_key(key_of_white(2)), idx = sg_page() * 16u + w, was = sg_on(TDRUM, idx), okm = 1;
+        okm &= cur_cat() == CT_MIX && grid_keys_on() && kb_grid;
+        key(key_of_white(2)); frames(2);
+        okm &= sg_on(TDRUM, idx) != was;
+        key(key_of_white(2)); frames(2);
+        okm &= sg_on(TDRUM, idx) == was;
+        track_select(0); frame(); nav_go(CT_MIX, 0); frames(2);
+        okm &= cur_cat() == CT_MIX && !grid_keys_on() && !kb_grid;
+        track_select(TRK_DRUM); frame();
+        check(okm, "MIX on the drum voice: the white keys are its steps (a tap sets, a tap clears); on a synth voice they play");
+    }
     track_select(0);
     go_home(); frame();
     press(B_FX); frames(12); check(ui.layer == LY_FX, "FX held: PERFORM shows (wave 6)");
