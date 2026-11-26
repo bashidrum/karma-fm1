@@ -1380,17 +1380,18 @@ static void op_home_body(void)
                 room -= 12;
             for (n = str_len(b); n && text_w(&FONT_S, b) > room; n--)   /* (cut to its room: never into the next voice) */
                 b[n - 1u] = 0;
-            hz_label(x0, 17, b, col, (int)sel);
-            hz_badge(x0 + 2 + text_w(&FONT_S, b), 16, muted, solo, rec);
-            for (j = 0; j < 16u; j++) {                 /* its steps in view: 4 px a step */
+            hz_label(x0, 16, b, col, (int)sel);
+            hz_badge(x0 + 2 + text_w(&FONT_S, b), 15, muted, solo, rec);
+            for (j = 0; j < 16u; j++) {                 /* its steps in view: 4 px a step, a 4 px bar (review O1, Ben: "Give
+                                                         * synths a 4 px step bar") */
                 uint32_t p = bank * 16u + j;
                 int32_t x = x0 + (int32_t)j * 4 + (int32_t)(j / 4u);
                 uint16_t c;
                 if (p >= len)
                     continue;
                 c = playing && p == pos ? C_WHITE : step_on(&t->step[p]) ? col
-                  : t->step[p].time == ST_TIE ? (muted ? TE_G2 : TE_DIM[i]) : TE_G1;
-                cv_rect(x, 34, 3, 3, c);
+                  : t->step[p].time == ST_TIE ? (muted ? TE_G3 : TE_DIM[i]) : TE_G2;   /* (O1: the empty ones too, a bar) */
+                cv_rect(x, 33, 3, 4, c);
             }
         }
         cv_blit(0, OP_BODY_Y + HZ_DECK);
