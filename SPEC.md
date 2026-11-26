@@ -565,3 +565,12 @@ Box 6:
 - ARP on the drums: "Leave as is" (CHROMATIC, then off).
 
 Safety fixes, agent choices confirmed (26 Nov): bar "HOLD SAVE: STOPS THE AUDIO" with "THIS WILL STOP THE AUDIO" on the hold screen: "Yes, ship it". ERASE of a user kit asks the same while playing; red ring over a stored kit or erase, white into an empty kit: "Yes, both".
+
+Agent choices confirmed (26 Nov, after the drum and look work):
+- Factory kits load only from HOME's PRESETS knob; SAVE > KITS holds the six user kits: "Yes, HOME only".
+- White keys on the drum voice's (shared, white) MIX page: "Keep them as steps on drums".
+- Switching from a synth's SAVE > PRESETS or USER to the drums lands on KITS; switching back: "Back to PRESETS on the synth" (the synth returns to the page you left it on).
+- Drum details (SENDS mini kit map, decay span labels, static LFO picture, HEX/CLS/MY tags): "Accept all, move MIX to K4" (kit INSERT becomes a single page).
+- Grid tile short name: "SNARE2 in tiles" (long name SNARE 2).
+- MIDI LEARN CLEAR on MIDI 3: "Hold ring".
+- Look details (MTRX KFLT CHRM SAVR; NS LVL, NS FRQ, T ENV, F CUT, E SYNC, DEPTH; USB AUDIO MIX; KEYS OFF/C/WHITE/ALL; "PLAY: GO, REC: CANCEL"; "LET GO TO CANCEL"; PADS n; FILL where the beat lights are; MIX and voice pictures): "Accept all".
