@@ -852,7 +852,7 @@ static void draw_graph(void)
         graph_scope(c);
 #endif
     } else if (drum_note) {                          /* a page the drum track has no use for */
-        static const char *const L[2] = {"DRUM VOICE", "SEQ  TRACKS  GLO DRUMS"};
+        static const char *const L[2] = {"DRUM VOICE", "NOT ON THIS VOICE"};
         cv_text((240 - text_w(&FONT_S, L[0])) / 2, 26, &FONT_S, L[0], C_HI);
         cv_text((240 - text_w(&FONT_S, L[1])) / 2, 52, &FONT_S, L[1], C_DIM);
     } else {
