@@ -447,8 +447,8 @@ static void graph_spatt(void)
  *   4 PATTERNS  92 BPM
  *   KIT: CUSTOM
  *   BANK
- *   EMPTY                               (or as LIVE's two lines)
- *   TURN RIGHT, THEN HOLD SAVE          (the knobs: KEEP, SWAP, NEW) */
+ *   EMPTY: NOTHING KEPT YET             (or as LIVE's two lines)
+ * The knobs: KEEP, SWAP, NEW (a turn right; the question that follows says HOLD SAVE) */
 static void proj_text(char *a, char *b, uint32_t np, int32_t bpm, const char *kit)
 {
     if (!np)
@@ -496,16 +496,15 @@ static void graph_proj(void)
     proj_text(a, b, proj_live_npat(), song.g[G_BPM], kit);
     cv_text(4, 16, &FONT_S, a, C_HI);
     cv_text(4, 32, &FONT_S, b, C_HI);
-    cv_rect(4, 51, 232, 1, C_LINE);
-    cv_text(4, 56, &FONT_S, "BANK", C_WHITE);
+    cv_rect(4, 50, 232, 1, C_LINE);
+    cv_text(4, 53, &FONT_S, "BANK", C_WHITE);
     if (bank_summary(&np, &bpm, kit)) {
         proj_text(a, b, np, bpm, kit);
-        cv_text(4, 72, &FONT_S, a, C_HI);
-        cv_text(4, 88, &FONT_S, b, C_HI);
+        cv_text(4, 69, &FONT_S, a, C_HI);
+        cv_text(4, 85, &FONT_S, b, C_HI);
     } else {
-        cv_text(4, 72, &FONT_S, "EMPTY: NOTHING KEPT YET", C_DIM);
+        cv_text(4, 69, &FONT_S, "EMPTY: NOTHING KEPT YET", C_DIM);
     }
-    cv_text(4, 106, &FONT_S, "TURN RIGHT, THEN HOLD SAVE", TE_G3);
 }
 /* the song's parts A..D (SAVE > PARTS): used / empty, the selected one in white */
 static void graph_slots(void)

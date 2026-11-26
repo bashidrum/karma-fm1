@@ -5484,6 +5484,73 @@ int main(int argc, char **argv)
         memset(&stl, 0, sizeof stl); stl.len = 16; stl.act = 1;
         go_home(); track_select(0); frames(2);
     }
+    {   /* ---- (Ben 22:31 to 22:45) the hold-SAVE layer in plain words; SAVE > PROJECT, the bank's KEEP SWAP NEW */
+        static const char *const HINTS[] = {"PRESS KEY 1-4: STORE PATTERN", "IT SAVES ITSELF WHEN YOU STOP",
+            "KEEP A COPY: SAVE > PROJECT", "PROJECT: NOT SAVED YET", "PROJECT: STOP TO SAVE",
+            "EMPTY: NOTHING KEPT YET", "NEW HITS AT VELOCITY 127", "TAP A KEY: MUTE", "SEL: NEXT SECTION  OCT-: BACK",
+            "KNOBS 1-3 SET ROWS  OCT+: OK", "KNOBS 1-4 SET ROWS  SEL: NEXT", "PADS YOU RECORD SHOW HERE", "PLAY STARTS, REC CANCELS",
+            "HOLD SAVE: REPLACE THE BANK", "HOLD SAVE: SWAP WITH THE BANK", "HOLD SAVE: NEW, BANK KEPT",
+            "THE BANK IS EMPTY: KEEP FIRST", "SWAPPED WITH THE BANK", "NEW PROJECT, BANK KEPT", "SAVE ERROR: NOTHING CHANGED"};
+        uint32_t i, ok = 1, v, b0;
+        char a1[24], a2[24];
+        for (i = 0; i < NELEM(HINTS); i++)
+            ok &= 4 + text_w(&FONT_S, HINTS[i]) <= 236 && str_len(HINTS[i]) <= 29u;
+        check(ok, "keep: every plain-words line fits its line (232 px, the message's 29 letters)");
+        song.playing = 0; transport_req = 0; song.sel = 0; ly_lock = LY_PLAY; go_home(); frames(4);
+        proj_unsaved = 0; live_sec = 1; live_req = -1;
+        press(B_SAVE); frames(15); ui.force = 1; frame(); ppm("keep-hold-save");
+        v = px_count(0, LY_TILES_Y, 240, OP_KNOB_Y - LY_TILES_Y, TE_COL[0]) + px_count(0, LY_TILES_Y, 240, OP_KNOB_Y - LY_TILES_Y, TE_COL[1]) +
+            px_count(0, LY_TILES_Y, 240, OP_KNOB_Y - LY_TILES_Y, TE_COL[2]) + px_count(0, LY_TILES_Y, 240, OP_KNOB_Y - LY_TILES_Y, TE_COL[3]) +
+            px_count(0, LY_TILES_Y, 240, OP_KNOB_Y - LY_TILES_Y, TE_RED);
+        check(ui.layer == LY_SAVE && str_eq(sub_line(), "") && pm_lm && str_eq(pm_lm, "UNDO") && v == 0u &&
+              px_count(0, LY_TILES_Y, 240, 16, TE_G4) > 100u && px_count(61, LY_TILES_Y + 18, 58, 3, C_WHITE) == 174u,
+              "keep: hold SAVE says PRESS KEY 1-4: STORE PATTERN, -/+ UNDO REDO kept, B marked playing; white and grey only");
+        b0 = px_count(0, LY_TILES_Y + 60, 240, 16, C_WHITE);
+        proj_unsaved = 1; ui.force = 1; frame(); ppm("keep-hold-save-unsaved");
+        check(b0 == 0u && px_count(0, LY_TILES_Y + 60, 240, 16, C_WHITE) > 150u,
+              "keep: PROJECT: SAVED in grey; NOT SAVED YET in white (work at risk: not to be missed)");
+        release(B_SAVE); frames(3); proj_unsaved = 0;
+        go_home(); frames(2); tap(B_SAVE); frames(2);
+        bank_has = 0; memset(bank_ops, 0, sizeof bank_ops);
+        ui.force = 1; frame(); ppm("keep-project-empty");
+        frames(40);                                       /* (the knobs wait a moment after a layer: #39) */
+        v = px_count(0, 0, 240, OP_KNOB_Y, TE_COL[0]) + px_count(0, 0, 240, OP_KNOB_Y, TE_COL[1]) +
+            px_count(0, 0, 240, OP_KNOB_Y, TE_COL[2]) + px_count(0, 0, 240, OP_KNOB_Y, TE_COL[3]) + px_count(0, 0, 240, OP_KNOB_Y, TE_RED);
+        check(cur_cat() == CT_PROJ && v == 0u, "keep: SAVE > PROJECT first, white and grey only (the whole instrument's)");
+        encs[panel.enc[EN_K2]] = 1; frames(3);
+        check(!ui.ask && bank_ops[1] == 0u && strstr(ui.msg, "BANK IS EMPTY"), "keep: SWAP with an empty bank: THE BANK IS EMPTY: KEEP FIRST");
+        ui.msg_t = 0; frames(2);
+        encs[panel.enc[EN_K1]] = 1; frames(3);
+        check(!ui.ask && bank_ops[0] == 1u && bank_has && strstr(ui.msg, "KEPT IN THE BANK"), "keep: KEEP into an empty bank: at once");
+        ui.msg_t = 0; ui.force = 1; frame(); ppm("keep-project-kept");
+        encs[panel.enc[EN_K1]] = 1; frames(3);
+        check(ui.ask == ASK_BANK && !strcmp(ui.msg, "HOLD SAVE: REPLACE THE BANK") && !ask_keeps && bank_ops[0] == 1u,
+              "keep: KEEP over a kept project asks: HOLD SAVE: REPLACE THE BANK (red ring)");
+        ui.force = 1; frame(); ppm("keep-project-ask-keep");
+        press(B_SAVE); frames(HOLD_CLEAR_MS / 16u + 6u); release(B_SAVE); frames(3);
+        check(bank_ops[0] == 2u && !ui.ask, "keep: ... SAVE held until the ring fills: kept");
+        encs[panel.enc[EN_K2]] = 1; frames(3);
+        check(ui.ask == ASK_BANK && !strcmp(ui.msg, "HOLD SAVE: SWAP WITH THE BANK") && ask_keeps,
+              "keep: SWAP asks with a white ring (nothing is lost: SWAP again goes back)");
+        press(B_SAVE); frames(40); ui.force = 1; frame(); ppm("keep-project-ask-swap"); frames(HOLD_CLEAR_MS / 16u); release(B_SAVE); frames(3);
+        check(bank_ops[1] == 1u && strstr(ui.msg, "SWAPPED"), "keep: ... held: swapped");
+        encs[panel.enc[EN_K4]] = 1; frames(3);
+        check(ui.ask == ASK_BANK && !strcmp(ui.msg, "HOLD SAVE: NEW, BANK KEPT") && !ask_keeps, "keep: NEW asks: HOLD SAVE: NEW, BANK KEPT");
+        ui.force = 1; frame(); ppm("keep-project-ask-new");
+        tap(B_SAVE); frames(2);
+        song.playing = 1;
+        encs[panel.enc[EN_K1]] = 1; frames(3);
+        check(!ui.ask && bank_ops[0] == 2u && strstr(ui.msg, "STOP PLAYING FIRST"), "keep: while playing: STOP PLAYING FIRST, nothing done");
+        song.playing = 0; ui.msg_t = 0;
+        proj_text(a1, a2, 2, 120, "CUSTOM");
+        check(str_eq(a1, "2 PATTERNS  120 BPM") && str_eq(a2, "KIT: CUSTOM"), "keep: a summary: 2 PATTERNS  120 BPM / KIT: CUSTOM");
+        proj_text(a1, a2, 0, 90, "606");
+        check(str_eq(a1, "NO PATTERNS  90 BPM") && str_eq(a2, "KIT: 606"), "keep: a summary: NO PATTERNS  90 BPM / KIT: 606");
+        bank_np = 3; bank_bpm = 92; str_cpy(bank_kit, "808", 9); proj_unsaved = 1;
+        ui.force = 1; frame(); ppm("keep-project-full");
+        proj_unsaved = 0; bank_has = 0;
+        go_home(); frames(2);
+    }
     printf("ui: %s\n", fails ? "FAILED" : "pages, layers (punch, steps, erase, roll, key, mix), layer lock, song layer, REC hold, drums, REC, 20000-frame fuzz PASS");
     return fails;
 }
