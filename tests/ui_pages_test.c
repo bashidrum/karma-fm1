@@ -3203,7 +3203,7 @@ int main(int argc, char **argv)
                 ui.force = 1; frame();
                 if (n < 16u) {
                     uint32_t cell, in = px_count((uint32_t)PF_PAD_X(n), PF_Y + (uint32_t)PF_PAD_Y(n), PF_PAD_W, PF_PAD_H, C_WHITE);
-                    ok2 &= PF_PAD_X(n) == (int32_t)(n / 4u) * 61 && PF_PAD_Y(n) == 33 + (int32_t)(n % 4u) * 19 && in > 700u;
+                    ok2 &= PF_PAD_X(n) == 2 + (int32_t)(n / 4u) * 60 && PF_PAD_Y(n) == 33 + (int32_t)(n % 4u) * 19 && in > 700u;
                     for (cell = 0; cell < 16u; cell++)   /* (no other cell filled white) */
                         if (cell != n)
                             ok2 &= px_count((uint32_t)PF_PAD_X(cell), PF_Y + (uint32_t)PF_PAD_Y(cell), PF_PAD_W, PF_PAD_H, C_WHITE) < 60u;
@@ -3257,12 +3257,12 @@ int main(int argc, char **argv)
                       px_count((uint32_t)PF_COL_X(c), PF_Y + PF_HEAD_Y, PF_PAD_W, 14, TE_G3) > 30u &&
                       PF_HEAD_Y + 12 <= PF_PAD_Y(0) && PF_PAD_Y(3) + PF_PAD_H <= (int32_t)(SG_KNOB_Y - PF_Y);
             check(ok, "PERFORM in columns: a heading over each column (REPEAT TIME FILTER COLOUR), between the black row and the pads");
-            for (n = 0, ok = 1; n < 16u; n++)   /* every pad's name inside its cell, a pixel spare each side */
-                ok &= text_w(&FONT_S, PFD[n].pad) - 1 <= PF_PAD_W - 2;
+            for (n = 0, ok = 1; n < 16u; n++)   /* every pad's name inside its cell, (review V5) 2 px spare each side */
+                ok &= (text_w(&FONT_S, PFD[n].pad) - 1 <= PF_PAD_W - 4 || cv_text_tight(0, 0, PFD[n].pad, 0, 0) - 1 <= PF_PAD_W - 4);
             for (c = 0; c < 3u; c++)
                 ok &= PF_COL_X(c + 1u) - PF_COL_X(c) - PF_PAD_W >= 3;   /* (the four types as four blocks: gutters wider than rows) */
-            ok &= PF_COL_X(3) + PF_PAD_W <= 240 && PF_PAD_Y(1) - PF_PAD_Y(0) - PF_PAD_H < PF_COL_X(1) - PF_PAD_W;
-            check(ok, "PERFORM in columns: no pad's name past its cell (ISO MID, PHASER, MOTION); the columns 4 px apart, rows 1");
+            ok &= PF_COL_X(0) >= 2 && PF_COL_X(3) + PF_PAD_W <= 238 && PF_PAD_Y(1) - PF_PAD_Y(0) - PF_PAD_H < PF_COL_X(1) - PF_PAD_W;
+            check(ok, "PERFORM in columns: no pad's name past its cell (ISO MID, PHASER, MOTION), 2 px clear of the screen's edges (V5)");
             /* two latched and a mute latched: each in its own cell, the dot; the last pressed framed */
             fm1_in.buttons |= BT(B_OCTUP); edges_btn |= BT(B_OCTUP); frame();
             fm1_in.notes = 1u << key_of_white(1); frame(); fm1_in.notes = 0; frame();

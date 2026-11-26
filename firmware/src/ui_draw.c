@@ -384,8 +384,8 @@ static void graph_browse(void)
     cur = preset_pos(&total);
     if (!total)
         return;
-    for (row = -3; row <= 3; row++) {
-        int32_t y = 4 + (row + 3) * 17;
+    for (row = -2; row <= 3; row++) {                    /* (review V5: six rows, none cut by the tab row) */
+        int32_t y = 4 + (row + 2) * 17;
         char tag[5], nm[13];
         int sel = row == 0;
         uint32_t n = (cur + total * 4u + (uint32_t)row) % total;
@@ -407,8 +407,8 @@ static void graph_browse(void)
 /* user preset slots around the selected one: "U07  NAME" / EMPTY, the selected one in white */
 static void graph_user(void)
 {
-    int32_t row, first = clamp((int32_t)ui.uslot - 3, 0, UP_SLOTS - 7);
-    for (row = 0; row < 7; row++) {
+    int32_t row, first = clamp((int32_t)ui.uslot - 2, 0, UP_SLOTS - 6);
+    for (row = 0; row < 6; row++) {                      /* (review V5: six rows, none cut by the tab row) */
         uint32_t k = (uint32_t)(first + row);
         int32_t y = 4 + row * 17;
         char tag[4], nm[13];

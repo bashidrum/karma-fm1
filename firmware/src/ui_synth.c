@@ -422,24 +422,6 @@ static void syn_sends(const track_t *t, uint16_t c, uint16_t cd)
 }
 /* (wave 5) the grid (mock-synth-mod-A): the sources down, the destinations across (seven at a time, the cursor's half), a dot
  * a cell, as large as its amount, a ring when negative, the cursor framed white */
-/* (review V2) a name with a space (LFO 1, FX 1) set tight: the space 3 px, so a grid's column of 32 px keeps it whole and apart;
- * draw 0: only its width */
-static int32_t cv_text_tight(int32_t x, int32_t y, const char *s, uint16_t c, int draw)
-{
-    int32_t x0 = x;
-    char b[2] = {0, 0};
-    for (; *s; s++) {
-        if (*s == ' ') {
-            x += 3;
-            continue;
-        }
-        b[0] = *s;
-        if (draw)
-            cv_text(x, y, &FONT_S, b, c);
-        x += text_w(&FONT_S, b);
-    }
-    return x - x0;
-}
 static void syn_matrix(const track_t *t, uint16_t c)
 {
     uint8_t cols[MD_N];

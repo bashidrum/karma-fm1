@@ -1185,13 +1185,18 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
     static uint32_t head, line, vo, dr, knobs, bar;
     const uint8_t *mx = op_mx;
     uint32_t i, sig = 7u, lk = ly_lock != LY_PLAY;
-    op_header("GLO", C_WHITE, ui.msg_t ? ui.msg : flags & 16u ? "PANS" : "MIXER", &head);   /* (a message: in the title) */
+    op_header("GLO", C_WHITE, flags & 16u ? "PANS" : "MIXER", &head);   /* (review V5: a message in the line under, whole) */
     op_band_tick();
     sig = studio_hash(lk * 3u + 5u, ui.msg_t ? ui.msg : "");
     if (ui.force || sig != line) {                      /* the line: what a key does; -/+; LOCK while it stays open */
         int32_t x = 236;
         line = sig;
         cv_begin(240, BK_Y - OP_HEAD_H, C_BLACK);
+        if (ui.msg_t) {                                 /* (a message: a white bar, as every layer's) */
+            cv_rect(0, 0, 240, 17, C_WHITE);
+            te_text_c(120, 0, ui.msg, C_BLACK);
+            cv_blit(0, OP_HEAD_H);
+        } else {
         if (lk) {
             int32_t w = (int32_t)text_w(&FONT_S, "LOCK") + 6;
             cv_rect(x - w, 0, w, 16, C_WHITE);
@@ -1201,6 +1206,7 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
         x = pm_draw(x, 0, "CLEAR", "SOLO") - 8;
         cv_text(4, 0, &FONT_S, x >= 4 + (int32_t)text_w(&FONT_S, "TAP A KEY: MUTE") ? "TAP A KEY: MUTE" : "TAP: MUTE", C_WHITE);
         cv_blit(0, OP_HEAD_H);
+        }
     }
     sig = 11u + (flags & 16u);
     for (i = 0; i < NTRK; i++)
@@ -1210,7 +1216,7 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
         vo = sig;
         cv_begin(240, 32, C_BLACK);
         for (i = 0; i < NTRK; i++) {
-            int32_t x = 1 + 60 * (int32_t)i, w = 58, lv = ratio[i] < 0 ? 0 : ratio[i], m = (int32_t)mx[i];
+            int32_t x = 2 + 60 * (int32_t)i, w = 56, lv = ratio[i] < 0 ? 0 : ratio[i], m = (int32_t)mx[i];
             uint32_t mute = trk[i].p[P_MUTE] != 0, solo = (song.solo >> i) & 1u, quiet = trk_silent(&trk[i]) && !mute;
             uint16_t c = TE_COL[i], bg = mute ? TE_MUTE : solo ? TE_SOLO : TE_G1, fg = mute || solo ? C_BLACK : quiet ? TE_G2 : c;
             if (flags & 16u)                            /* (the pans' page: the bar is the level still) */
@@ -1234,22 +1240,23 @@ static void op_mix_draw(const char *const val[4], const int32_t ratio[4], uint32
         dr = sig;
         cv_begin(240, 80, C_BLACK);
         for (i = 0; i < 16u; i++) {                     /* (i: the grid's place; l: the sound there) */
-            int32_t x = 1 + (int32_t)(i % 4u) * 60, y = (int32_t)(i / 4u) * 20;
+            int32_t x = 2 + (int32_t)(i % 4u) * 60, y = (int32_t)(i / 4u) * 20;   /* (review V5: 56 px tiles, 2 px clear
+                                                         * of the screen's edges, 4 apart) */
             uint32_t l = DRUM_GRID[i], m = (drum_mute >> l) & 1u, so = (drum_solo >> l) & 1u,
                      quiet = !m && (trk_silent(TDRUM) || drum_silenced(l));
             char nm[8];
             te_upper(nm, LANE_SHORT[l], sizeof nm);
-            if (m || so) {                              /* (the tile yellow / ice blue, the name black; at its right end the
-                                                         * letter, M or S, in a black tab. The drum grid: the tab flush with
-                                                         * the tile's right edge, 8 px, so a six-letter name (OP HAT, SHAKER,
-                                                         * C-BELL, 48 px) keeps a pixel clear of the tile's edge and the tab) */
-                cv_rect(x, y, 58, 18, m ? TE_MUTE : TE_SOLO);
-                te_text_c(x + 25, y + 1, nm, C_BLACK);
-                cv_rect(x + 50, y + 2, 8, 14, C_BLACK);
-                cv_text(x + 51, y + 1, &FONT_S, m ? "M" : "S", m ? TE_MUTE : TE_SOLO);
+            if (m || so) {                              /* (the tile yellow / ice blue, the name black, set narrow so it keeps
+                                                         * clear of the tab; at its right end the letter, M or S, in a black
+                                                         * tab 1 px inside the tile's edge: review V5) */
+                int32_t nw = cv_text_narrow(0, 0, nm, 0, 0);
+                cv_rect(x, y, 56, 18, m ? TE_MUTE : TE_SOLO);
+                cv_text_narrow(x + (44 - nw) / 2, y + 1, nm, C_BLACK, 1);
+                cv_rect(x + 45, y + 2, 10, 14, C_BLACK);
+                cv_text(x + 46, y + 1, &FONT_S, m ? "M" : "S", m ? TE_MUTE : TE_SOLO);
             } else {
-                cv_rect(x, y, 58, 18, TE_G1);
-                te_text_c(x + 29, y + 1, nm, quiet ? TE_G2 : TE_COL[TRK_DRUM]);
+                cv_rect(x, y, 56, 18, TE_G1);
+                te_text_c(x + 28, y + 1, nm, quiet ? TE_G2 : TE_COL[TRK_DRUM]);
             }
         }
         cv_blit(0, BK_Y + 34);

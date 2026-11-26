@@ -679,10 +679,12 @@ static void drum_main_draw(void)
             } else {
                 str_cpy(a, "THE WHOLE MIX", sizeof a);
             }
-            cv_text(4, 0, &FONT_S, a, dpg_kit() ? TE_G4 : TE_G4);
+            if (first >= 0)                             /* (review V5: a step held, the lock line alone: the two drew over
+                                                         * each other) */
+                cv_text(4, 0, &FONT_S, "LOCK ON THE STEP", TE_DRUM);
+            else
+                cv_text(4, 0, &FONT_S, a, TE_G4);
             cv_text_tall(4, 20, PAGES[dbus_page(dpg_half())].title, dpg_kit() ? TE_DRUM : C_WHITE);
-            if (first >= 0)
-                cv_text(236 - text_w(&FONT_S, "LOCK ON THE STEP"), 0, &FONT_S, "LOCK ON THE STEP", TE_DRUM);
         } else if (!drum_pg) {                          /* TRIG, PATTERN, A-D: the step held (its values), the keys' page */
             char a[32], b2[32];
             int xi = first >= 0 ? dt_x((uint32_t)first, l) : -1;

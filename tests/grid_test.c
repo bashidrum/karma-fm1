@@ -60,7 +60,7 @@ static void table(void)
 }
 
 /* ---- the mixer: keys, tiles, lights */
-static void tile_xy(uint32_t place, uint32_t *x, uint32_t *y) { *x = 1u + (place % 4u) * 60u, *y = BK_Y + 34u + (place / 4u) * 20u; }
+static void tile_xy(uint32_t place, uint32_t *x, uint32_t *y) { *x = 2u + (place % 4u) * 60u,   /* (review V5: 56 px tiles, 2 px clear of the edges) */ *y = BK_Y + 34u + (place / 4u) * 20u; }
 static void mixer_keys(void)
 {
     uint32_t w, okm = 1, oks = 1, okt = 1, okl = 1, okn = 1, okf = 1;
@@ -74,11 +74,11 @@ static void mixer_keys(void)
         okm &= drum_mute == 1u << want && drum_lane == want;
         for (p = 0; p < 16u; p++) {                     /* the yellow tile: only the one in its grid place */
             tile_xy(p, &x, &y);
-            c = px_count(x, y, 58, 18, TE_MUTE);
+            c = px_count(x, y, 56, 18, TE_MUTE);
             okt &= DRUM_GRID[p] == want ? c > 400u : c == 0u;
-            if (DRUM_GRID[p] == want)                   /* its name clear of the tile's left edge and of the M tab (x + 50) */
-                okf &= px_count(x, y + 1u, 1, 16, C_BLACK) == 0u && px_count(x + 49u, y + 1u, 1, 16, C_BLACK) == 0u &&
-                       px_count(x + 1u, y + 1u, 46, 16, C_BLACK) > 30u;
+            if (DRUM_GRID[p] == want)                   /* its name clear of the tile's left edge and of the M tab (x + 45, review V5) */
+                okf &= px_count(x, y + 1u, 1, 16, C_BLACK) == 0u && px_count(x + 44u, y + 1u, 1, 16, C_BLACK) == 0u &&
+                       px_count(x + 1u, y + 1u, 43, 16, C_BLACK) > 30u && px_count(x + 55u, y + 2u, 1, 14, C_BLACK) == 0u;
         }
         for (c = 0; c < 16u; c++)                       /* every white key lit: each does something here */
             okl &= led_lv[14u + key_of_white(c)] == LL_LIT;
@@ -88,12 +88,12 @@ static void mixer_keys(void)
         oks &= drum_solo == 1u << want;
         for (p = 0; p < 16u; p++) {
             tile_xy(p, &x, &y);
-            c = px_count(x, y, 58, 18, TE_SOLO);
+            c = px_count(x, y, 56, 18, TE_SOLO);
             okt &= DRUM_GRID[p] == want ? c > 400u : c == 0u;
             if (DRUM_GRID[p] == want)
-                okf &= px_count(x, y + 1u, 1, 16, C_BLACK) == 0u && px_count(x + 49u, y + 1u, 1, 16, C_BLACK) == 0u;
-            okt &= px_count(x, y, 58, 18, TE_COL[0]) + px_count(x, y, 58, 18, TE_COL[1]) + px_count(x, y, 58, 18, TE_COL[2]) +
-                   px_count(x, y, 58, 18, TE_RED) == 0u;
+                okf &= px_count(x, y + 1u, 1, 16, C_BLACK) == 0u && px_count(x + 44u, y + 1u, 1, 16, C_BLACK) == 0u;
+            okt &= px_count(x, y, 56, 18, TE_COL[0]) + px_count(x, y, 56, 18, TE_COL[1]) + px_count(x, y, 56, 18, TE_COL[2]) +
+                   px_count(x, y, 56, 18, TE_RED) == 0u;
         }
         if (w == 3u) ppm("grid-mixer-solo-kick");
         press(B_OCTUP); key(key_of_white(w)); release(B_OCTUP); frame();
