@@ -35,6 +35,12 @@ mkdir -p build/gen
 
 $CC -o "$OUT/storage_test" tests/storage_test.c
 run "flash storage (A/B, torn writes)" "$OUT/storage_test"
+# the RAM flash driver itself (hal/fm1_flash.h) on a model of the chip: the slower chip's waits, the restart if still
+# busy, never XIP while busy; and the update loader's build, unchanged (Linux x86-64; elsewhere it skips)
+$CC -o "$OUT/flash_hal_test" tests/flash_hal_test.c
+run "flash driver: the slower chip (2 s / 50 ms), late counted, a restart if still busy" "$OUT/flash_hal_test"
+$CC -DFELUCCA_LOADER -o "$OUT/flash_hal_test_ldr" tests/flash_hal_test.c
+run "flash driver, the update loader's build: its old 500 ms / 10 ms kept" "$OUT/flash_hal_test_ldr"
 
 $CC -o "$OUT/recovery_test" tests/recovery_test.c
 run "application USB recovery and boot-loop guard" "$OUT/recovery_test"
