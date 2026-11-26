@@ -700,7 +700,7 @@ static void vis_rows(uint32_t st, uint32_t pass)
         }
     }
 }
-/* the caption over the top: "1/4 FLOW   SEL: NEXT", small, grey with a black edge (no bar), fading out over its last
+/* the caption over the top: "1/4 FLOW   SEL: NEXT", small, grey on a black backing as wide as the words (review V5), fading out over its last
  * 20 draws: where the other screensavers are (Ben, 23 Nov: "don't know where to find the other screensavers") */
 static void vis_caption(uint32_t st)
 {
@@ -714,6 +714,9 @@ static void vis_caption(uint32_t st)
     str_cpy(n + str_len(n), VIS_NAME[st], 12);
     str_cpy(n + str_len(n), "   SEL: NEXT", 14);
     x = 120 - text_w(&FONT_S, n) / 2;
+    if (k > 96)                                         /* (review V5: on black, as wide as the words: readable over FLOW
+                                                         * and THIRD EYE; it goes as the words fade) */
+        cv_rect(x - 5, 0, text_w(&FONT_S, n) + 10, 19, C_BLACK);
     cv_text(x - 1, 2, &FONT_S, n, C_BLACK);
     cv_text(x + 1, 2, &FONT_S, n, C_BLACK);
     cv_text(x, 1, &FONT_S, n, C_BLACK);

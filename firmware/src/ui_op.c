@@ -34,7 +34,7 @@ static void op_box(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)   /* 
 
 /* the header: [tag] title | BPM, play / stop, the four beats, REC (else the unsaved dot), the battery */
 static uint8_t proj_unsaved;                           /* (PHEBUS) the work differs from flash (project.c unsaved_tick) */
-#define OP_BPM_R 154                                   /* the tempo's right edge */
+#define OP_BPM_R 156                                   /* the tempo's right edge */
 static uint8_t sel_t;                                   /* (wave 9) frames the SELECT chip stays filled after a turn */
 static int sel_chip(char *v, int32_t *ratio, uint16_t *col);   /* (ui_sel.c) */
 /* (wave 10, Ben 23 Nov 2026) THE -/+ LEGEND: what a single tap of OCT- and OCT+ does on the screen shown, in one small place (the
@@ -99,7 +99,7 @@ static void bk_strip(const char *const lab[11], uint32_t on, uint32_t *cache)
     for (i = 0; i < 11u; i++) {
         int32_t r = i < 6u ? 0 : 1, c = i < 6u ? (int32_t)i : (int32_t)i - 6, x = 2 + c * 40, y = r * 13;
         if (!lab[i]) {
-            op_box(x, y, 37, 12, TE_G1);
+            continue;                                   /* (review V5: a key with no job here: not drawn, no empty row) */
         } else if ((on >> i) & 1u) {
             cv_rect(x, y, 37, 12, C_WHITE);
             te_text_c(x + 18, y - 2, lab[i], C_BLACK);
@@ -148,42 +148,32 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
             char t[8];
             int32_t room;
             fmt_int(t, song.g[G_BPM]);
-            room = OP_BPM_R - text_w(&FONT_S, t) - 6;
+            room = OP_BPM_R - text_w(&FONT_S, t) - 8;   /* (review V5: a clear gap before the tempo, the tempo 2 px right) */
             while (b[0] && w + 6 + text_w(&FONT_S, b) > room)
                 b[str_len(b) - 1u] = 0;
         }
-        if (fill_now || perf.lat) {                     /* (PHEBUS wave 3) a fill on (held, latched, the bar): FILL inverted,
-                                                         * white: it is everyone's (the conditions of every track). (wave 6)
-                                                         * PERFORM pads latched: PERF and how many, the same way */
-            int32_t x = w + 6;
-            if (fill_now) {
-                cv_rect(x, 2, text_w(&FONT_S, "FILL") + 4, 16, C_WHITE);
-                x = cv_text(x + 2, 2, &FONT_S, "FILL", C_BLACK) + 4;
-            }
-            if (perf.lat) {                             /* (PERF, not FX: never read as a voice's FX slot) */
-                char f[8] = "PERF ";
-                if (fill_now)
-                    str_cpy(f, "P", 8);
-                fmt_int(f + str_len(f), (int32_t)pf_count(perf.lat));
-                cv_rect(x, 2, text_w(&FONT_S, f) + 4, 16, C_WHITE);
-                cv_text(x + 2, 2, &FONT_S, f, C_BLACK);
-            }
-        } else if (hdr_mchip) {                         /* (wave 10) what MASTER turns while this button is held */
-            int32_t cx = w + 5, cw = 18 + text_w(&FONT_S, hdr_mchip) + 3;
-            uint32_t hot = master_t != 0u;
-            cv_rect(cx, 1, cw, 18, hot ? hdr_mcol : te_dim_of(hdr_mcol));
-            te_dial(cx + 9, 10, 6, hdr_mratio, hot ? C_BLACK : hdr_mcol, hot ? hdr_mcol : C_BLACK);
-            cv_text(cx + 18, 2, &FONT_S, hdr_mchip, hot ? C_BLACK : hdr_mcol);
-        } else if (chip) {                              /* (wave 9) WHAT SELECT TURNS: its little dial and the value, in the
+        {
+            int32_t xe;                                 /* where the title or the chip ends */
+            (void)xe;
+            if (hdr_mchip) {                            /* (wave 10) what MASTER turns while this button is held */
+                int32_t cx = w + 5, cw = 18 + text_w(&FONT_S, hdr_mchip) + 3;
+                uint32_t hot = master_t != 0u;
+                cv_rect(cx, 1, cw, 18, hot ? hdr_mcol : te_dim_of(hdr_mcol));
+                te_dial(cx + 9, 10, 6, hdr_mratio, hot ? C_BLACK : hdr_mcol, hot ? hdr_mcol : C_BLACK);
+                cv_text(cx + 18, 2, &FONT_S, hdr_mchip, hot ? C_BLACK : hdr_mcol);
+                xe = cx + cw;
+            } else if (chip) {                          /* (wave 9) WHAT SELECT TURNS: its little dial and the value, in the
                                                          * colour of what it acts on, where the title sits (the SELECT knob is
                                                          * at the screen's upper left); filled a moment after a turn */
-            int32_t cx = w + 5, cw = 18 + text_w(&FONT_S, cv_) + 3;
-            uint32_t hot = sel_t != 0u;
-            cv_rect(cx, 1, cw, 18, hot ? cc : te_dim_of(cc));
-            te_dial(cx + 9, 10, 6, cr, hot ? C_BLACK : cc, hot ? cc : C_BLACK);
-            cv_text(cx + 18, 2, &FONT_S, cv_, hot ? C_BLACK : cc);
-        } else {
-            cv_text(w + 6, 2, &FONT_S, b, TE_G3);
+                int32_t cx = w + 5, cw = 18 + text_w(&FONT_S, cv_) + 3;
+                uint32_t hot = sel_t != 0u;
+                cv_rect(cx, 1, cw, 18, hot ? cc : te_dim_of(cc));
+                te_dial(cx + 9, 10, 6, cr, hot ? C_BLACK : cc, hot ? cc : C_BLACK);
+                cv_text(cx + 18, 2, &FONT_S, cv_, hot ? C_BLACK : cc);
+                xe = cx + cw;
+            } else {
+                xe = cv_text(w + 6, 2, &FONT_S, b, TE_G3);
+            }
         }
     }
     fmt_int(b, song.g[G_BPM]);
@@ -195,13 +185,31 @@ static void op_header(const char *tag, uint16_t tc, const char *title, uint32_t 
     } else {
         cv_rect(OP_BPM_R + 6, 5, 10, 10, TE_G3);
     }
+    if (fill_now || perf.lat) {                         /* (PHEBUS wave 3) a fill on (held, latched, the bar): FILL inverted,
+                                                         * white, everyone's; (wave 6) PERFORM pads latched: PF and how many.
+                                                         * (Review V5) in the beat lights' place, never the title's or the
+                                                         * chip's: a fill is the bar's own state */
+        char f[8];
+        if (fill_now && perf.lat) {
+            str_cpy(f, "F+P", 8);
+            fmt_int(f + 3, (int32_t)pf_count(perf.lat));
+        } else if (fill_now) {
+            str_cpy(f, "FILL", 8);
+        } else {
+            str_cpy(f, "PF", 8);
+            fmt_int(f + 2, (int32_t)pf_count(perf.lat));
+        }
+        cv_rect(OP_BPM_R + 18, 2, 34, 16, C_WHITE);
+        te_text_c(OP_BPM_R + 35, 2, f, C_BLACK);
+    } else
     for (k = 0; k < 4u; k++)                           /* the four beats of the bar (wave 7: 7 px apart, 4 px right, so the
                                                          * title PATTERN A clears the tempo) */
-        cv_rect(OP_BPM_R + 22 + (int32_t)k * 7, 7, 6, 6, playing && beat % 4u == k ? (k || !song.rec ? C_WHITE : TE_RED) : TE_G2);   /* (red: recording only) */
+        cv_rect(OP_BPM_R + 22 + (int32_t)k * 6, 7, 5, 6, playing && beat % 4u == k ? (k || !song.rec ? C_WHITE : TE_RED) : TE_G2);   /* (red: recording only) */
     if (song.rec || sr_on)                              /* (recording, or STEP REC: ui_grid.c) */
-        te_disc(209, 10, 4, TE_RED);
+        te_disc(208, 10, 4, TE_RED);                   /* (review V5: lights 5 px, 6 apart: the disc 4 px clear of them,
+                                                         * 6 of the battery) */
     else if (proj_unsaved)                             /* (saved again at the next stop: project.c autosave_tick) */
-        te_disc(209, 10, 3, C_WHITE);                  /* (the bank: a size bigger, harder to miss: work not yet in flash) */
+        te_disc(208, 10, 3, C_WHITE);                  /* (the bank: a size bigger, harder to miss: work not yet in flash) */
     {   /* battery, 3 bars (filling in turn while a USB host charges it) */
         int32_t lvl = batt_shown(), i;
         op_box(217, 5, 17, 10, TE_G3);

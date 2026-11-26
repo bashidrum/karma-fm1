@@ -618,7 +618,7 @@ static void layer_screen_draw(void)
             str_cpy(v[0], N_ROLL[clamp(song.g[G_ROLL], 0, 4)], 8);
             ratio[0] = song.g[G_ROLL] * 250;
         }
-        str_cpy(v[1], "<  >", 8);
+        str_cpy(v[1], "--", 8);                         /* (review V5: an action, as every GO knob: not a lone "< >") */
         if (!is_drum(t)) {                              /* (review U6) the GATE, as SEQ's PATTERN page */
             const char *u;
             param_format(&TP[P_SGATE], t->p[P_SGATE], v[2], &u);
@@ -742,8 +742,9 @@ static void hold_screen_draw(void)
         }
     }
     cv_blit(0, 20);
-    cv_begin(240, 60, C_BLACK);
-    te_text_c(120, 4, "let go: no", TE_G4);
-    te_text_c(120, 30, "keep holding save", TE_G3);
-    cv_blit(0, 160);
+    cv_begin(240, 76, C_BLACK);                         /* (review V5: from the ring's band down, so nothing of the screen
+                                                         * under stays half drawn) */
+    te_text_c(120, 20, "keep holding save", TE_G4);
+    te_text_c(120, 46, "let go to cancel", TE_G3);
+    cv_blit(0, 144);
 }

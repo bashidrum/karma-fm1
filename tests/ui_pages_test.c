@@ -914,16 +914,16 @@ int main(int argc, char **argv)
     go_home(); ui.force = 1; frame();
     {   /* PHEBUS (21 Nov, Ben: "Dot + save on stop"): the header's unsaved dot (project.c unsaved_tick sets proj_unsaved),
          * between the beats and the battery; REC's red disc takes its place while recording; gone once saved */
-        uint16_t was = swap16(screen[10 * 240 + 209]);
+        uint16_t was = swap16(screen[10 * 240 + 208]);
         proj_unsaved = 1; frame();
-        check(was != C_WHITE && swap16(screen[10 * 240 + 209]) == C_WHITE,
+        check(was != C_WHITE && swap16(screen[10 * 240 + 208]) == C_WHITE,
               "unsaved work: a white dot in the header, clear of the tempo and the battery");
         ppm("home-unsaved");
         open_family(FAM_ENV); ui.force = 1; frame();
-        check(swap16(screen[10 * 240 + 209]) == C_WHITE, "unsaved work: the dot on a sound page's header too");
+        check(swap16(screen[10 * 240 + 208]) == C_WHITE, "unsaved work: the dot on a sound page's header too");
         go_home(); ui.force = 1; frame();
         proj_unsaved = 0; frame();
-        check(swap16(screen[10 * 240 + 209]) == was, "saved: the dot goes");
+        check(swap16(screen[10 * 240 + 208]) == was, "saved: the dot goes");
         check(!strcmp(DRUM_KIT_NAMES[DRUM_DEFAULT_KIT], "606"), "power-on drum kit: the 606 (Ben, 21 Nov)");
     }
     {   /* review 21: a message stays on the screen it showed on; another screen, it goes */
@@ -1717,7 +1717,8 @@ int main(int argc, char **argv)
         check(fill_lat && sg_page() == pg0, "FILL: SEQ + PLAY + OCT+: latched (the one latch), no page turned");
         release(B_SEQ); frames(2);
         ui.msg_t = 0; ui.force = 1; frame(); ppm("drum-fill");
-        check(px_count(52, 2, 70, 16, C_WHITE) > 30u, "FILL: shown inverted in the header while on");
+        check(px_count(OP_BPM_R + 18, 2, 34, 16, C_WHITE) > 200u && px_count(52, 2, 70, 16, TE_DRUM) > 20u,
+              "FILL: shown inverted in the header while on (V5: in the beat lights' place, the chip kept)");
         press(B_SEQ); frames(12); tap(B_PLAY); release(B_SEQ); frames(2);
         check(!fill_lat && song.playing == pl, "FILL: SEQ + PLAY again: off (as a latched pad)");
     }
@@ -3142,7 +3143,7 @@ int main(int argc, char **argv)
         /* exit with latches on: they stay (hands free to play), the header says FX 2; STOP lets them go */
         release(B_FX); frames(2);
         go_home(); ui.force = 1; frame(); ppm("home-fx-latched");
-        check(pf_count(perf.lat) == 2u && px_count(52, 2, 60, 16, C_WHITE) > 60u, "out of PERFORM, latched pads play on: the header says PERF 2, in white");
+        check(pf_count(perf.lat) == 2u && px_count(OP_BPM_R + 18, 2, 34, 16, C_WHITE) > 200u, "out of PERFORM, latched pads play on: the header says PF2, in white (V5: the beat lights' place)");
         press(B_FX); frames(12);
         fm1_in.buttons |= BT(B_OCTDN); edges_btn |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
         check(!perf.lat, "LATCH: OCT- in PERFORM: every latch off");
@@ -5537,7 +5538,7 @@ int main(int argc, char **argv)
         static const char *const HINTS[] = {"PRESS KEY 1-4: STORE PATTERN", "IT SAVES ITSELF WHEN YOU STOP",
             "KEEP A COPY: SAVE > PROJECT", "PROJECT: NOT SAVED YET", "PROJECT: STOP TO SAVE",
             "EMPTY: NOTHING KEPT YET", "NEW HITS AT VELOCITY 127", "TAP A KEY: MUTE", "SEL: NEXT SECTION  OCT-: BACK",
-            "KNOBS 1-3 SET ROWS  OCT+: OK", "KNOBS 1-4 SET ROWS  SEL: NEXT", "PADS YOU RECORD SHOW HERE", "PLAY STARTS, REC CANCELS",
+            "KNOBS 1-3 SET ROWS  OCT+: OK", "KNOBS 1-4 SET ROWS  SEL: NEXT", "PADS YOU RECORD SHOW HERE", "PLAY: GO, REC: CANCEL",
             "HOLD SAVE: REPLACE THE BANK", "HOLD SAVE: SWAP WITH THE BANK", "HOLD SAVE: NEW, BANK KEPT",
             "THE BANK IS EMPTY: KEEP FIRST", "SWAPPED WITH THE BANK", "NEW PROJECT, BANK KEPT", "SAVE ERROR: NOTHING CHANGED"};
         uint32_t i, ok = 1, v, b0;

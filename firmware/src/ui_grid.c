@@ -108,7 +108,7 @@ static void patt_vals(const track_t *t, uint32_t h, const char *lab[4], char v[4
             lab[k] = "", v[k][0] = 0, ratio[k] = -1;
         if (h == 1u) {
             lab[0] = "SHIFT";
-            str_cpy(v[0], "<  >", 8);
+            str_cpy(v[0], "--", 8);   /* (review V5: an action, as hold SEQ's SHIFT) */
         } else {
             int32_t p = patt_shown();
             lab[0] = "PATT";
