@@ -587,3 +587,7 @@ By picker:
 - Version: "PHEBUS 1.0" (screen shows PHEBUS 1.0; file phebus-1.0.<build>.fwsc).
 - The working record (SPEC, DECISIONS, REVIEW, review folder): "Move it to a private branch".
 - Hosting (corrected: the repo is a fork, so a rename keeps the "forked from" line, and a branch in a public repo is public): "New repo 'phebus', old one private".
+- USB name: "Change to 'FM-1 PHEBUS'".
+- SLOOP's old manuals, .bat files, old screenshots and the stray test recording: "Remove them" (SLOOP stays credited).
+- New PHEBUS landing page and the installer's iPhone note (computer or Android, not FM-SWITCH): "Accept both, show me the page".
+- Licence file rows for parts no longer in the code: "Keep every row".
