@@ -1906,6 +1906,47 @@ static int bank_op(uint32_t op)
         return -2;
     return 0;
 }
+/* ---- the backup page (editor.c, objects 12..16: the bank's patterns A..D, then its working project): read from flash as
+ * it is (no RAM), listed only while the bank holds a project; a restore writes each through the A/B commit, the working
+ * project last (it is what makes the bank "full"). i: 0..3 a pattern, 4 the working project */
+static int bank_obj(uint32_t i, uint32_t *len, uint32_t *crc)   /* 1: listed (its length, its CRC-32) */
+{
+    st_hdr_t h;
+    uint32_t n;
+    int32_t b;
+    char k[9];
+    *len = 0, *crc = st_crc32(0, 0);
+    if (i > 4u || !bank_summary(&n, &b, k))
+        return 0;
+    if (st_current(OBJ_BPRJ0 + i, &h) >= 0)
+        *len = h.len, *crc = h.crc;
+    return 1;
+}
+static int bank_obj_read(uint32_t i, uint32_t off, void *dst, uint32_t n)   /* 0 done */
+{
+    st_hdr_t h;
+    uint32_t p = st_phys(OBJ_BPRJ0 + (i > 4u ? 4u : i));
+    int cur = st_current_p(p, &h);
+    if (cur < 0 || off > h.len || n > h.len - off)
+        return -1;
+    return st_read(st_sector(p, (uint32_t)cur) + ST_PAYLOAD_OFF + off, dst, n);
+}
+static uint32_t bank_restore(uint32_t i, const uint8_t *raw, uint32_t n)   /* rc as project_restore: 0, 2, 3, 4 */
+{
+    const proj_core_t *q = (const proj_core_t *)(const void *)raw;
+    if (song.playing || transport_req)
+        return 3;
+    if (i > 4u || (i == 4u ? n != sizeof(project_t) : n && n != sizeof(proj_core_t)) || (n && !proj_ok(q)))
+        return 2;
+    if (i == 4u) {
+        pkit_t k;
+        memcpy(&k, raw + sizeof(proj_core_t), sizeof k);
+        if (k.magic != PK_MAGIC || !pkit_fix(&k))
+            return 2;
+    }
+    bank_s.known = 0;
+    return !flash_ok || st_save_big(OBJ_BPRJ0 + i, raw, n, 0) ? 4u : 0u;
+}
 #else
 static int bank_op(uint32_t op) { (void)op; return 3; }
 static int bank_summary(uint32_t *npat, int32_t *bpm, char *kit) { *npat = 0, *bpm = 0, kit[0] = 0; return 0; }
