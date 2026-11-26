@@ -525,3 +525,11 @@ By picker, 09:05:
 - "Yes, waits only": the loader's erase and page-write waits become 2 s and 50 ms. Waits only; no reset behaviour added to the loader; nothing else in the loader changes. (Permission for this one change to the loader, which is otherwise on the do-not-modify list.)
 - "Yes": PHEBUS feeds the watchdog before each erase when it stages an update of itself (felucca.c ota_erase), as ChoralRoot does. One line in the update path.
 - Live install: "As soon as those are done".
+
+### 26 Nov 2026: the polish review's decisions, by picker
+
+Box 1 (11:40):
+- Engine safety: "Fix all three" (the watchdog fed during long saves; a backup can no longer record the bank's sketch as the live one; the FX 1-3 pages' out-of-range read).
+- Saving a user kit while playing: "Make it say "This will stop the audio" - like Ableton does" (a warning that must be confirmed before the save goes ahead while playing).
+- Double tap of OCT on load pages: "Wait 0.3 s on load pages".
+- Docs: "Update and prune".
