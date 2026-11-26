@@ -204,6 +204,14 @@ static void con_status(void)
     con_kv("midi_tx_pkts", (int32_t)usb.tx_pkts);
 #if FELUCCA_FLASH
     con_kv("flash", flash_ok);
+    con_puts("FLASH: ");                                 /* the chip, and its erases / page writes past the old limits
+                                                          * (500 ms / 10 ms) since power-on, the longest (fm1_flash.h) */
+    con_puts(fl_chip_name());
+    con_puts(" LATE ");
+    con_dec((int32_t)fl_late_count());
+    con_puts(" (max ");
+    con_dec((int32_t)fl_late_max_ms());
+    con_puts(" ms)\r\n");
 #endif
 #if KARMA_DUAL_CORE
     con_kv("core1_online", audio_worker_online);         /* (KARMA_DUAL_CORE) CPU1: running jobs, the slowest, faults */
