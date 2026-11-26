@@ -1297,6 +1297,10 @@ static void ui_input(void)
                                                          * steps; STEP REC and a live take on a synth GRID: notes) */
     if (sg_held && (!kb_grid || song.sel != sg_trk))
         sg_drop();                                      /* (the GRID left with steps held: their keys clear nothing) */
+    if (kb_grid && drum_mix_keys())                     /* (Ben, 26 Nov 2026, "Make it follow") the drum voice's MIX: the steps
+                                                         * on the white keys follow the playhead onto its next page, as on
+                                                         * the drum screen (ui_studio.c) */
+        sg_follow();
     if (ui.menu) {                                      /* (review U5) ABOUT, over GLO > DEVICE > TOOLS: OCT- back to TOOLS;
                                                          * another button closes it and does what it does; knobs nothing */
         if (!pressed && home != BT_TAP) {

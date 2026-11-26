@@ -1228,6 +1228,19 @@ int main(int argc, char **argv)
         okm &= cur_cat() == CT_MIX && !grid_keys_on() && !kb_grid;
         track_select(TRK_DRUM); frame();
         check(okm, "MIX on the drum voice: the white keys are its steps (a tap sets, a tap clears); on a synth voice they play");
+        {   /* (Ben, 26 Nov 2026, "Make it follow") there the steps' page follows the playhead, as on the drum screen */
+            uint32_t sl = TDRUM->p[P_SLEN], okf = 1, f;
+            TDRUM->p[P_SLEN] = 32; sg_cur_set(0); frames(2);
+            okf &= cur_cat() == CT_MIX && kb_grid && sg_page() == 0u;
+            transport_req = 1;
+            for (f = 0; f < 2000u && sg_page() == 0u; f++) frame();
+            okf &= song.playing && sg_page() == 1u && TDRUM->seq_idx % 32u >= 16u;
+            for (f = 0; f < 2000u && sg_page() == 1u; f++) frame();
+            okf &= sg_page() == 0u && TDRUM->seq_idx % 32u < 16u;
+            transport_req = 2; frames(4);
+            TDRUM->p[P_SLEN] = (int16_t)sl; sg_cur_set(0); frames(2);
+            check(okf && !song.playing, "MIX on the drum voice, playing: the steps on the white keys follow the playhead (page 2, then 1)");
+        }
     }
     track_select(0);
     go_home(); frame();
