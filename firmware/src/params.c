@@ -611,10 +611,10 @@ static const page_t PAGES[] = {
      * above: its FILTER (LP / HP), its INSERT (2.6, Felucca 1.5) and dry / wet. (The drum effects under FX, Ben 21:45: the kit-wide
      * SENDS page is gone, "Remove them": each sound's own sends are FX > SENDS, a drum screen sound page, ui_drum.c) */
     {"FILTER", FAM_DRM, SC_TRACK, GR_NONE, {P_TFLT, 0xFF, 0xFF, 0xFF}, SEL_NONE, CT_DFILT},
-    {"INSERT", FAM_DRM, SC_TRACK, GR_INS, {P_IA, P_IB, P_IC, 0xFF}, P_ITYPE, CT_DINS},   /* (review 26 Nov, Ben's picker "Type on
+    {"INSERT", FAM_DRM, SC_TRACK, GR_INS, {P_IA, P_IB, P_IC, P_IMIX}, P_ITYPE, CT_DINS},   /* (review 26 Nov, Ben's picker "Type on
                                                          * SELECT, as synths": the type on SELECT, its values on KNOB 1 to 3, as
-                                                         * a synth voice's FX slot; it was KNOB 1 since wave 9) */
-    {"INSERT 2", FAM_DRM, SC_TRACK, GR_INS, {P_IMIX, 0xFF, 0xFF, 0xFF}, SEL_NONE, CT_DINS},
+                                                         * a synth voice's FX slot; it was KNOB 1 since wave 9. Ben, 26 Nov,
+                                                         * "move MIX to K4": its MIX on KNOB 4, one page; INSERT 2 is gone) */
     {"SLICER", FAM_DRM, SC_TRACK, GR_SLCR, {P_SLPAT, P_SLRATE, P_SLDEPTH, 0xFF}, P_SLCR, CT_DSLICER},   /* (review 26 Nov) the drum
                                                          * voice's, as the synth SLICER: its mode on SELECT, PAT RATE DEPTH on
                                                          * KNOB 1 to 3 */

@@ -1608,14 +1608,14 @@ int main(int argc, char **argv)
         check(ok && on_drum_page(), "drum pages: EDIT steps SRC > FLTR > KIT FLT > SRC (its categories), SEL the pages of SRC (1/3 .. 3/3, round)");
         tap(B_FX); frames(2); ok = drum_pg == 5u && cur_cat() == CT_DINS && dpg_half() == 0u;
         ui.force = 1; frame(); ppm("drum-fx");
-        tap(B_SCL); frames(2); ok &= cur_cat() == CT_DINS && dpg_half() == 1u;   /* INSERT 2 */
+        tap(B_SCL); frames(2); ok &= cur_cat() == CT_DINS && dpg_half() == 0u;   /* (one page: MIX is its KNOB 4, Ben 26 Nov) */
         tap(B_FX); frames(2); ok &= cur_cat() == CT_DSENDS && dpg_sends();
         tap(B_FX); frames(2); ok &= cur_cat() == CT_DSLICER;
         tap(B_FX); frames(2); ok &= cur_cat() == CT_MIX && !on_drum_page() && PAGES[ui.page].fam == FAM_MFX;   /* (U1) */
         ui.force = 1; frame(); ppm("drum-fx-mix");
         tap(B_FX); frames(2); ok &= cur_cat() == CT_STUT && stl_shown() && song.sel == TRK_DRUM;
         tap(B_FX); frames(2); ok &= cur_cat() == CT_DINS && !stl_view;
-        check(ok, "drum pages: FX steps INS (SEL: INSERT 2) > SENDS > SLICER > MIX > STUT > round (a synth voice's order; no FILTER)");
+        check(ok, "drum pages: FX steps INS (one page) > SENDS > SLICER > MIX > STUT > round (a synth voice's order; no FILTER)");
         tap(B_ENV); frames(2); ok = drum_pg == 3u && dpg_half() == 0u;
         tap(B_SCL); frames(2); ok &= drum_pg == 3u && dpg_half() == 1u;
         tap(B_ENV); frames(2); ok &= drum_pg == 3u && dpg_half() == 0u;   /* (one category: again, its first page) */

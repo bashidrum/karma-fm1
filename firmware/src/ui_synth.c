@@ -546,11 +546,11 @@ static void dpic_sends(uint32_t l)                      /* DELAY, REVERB as a sy
     }
     sp_t = 40, sp_b = 114;
 }
-static void dpic_kit(uint32_t h)                        /* the kit's FX tab half h: INSERT (2), SLICER, FILTER */
+static void dpic_kit(uint32_t h)                        /* the kit's FX tab half h: INSERT, SLICER, FILTER */
 {
     const track_t *t = TDRUM;
     sp_t = DP_T, sp_b = DP_B;
-    if (h < 2u) {                                       /* INS: its tile (a synth FX slot's, the one there is), its curve */
+    if (h == 0u) {                                      /* INS: its tile (a synth FX slot's, the one there is), its curve */
         int32_t ty = clamp(t->p[P_ITYPE], 0, IT_N - 1);
         cv_rect(2, SP_T - 1, 77, SP_B - SP_T + 3, TE_DIM[3]);
         op_box(2, SP_T - 1, 77, SP_B - SP_T + 3, C_WHITE);
@@ -582,7 +582,7 @@ static uint32_t dpic_sig(uint32_t l)                    /* what the pictures sho
     for (i = P_SLCR; i <= P_SLDEPTH; i++)
         s = s * 131u + (uint32_t)(uint16_t)t->p[i];
     s = s * 131u + (uint32_t)(uint16_t)t->p[P_TFLT];
-    if (drum_pg == DPG_FX && ((dpg_half() < 2u && t->p[P_ITYPE] >= IT_PHASER) || (dpg_half() == DBH_SLICER && t->p[P_SLCR])))
+    if (drum_pg == DPG_FX && ((dpg_half() == 0u && t->p[P_ITYPE] >= IT_PHASER) || (dpg_half() == DBH_SLICER && t->p[P_SLCR])))
         s ^= (ui.frame / 2u + 1u) * 40503u;             /* (the INSERT's sweep runs, the SLICER's step) */
     return s;
 }

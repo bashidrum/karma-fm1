@@ -15,7 +15,7 @@
  *   the pages      EDIT: SRC, again the next page (FLTR AMP LFO FX); ENV: AMP, LFO: LFO (again: the page's next half); SEQ:
  *                  TRIG (again: its next half); SELECT walks every half of every page; they change the page with a trig
  *                  held too. FX (wave 8, Ben 22 Nov 2026: "FX = whole mix only"; the drum voice's bus insert "stays its
- *                  own"): the drum voice's own FILTER, INSERT, INSERT 2, SENDS, SLICER, the Rytm's FX track; a trig held,
+ *                  own"): the drum voice's own FILTER, INSERT, SENDS, SLICER, the Rytm's FX track; a trig held,
  *                  its knobs lock them on the step as any tab's (it was the FX button with a trig held)
  *   the knobs      nothing held: the sound's value (the first turn on a built-in kit makes the project's own copy,
  *                  drum_snd.c); a trig held: the value LOCKED on that trig (TRIG: the trig's own VEL RETRIG NUDGE COND,
@@ -48,23 +48,24 @@ static uint32_t dmap_marks(void);
 /* (drum_newvel, the velocity a new trig and a drum key take: seq.c; TRIG, nothing held: KNOB 1) */
 static uint8_t dk_touch = 0xFF;                         /* a trig held: the id of the knob last turned in this hold */
 static const char *const DPG_NAME[DPG_TABS] = {"TRIG", "SRC", "FLTR", "AMP", "LFO", "FX"};
-/* (wave 8) the FX tab's halves: the drum voice's own pages (params.c PAGES: INSERT, INSERT 2, FILTER of FAM_DRM, the SLICER
+/* (wave 8) the FX tab's halves: the drum voice's own pages (params.c PAGES: INSERT, FILTER of FAM_DRM, the SLICER
  * every voice has), by name once. (The drum effects under FX, Ben 23 Nov 2026, 21:30 to 21:45, "Just mirror the synths as
- * closely as possible") in a synth voice's FX order: INS (the kit's INSERT, INSERT 2), SENDS (the SELECTED SOUND's own:
+ * closely as possible") in a synth voice's FX order: INS (the kit's INSERT, its MIX on KNOB 4), SENDS (the SELECTED SOUND's own:
  * DELAY, REVERB, KIT FX; a sound page, not a PAGES one), SLICER (the kit's). (Review 26 Nov, Ben's picker "One white MIX
  * screen": the whole mix's MIX is the PAGES' DELAY, REV/CHO, MASTER, the same screen whichever voice is selected, as STUT
  * is; no longer halves here.) The kit's FILTER is the last half: EDIT's third category (Ben 21:40, "FILTER should live
  * under Edit"), not FX's. The kit's pages say KIT in the header; SELECT turns the kit INSERT's type and the SLICER's mode
  * there, as on a synth voice's FX pages (review 26 Nov, "Type on SELECT, as synths") */
-#define NDBUS 5u
-#define DBH_SENDS 2u                                    /* the selected sound's SENDS */
-#define DBH_SLICER 3u                                   /* the kit's SLICER */
-#define DBH_FILTER 4u                                   /* the kit's FILTER (EDIT's KIT FLT) */
+#define NDBUS 4u                                        /* (Ben, 26 Nov 2026, "move MIX to K4": the kit INSERT one page, its MIX
+                                                         * on KNOB 4; no INSERT 2) */
+#define DBH_SENDS 1u                                    /* the selected sound's SENDS */
+#define DBH_SLICER 2u                                   /* the kit's SLICER */
+#define DBH_FILTER 3u                                   /* the kit's FILTER (EDIT's KIT FLT) */
 static uint8_t dbus_pg[NDBUS];
 static uint32_t dbus_page(uint32_t h)                   /* the FX tab's half h: its PAGES index (SENDS: none, 0) */
 {
-    static const char *const T[NDBUS] = {"INSERT", "INSERT 2", "", "SLICER", "FILTER"};
-    if (!dbus_pg[0] && !dbus_pg[1]) {
+    static const char *const T[NDBUS] = {"INSERT", "", "SLICER", "FILTER"};
+    if (!dbus_pg[0]) {
         uint32_t i, k;
         for (k = 0; k < NDBUS; k++)
             for (i = 0; i < NPAGES; i++)
@@ -87,7 +88,13 @@ static uint32_t dpg_half(void)
 static int dpg_sends(void) { return drum_pg == DPG_FX && dpg_half() == DBH_SENDS; }   /* the sound's SENDS (FX) */
 static int dpg_snd(void) { return (drum_pg && drum_pg < DPG_FX) || dpg_sends(); }    /* a page of the selected sound */
 static int dpg_bus(void) { return drum_pg == DPG_FX && dpg_half() != DBH_SENDS; }     /* a PAGES page: the kit's, the mix's */
-static int dpg_kit(void) { return dpg_bus(); }          /* the KIT's (every PAGES half: INSERT, INSERT 2, SLICER, FILTER) */
+static int dpg_kit(void) { return dpg_bus(); }          /* the KIT's (every PAGES half: INSERT, SLICER, FILTER) */
+/* (U2, Ben 26 Nov) the empty kit INSERT: its knobs show nothing, do nothing, lock nothing, as a synth voice's empty slot (its
+ * values' labels say "-"; its MIX on KNOB 4 too) */
+static int dkit_dead(const page_t *pg, uint32_t k, const param_desc_t *d)
+{
+    return !d || !d->label || d->label[0] == '-' || (pg->id[k & 3u] == P_IMIX && !TDRUM->p[P_ITYPE]);
+}
 static uint32_t dpg_id(uint32_t k)
 {
     static const uint8_t SENDS[4] = {DSP_DEL, DSP_REV, DSP_KFX, 0xFF};   /* (a synth voice's SENDS: DELAY REVERB CHORUS) */
@@ -707,7 +714,7 @@ static void drum_main_draw(void)
             char a[28];
             if (first >= 0) {                           /* (a step held: one line, what a knob does now) */
                 str_cpy(a, "LOCK ON THE STEP", sizeof a);
-            } else if (dpg_half() < 2u && !TDRUM->p[P_ITYPE]) {   /* (U2) the empty INSERT: as a synth's empty slot */
+            } else if (dpg_half() == 0u && !TDRUM->p[P_ITYPE]) {   /* (U2) the empty INSERT: as a synth's empty slot */
                 str_cpy(a, "EMPTY: SELECT PICKS A TYPE", sizeof a);
             } else {                                    /* (how many sounds go through: KIT FX ON) */
                 str_cpy(a, "THE KIT: ", sizeof a);
@@ -835,7 +842,7 @@ static void drum_main_draw(void)
                 int16_t *hv;
                 const param_desc_t *d = page_desc(pg, k, &hv);
                 int32_t x = -1, vv;
-                if (!d || !hv || id == 0xFFu || !d->label || d->label[0] == '-')
+                if (!hv || id == 0xFFu || dkit_dead(pg, k, d))
                     continue;                           /* (an empty INSERT's values: not shown, as a synth's empty slot) */
                 lab[k] = d->label;
                 if (pg->scope == SC_TRACK && first >= 0)
@@ -1022,7 +1029,7 @@ static void drum_grid_input(uint32_t pressed)
             const page_t *pg = &PAGES[dbus_page(dpg_half())];
             int16_t *hv;
             const param_desc_t *d = pg->id[k] != 0xFFu ? page_desc(pg, k, &hv) : 0;
-            if (!d || !d->label || d->label[0] == '-')  /* (an empty INSERT: its values do nothing, are not lockable: as a
+            if (dkit_dead(pg, k, d))                    /* (an empty INSERT: its values do nothing, are not lockable: as a
                                                          * synth voice's empty slot) */
                 continue;
             if (sg_held && pg->scope != SC_TRACK)

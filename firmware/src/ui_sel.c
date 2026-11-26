@@ -30,7 +30,7 @@ static uint32_t sel_target(const page_t **pg, uint32_t *id)
             return SK_SOUND;
         if (song.sel == TRK_DRUM)                       /* (review 26 Nov, "Type on SELECT, as synths") the kit's pages: their
                                                          * type, as a synth voice's FX pages (INSERT's TYPE, the SLICER's mode;
-                                                         * INSERT 2 and FILTER have none: nothing) */
+                                                         * FILTER has none: nothing) */
             *pg = &PAGES[dbus_page(dpg_half())];
         else if (!syn_tab || syn_page() >= NPAGES)      /* the synth GRID: its tab's page */
             return SK_NONE;
