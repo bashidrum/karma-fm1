@@ -1600,6 +1600,53 @@ int main(int argc, char **argv)
         kit_set((uint32_t)(0)); dpg_go(2, 0); frames(2); ui.force = 1; frame(); ppm("drum-fltr-hex");
         kit_set((uint32_t)(DRUM_DEFAULT_KIT)); frames(2); dpg_go(4, 0); frame();
         check(ok, "drum pages: ENV opens AMP (SEL its 2/2; ENV again its first page); LFO opens LFO");
+        {   /* (review 26 Nov, U3, Ben's picker "Each page its own picture") the drum sound pages: SRC and AMP the level over
+             * time, FLTR the filter's curve, LFO the wave, SENDS the send boxes; each its own, teal, no giant word */
+            static uint16_t band[5][240 * 33];
+            static const uint8_t PG[5] = {1, 2, 3, 4, DPG_FX};
+            uint32_t i, j, diff = 1, other = 0, lsp, o;
+            for (i = 0; i < 5u; i++) {
+                dpg_go(PG[i], i == 4u ? DBH_SENDS : 0u); ui.msg_t = 0; ui.force = 1; frame();
+                for (j = 0; j < 33u; j++) memcpy(band[i] + j * 240u, screen + (96u + j) * 240u, 240u * 2u);
+                for (o = 0; o < NPART; o++) other += px_count(0, 76, 240, 55, TE_COL[o]) + px_count(0, 76, 240, 55, TE_MID[o]);
+            }
+            for (i = 0; i < 5u; i++)
+                for (j = i + 1u; j < 5u; j++)
+                    diff &= (i == 0u && j == 2u) || memcmp(band[i], band[j], sizeof band[i]) != 0;
+            check(diff && !other, "U3: the drum sound pages each draw their own picture (SRC and AMP the level over time; FLTR, LFO, SENDS their own); no other voice's colour");
+            dpg_go(DPG_FX, DBH_SENDS); ui.force = 1; frame();
+            check(px_count(4, 96, 52, 33, TE_G2) + px_count(4, 96, 52, 33, TE_DIM[3]) > 40u &&
+                  px_count(64, 96, 52, 33, TE_G2) + px_count(64, 96, 52, 33, TE_DIM[3]) > 40u &&
+                  px_count(124, 96, 52, 33, TE_DIM[3]) + px_count(124, 96, 52, 33, TE_DRUM) > 40u,
+                  "U3: SENDS: DELAY, REVERB and KIT FX as three boxes over their knobs (a synth voice's send boxes), no giant SENDS");
+            sl_send_set(drum_lane, 1, 100); ui.force = 1; frame();
+            check(px_count(4, 96, 52, 33, TE_DRUM) > 20u, "U3: SENDS: a delay send drawn as echoes, teal");
+            ppm("u3-drum-sends");
+            sl_send_set(drum_lane, 1, 0);
+            pkit.s[drum_lane].lfo.dep = 40; pkit.s[drum_lane].lfo.wav = 2;
+            dpg_go(4, 0); ui.force = 1; frame(); ppm("u3-drum-lfo-depth");
+            lsp = px_count(0, 96, 240, 33, TE_DRUM);
+            pkit.s[drum_lane].lfo.dep = 0; pkit.s[drum_lane].lfo.wav = 0;
+            ui.force = 1; frame();
+            check(lsp > 100u && px_count(0, 96, 240, 33, TE_DRUM) == 0u && px_count(0, 96, 240, 33, TE_DIM[3]) > 100u,
+                  "U3: LFO: the wave in teal as tall as DEPTH; DEPTH 0: its shape, dim");
+            {   /* SRC: the time across scaled to the sound: every slot of the 606 and a HEX kit fills a quarter of it at least */
+                uint32_t k2, l2, bad = 0, ln = drum_lane;
+                for (k2 = 0; k2 < 2u; k2++) {
+                    kit_set(k2 ? 0u : (uint32_t)DRUM_DEFAULT_KIT); frames(2);
+                    for (l2 = 0; l2 < 16u; l2++) {
+                        int32_t x, last = -1;
+                        uint32_t sp = snd_span_ms(&pkit.s[l2]);
+                        drum_lane = (uint8_t)l2; dpg_go(1, 0); ui.force = 1; frame();
+                        for (x = 0; x < 240; x++) if (px_count((uint32_t)x, 96, 1, 33, TE_MID[3]) + px_count((uint32_t)x, 96, 1, 33, TE_G2) > 1u) last = x;
+                        if (sp > 125u && last < 4 + 232 / 4) { bad++; printf("ui:   %s: %u ms, drawn to x %d\n", LANE_NAME[l2], (unsigned)sp, (int)last); }
+                    }
+                }
+                drum_lane = (uint8_t)ln; kit_set((uint32_t)(DRUM_DEFAULT_KIT)); frames(2);
+                check(!bad && snd_span_ms(&pkit.s[0]) >= 125u, "U3: SRC, AMP: the level's time axis scaled to the sound (125 MS to 2 S), each sound a quarter of it at least");
+            }
+            dpg_go(4, 0); frame();
+        }
         dpg_go(1, 0); frame();
         { uint32_t ln = drum_lane, bp = (uint32_t)song.g[G_BPM];
           encs[panel.enc[EN_SELECT]] = 1; frame(); ok = drum_pg == 1u && dpg_half() == 0u && drum_lane == lane_step(ln, 1, 1);

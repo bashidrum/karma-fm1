@@ -266,6 +266,8 @@ static void kit_type_on_select(void)
     encs[panel.enc[EN_SELECT]] = 1; frames(2);
     check(TDRUM->p[P_ITYPE] == 1 && drum_pg == DPG_FX && dpg_half() == 0u, "U2: SELECT on the kit INSERT: its TYPE (OFF -> SOFT), the page stays");
     ui.msg_t = 0; ui.force = 1; frame(); ppm("u2-kit-insert-soft");
+    check(px_count(4, 96, 70, 30, TE_DIM[3]) > 600u && px_count(92, 96, 140, 33, TE_DRUM) > 30u,
+          "U3: the kit INS: its tile (a synth FX slot's, teal) and its curve beside it");
     check(px_count(0, SG_KNOB_Y + 2, 240, 56, TE_DRUM) > 40u, "U2: a type picked: its values on the dials, teal");
     encs[panel.enc[EN_K1]] = 3; frames(2);
     check(TDRUM->p[P_IA] > a0, "U2: KNOB 1 turns the INSERT's first value (DRIVE)");
@@ -284,6 +286,11 @@ static void kit_type_on_select(void)
     encs[panel.enc[EN_K1]] = 1; frames(2);
     check(TDRUM->p[P_SLPAT] != a0, "U2: KNOB 1 on the kit SLICER: PAT");
     ui.msg_t = 0; ui.force = 1; frame(); ppm("u2-kit-slicer");
+    check(px_count(0, 96, 240, 33, TE_DRUM) > 300u, "U3: the kit SLICER: its pattern (the synth SLICER's picture), teal");
+    TDRUM->p[P_TFLT] = -30;
+    dpg_go(DPG_FX, DBH_FILTER); ui.force = 1; frame(); ppm("u3-kit-filter");
+    check(px_count(0, 96, 240, 33, TE_DRUM) > 60u, "U3: KIT FLT: the kit filter's curve (the synth FILT's), teal");
+    TDRUM->p[P_TFLT] = 0;
     TDRUM->p[P_SLCR] = SL_OFF; TDRUM->p[P_SLPAT] = a0;
     dpg_go(1, 0); go_home(); frames(2);
 }
