@@ -133,6 +133,40 @@ static void patt_vals(const track_t *t, uint32_t h, const char *lab[4], char v[4
     ratio[2] = t->p[P_SSWING] * 10;
     ratio[3] = (t->p[P_SLEN] - 1) * 1000 / 63;
 }
+/* (review 26 Nov, U4, Ben's picker "Four pattern tiles") SEQ > A-D's body, on every voice: the project's four patterns as hold
+ * SAVE and HOME draw them (white and grey: the whole project's), each STORED, PLAYING (a white bar), QUEUED (framed white:
+ * it plays at the next bar, as HOME's) or EMPTY; above them what -/+ does now. Into the canvas begun, from row y0 (52 rows) */
+static uint32_t patt_tiles_sig(void)
+{
+    return arrangement_ready() * 131u + (uint32_t)(live_sec + 1) * 7u + (uint32_t)(live_req + 1) * 977u + song.playing * 3u;
+}
+static void patt_tiles(int32_t y0)
+{
+    uint32_t i, ready = arrangement_ready();
+    char ln[24];
+    if (!ready)
+        str_cpy(ln, "HOLD SAVE + KEY 1-4: STORE", sizeof ln);
+    else if (live_req >= 0 && live_req != live_sec) {
+        str_cpy(ln, "NEXT: A, AT THE BAR", sizeof ln);
+        ln[6] = (char)('A' + (live_req & 3));
+    } else {
+        str_cpy(ln, song.playing ? "-/+ QUEUES ANOTHER" : "-/+ LOADS ANOTHER", sizeof ln);
+    }
+    cv_text(4, y0, &FONT_S, ln, TE_G4);
+    for (i = 0; i < 4u; i++) {
+        int32_t x = 1 + (int32_t)i * 60, y = y0 + 18, used = (ready >> i) & 1u, on = live_sec == (int8_t)i,
+                next = live_req == (int8_t)i && !on;
+        char b[2] = {(char)('A' + i), 0};
+        uint16_t fg = used || next ? C_WHITE : TE_G4;
+        cv_rect(x, y, 58, 34, used ? TE_G2 : TE_G1);
+        if (on)
+            cv_rect(x, y, 58, 3, C_WHITE);
+        else if (next)
+            op_box(x, y, 58, 34, C_WHITE);
+        te_text_c(x + 29, y + 3, b, fg);
+        te_text_c(x + 29, y + 18, on ? "PLAYING" : next ? "QUEUED" : used ? "STORED" : "EMPTY", fg);
+    }
+}
 static void patt_turn(track_t *t, uint32_t h, uint32_t k, int32_t s)
 {
     if (h == 1u) {
@@ -1375,7 +1409,15 @@ static void sg_draw(void)
     sig = sig * 31u + sr_on * 5u + sr_down * 11u + sr_n * 13u + sr_nt[0] * 17u + sr_nt[1] * 19u + sr_nt[2] * 23u +
           sr_nt[3] * 29u;
     sig = sig * 31u + (uint32_t)mxt[song.sel % NPART].spice * 101u + (uint32_t)mxt[song.sel % NPART].dice * 7u;   /* (wave 5) */
-    if (ui.force || sig != tiles_sig) {
+    if (!syn_tab && syn_hcur() == TH_AD && !sr_on && !sg_held)   /* (U4) SEQ > A-D: the four patterns, not the steps (a step
+                                                         * held: the steps, as on the drums) */
+        sig = patt_tiles_sig() * 7919u + 104729u;
+    if ((ui.force || sig != tiles_sig) && !syn_tab && syn_hcur() == TH_AD && !sr_on && !sg_held) {
+        tiles_sig = sig;
+        cv_begin(240, 131u - SG_BODY_Y, C_BLACK);
+        patt_tiles(4);
+        cv_blit(0, SG_BODY_Y);
+    } else if (ui.force || sig != tiles_sig) {
         tiles_sig = sig;
         sg_tiles_draw(SG_BODY_Y, 1);
         if (sr_on)

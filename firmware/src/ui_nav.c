@@ -35,7 +35,11 @@ static const uint8_t NAV_DRUM[NB][6] = {               /* the drum voice, parall
     [B_SEQ] = {CT_TRIG, CT_PATT, CT_PATTS},             /* (wave 10, Ben: "in charge of patterns") */
     [B_ARP] = {CT_CHROM},
     [B_GLO] = {CT_GLOBAL, CT_SYSTEM, CT_MIDI, CT_DEVICE},
-    [B_SAVE] = {CT_PROJ, CT_PRESETS, CT_USER, CT_KITS, CT_SPATT, CT_TOOLS},   /* (wave 12: KITS; the bank: PROJECT first) */
+    [B_SAVE] = {CT_PROJ, CT_KITS, CT_SPATT, CT_TOOLS},  /* (wave 12: KITS; the bank: PROJECT first. Review 26 Nov, Ben's
+                                                         * pickers "Skip USER on drums": user presets are the synth voices', the
+                                                         * drums' walk leaves USER out; "One home each": on the drums SAVE >
+                                                         * PRESETS points to KITS, whole kits load from one place under SAVE,
+                                                         * besides HOME's PRESETS knob) */
     [B_HOME] = {CT_HOME, CT_SAVER},
 };
 static const char *const CT_NAME[CT_N] = {
@@ -48,9 +52,10 @@ static const char *const CT_NAME[CT_N] = {
     [CT_SAVER] = "SAVER", [CT_SPATT] = "PATT", [CT_KITS] = "KITS", [CT_STUT] = "STUT", [CT_PROJ] = "PROJECT",
 };
 /* the drum screen's FX tab: where each category starts among its halves (ui_drum.c dbus_page: INSERT, INSERT 2, SENDS,
- * SLICER, then the whole mix's DELAY, REV/CHO, MASTER, then the kit's FILTER, EDIT's) */
-static uint32_t dfx_first(uint32_t c) { return c == CT_DINS ? 0u : c == CT_DSENDS ? 2u : c == CT_DSLICER ? 3u : c == CT_DFILT ? 7u : 4u; }
-static uint32_t dfx_cat(uint32_t h) { return h < 2u ? CT_DINS : h < 3u ? CT_DSENDS : h < 4u ? CT_DSLICER : h < 7u ? CT_MIX : CT_DFILT; }
+ * SLICER, then the kit's FILTER, EDIT's). (Review 26 Nov, Ben's picker "One white MIX screen": the whole mix's MIX is the
+ * one MIX screen every voice shows, the PAGES' DELAY, REV/CHO, MASTER, no longer halves of the drum screen) */
+static uint32_t dfx_first(uint32_t c) { return c == CT_DINS ? 0u : c == CT_DSENDS ? 2u : c == CT_DSLICER ? 3u : 4u; }
+static uint32_t dfx_cat(uint32_t h) { return h < 2u ? CT_DINS : h < 3u ? CT_DSENDS : h < 4u ? CT_DSLICER : CT_DFILT; }
 static int nav_div(uint32_t c) { return c == CT_MIX || c == CT_DFILT; }   /* a divider before it: the voice | the mix; the
                                                          * sound | the kit (the drums' EDIT) */
 static int nav_grid(void) { return on_drum_page() && !stl_shown(); }   /* the GRID or the drum screen shown */
@@ -136,7 +141,7 @@ static uint32_t nav_cat(uint32_t *k, uint32_t *n)
             }
             c = dfx_cat(dpg_half());
             *k = dpg_half() - dfx_first(c);
-            *n = c == CT_DINS ? 2u : c == CT_MIX ? 3u : 1u;
+            *n = c == CT_DINS ? 2u : 1u;
             return c;
         }
     } else {
@@ -161,6 +166,8 @@ static void nav_go(uint32_t c, uint32_t k)
     if (c != CT_STUT)
         stl_leave();                                    /* (wave 14: another category: the lane's screen goes, as any page) */
     grid = nav_grid();
+    if (drum && (c == CT_PRESETS || c == CT_USER))      /* (review 26 Nov) the drums' PRESETS is KITS; no USER */
+        c = CT_KITS, k = 0;
     if (c != CT_SAVER)
         vis_on = 0;
     if (drum && c != CT_CHROM && drum_keys == DK_CHROM)
@@ -217,8 +224,9 @@ static void nav_go(uint32_t c, uint32_t k)
     default:
         break;
     }
-    if (drum && (c == CT_MIX || (c >= CT_DFILT && c <= CT_DSLICER))) {   /* the drum voice's FX group: its drum screen's FX tab */
-        uint32_t m = c == CT_DINS ? 2u : c == CT_MIX ? 3u : 1u;
+    if (drum && c >= CT_DFILT && c <= CT_DSLICER) {     /* the drum voice's FX group: its drum screen's FX tab (MIX: the one
+                                                         * white MIX screen, the PAGES', as on every voice; review 26 Nov) */
+        uint32_t m = c == CT_DINS ? 2u : 1u;
         drum_screen_open();
         dpg_go(DPG_FX, dfx_first(c) + k % m);
         return;

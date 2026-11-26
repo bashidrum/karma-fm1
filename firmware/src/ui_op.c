@@ -1054,24 +1054,27 @@ static void gp_sends(const track_t *t, uint16_t c)
 /* the INSERT: its curve, the output for an input from -1 to 1 (SOFT .. CRUSH: the shape itself, fx.c ins_shape, after
  * DRIVE, at LEVEL), mixed with the dry line by MIX; the swept ones (PHASR, FLANG, CHOR): the notches they comb into
  * the sound, as deep as DEPTH, peaked by FDBK, moving at RATE; OFF: the dry line */
-static void gp_insert(const track_t *t, uint16_t c)
+/* (review 26 Nov, U3) between x xl and xr (the drum screen's INS: beside its tile); the same proportions as the full plot's */
+static void gp_insert_in(const track_t *t, uint16_t c, int32_t xl, int32_t xr)
 {
     const int16_t *p = t->p;
-    int32_t ty = clamp(p[P_ITYPE], 0, IT_N - 1), mix = ins_mixq(p[P_IMIX]), x;
-    gp_dots(SP_M);
+    int32_t ty = clamp(p[P_ITYPE], 0, IT_N - 1), mix = ins_mixq(p[P_IMIX]), x, wd = xr - xl, cx = xl + wd / 2;
+    int32_t dy = (SP_B - SP_T) * 16 / 74;               /* (16 px in the full plot's 74) */
+    for (x = xl; x <= xr; x += 4)                       /* the dotted rule, as gp_dots, between xl and xr */
+        cv_pset(x, SP_M, OP_PUR_D);
     gp_go = 0;
     if (ty >= IT_PHASER) {
         int32_t n = ty == IT_PHASER ? 4 : ty == IT_FLANGER ? 9 : 2, sh = (int32_t)(ui.frame * (uint32_t)(1 + p[P_IA] / 8)) % 64;
-        for (x = SP_L; x <= SP_R; x += 2) {
-            int32_t ph = ((x - SP_L) * n * 1024 / (SP_R - SP_L) + sh * 16) & 1023, s = SINE[ph];
+        for (x = xl; x <= xr; x += 2) {
+            int32_t ph = ((x - xl) * n * 1024 / wd + sh * 16) & 1023, s = SINE[ph];
             int32_t g = s > 0 ? s * p[P_IC] / 127 : s * p[P_IB] / 127;   /* FDBK the peaks, DEPTH the notches */
-            gp_to(x, SP_M - 16 - ((g * 28) >> 15) * mix / 32768, c);
+            gp_to(x, SP_M - dy - ((g * (SP_B - SP_T) * 28 / 74) >> 15) * mix / 32768, c);
         }
         return;
     }
     const int32_t R = (SP_B - SP_T) / 2;                /* (a square as tall as the plot: 37 px in the old one) */
-    for (x = 120 - R; x <= 120 + R; x += 1) {           /* a square: in across, out up */
-        int32_t in = (x - 120) * 32767 / R, out = in, g = 4096 + p[P_IA] * p[P_IA] * 3;
+    for (x = cx - R; x <= cx + R; x += 1) {             /* a square: in across, out up */
+        int32_t in = (x - cx) * 32767 / R, out = in, g = 4096 + p[P_IA] * p[P_IA] * 3;
         if (ty == IT_CRUSH)
             out = ins_shape(IT_CRUSH, in, ins_bits_sh(p[P_IA]));
         else if (ty)
@@ -1079,19 +1082,21 @@ static void gp_insert(const track_t *t, uint16_t c)
         out = ins_mix(in, out, mix);
         gp_to(x, SP_M - clamp(out, -32767, 32767) * R / 32768, c);
     }
-    cv_line(120 - R, SP_M + R, 120 + R, SP_M - R, OP_PUR_D);   /* the dry line */
+    cv_line(cx - R, SP_M + R, cx + R, SP_M - R, OP_PUR_D);   /* the dry line */
     if (!ty)
         return;
     gp_go = 0;                                          /* right: TONE (CRUSH: LPF), the low-pass after it */
-    for (x = 172; x <= SP_R; x += 2)
-        gp_to(x, SP_M - 10 + gp_resp(x, 176 + p[ty == IT_CRUSH ? P_IC : P_IB] * 52 / 127, 0, 6, 0), tint_col(2u, 0));
+    for (x = xl + wd * 164 / 224; x <= xr; x += 2)
+        gp_to(x, SP_M - dy * 10 / 16 + gp_resp(x, xl + wd * 168 / 224 + p[ty == IT_CRUSH ? P_IC : P_IB] * wd * 52 / 224 / 127, 0, 6, 0),
+              tint_col(2u, 0));
     if (ty == IT_CRUSH) {                               /* left: RATE, a wave held at the rate */
-        int32_t step = 2 + (127 - p[P_IB]) / 8;
+        int32_t step = 2 + (127 - p[P_IB]) / 8, xw = wd * 60 / 224;
         gp_go = 0;
-        for (x = 0; x <= 60; x++)
-            gp_to(SP_L + x, SP_M - ((SINE[(uint32_t)(x - x % step) * 17u & 1023u] * 20) >> 15), tint_col(1u, 0));
+        for (x = 0; x <= xw; x++)
+            gp_to(xl + x, SP_M - ((SINE[(uint32_t)(x - x % step) * 17u & 1023u] * (SP_B - SP_T) * 20 / 74) >> 15), tint_col(1u, 0));
     }
 }
+static void gp_insert(const track_t *t, uint16_t c) { gp_insert_in(t, c, SP_L, SP_R); }
 /* VOICE: three keys held (low first, high next, the middle last): POLY plays them all, the others one, by PRIO (LAST,
  * LOW, HIGH); MONO starts it apart from the note before, LEGATO tied on; UNISON thick. GLIDE how long the pitch
  * slides, GLMODE RATE (the longer jump slides longer) or TIME (both the same) */

@@ -389,6 +389,15 @@ static void page_fix(void)
     int32_t st = fam_stage(fam), d;
     if (ui.home || page_shown(&PAGES[i]))
         return;
+    if (is_drum(TSEL) && (PAGES[i].graph == GR_BROWSE || PAGES[i].graph == GR_USER)) {   /* (review 26 Nov) the drum voice
+                                                         * selected on SAVE > PRESETS or USER (a synth voice's): KITS, the
+                                                         * drums' place for whole kits under SAVE */
+        for (k = 0; k < NPAGES && PAGES[k].cat != CT_KITS; k++)
+            ;
+        if (k < NPAGES)
+            page_go(k);
+        return;
+    }
     if (st >= 0 && is_drum(TSEL)) {                   /* (wave 8) the drum voice on a voice's sound page: its drum screen,
                                                          * the same kind of page (ENV: AMP, MOD: LFO, FX: its FX tab) */
         drum_screen_open();

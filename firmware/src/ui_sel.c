@@ -7,7 +7,8 @@
  *   what it turns   the page's sel (params.c page_t: V_TYPE on the OSC pages, a slot's TYPE on FX 1 to 3, the filter's TYPE
  *                   on FILT, LFO 1's WAVE on its two pages, LFO 2's, the SLICER's mode). A page with none: SELECT does nothing
  *   on the drum screen (Ben, 23 Nov 2026, picker "Drum sound pick: SELECT knob") the selected SOUND, one of the 16 a detent,
- *                   on every tab (it was SEL held + a key); the sound's own WAVE, MODEL, filter TYPE stay on its knobs
+ *                   on every tab (it was SEL held + a key); the sound's own WAVE, MODEL, filter TYPE stay on its knobs. The
+ *                   kit's INSERT and SLICER pages (review 26 Nov, "Type on SELECT, as synths"): their type, as a synth's
  *   with a step held the type is LOCKED on it, as a knob's value is (Ben's Rytm lock), where it can be: the oscillator's TYPE,
  *                   an FX slot's TYPE cannot (the Rytm's machine): NOT LOCKABLE. The drum screen with a step held: the
  *                   sound stays (the held step is that sound's)
@@ -25,12 +26,16 @@ static uint32_t sel_target(const page_t **pg, uint32_t *id)
     if (on_drum_page()) {
         if (stl_shown())
             return SK_NONE;
-        if (song.sel == TRK_DRUM)                       /* the drum screen: the sound (the kit's pages and the whole mix's:
-                                                         * nothing, they do not act on one sound) */
-            return dpg_bus() ? SK_NONE : SK_SOUND;
-        if (!syn_tab || syn_page() >= NPAGES)           /* the synth GRID: its tab's page */
+        if (song.sel == TRK_DRUM && !dpg_bus())         /* the drum screen: the sound */
+            return SK_SOUND;
+        if (song.sel == TRK_DRUM)                       /* (review 26 Nov, "Type on SELECT, as synths") the kit's pages: their
+                                                         * type, as a synth voice's FX pages (INSERT's TYPE, the SLICER's mode;
+                                                         * INSERT 2 and FILTER have none: nothing) */
+            *pg = &PAGES[dbus_page(dpg_half())];
+        else if (!syn_tab || syn_page() >= NPAGES)      /* the synth GRID: its tab's page */
             return SK_NONE;
-        *pg = &PAGES[syn_page()];
+        else
+            *pg = &PAGES[syn_page()];
     } else {
         *pg = cur_page();
     }

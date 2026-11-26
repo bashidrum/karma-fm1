@@ -1188,7 +1188,27 @@ int main(int argc, char **argv)
     tap(B_FX); check(cur_cat() == CT_INS && !strcmp(PAGES[ui.page].title, "FX 1") && !stl_view, "FX again: round to INS, FX 1");
     go_home(); frame(); track_select(TRK_DRUM); frame(); tap(B_FX); check(on_drum_page() && cur_cat() == CT_DINS, "FX on the drum voice: INS first, as a synth voice (the drum effects under FX)");
     tap(B_FX); tap(B_FX); tap(B_FX);
-    check(on_drum_page() && cur_cat() == CT_MIX && PAGES[dbus_page(dpg_half())].fam == FAM_MFX, "FX on the drum voice, then MIX");
+    check(!on_drum_page() && cur_cat() == CT_MIX && PAGES[ui.page].fam == FAM_MFX && song.sel == TRK_DRUM,
+          "FX on the drum voice, then MIX: the one white MIX screen (the PAGES' DELAY), as on a synth voice (review 26 Nov, U1)");
+    {   /* (U1, Ben's picker "One white MIX screen") the same MIX pages whichever voice is selected: pixel for pixel */
+        static uint16_t mixd[3][240 * OP_BAR_Y];
+        uint32_t i, same = 1;
+        for (i = 0; i < 3u; i++) {
+            ui.hot_t = 0; ui.msg_t = 0; ui.force = 1; frame(); memcpy(mixd[i], screen, sizeof mixd[i]);
+            same &= px_count(0, 0, 240, OP_BAR_Y, TE_DRUM) == 0u;
+            tap(B_SCL); frames(2);
+        }
+        check(same && cur_cat() == CT_MIX && !strcmp(PAGES[ui.page].title, "DELAY"),
+              "U1: MIX on the drum voice: SEL walks DELAY, REV/CHO, MASTER, round; no teal above the strip");
+        track_select(0); frame(); nav_go(CT_MIX, 0); frames(2);
+        for (i = 0; i < 3u; i++) {
+            ui.hot_t = 0; ui.msg_t = 0; ui.force = 1; frame();
+            same &= !memcmp(mixd[i], screen, sizeof mixd[i]);
+            tap(B_SCL); frames(2);
+        }
+        check(same, "U1: the drum voice's three MIX pages are the synth voice's, pixel for pixel above the strip");
+        track_select(TRK_DRUM); frame();
+    }
     track_select(0);
     go_home(); frame();
     press(B_FX); frames(12); check(ui.layer == LY_FX, "FX held: PERFORM shows (wave 6)");
@@ -1564,7 +1584,7 @@ int main(int argc, char **argv)
         tap(B_SCL); frames(2); ok &= cur_cat() == CT_DINS && dpg_half() == 1u;   /* INSERT 2 */
         tap(B_FX); frames(2); ok &= cur_cat() == CT_DSENDS && dpg_sends();
         tap(B_FX); frames(2); ok &= cur_cat() == CT_DSLICER;
-        tap(B_FX); frames(2); ok &= cur_cat() == CT_MIX;
+        tap(B_FX); frames(2); ok &= cur_cat() == CT_MIX && !on_drum_page() && PAGES[ui.page].fam == FAM_MFX;   /* (U1) */
         ui.force = 1; frame(); ppm("drum-fx-mix");
         tap(B_FX); frames(2); ok &= cur_cat() == CT_STUT && stl_shown() && song.sel == TRK_DRUM;
         tap(B_FX); frames(2); ok &= cur_cat() == CT_DINS && !stl_view;
@@ -1580,6 +1600,53 @@ int main(int argc, char **argv)
         kit_set((uint32_t)(0)); dpg_go(2, 0); frames(2); ui.force = 1; frame(); ppm("drum-fltr-hex");
         kit_set((uint32_t)(DRUM_DEFAULT_KIT)); frames(2); dpg_go(4, 0); frame();
         check(ok, "drum pages: ENV opens AMP (SEL its 2/2; ENV again its first page); LFO opens LFO");
+        {   /* (review 26 Nov, U3, Ben's picker "Each page its own picture") the drum sound pages: SRC and AMP the level over
+             * time, FLTR the filter's curve, LFO the wave, SENDS the send boxes; each its own, teal, no giant word */
+            static uint16_t band[5][240 * 33];
+            static const uint8_t PG[5] = {1, 2, 3, 4, DPG_FX};
+            uint32_t i, j, diff = 1, other = 0, lsp, o;
+            for (i = 0; i < 5u; i++) {
+                dpg_go(PG[i], i == 4u ? DBH_SENDS : 0u); ui.msg_t = 0; ui.force = 1; frame();
+                for (j = 0; j < 33u; j++) memcpy(band[i] + j * 240u, screen + (96u + j) * 240u, 240u * 2u);
+                for (o = 0; o < NPART; o++) other += px_count(0, 76, 240, 55, TE_COL[o]) + px_count(0, 76, 240, 55, TE_MID[o]);
+            }
+            for (i = 0; i < 5u; i++)
+                for (j = i + 1u; j < 5u; j++)
+                    diff &= (i == 0u && j == 2u) || memcmp(band[i], band[j], sizeof band[i]) != 0;
+            check(diff && !other, "U3: the drum sound pages each draw their own picture (SRC and AMP the level over time; FLTR, LFO, SENDS their own); no other voice's colour");
+            dpg_go(DPG_FX, DBH_SENDS); ui.force = 1; frame();
+            check(px_count(4, 96, 52, 33, TE_G2) + px_count(4, 96, 52, 33, TE_DIM[3]) > 40u &&
+                  px_count(64, 96, 52, 33, TE_G2) + px_count(64, 96, 52, 33, TE_DIM[3]) > 40u &&
+                  px_count(124, 96, 52, 33, TE_DIM[3]) + px_count(124, 96, 52, 33, TE_DRUM) > 40u,
+                  "U3: SENDS: DELAY, REVERB and KIT FX as three boxes over their knobs (a synth voice's send boxes), no giant SENDS");
+            sl_send_set(drum_lane, 1, 100); ui.force = 1; frame();
+            check(px_count(4, 96, 52, 33, TE_DRUM) > 20u, "U3: SENDS: a delay send drawn as echoes, teal");
+            ppm("u3-drum-sends");
+            sl_send_set(drum_lane, 1, 0);
+            pkit.s[drum_lane].lfo.dep = 40; pkit.s[drum_lane].lfo.wav = 2;
+            dpg_go(4, 0); ui.force = 1; frame(); ppm("u3-drum-lfo-depth");
+            lsp = px_count(0, 96, 240, 33, TE_DRUM);
+            pkit.s[drum_lane].lfo.dep = 0; pkit.s[drum_lane].lfo.wav = 0;
+            ui.force = 1; frame();
+            check(lsp > 100u && px_count(0, 96, 240, 33, TE_DRUM) == 0u && px_count(0, 96, 240, 33, TE_DIM[3]) > 100u,
+                  "U3: LFO: the wave in teal as tall as DEPTH; DEPTH 0: its shape, dim");
+            {   /* SRC: the time across scaled to the sound: every slot of the 606 and a HEX kit fills a quarter of it at least */
+                uint32_t k2, l2, bad = 0, ln = drum_lane;
+                for (k2 = 0; k2 < 2u; k2++) {
+                    kit_set(k2 ? 0u : (uint32_t)DRUM_DEFAULT_KIT); frames(2);
+                    for (l2 = 0; l2 < 16u; l2++) {
+                        int32_t x, last = -1;
+                        uint32_t sp = snd_span_ms(&pkit.s[l2]);
+                        drum_lane = (uint8_t)l2; dpg_go(1, 0); ui.force = 1; frame();
+                        for (x = 0; x < 240; x++) if (px_count((uint32_t)x, 96, 1, 33, TE_MID[3]) + px_count((uint32_t)x, 96, 1, 33, TE_G2) > 1u) last = x;
+                        if (sp > 125u && last < 4 + 232 / 4) { bad++; printf("ui:   %s: %u ms, drawn to x %d\n", LANE_NAME[l2], (unsigned)sp, (int)last); }
+                    }
+                }
+                drum_lane = (uint8_t)ln; kit_set((uint32_t)(DRUM_DEFAULT_KIT)); frames(2);
+                check(!bad && snd_span_ms(&pkit.s[0]) >= 125u, "U3: SRC, AMP: the level's time axis scaled to the sound (125 MS to 2 S), each sound a quarter of it at least");
+            }
+            dpg_go(4, 0); frame();
+        }
         dpg_go(1, 0); frame();
         { uint32_t ln = drum_lane, bp = (uint32_t)song.g[G_BPM];
           encs[panel.enc[EN_SELECT]] = 1; frame(); ok = drum_pg == 1u && dpg_half() == 0u && drum_lane == lane_step(ln, 1, 1);
@@ -1915,9 +1982,13 @@ int main(int argc, char **argv)
             check(drum_pg == DPG_FX && cur_cat() == CT_DINS && sg_held,
                   "DRUM GRID: a step held + FX: the FX tab, INS (the kit's INSERT; the Rytm's page keys)");
             check(drum_pg == DPG_FX && dpg_half() == 0u && !strcmp(PAGES[dbus_page(0)].title, "INSERT"), "DRUM GRID: FX: INS (INSERT)");
-            encs[panel.enc[EN_K2]] = 1; frame();
+            encs[panel.enc[EN_K1]] = 1; frame();        /* (U2: the INSERT empty, its knobs do nothing, lock nothing) */
+            check(!step_locked(TDRUM, 1) && lock_find(TDRUM, 1, P_IA, 0) < 0,
+                  "DRUM GRID: the kit INSERT empty (OFF): a knob with a step held locks nothing (as a synth's empty slot; U2)");
+            TDRUM->p[P_ITYPE] = 1;                      /* (SOFT) */
+            encs[panel.enc[EN_K1]] = 1; frame();
             check(step_locked(TDRUM, 1) && lock_find(TDRUM, 1, P_IA, 0) >= 0,
-                  "DRUM GRID: on the FX tab, a knob locks the drum voice's own parameter on that step (as any tab)");
+                  "DRUM GRID: on the FX tab, a knob locks the drum voice's own parameter on that step (as any tab; KNOB 1 INSERT's A)");
             ui.force = 1; frame(); ppm("grid-drum-lock");
             press(B_OCTDN); release(B_OCTDN);
             check(!step_locked(TDRUM, 1), "DRUM GRID: OCT- on the FX tab: that page's locks go");
@@ -1929,6 +2000,7 @@ int main(int argc, char **argv)
             check(str_eq(ui.msg, "NOT LOCKABLE") && !sl_kfx_off(0), "DRUM GRID: KIT FX with a step held: not lockable (the slot's)");
             dt_lk_del(1, 0, DSP_ALL);
             lock_del(TDRUM, 1, P_COUNT); dpg_go(0, 0);
+            TDRUM->p[P_ITYPE] = 0;
         }
         fm1_in.notes &= ~(1u << key_of_white(1)); frame();
         check(dt_has(1, 0), "DRUM GRID: let go after an edit: kept");
@@ -1955,8 +2027,8 @@ int main(int argc, char **argv)
         }
         for (i = 0; i < 6u && cur_cat() != CT_MIX; i++) tap(B_FX);
         ui.force = 1; frames(2);
-        check(on_drum_page() && cur_cat() == CT_MIX && px_count(0, SG_KNOB_Y, 240, 58, TE_DRUM) == 0u,
-              "DRUM: FX, four more: MIX on the drum screen, its dials white-grey (no teal)");
+        check(!on_drum_page() && cur_cat() == CT_MIX && px_count(0, 0, 240, OP_BAR_Y, TE_DRUM) == 0u,
+              "DRUM: FX, four more: MIX, the one white MIX screen (U1), no teal above the strip");
         tap(B_SEQ); frames(2);
         check(on_drum_page() && drum_keys == DK_PLAY && grid_keys_on(), "DRUM: SEQ from them: back to the drum screen");
         encs[panel.enc[EN_ALGO]] = -1; frames(2);
@@ -3790,16 +3862,16 @@ int main(int argc, char **argv)
             {   /* the drum screen's FX tab: the drum voice's own pages, teal (and no melodic voice's colour) */
                 uint32_t h;
                 song.sel = TRK_DRUM; studio_open(SC_DRUM); frames(2);
+                TDRUM->p[P_ITYPE] = 1;                  /* (an INSERT in: its values shown; empty, U2: none) */
                 for (h = 0; h < NDBUS; h++) {
                     dpg_go(DPG_FX, h); ui.force = 1; frame();
                     for (o2 = 0; o2 < NPART; o2++) bad += px_count(0, 0, 240, OP_BAR_Y, TE_COL[o2]);
-                    if (h < DBH_MIX || h == DBH_FILTER)   /* (the kit's pages and the sound's SENDS: teal) */
-                        bad += px_count(0, SG_KNOB_Y, 240, 58, TE_DRUM) < 20u;
-                    else                                 /* (wave 9) MIX: the whole mix's, white-grey dials, no teal */
-                        bad += px_count(0, SG_KNOB_Y, 240, 58, TE_DRUM) != 0u;
+                    bad += px_count(0, SG_KNOB_Y, 240, 58, TE_DRUM) < 20u;   /* (the kit's pages and the sound's SENDS:
+                                                         * teal; MIX is the PAGES' white one now, U1) */
                 }
+                TDRUM->p[P_ITYPE] = 0;
                 dpg_go(1, 0); go_home(); track_select(0); frames(2);
-                check(bad == 0u, "colour rule: the drum FX tab's own pages (kit INS, SENDS, SLICER, KIT FLT) in teal only, its three MIX pages in white-grey");
+                check(bad == 0u, "colour rule: the drum FX tab's own pages (kit INS, SENDS, SLICER, KIT FLT) in teal only");
             }
             for (v = 0; v < NPART; v++) {               /* each voice's every sound page: no other voice's colour, in any
                                                          * of its shades (wave 7 found voice 1's OSC drawing dim coral) */
@@ -4065,7 +4137,8 @@ int main(int argc, char **argv)
             }
             snprintf(what, sizeof what, "SELECT, on every page of every group (%u typed, %u without): no page, tab, half or tempo change", ntype, nnone);
             check(okn, what);
-            check(okt && ntype == 13u, "SELECT: turns the type where the page has one (OSC TYPE, FILT TYPE, FX 1-3 TYPE, LFO WAVE, SLICER), nothing elsewhere");
+            check(okt && ntype == 16u, "SELECT: turns the type where the page has one (OSC TYPE, FILT TYPE, FX 1-3 TYPE, LFO WAVE, SLICER; "
+                  "the drum kit's INSERT TYPE and SLICER mode, review 26 Nov U2, the SLICER again under ARP's CHROMATIC), nothing elsewhere");
             check(okd, "SELECT on the drum screen (every tab): the next of the 16 sounds");
             go_home(); track_select(0); host_preset(&trk[0], ENGI_ACID, 0); frames(2);
         }
@@ -4341,6 +4414,27 @@ int main(int argc, char **argv)
                 check(sec_loads == l1 + 1u && live_sec == 1, "E4: ... then B loads");
                 encs[panel.enc[EN_K1]] = -1; frame(); frames(4);
                 track_select(0);
+            }
+            {   /* (review 26 Nov, U4, Ben's picker "Four pattern tiles") A-D's body: PATTERN A to D as tiles, STORED, PLAYING,
+                 * QUEUED, EMPTY (as hold SAVE and HOME draw them), white and grey; on a synth voice and on the drums */
+                uint32_t v2, ok4 = 1;
+                for (v2 = 0; v2 < 2u; v2++) {
+                    uint32_t ty = v2 ? 94u : SG_BODY_Y + 22u, o;   /* (the tiles' top: the drum screen's band, the GRID's body) */
+                    if (v2) { track_select(TRK_DRUM); frames(2); nav_go(CT_PATTS, 0); frames(2); }
+                    live_sec = 0; live_req = 1; ui.force = 1; frame();
+                    ppm(v2 ? "u4-drum-ad" : "u4-synth-ad");
+                    ok4 &= px_count(1, ty, 58, 3, C_WHITE) > 150u;                    /* A: PLAYING, a white bar */
+                    ok4 &= px_count(61, ty, 58, 1, C_WHITE) > 50u && px_count(61, ty + 33u, 58, 1, C_WHITE) > 50u;   /* B: QUEUED */
+                    ok4 &= px_count(121, ty + 4u, 58, 28, TE_G1) > 900u && px_count(181, ty + 4u, 58, 28, TE_G1) > 900u;   /* C D EMPTY */
+                    ok4 &= px_count(1, ty + 4u, 58, 28, TE_G2) > 900u;                /* A: STORED's grey */
+                    for (o = 0; o < NTRK; o++) ok4 &= px_count(0, ty, 240, 34, TE_COL[o]) == 0u;
+                    live_req = -1; ui.force = 1; frame();
+                    ok4 &= px_count(61, ty + 4u, 58, 28, TE_G2) > 900u && px_count(61, ty + 33u, 58, 1, C_WHITE) == 0u;   /* B: STORED */
+                    if (!v2) ok4 &= px_count(0, SG_BODY_Y, 240, 109, TE_COL[0]) == 0u && px_count(0, SG_BODY_Y, 240, 109, TE_DIM[0]) == 0u;   /* (no steps) */
+                }
+                track_select(0); frames(2);
+                check(ok4, "U4: SEQ > A-D: four tiles, PATTERN A to D: PLAYING (a white bar), QUEUED (framed), STORED, EMPTY; "
+                           "white and grey; on a synth voice (no steps) and on the drums");
             }
         }
         go_home(); frames(2);
@@ -5270,13 +5364,25 @@ int main(int argc, char **argv)
               "w12: drum screen, PRESETS +1: the SNARE slot takes the next snare at once (SOUND 80S SNARE), nothing asked");
         check(str_eq(brw_l2, "SNARE 9/41"), "w12: the readout says the group and the place in it (SNARE 9/41)");
         ui.force = 1; frame(); ppm("w12-drum-sound-browse");
-        px = px_count(0, SG_KNOB_Y + 4, 240, 34, TE_DRUM);
-        ok = px > 200u;
-        for (k = 0; k < 240u * 50u; k++) {               /* the readout: the drums' teal, grey, white, black only */
-            uint16_t c = swap16(screen[(SG_KNOB_Y + 2u + k / 240u) * 240u + k % 240u]);
-            ok &= c == TE_DRUM || c == TE_G4 || c == C_WHITE || c == C_BLACK || c == TE_G1;
+        {   /* (review 26 Nov, O2, Ben's picker "Six-row list on drums too") PRESETS turning on the drum screen: the slot's
+             * sounds as six rows over the body, as a synth's PRESETS list; the one taken fourth, teal, a white dot; same kind
+             * first (the snares round it); the dials stay (no readout saying it again) */
+            uint32_t r, oth = 0, o;
+            char nb[28];
+            px = px_count(54, SG_BODY_Y + 4u + 3u * 17u, 180, 16, TE_DRUM);
+            ok = px > 100u && px_count(4, SG_BODY_Y + 4u + 3u * 17u + 6u, 3, 3, C_WHITE) == 9u;
+            for (r = 0; r < 6u; r++)
+                if (r != 3u) oth += px_count(0, SG_BODY_Y + 4u + r * 17u, 240, 16, TE_DRUM);
+            for (o = 0; o < NPART; o++) oth += px_count(0, 0, 240, OP_BAR_Y, TE_COL[o]);
+            ok &= !oth && px_count(0, SG_BODY_Y + 106u, 240, 3, C_GRAY) == 0u;   /* (six rows: nothing of a seventh) */
+            for (r = 0; r < 6u; r++) {                   /* (each row a snare: same kind first) */
+                snd_name_at(2, (brw.pos + r + brw.n - 3u) % brw.n, nb, sizeof nb);
+                ok &= strstr(nb, "SNARE") != 0;
+            }
+            ok &= !brw_draw() && px_count(0, SG_KNOB_Y + 4, 240, 34, TE_DRUM) > 100u;   /* (the dials, teal) */
+            check(ok, "O2: drum screen, PRESETS turning: a six-row list over the body (the synth PRESETS list's), the sound taken teal, "
+                      "same kind first; the dials stay");
         }
-        check(ok, "w12: the readout in the dials' band in the drums' teal (the slot's sound), grey and white only");
         check(str_len(brw_l1) * 8u + 4u <= 236u, "w12: the readout's name fits the screen (the longest: SOUND HEX GLITCH SNARE 2)");
         encs[panel.enc[EN_PRESET]] = -1; frame();
         check(!memcmp(&pkit.s[2], &s606, sizeof s606) && !kit_changed(), "w12: PRESETS back one: the 606 SNARE again, the kit unchanged");
@@ -5314,8 +5420,35 @@ int main(int argc, char **argv)
         check(pkit.base == kit_src(8) && kit_changed() && pkit.s[2].snd[7] == 20u, "w12: SAVE + OCT-: the changed kit back, its edit in it");
         /* SAVE > KITS */
         frames(40);                                       /* (the knobs wait a moment after a layer: #39) */
-        tap(B_SAVE); tap(B_SAVE); tap(B_SAVE); tap(B_SAVE); frames(40);
-        check(cur_cat() == CT_KITS, "w12: SAVE four times: KITS (after PROJECT, PRESETS, USER)");
+        tap(B_SAVE); tap(B_SAVE); frames(40);
+        check(cur_cat() == CT_KITS, "w12: SAVE twice: KITS (after PROJECT; U6: PRESETS is KITS on the drums, U7: no USER)");
+        {   /* (review 26 Nov, U7, Ben's picker "Skip USER on drums") SAVE's walk on the drum voice leaves USER out; a synth
+             * voice's keeps it */
+            uint32_t j2, user = 0, ng2;
+            nav_group(B_SAVE, &ng2);
+            for (j2 = 0; j2 < ng2 + 1u; j2++) { tap(B_SAVE); frames(2); user += cur_cat() == CT_USER; }
+            check(!user && is_drum(TSEL), "U7: SAVE round on the drum voice: never USER");
+            track_select(0); frames(2);
+            nav_group(B_SAVE, &ng2);
+            for (j2 = 0; j2 < ng2 + 1u; j2++) { tap(B_SAVE); frames(2); user += cur_cat() == CT_USER; }
+            check(user >= 1u, "U7: ... a synth voice's SAVE still has USER");
+            track_select(TRK_DRUM); frames(2);
+            go_home(); frames(40); tap(B_SAVE); tap(B_SAVE); frames(40);
+            ui.force = 1; frame(); ppm("u7-drum-save-kits");
+            {   /* (review 26 Nov, U6, Ben's picker "One home each") on the drums SAVE > PRESETS points to KITS: one place
+                 * under SAVE for whole kits; a synth voice's PRESETS (or USER) with the drums then selected: KITS */
+                uint32_t j3, pres = 0, ng3, okk = 1, pp = NPAGES;
+                const uint8_t *g3 = nav_group(B_SAVE, &ng3);
+                for (j3 = 0; j3 < ng3; j3++) pres += g3[j3] == CT_PRESETS || g3[j3] == CT_USER;
+                for (j3 = 0; j3 < NPAGES; j3++) if (PAGES[j3].cat == CT_PRESETS) pp = j3;
+                nav_go(CT_PRESETS, 0); frames(2); okk &= cur_cat() == CT_KITS;
+                track_select(0); frames(2); nav_go(CT_PRESETS, 0); frames(2); okk &= ui.page == pp;
+                track_select(TRK_DRUM); frames(2); okk &= cur_cat() == CT_KITS;
+                track_select(0); frames(2); nav_go(CT_USER, 0); frames(2); okk &= cur_cat() == CT_USER;
+                track_select(TRK_DRUM); frames(2); okk &= cur_cat() == CT_KITS;
+                check(!pres && okk, "U6: the drums' SAVE: PROJECT KITS PATTERNS TOOLS; PRESETS points to KITS (from a synth voice's PRESETS or USER too)");
+            }
+        }
         ui.force = 1; frame(); ppm("w12-save-kits");
         encs[panel.enc[EN_K4]] = 1; frame();
         check(ui.ask == ASK_UKIT && str_eq(ui.msg, "HOLD SAVE: SAVE OVER MY HEX 1"), "w12: SAVE over an old MY HEX kit asks");
